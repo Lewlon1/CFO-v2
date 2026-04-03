@@ -184,7 +184,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
 
                 return (
                   <div key={qId} className="flex items-center gap-3">
-                    <span className="text-xs w-20 shrink-0" style={{ color: QUADRANTS[qId].colour }}>
+                    <span className="text-xs w-16 shrink-0" style={{ color: QUADRANTS[qId].colour }}>
                       {QUADRANTS[qId].name}
                     </span>
                     <div className="flex-1 flex items-center gap-2">
@@ -256,13 +256,13 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
               <p className="font-mono text-lg font-bold text-foreground">
                 {formatAmount(data.total, currency)}
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {data.count} transaction{data.count !== 1 ? 's' : ''} &middot; {data.percentage}%
               </p>
               {items.length > 0 && (
                 <div className="space-y-0.5 pt-1 border-t border-border/50">
                   {items.map((item) => (
-                    <div key={item.transaction_id} className="flex justify-between text-[11px]">
+                    <div key={item.transaction_id} className="flex justify-between text-xs">
                       <span className="text-muted-foreground truncate mr-2">{item.merchant}</span>
                       <span className="font-mono text-foreground shrink-0">
                         {formatAmount(item.amount, currency)}

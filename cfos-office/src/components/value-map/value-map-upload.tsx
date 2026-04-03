@@ -209,7 +209,7 @@ export function ValueMapUpload({ currency, onTransactionsReady }: ValueMapUpload
         {/* CSV zone */}
         <div
           className={cn(
-            'flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer',
+            'flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-6 text-center transition-colors cursor-pointer',
             csvDragging
               ? 'border-[#E8A84C] bg-[#E8A84C]/5'
               : 'border-border hover:border-[#E8A84C]/50',
@@ -245,7 +245,7 @@ export function ValueMapUpload({ currency, onTransactionsReady }: ValueMapUpload
 
         {/* Screenshot zone */}
         <div
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border p-8 text-center transition-colors cursor-pointer hover:border-[#E8A84C]/50"
+          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border p-6 text-center transition-colors cursor-pointer hover:border-[#E8A84C]/50"
           onClick={() => imageInputRef.current?.click()}
         >
           <Camera className="h-8 w-8 text-muted-foreground" />
@@ -280,7 +280,7 @@ export function ValueMapUpload({ currency, onTransactionsReady }: ValueMapUpload
       <div className="text-center">
         <button
           onClick={handleSampleData}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-[#E8A84C] transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-[#E8A84C] transition-colors py-2 px-3 min-h-[44px]"
         >
           <Sparkles className="h-3.5 w-3.5" />
           Or try with example data

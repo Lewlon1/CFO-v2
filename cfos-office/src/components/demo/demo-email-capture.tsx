@@ -122,7 +122,7 @@ export function DemoEmailCapture({
             />
             <div
               className={cn(
-                'h-4 w-4 rounded border-2 transition-colors duration-150 flex items-center justify-center',
+                'h-5 w-5 rounded border-2 transition-colors duration-150 flex items-center justify-center',
                 consent
                   ? 'border-[#E8A84C] bg-[#E8A84C]'
                   : 'border-border bg-transparent',
@@ -135,7 +135,7 @@ export function DemoEmailCapture({
               )}
             </div>
           </div>
-          <span className="text-xs text-muted-foreground leading-relaxed">
+          <span className="text-sm text-muted-foreground leading-relaxed">
             I&apos;m happy to hear from The CFO&apos;s Office about the product launch. No spam — only relevant updates about when the full app is available. My results are stored securely and will not be shared with third parties.
           </span>
         </label>

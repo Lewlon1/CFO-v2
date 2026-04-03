@@ -59,8 +59,8 @@ function ConfidenceDots({
         ))}
       </div>
       <div className="flex justify-between w-full max-w-[200px]">
-        <span className="text-[11px] text-muted-foreground">Not sure</span>
-        <span className="text-[11px] text-muted-foreground">Certain</span>
+        <span className="text-xs text-muted-foreground">Not sure</span>
+        <span className="text-xs text-muted-foreground">Certain</span>
       </div>
     </div>
   )
@@ -422,7 +422,7 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
                 <span className="text-sm font-semibold" style={{ color: q.colour }}>
                   {q.name}
                 </span>
-                <span className="text-[11px] text-muted-foreground leading-tight">
+                <span className="text-xs text-muted-foreground leading-tight">
                   {q.tagline}
                 </span>
               </button>

@@ -37,7 +37,7 @@ export function DemoResonanceFeedback({ value, onChange }: DemoResonanceFeedback
               type="button"
               onClick={() => handleSelect(face.value)}
               className={cn(
-                'flex flex-col items-center gap-1 rounded-xl p-2 transition-all duration-150',
+                'flex flex-col items-center gap-1 rounded-xl p-3 min-w-[44px] min-h-[44px] justify-center transition-all duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 'active:scale-95',
                 isSelected
@@ -55,8 +55,8 @@ export function DemoResonanceFeedback({ value, onChange }: DemoResonanceFeedback
       </div>
 
       <div className="flex justify-between w-full max-w-[240px]">
-        <span className="text-[11px] text-muted-foreground">Not really</span>
-        <span className="text-[11px] text-muted-foreground">Spot on</span>
+        <span className="text-xs text-muted-foreground">Not really</span>
+        <span className="text-xs text-muted-foreground">Spot on</span>
       </div>
     </div>
   )

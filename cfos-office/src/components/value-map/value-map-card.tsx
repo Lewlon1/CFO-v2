@@ -77,7 +77,7 @@ function ConfidenceDots({
             type="button"
             onClick={() => onChange(n)}
             className={cn(
-              'h-8 w-8 rounded-full border-2 transition-all duration-150',
+              'h-11 w-11 rounded-full border-2 transition-all duration-150',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               n <= value
                 ? 'border-[#E8A84C] bg-[#E8A84C]'
@@ -88,8 +88,8 @@ function ConfidenceDots({
         ))}
       </div>
       <div className="flex justify-between w-full max-w-[200px]">
-        <span className="text-[11px] text-muted-foreground">Not sure</span>
-        <span className="text-[11px] text-muted-foreground">Certain</span>
+        <span className="text-xs text-muted-foreground">Not sure</span>
+        <span className="text-xs text-muted-foreground">Certain</span>
       </div>
     </div>
   )
@@ -420,7 +420,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
               <p className="text-sm text-muted-foreground">{tx.description}</p>
             )}
             {tx.category_name && (
-              <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                 {tx.category_name}
               </span>
             )}
@@ -473,7 +473,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
                 <span className="text-sm font-semibold" style={{ color: q.colour }}>
                   {q.name}
                 </span>
-                <span className="text-[11px] text-muted-foreground leading-tight">
+                <span className="text-xs text-muted-foreground leading-tight">
                   {q.tagline}
                 </span>
               </button>

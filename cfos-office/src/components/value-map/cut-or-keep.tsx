@@ -81,7 +81,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
     const annualTotal = monthlyTotal * 12
 
     return (
-      <div className="flex flex-col items-center h-full px-6 py-6 gap-5 overflow-y-auto">
+      <div className="flex flex-col items-center h-full px-4 py-4 gap-5 overflow-y-auto">
         <CfoAvatar size="sm" />
 
         {cutItems.length > 0 ? (

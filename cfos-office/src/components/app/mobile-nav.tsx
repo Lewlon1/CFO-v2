@@ -25,7 +25,7 @@ export function MobileNav({ navItems, userEmail }: MobileNavProps) {
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="p-2 text-muted-foreground hover:text-foreground"
+        className="p-3 -mr-1 text-muted-foreground hover:text-foreground"
         aria-label="Toggle menu"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -44,7 +44,7 @@ export function MobileNav({ navItems, userEmail }: MobileNavProps) {
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent"
+              className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent min-h-[44px]"
             >
               <span>{item.icon}</span>
               {item.label}

@@ -126,7 +126,7 @@ function ShareableCard({
               const pct = personality.breakdown[qId as ValueQuadrant]?.percentage ?? 0
               if (pct === 0) return null
               return (
-                <span key={qId} className="text-[11px] text-white/40">
+                <span key={qId} className="text-xs text-white/40">
                   {QUADRANTS[qId].name} {pct}%
                 </span>
               )
