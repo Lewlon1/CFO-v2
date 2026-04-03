@@ -1,15 +1,30 @@
-export default function ChatPage() {
+import { createClient } from '@/lib/supabase/server';
+import { ChatInterface } from '@/components/chat/ChatInterface';
+import { ConversationList } from '@/components/chat/ConversationList';
+
+export default async function ChatPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: conversations } = await supabase
+    .from('conversations')
+    .select('id, title, updated_at')
+    .eq('user_id', user!.id)
+    .order('updated_at', { ascending: false });
+
   return (
-    <div className="flex items-center justify-center h-full px-8">
-      <div className="text-center max-w-sm">
-        <div className="w-12 h-12 rounded-sm bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-          <span className="text-2xl">💬</span>
-        </div>
-        <h2 className="text-lg font-semibold text-foreground mb-2">Chat with your CFO</h2>
-        <p className="text-sm text-muted-foreground">
-          Coming in Session 2 — Vercel AI SDK + Bedrock streaming, conversation persistence, and the CFO system prompt.
-        </p>
+    <>
+      {/* Desktop conversation sidebar */}
+      <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card flex-shrink-0">
+        <ConversationList conversations={conversations ?? []} />
+      </aside>
+
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <ChatInterface initialConversationId={null} />
       </div>
-    </div>
-  )
+    </>
+  );
 }
