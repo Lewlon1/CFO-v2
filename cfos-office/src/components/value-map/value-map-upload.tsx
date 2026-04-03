@@ -59,17 +59,17 @@ export function ValueMapUpload({ currency, onTransactionsReady }: ValueMapUpload
 
         const transformed = result.data
           .map((row) => transformRow(row, mapping, currency))
-          .filter((r) => !r.parseError && r.type === 'expense')
+          .filter((r) => !r.parseError && r.amount < 0)
 
         const transactions: ValueMapTransaction[] = transformed.map((r, i) => ({
           id: `csv-${i}`,
-          merchant: r.merchant,
+          merchant: r.description,
           description: r.description,
           amount: r.amount,
           currency: r.currency,
-          transaction_date: r.transaction_date,
+          transaction_date: r.date,
           is_recurring: false,
-          category_name: r.raw_category ?? null,
+          category_name: null,
         }))
 
         const selected = selectTransactions(transactions)

@@ -1,0 +1,195 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { detectFormat } from '@/lib/parsers'
+import { parseRevolutCSV } from '@/lib/parsers/revolut'
+import { parseSantanderXLSX } from '@/lib/parsers/santander'
+import { parseGenericCSV, applyColumnMapping } from '@/lib/parsers/generic'
+import { parseScreenshot } from '@/lib/parsers/screenshot'
+import { categoriseByRules } from '@/lib/categorisation/rules-engine'
+import { assignValueCategory } from '@/lib/categorisation/value-categoriser'
+import { loadExistingKeys, isDuplicate } from '@/lib/upload/duplicate-detector'
+import { runImportPipeline, type ImportableTransaction } from '@/lib/upload/pipeline'
+import { refreshMonthlySnapshots, extractAffectedMonths } from '@/lib/analytics/monthly-snapshot'
+import { detectAndFlagRecurring } from '@/lib/analytics/recurring-detector'
+import { detectAndFlagHolidaySpend } from '@/lib/analytics/holiday-detector'
+import type {
+  Category,
+  ValueCategoryRule,
+  PreviewTransaction,
+  ParsedTransaction,
+  ParseResult,
+} from '@/lib/parsers/types'
+import { randomUUID } from 'crypto'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+export async function POST(req: NextRequest) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+
+  const contentType = req.headers.get('content-type') ?? ''
+
+  // ── JSON actions ──────────────────────────────────────────────
+  if (contentType.includes('application/json')) {
+    const body = await req.json()
+
+    // Confirm import
+    if (body.action === 'import') {
+      const importBatchId: string = body.importBatchId ?? randomUUID()
+      // Map user-reviewed preview data to ImportableTransaction format
+      const importTxns: ImportableTransaction[] = (body.transactions as Array<ParsedTransaction & { categoryId?: string | null; valueCategory?: string }>).map((t) => ({
+        ...t,
+        presetCategoryId: t.categoryId,
+        presetValueCategory: t.valueCategory,
+      }))
+      const stats = await runImportPipeline(importTxns, supabase, {
+        userId: user.id,
+        importBatchId,
+        skipDuplicates: false, // user already reviewed and selected
+      })
+
+      // Post-import analytics
+      const months = extractAffectedMonths(importTxns.map((t) => t.date))
+      await refreshMonthlySnapshots(supabase, user.id, months)
+      await detectAndFlagRecurring(supabase, user.id)
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('primary_currency')
+        .eq('id', user.id)
+        .single()
+      const primaryCurrency = profile?.primary_currency ?? 'EUR'
+      await detectAndFlagHolidaySpend(supabase, user.id, primaryCurrency, importBatchId)
+
+      return NextResponse.json(stats)
+    }
+
+    // Apply column mapping → return preview
+    if (body.action === 'apply-mapping') {
+      const result = applyColumnMapping(
+        body.rawRows as Record<string, string>[],
+        body.mapping as Record<string, string>,
+        body.currency ?? 'EUR'
+      )
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+      const preview = await buildPreview(result.transactions, user.id, supabase)
+      return NextResponse.json({ preview, importBatchId: randomUUID() })
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+  }
+
+  // ── File upload → parse → preview ─────────────────────────────
+  const formData = await req.formData()
+  const file = formData.get('file') as File | null
+  if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+
+  const filename = file.name
+
+  // Quick format sniff without reading full text first
+  const lowerName = filename.toLowerCase()
+  const isImage = /\.(png|jpg|jpeg|heic|webp)$/.test(lowerName)
+  const isXlsx = /\.(xlsx|xls)$/.test(lowerName)
+
+  let parseResult: Awaited<ReturnType<typeof parseRevolutCSV>> | null = null
+  let needsColumnMapping = false
+  let columnMappingData: {
+    headers: string[]
+    autoMapping: Record<string, string>
+    rawRows: Record<string, string>[]
+  } | null = null
+
+  if (isImage) {
+    const buffer = await file.arrayBuffer()
+    const base64 = Buffer.from(buffer).toString('base64')
+    const mimeType = file.type || 'image/jpeg'
+    const dataUrl = `data:${mimeType};base64,${base64}`
+    parseResult = await parseScreenshot(dataUrl)
+  } else if (isXlsx) {
+    const buffer = await file.arrayBuffer()
+    parseResult = parseSantanderXLSX(buffer)
+  } else {
+    const text = await file.text()
+    const format = detectFormat(filename, text)
+    if (format === 'revolut') {
+      parseResult = parseRevolutCSV(text)
+    } else {
+      const genericResult = parseGenericCSV(text)
+      if ('needsMapping' in genericResult && genericResult.needsMapping) {
+        needsColumnMapping = true
+        columnMappingData = {
+          headers: genericResult.headers,
+          autoMapping: genericResult.autoMapping,
+          rawRows: genericResult.rawRows,
+        }
+      } else {
+        parseResult = genericResult as ParseResult
+      }
+    }
+  }
+
+  if (needsColumnMapping && columnMappingData) {
+    return NextResponse.json({
+      needsColumnMapping: true,
+      ...columnMappingData,
+    })
+  }
+
+  if (!parseResult) {
+    return NextResponse.json({ error: 'Could not parse file.' }, { status: 422 })
+  }
+
+  if (!parseResult.ok) {
+    return NextResponse.json({ error: parseResult.error }, { status: 422 })
+  }
+
+  const preview = await buildPreview(parseResult.transactions, user.id, supabase)
+  return NextResponse.json({ preview, importBatchId: randomUUID() })
+}
+
+async function buildPreview(
+  transactions: ParsedTransaction[],
+  userId: string,
+  supabase: SupabaseClient
+): Promise<PreviewTransaction[]> {
+  if (transactions.length === 0) return []
+
+  const { data: catData } = await supabase
+    .from('categories')
+    .select('id, name, tier, icon, color, examples, default_value_category')
+    .eq('is_active', true)
+  const categories: Category[] = catData ?? []
+
+  const { data: rulesData } = await supabase
+    .from('value_category_rules')
+    .select('match_type, match_value, value_category, confidence, source')
+    .eq('user_id', userId)
+  const userRules: ValueCategoryRule[] = rulesData ?? []
+
+  const dates = transactions.map((t) => t.date).sort()
+  const existingKeys = await loadExistingKeys(
+    supabase,
+    userId,
+    dates[0],
+    dates[dates.length - 1]
+  )
+
+  return transactions.map((txn, i) => {
+    const catResult = categoriseByRules(txn.description, categories)
+    const valResult = assignValueCategory(
+      txn.description,
+      catResult.categoryId,
+      userRules,
+      categories
+    )
+    return {
+      ...txn,
+      suggestedCategoryId: catResult.categoryId,
+      suggestedValueCategory: valResult.valueCategory,
+      isDuplicate: isDuplicate(txn, existingKeys),
+      rowIndex: i,
+    }
+  })
+}
