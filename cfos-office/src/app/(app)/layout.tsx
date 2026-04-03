@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/login')
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {/* Sidebar — desktop */}
       <aside className="hidden md:flex w-56 flex-col bg-card border-r border-border flex-shrink-0">
         {/* Logo */}

@@ -443,6 +443,32 @@ Error handling, performance, security review, seed user #1 data.
 
 ---
 
+## Mobile-First Design
+
+**This is a mobile-first product.** Chat is the primary interface and most users will be on their phones. Every screen must be fully functional on mobile before adding desktop enhancements.
+
+### Rules
+
+- **Viewport height**: Always use `h-dvh` (dynamic viewport height), never `h-screen`. On iOS Safari, `100vh` doesn't shrink when the URL bar hides — `100dvh` does.
+- **Sidebars are desktop-only**: Use `hidden md:flex` (not `flex md:flex`). The mobile layout is a single full-width column.
+- **Touch targets**: All interactive elements must be at least 44×44px (`min-h-[44px]`, `min-w-[44px]`).
+- **No auto-focus on mobile**: Auto-focusing a textarea pops the keyboard immediately, covering content. Guard with `window.matchMedia('(pointer: fine)')` to focus only on mouse-driven devices.
+- **Input anchored at bottom**: Chat input is always at the bottom of the flex column — never scrolls with content. Achieved via `flex flex-col` on the container with `flex-1 overflow-y-auto` on the messages area.
+- **Overflow discipline**: Chat layout uses `overflow-hidden` so scrolling is scoped to the messages container, not the page.
+- **Safe area insets**: When adding bottom-anchored UI (chat input, tab bars), account for `env(safe-area-inset-bottom)` on iPhone X+.
+
+### Tailwind Pattern
+
+```
+Mobile (base)          → no prefix
+Tablet (768px+)        → md:
+Desktop (1024px+)      → lg:
+```
+
+Write styles for the smallest screen first, then layer in larger-screen overrides.
+
+---
+
 ## Common Pitfalls (Learned from MVP)
 
 1. **Don't let Claude do maths.** It will get cash flow wrong. Every number comes from a query or Edge Function.
