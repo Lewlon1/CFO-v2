@@ -17,6 +17,7 @@ import { ValueCategoryCards } from './ValueCategoryCards'
 import { UnsureQueue } from './UnsureQueue'
 import { ValuesTrendChart } from './ValuesTrendChart'
 import { RecurringPanel } from './RecurringPanel'
+import { ReviewBanner } from './ReviewBanner'
 
 type Props = {
   hasData: boolean
@@ -89,6 +90,11 @@ export function DashboardClient({ hasData }: Props) {
         />
         <ViewToggle active={activeView} onChange={handleViewChange} />
       </div>
+
+      {/* Review Banner */}
+      {summary.review_status && (
+        <ReviewBanner reviewStatus={summary.review_status} month={summary.month} />
+      )}
 
       {/* Summary Cards */}
       <SummaryCards

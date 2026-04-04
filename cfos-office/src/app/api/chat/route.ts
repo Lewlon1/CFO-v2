@@ -85,6 +85,15 @@ export async function POST(req: Request) {
           // Fire-and-forget — don't block conversation creation
         });
       }
+
+      // Stamp reviewed_at on any monthly review snapshots that were just completed
+      const completedIds = completedConvs.map(c => c.id);
+      void supabase
+        .from('monthly_snapshots')
+        .update({ reviewed_at: new Date().toISOString() })
+        .in('review_conversation_id', completedIds)
+        .is('reviewed_at', null)
+        .then(() => {});
     }
 
     const { data, error } = await supabase

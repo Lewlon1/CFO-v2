@@ -22,7 +22,7 @@ export function createGetActionItemsTool(ctx: ToolContext) {
         let query = ctx.supabase
           .from('action_items')
           .select('id, title, description, category, status, due_date, created_at')
-          .eq('user_id', ctx.userId)
+          .eq('profile_id', ctx.userId)
           .order('created_at', { ascending: false })
           .limit(maxItems);
 

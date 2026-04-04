@@ -61,7 +61,9 @@ export function ChatInterface({
 
   // Auto-trigger for CFO-led conversations: Claude speaks first
   useEffect(() => {
-    const isAutoTriggerType = conversationType === 'post_upload' || conversationType === 'value_map_complete';
+    const isAutoTriggerType = conversationType === 'post_upload'
+      || conversationType === 'value_map_complete'
+      || conversationType === 'monthly_review';
     if (
       isAutoTriggerType &&
       messages.length === 0 &&
@@ -69,9 +71,14 @@ export function ChatInterface({
       !autoTriggeredRef.current
     ) {
       autoTriggeredRef.current = true;
-      const trigger = conversationType === 'value_map_complete'
-        ? '[System: Value Map just completed. Deliver your Gap analysis — compare their stated values with their actual spending now.]'
-        : '[System: Post-upload analysis triggered. Deliver your first insight.]';
+      let trigger: string;
+      if (conversationType === 'value_map_complete') {
+        trigger = '[System: Value Map just completed. Deliver your Gap analysis — compare their stated values with their actual spending now.]';
+      } else if (conversationType === 'monthly_review') {
+        trigger = '[System: Monthly review started. Begin with Phase 1 — the headline number.]';
+      } else {
+        trigger = '[System: Post-upload analysis triggered. Deliver your first insight.]';
+      }
       sendMessage({ text: trigger });
     }
   }, [conversationType, messages.length, status, sendMessage]);

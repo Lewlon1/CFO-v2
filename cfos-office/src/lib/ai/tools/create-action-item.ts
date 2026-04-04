@@ -39,15 +39,16 @@ export function createCreateActionItemTool(ctx: ToolContext) {
         const { data, error } = await ctx.supabase
           .from('action_items')
           .insert({
-            user_id: ctx.userId,
+            profile_id: ctx.userId,
             conversation_id: ctx.conversationId,
             title,
             description: description || null,
             category,
+            priority: priority || 'medium',
             due_date: due_date || null,
             status: 'pending',
           })
-          .select('id, title, due_date')
+          .select('id, title, category, priority, due_date')
           .single();
 
         if (error) {
@@ -60,6 +61,8 @@ export function createCreateActionItemTool(ctx: ToolContext) {
           action_item: {
             id: data.id,
             title: data.title,
+            category: data.category,
+            priority: data.priority,
             due_date: data.due_date,
           },
           message: `Action item "${title}" created.`,

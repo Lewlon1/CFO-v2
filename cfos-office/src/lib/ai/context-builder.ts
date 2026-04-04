@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { BASE_PERSONA } from './system-prompt';
 import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
+import { assembleReviewContext } from './review-context';
 
 export async function buildSystemPrompt(
   userId: string,
@@ -57,7 +58,7 @@ export async function buildSystemPrompt(
     supabase
       .from('action_items')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', userId)
       .eq('status', 'pending'),
   ]);
 
@@ -338,7 +339,7 @@ async function getConversationInstructions(
   conversationType?: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any> | null,
-  _userId?: string,
+  userId?: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   snapshots?: any[] | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -351,9 +352,7 @@ async function getConversationInstructions(
 This is a new user. Welcome them warmly. If they completed the Value Map, reference their archetype naturally. Your goal is to understand what they're working toward financially. Don't overwhelm — one or two good questions, then listen.`;
 
     case 'monthly_review':
-      return `## Conversation context: Monthly review
-
-Walk the user through their month. Start with the headline number (surplus or deficit), then drill into what changed. Compare to last month. Highlight any value category shifts. End with 1-2 specific action items.`;
+      return buildMonthlyReviewPrompt(metadata, userId);
 
     case 'scenario':
       return `## Conversation context: Scenario modelling
@@ -371,6 +370,66 @@ The user wants to explore a what-if. Use system tools to model the scenario. Pre
 
 This is an open conversation. Follow the user's lead. If they ask a question, answer it directly using their actual data. If there are pending action items, you may mention them if relevant.`;
   }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildMonthlyReviewPrompt(metadata: Record<string, any> | null | undefined, userId?: string): Promise<string> {
+  const reviewMonth = metadata?.review_month as string | undefined
+  if (!reviewMonth || !userId) {
+    return `## Conversation context: Monthly review
+
+Walk the user through their month. Start with the headline number (surplus or deficit), then drill into what changed. Compare to last month. Highlight any value category shifts. End with 1-2 specific action items.`
+  }
+
+  const reviewContext = await assembleReviewContext(userId, reviewMonth)
+
+  return `## Conversation context: Monthly Review
+
+${reviewContext}
+
+---
+
+### YOUR APPROACH — deliver this as a conversation, not a report
+
+**Phase 1 — The Headline**
+Open with the single most important number: surplus or deficit. Frame it relative to last month if comparison data is available. One clear sentence that sets the tone — is this a celebration, a course correction, or business as usual?
+
+Then STOP. Wait for the user to respond before continuing.
+
+**Phase 2 — Wins & Concerns**
+Highlight the biggest positive change and the biggest concern from the comparison data. Be specific — name the category, the amount, the trend. If a category improved, acknowledge what the user did differently. If something worsened, name it without drama.
+
+Then STOP. Let the user react or ask questions.
+
+**Phase 3 — Value Shifts** (skip if no shifts detected or single-month review)
+This is the most important part. Walk through the value category shifts:
+- Name the traditional category that shifted
+- Explain what the shift means in plain language
+- Reference the specific transactions that drove it
+- Connect it to the user's stated values if you know their Value Map archetype
+
+If there are no significant shifts, acknowledge consistency briefly — that's worth noting.
+
+Then STOP. Ask if the shift matches how they feel about that spending.
+
+**Phase 4 — Goal Check-in** (skip if no active goals)
+Brief progress check on each active goal. Use the actual numbers from the review data. If a goal is off track, state the fact and what needs to change — don't lecture. If on track, acknowledge it in one line.
+
+**Phase 5 — Actions**
+1. Review previous action items: acknowledge completions, ask about pending ones
+2. Based on this review's findings, suggest 1-2 new action items
+3. Confirm with the user before creating them via the create_action_item tool
+4. Close with a forward-looking statement about next month
+
+### RULES:
+- Every number you present MUST come from the review data above. Never calculate yourself.
+- Do NOT present all phases in a single message. This is a CONVERSATION — pause after each phase.
+- If the user interrupts to ask about something specific, answer it, then return to the flow.
+- Be direct. If spending is concerning, say so. If they're doing well, celebrate it briefly.
+- Reference their Value Map archetype or financial portrait traits when relevant — don't list them.
+- Maximum 2 new action items suggested. Always confirm before creating.
+- Use [OPTIONS]...[/OPTIONS] tags for tappable follow-up suggestions where appropriate.
+- The entire review should be completable in 5-8 exchanges. Don't drag it out.`
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

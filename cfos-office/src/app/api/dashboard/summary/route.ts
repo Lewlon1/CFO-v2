@@ -60,6 +60,12 @@ export type RecurringItem = {
   monthly_equivalent: number
 }
 
+export type ReviewStatus = {
+  reviewed: boolean
+  reviewed_at: string | null
+  conversation_id: string | null
+}
+
 export type DashboardSummary = {
   month: string
   total_income: number
@@ -74,6 +80,7 @@ export type DashboardSummary = {
   spending_by_value_category: Record<string, ValueCategorySummary>
   recurring: { items: RecurringItem[]; monthly_total: number }
   available_months: string[]
+  review_status: ReviewStatus
 }
 
 export async function GET(req: NextRequest) {
@@ -86,7 +93,7 @@ export async function GET(req: NextRequest) {
   // Get all available months
   const { data: snapshots } = await supabase
     .from('monthly_snapshots')
-    .select('month, total_income, total_spending, surplus_deficit, transaction_count, avg_transaction_size, largest_transaction, largest_transaction_desc, vs_previous_month_pct, spending_by_category, spending_by_value_category')
+    .select('month, total_income, total_spending, surplus_deficit, transaction_count, avg_transaction_size, largest_transaction, largest_transaction_desc, vs_previous_month_pct, spending_by_category, spending_by_value_category, reviewed_at, review_conversation_id')
     .eq('user_id', user.id)
     .order('month', { ascending: false })
 
@@ -277,6 +284,11 @@ export async function GET(req: NextRequest) {
     spending_by_value_category: enrichedByVc,
     recurring,
     available_months: availableMonths,
+    review_status: {
+      reviewed: !!snapshot.reviewed_at,
+      reviewed_at: snapshot.reviewed_at ?? null,
+      conversation_id: snapshot.review_conversation_id ?? null,
+    },
   }
 
   return NextResponse.json(result)
