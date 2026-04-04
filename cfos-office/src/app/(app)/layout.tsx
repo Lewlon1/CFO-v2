@@ -17,6 +17,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
+  const { data: userProfile } = await supabase
+    .from('user_profiles')
+    .select('profile_completeness')
+    .eq('id', user.id)
+    .single()
+
+  const profileCompleteness = userProfile?.profile_completeness ?? 0
+
   return (
     <div className="flex h-dvh overflow-hidden">
       {/* Sidebar — desktop */}
@@ -40,7 +48,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors group"
             >
               <span className="text-base leading-none">{item.icon}</span>
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.href === '/profile' && profileCompleteness < 100 && (
+                <span className="text-[10px] tabular-nums text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded">
+                  {profileCompleteness}%
+                </span>
+              )}
             </Link>
           ))}
         </nav>

@@ -5,6 +5,7 @@ import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import { TappableOptions } from './TappableOptions';
 import { ChatCTA } from './ChatCTA';
+import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 
 // ── Parsers ────────────────────────────────────────────────────────────────────
 
@@ -50,10 +51,14 @@ export function MessageList({
   messages,
   status,
   onOptionSelect,
+  onStructuredSubmit,
+  userCurrency,
 }: {
   messages: UIMessage[];
   status: string;
   onOptionSelect?: (text: string) => void;
+  onStructuredSubmit?: (field: string, value: string | number, displayText: string) => void;
+  userCurrency?: string;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -74,10 +79,32 @@ export function MessageList({
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 space-y-6">
       {visibleMessages.map((message) => {
-        const rawText = message.parts
-          ?.filter((p) => p.type === 'text')
-          .map((p) => (p as { type: 'text'; text: string }).text)
-          .join('') ?? '';
+        // Extract text parts and structured input tool invocations
+        const textParts: string[] = [];
+        const structuredInputs: StructuredInputConfig[] = [];
+
+        if (message.parts) {
+          for (const part of message.parts) {
+            if (part.type === 'text') {
+              textParts.push((part as { type: 'text'; text: string }).text);
+            } else if (
+              part.type === 'tool-invocation' &&
+              (part as { toolName?: string }).toolName === 'request_structured_input' &&
+              (part as { state?: string }).state === 'result'
+            ) {
+              const result = (part as { result?: unknown }).result;
+              if (
+                result &&
+                typeof result === 'object' &&
+                (result as { type?: string }).type === 'structured_input'
+              ) {
+                structuredInputs.push(result as StructuredInputConfig);
+              }
+            }
+          }
+        }
+
+        const rawText = textParts.join('');
 
         const { text, options, cta } = message.role === 'assistant'
           ? parseMessageContent(rawText)
@@ -126,6 +153,16 @@ export function MessageList({
 
               {/* CTA block */}
               {cta && <ChatCTA type={cta.type} label={cta.label} />}
+
+              {/* Structured input components from tool invocations */}
+              {structuredInputs.map((config, i) => (
+                <StructuredInput
+                  key={`${config.field}-${i}`}
+                  config={config}
+                  onSubmit={onStructuredSubmit ?? (() => {})}
+                  userCurrency={userCurrency}
+                />
+              ))}
             </div>
           </div>
         );
