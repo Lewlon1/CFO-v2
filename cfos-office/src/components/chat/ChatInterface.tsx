@@ -3,6 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { WelcomeState } from './WelcomeState';
@@ -11,13 +12,16 @@ interface ChatInterfaceProps {
   initialConversationId: string | null;
   initialMessages?: UIMessage[];
   conversationType?: string;
+  userCurrency?: string;
 }
 
 export function ChatInterface({
   initialConversationId,
   initialMessages,
   conversationType,
+  userCurrency,
 }: ChatInterfaceProps) {
+  const router = useRouter();
   const [conversationId, setConversationId] = useState<string | null>(
     initialConversationId
   );
@@ -47,8 +51,9 @@ export function ChatInterface({
         const newId = lastAssistant.metadata.conversationId as string;
         if (!conversationIdRef.current || conversationIdRef.current !== newId) {
           setConversationId(newId);
-          // Update URL without navigation
-          window.history.replaceState(null, '', `/chat/${newId}`);
+          // Navigate to the conversation route so Next.js router state is correct
+          // (history.replaceState breaks "New conversation" by desync-ing the router)
+          router.replace(`/chat/${newId}`);
         }
       }
     },
@@ -92,6 +97,21 @@ export function ChatInterface({
     [sendMessage]
   );
 
+  // Handle structured input submissions from inline form components
+  const handleStructuredSubmit = useCallback(
+    async (field: string, value: string | number, displayText: string) => {
+      // Save to database first
+      await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value }),
+      });
+      // Then send the response as a message so Claude can continue
+      sendMessage({ text: displayText });
+    },
+    [sendMessage]
+  );
+
   const isLoading = status === 'submitted' || status === 'streaming';
   const isAutoTriggered = conversationType === 'post_upload' || conversationType === 'value_map_complete';
 
@@ -118,6 +138,8 @@ export function ChatInterface({
         messages={messages}
         status={status}
         onOptionSelect={handleOptionSelect}
+        onStructuredSubmit={handleStructuredSubmit}
+        userCurrency={userCurrency}
       />
       <ChatInput
         input={input}

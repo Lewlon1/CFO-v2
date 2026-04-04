@@ -1,12 +1,26 @@
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
 import { chatModel } from '@/lib/ai/provider';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
+import { calculateProfileCompleteness } from '@/lib/profiling/engine';
 
 export const maxDuration = 60;
 
+// Fields that the update_user_profile tool is allowed to write
+const ALLOWED_PROFILE_FIELDS = new Set([
+  'display_name', 'country', 'city', 'primary_currency', 'age_range',
+  'employment_status', 'gross_salary', 'net_monthly_income', 'pay_frequency',
+  'has_bonus_months', 'bonus_month_details', 'housing_type', 'monthly_rent',
+  'relationship_status', 'partner_employment_status', 'partner_monthly_contribution',
+  'dependents', 'values_ranking', 'spending_triggers', 'risk_tolerance',
+  'financial_awareness', 'advice_style', 'nationality', 'residency_status',
+  'tax_residency_country', 'years_in_country',
+]);
+
 export async function POST(req: Request) {
+  try {
   const supabase = await createClient();
   const {
     data: { user },
@@ -44,6 +58,34 @@ export async function POST(req: Request) {
   // Create or reuse conversation
   let activeConversationId = conversationId;
   if (!activeConversationId) {
+    // Mark existing active conversations as completed
+    const { data: completedConvs } = await supabase
+      .from('conversations')
+      .update({ status: 'completed', updated_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .select('id');
+
+    // Fire-and-forget post-conversation analysis for completed conversations
+    if (completedConvs && completedConvs.length > 0) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      for (const conv of completedConvs) {
+        fetch(`${appUrl}/api/analyze-conversation`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({
+            conversation_id: conv.id,
+            user_id: user.id,
+          }),
+        }).catch(() => {
+          // Fire-and-forget — don't block conversation creation
+        });
+      }
+    }
+
     const { data, error } = await supabase
       .from('conversations')
       .insert({ user_id: user.id, title: 'New conversation', type: 'general' })
@@ -51,6 +93,7 @@ export async function POST(req: Request) {
       .single();
 
     if (error || !data) {
+      console.error('[chat] conversation insert failed:', error);
       return new Response('Failed to create conversation', { status: 500 });
     }
     activeConversationId = data.id;
@@ -165,7 +208,169 @@ export async function POST(req: Request) {
           };
         },
       },
+
+      // ── Channel B: Update user profile from conversation ─────────────
+      update_user_profile: {
+        description:
+          "Save confirmed profile information to the user's profile. IMPORTANT: Only call this AFTER the user has explicitly confirmed the information is correct. Before calling this tool, you must say what you understood (e.g. 'Your monthly rent is €1,200 — should I save that?') and wait for a yes. If they correct you, adjust and re-confirm before calling. Set confidence to 1.0 for user-confirmed data.\n\nValid field names and expected types:\n- display_name (text)\n- country (text, e.g. 'Spain')\n- city (text)\n- primary_currency (text, e.g. 'EUR')\n- age_range (text, e.g. '31-35')\n- employment_status (text, e.g. 'employed', 'self_employed', 'freelance')\n- gross_salary (number, annual)\n- net_monthly_income (number, monthly take-home)\n- pay_frequency (text, e.g. 'monthly', 'monthly_with_extra_payments')\n- has_bonus_months (boolean)\n- bonus_month_details (text)\n- housing_type (text, e.g. 'renting', 'owned')\n- monthly_rent (number, monthly rent or mortgage payment)\n- relationship_status (text, e.g. 'single', 'partnered', 'married')\n- partner_employment_status (text)\n- partner_monthly_contribution (number)\n- dependents (number, count of dependents)\n- values_ranking (text)\n- spending_triggers (text)\n- risk_tolerance (text, e.g. 'low', 'medium', 'high')\n- financial_awareness (text)\n- advice_style (text, e.g. 'gentle', 'direct', 'blunt')\n- nationality (text)\n- residency_status (text)\n- tax_residency_country (text)\n- years_in_country (number)",
+        inputSchema: z.object({
+          updates: z.array(
+            z.object({
+              field: z.string().describe('The user_profiles column name to update'),
+              value: z.union([z.string(), z.number(), z.boolean()]).describe('The value to set'),
+              confidence: z
+                .number()
+                .min(0)
+                .max(1)
+                .describe('Confidence level: 1.0 = explicit, 0.8 = strong implication, 0.6 = inference'),
+            })
+          ),
+          source_summary: z.string().describe('Brief description of what the user said that led to these updates'),
+        }),
+        execute: async ({ updates, source_summary }) => {
+          const saved: string[] = [];
+          const skipped: string[] = [];
+
+          // Check which fields were previously user-confirmed (via structured input)
+          const { data: confirmedFields } = await supabase
+            .from('profiling_queue')
+            .select('field')
+            .eq('user_id', user.id)
+            .eq('source', 'structured_input')
+            .eq('status', 'answered');
+
+          const userConfirmedSet = new Set(
+            (confirmedFields ?? []).map((f) => f.field)
+          );
+
+          for (const update of updates) {
+            // Validate field name
+            if (!ALLOWED_PROFILE_FIELDS.has(update.field)) {
+              skipped.push(`${update.field} (invalid field)`);
+              continue;
+            }
+
+            // Never overwrite user-confirmed values with inferred ones
+            if (userConfirmedSet.has(update.field) && update.confidence < 1.0) {
+              skipped.push(`${update.field} (already confirmed by user)`);
+              continue;
+            }
+
+            // Apply confidence thresholds
+            if (update.confidence < 0.6) {
+              skipped.push(`${update.field} (low confidence — ask explicitly)`);
+              continue;
+            }
+
+            // Save the update
+            const updateData: Record<string, unknown> = {
+              [update.field]: update.value,
+              updated_at: new Date().toISOString(),
+            };
+
+            await supabase
+              .from('user_profiles')
+              .update(updateData)
+              .eq('id', user.id);
+
+            // Track in profiling queue
+            await supabase.from('profiling_queue').upsert(
+              {
+                user_id: user.id,
+                field: update.field,
+                status: 'answered',
+                answered_at: new Date().toISOString(),
+                source: 'conversation',
+                conversation_id: activeConversationId,
+              },
+              { onConflict: 'user_id,field' }
+            );
+
+            saved.push(update.field);
+          }
+
+          // Recalculate profile completeness
+          if (saved.length > 0) {
+            const { data: updatedProfile } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            if (updatedProfile) {
+              const completeness = calculateProfileCompleteness(updatedProfile);
+              await supabase
+                .from('user_profiles')
+                .update({ profile_completeness: completeness })
+                .eq('id', user.id);
+              revalidatePath('/', 'layout');
+            }
+          }
+
+          const result: Record<string, unknown> = {
+            saved,
+            skipped,
+            source: source_summary,
+          };
+
+          return result;
+        },
+      },
+
+      // ── Channel A: Request structured input ──────────────────────────
+      request_structured_input: {
+        description:
+          'Ask the user for a specific piece of information using an interactive input component rendered inline in the chat. Use this when you need precise data (numbers, selections, currency amounts) rather than free-text conversation. The component will appear in the chat. Always explain WHY you are asking before calling this tool.',
+        inputSchema: z.object({
+          field: z.string().describe('The user_profiles column to update with the response'),
+          input_type: z
+            .enum(['single_select', 'multi_select', 'currency_amount', 'number', 'text', 'slider'])
+            .describe('The type of input component to render'),
+          label: z.string().describe('The question/label shown above the input'),
+          rationale: z.string().describe('Brief explanation shown to the user about why this is asked'),
+          options: z
+            .array(z.object({ value: z.string(), label: z.string() }))
+            .optional()
+            .describe('Options for single_select and multi_select types'),
+          min: z.number().optional().describe('Minimum value for number/slider/currency inputs'),
+          max: z.number().optional().describe('Maximum value for number/slider/currency inputs'),
+          currency: z.boolean().optional().describe('Whether to show currency symbol for currency_amount type'),
+          placeholder: z.string().optional().describe('Placeholder text for text/number inputs'),
+          low_label: z.string().optional().describe('Label for the low end of a slider'),
+          high_label: z.string().optional().describe('Label for the high end of a slider'),
+        }),
+        execute: async ({ field, input_type, label, rationale, options, min, max, currency, placeholder, low_label, high_label }) => {
+          // Track that we asked this question
+          await supabase.from('profiling_queue').upsert(
+            {
+              user_id: user.id,
+              field,
+              status: 'asked',
+              asked_at: new Date().toISOString(),
+              conversation_id: activeConversationId,
+            },
+            { onConflict: 'user_id,field' }
+          );
+
+          // Return the config for the frontend to render
+          return {
+            type: 'structured_input',
+            field,
+            input_type,
+            label,
+            rationale,
+            options,
+            min,
+            max,
+            currency,
+            placeholder,
+            low_label,
+            high_label,
+          };
+        },
+      },
     },
+    toolChoice: 'auto',
     stopWhen: stepCountIs(5),
   });
 
@@ -210,6 +415,10 @@ export async function POST(req: Request) {
       }
     },
   });
+  } catch (err) {
+    console.error('[chat] unhandled error:', err);
+    return new Response(String(err), { status: 500 });
+  }
 }
 
 function extractTextFromParts(message: UIMessage): string {

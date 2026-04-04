@@ -41,12 +41,19 @@ export default async function ConversationPage({
     createdAt: new Date(msg.created_at),
   }));
 
-  // Fetch all conversations for sidebar
-  const { data: conversations } = await supabase
-    .from('conversations')
-    .select('id, title, updated_at')
-    .eq('user_id', user!.id)
-    .order('updated_at', { ascending: false });
+  // Fetch all conversations for sidebar + user currency
+  const [{ data: conversations }, { data: profile }] = await Promise.all([
+    supabase
+      .from('conversations')
+      .select('id, title, updated_at')
+      .eq('user_id', user!.id)
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('user_profiles')
+      .select('primary_currency')
+      .eq('id', user!.id)
+      .single(),
+  ]);
 
   return (
     <>
@@ -58,9 +65,11 @@ export default async function ConversationPage({
       {/* Chat area */}
       <div className="flex-1 flex flex-col min-w-0">
         <ChatInterface
+          key={conversation.id}
           initialConversationId={conversation.id}
           initialMessages={initialMessages}
           conversationType={conversation.type ?? undefined}
+          userCurrency={profile?.primary_currency ?? undefined}
         />
       </div>
     </>

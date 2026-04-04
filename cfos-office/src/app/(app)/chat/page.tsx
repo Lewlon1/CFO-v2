@@ -8,11 +8,18 @@ export default async function ChatPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: conversations } = await supabase
-    .from('conversations')
-    .select('id, title, updated_at')
-    .eq('user_id', user!.id)
-    .order('updated_at', { ascending: false });
+  const [{ data: conversations }, { data: profile }] = await Promise.all([
+    supabase
+      .from('conversations')
+      .select('id, title, updated_at')
+      .eq('user_id', user!.id)
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('user_profiles')
+      .select('primary_currency')
+      .eq('id', user!.id)
+      .single(),
+  ]);
 
   return (
     <>
@@ -23,7 +30,11 @@ export default async function ChatPage() {
 
       {/* Chat area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <ChatInterface initialConversationId={null} />
+        <ChatInterface
+          key="new"
+          initialConversationId={null}
+          userCurrency={profile?.primary_currency ?? undefined}
+        />
       </div>
     </>
   );

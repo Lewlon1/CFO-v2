@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { BASE_PERSONA } from './system-prompt';
+import { getNextQuestions } from '@/lib/profiling/engine';
+import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 
 export async function buildSystemPrompt(
   userId: string,
@@ -38,6 +40,7 @@ export async function buildSystemPrompt(
       .from('financial_portrait')
       .select('*')
       .eq('user_id', userId)
+      .is('dismissed_at', null)
       .order('confidence', { ascending: false }),
     supabase
       .from('value_map_results')
@@ -84,7 +87,7 @@ export async function buildSystemPrompt(
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildGoalsContext(goals, actions),
-    buildProfilingContext(),
+    await buildProfilingContext(userId, supabase),
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
@@ -260,9 +263,51 @@ function buildGoalsContext(goals: any[] | null, actions: any[] | null): string {
   return parts.join('\n');
 }
 
-function buildProfilingContext(): string {
-  // Placeholder for Session 6 — progressive profiling engine
-  return '';
+async function buildProfilingContext(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any
+): Promise<string> {
+  let questions: ProfileQuestion[];
+  try {
+    questions = await getNextQuestions(userId, supabase);
+  } catch {
+    return '';
+  }
+
+  if (questions.length === 0) return '';
+
+  const lines = questions.map((q) => {
+    let line = `- **${q.field}**: "${q.label}"`;
+    line += `\n  Rationale: ${q.rationale}`;
+    if (q.input_config.input_type === 'single_select' || q.input_config.input_type === 'multi_select') {
+      line += ` → Use request_structured_input tool (${q.input_config.input_type})`;
+      if (q.input_config.options) {
+        line += ` with options: ${q.input_config.options.map(o => o.label).join(', ')}`;
+      }
+    } else if (q.input_config.input_type === 'currency_amount' || q.input_config.input_type === 'number') {
+      line += ` → Use request_structured_input tool (${q.input_config.input_type})`;
+    }
+    return line;
+  });
+
+  return `## Information to gather (if natural)
+
+The following profile fields are empty and would improve your advice.
+DO NOT ask these as a list. DO NOT ask more than one per conversation
+unless the user is clearly in an information-sharing mode.
+Weave them in naturally when the topic is relevant.
+If the conversation doesn't naturally lead to these topics, don't force it.
+
+${lines.join('\n\n')}
+
+When asking for precise data (numbers, selections), use the request_structured_input tool
+to render an interactive component. For information shared naturally in conversation,
+use the update_user_profile tool instead.
+
+Remember: ask late, ask little. One question, naturally placed,
+is better than a checklist. The user should feel like they're having a conversation,
+not filling out a form.`;
 }
 
 async function getConversationInstructions(
