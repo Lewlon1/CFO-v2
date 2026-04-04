@@ -24,8 +24,13 @@ export function TransactionsClient({ transactions, categories }: Props) {
   })
 
   function handleImported() {
-    setShowUpload(false)
+    // Data is ready — refresh the transaction list but keep the panel open
+    // so the user can see the ImportResult screen and choose what to do next
     startTransition(() => router.refresh())
+  }
+
+  function handleDone() {
+    setShowUpload(false)
   }
 
   return (
@@ -57,7 +62,7 @@ export function TransactionsClient({ transactions, categories }: Props) {
               </button>
             </div>
           )}
-          <UploadWizard categories={categories} onImported={handleImported} />
+          <UploadWizard categories={categories} onImported={handleImported} onDone={handleDone} />
         </div>
       )}
 

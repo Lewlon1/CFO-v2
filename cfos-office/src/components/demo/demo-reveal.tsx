@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CfoAvatar } from '@/components/chat/cfo-avatar'
@@ -30,6 +31,7 @@ interface DemoRevealProps {
   results: ValueMapResult[]
   fallback: boolean
   sessionId?: string | null
+  isAuthenticated?: boolean
 }
 
 // ── Typing animation hook ───────────────────────────────────────────────────
@@ -140,7 +142,9 @@ function ShareableCard({
 
 // ── Main reveal component ───────────────────────────────────────────────────
 
-export function DemoReveal({ reading, personality, userName, country, results, fallback, sessionId }: DemoRevealProps) {
+export function DemoReveal({ reading, personality, userName, country, results, fallback, sessionId, isAuthenticated = false }: DemoRevealProps) {
+  const router = useRouter()
+  const [navigating, setNavigating] = useState(false)
   const displayName = userName === 'You' || userName === 'Anonymous' ? '' : userName
   const hookMessage = `${displayName ? displayName + ', have' : 'Have'} you ever thought about your spending like this before? These were sample transactions — imagine what your CFO could tell you from your real ones. The patterns in how fast you decide, where you hesitate, what you call a "leak" versus a "foundation" — that's your actual relationship with money. And this is just the surface.`
 
@@ -265,8 +269,43 @@ export function DemoReveal({ reading, personality, userName, country, results, f
         }} />
       )}
 
-      {/* ── Signup CTA — shown once hook finishes ── */}
-      {done && (
+      {/* ── CTA — shown once hook finishes ── */}
+      {done && isAuthenticated && (
+        <div className="w-full max-w-sm">
+          <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-5">
+            <p className="text-sm font-semibold text-foreground mb-1">
+              Your CFO has something to tell you
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">
+              Now that I know what you value, I can show you exactly where your spending lines up — and where it doesn&apos;t.
+            </p>
+            <button
+              onClick={async () => {
+                if (navigating) return
+                setNavigating(true)
+                demoAnalytics('demo_finished')
+                try {
+                  const res = await fetch('/api/insights/value-map-complete', { method: 'POST' })
+                  if (res.ok) {
+                    const { conversationId } = await res.json()
+                    router.push(`/chat/${conversationId}`)
+                  } else {
+                    router.push('/chat')
+                  }
+                } catch {
+                  router.push('/chat')
+                }
+              }}
+              disabled={navigating}
+              className="flex items-center justify-center w-full px-4 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors disabled:opacity-60"
+            >
+              {navigating ? 'Loading...' : 'See what your CFO noticed →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {done && !isAuthenticated && (
         <div className="w-full max-w-sm">
           <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-5">
             <p className="text-sm font-semibold text-foreground mb-1">
@@ -286,8 +325,8 @@ export function DemoReveal({ reading, personality, userName, country, results, f
         </div>
       )}
 
-      {/* ── Email capture — waitlist fallback ── */}
-      {done && (
+      {/* ── Email capture — unauthenticated only ── */}
+      {done && !isAuthenticated && (
         <>
           <div className="w-full max-w-sm border-t border-border" />
           <DemoEmailCapture

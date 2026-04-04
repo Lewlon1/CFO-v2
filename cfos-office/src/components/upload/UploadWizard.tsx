@@ -13,15 +13,16 @@ type WizardState =
   | { step: 'mapping'; headers: string[]; autoMapping: Record<string, string>; rawRows: Record<string, string>[] }
   | { step: 'preview'; preview: PreviewTransaction[]; importBatchId: string }
   | { step: 'importing' }
-  | { step: 'done'; imported: number; duplicates: number; errors: number }
+  | { step: 'done'; imported: number; duplicates: number; errors: number; importBatchId: string }
   | { step: 'error'; message: string }
 
 type Props = {
   categories: Category[]
   onImported: () => void
+  onDone?: () => void
 }
 
-export function UploadWizard({ categories, onImported }: Props) {
+export function UploadWizard({ categories, onImported, onDone }: Props) {
   const [state, setState] = useState<WizardState>({ step: 'idle' })
 
   async function handleFile(file: File) {
@@ -86,7 +87,7 @@ export function UploadWizard({ categories, onImported }: Props) {
         setState({ step: 'error', message: data.error ?? 'Import failed' })
         return
       }
-      setState({ step: 'done', imported: data.imported, duplicates: data.duplicates, errors: data.errors })
+      setState({ step: 'done', imported: data.imported, duplicates: data.duplicates, errors: data.errors, importBatchId })
       onImported()
     } catch {
       setState({ step: 'error', message: 'Network error. Please try again.' })
@@ -145,7 +146,8 @@ export function UploadWizard({ categories, onImported }: Props) {
         imported={state.imported}
         duplicates={state.duplicates}
         errors={state.errors}
-        onDone={reset}
+        importBatchId={state.importBatchId}
+        onDone={onDone ?? reset}
       />
     )
   }

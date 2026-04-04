@@ -60,6 +60,7 @@ export default async function ConversationPage({
         <ChatInterface
           initialConversationId={conversation.id}
           initialMessages={initialMessages}
+          conversationType={conversation.type ?? undefined}
         />
       </div>
     </>
