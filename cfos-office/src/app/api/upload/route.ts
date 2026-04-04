@@ -63,7 +63,27 @@ export async function POST(req: NextRequest) {
       const primaryCurrency = profile?.primary_currency ?? 'EUR'
       await detectAndFlagHolidaySpend(supabase, user.id, primaryCurrency, importBatchId)
 
-      return NextResponse.json(stats)
+      // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
+      const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([
+        supabase
+          .from('monthly_snapshots')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id),
+        supabase
+          .from('monthly_snapshots')
+          .select('month')
+          .eq('user_id', user.id)
+          .is('reviewed_at', null)
+          .order('month', { ascending: false })
+          .limit(1)
+          .single(),
+      ])
+
+      return NextResponse.json({
+        ...stats,
+        review_available: (snapshotCount ?? 0) >= 2 && unreviewedSnap !== null,
+        review_month: unreviewedSnap?.month?.slice(0, 7) ?? null,
+      })
     }
 
     // Apply column mapping → return preview
