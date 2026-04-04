@@ -7,6 +7,22 @@ import { TappableOptions } from './TappableOptions';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 
+// ── Tool loading labels ───────────────────────────────────────────────────────
+
+const TOOL_LABELS: Record<string, string> = {
+  get_spending_summary: 'Looking up your spending...',
+  compare_months: 'Comparing those months...',
+  get_value_breakdown: 'Analysing your value breakdown...',
+  calculate_monthly_budget: 'Calculating your budget...',
+  get_action_items: 'Checking your action items...',
+  create_action_item: 'Creating that action item...',
+  model_scenario: 'Running the numbers on that scenario...',
+  analyse_gap: 'Comparing your values with reality...',
+  suggest_value_recategorisation: 'Looking for miscategorised transactions...',
+  update_value_category: 'Updating your value categories...',
+  update_user_profile: 'Saving to your profile...',
+};
+
 // ── Parsers ────────────────────────────────────────────────────────────────────
 
 function parseOptions(content: string): { text: string; options: string[] | null } {
@@ -83,22 +99,39 @@ export function MessageList({
         const textParts: string[] = [];
         const structuredInputs: StructuredInputConfig[] = [];
 
+        const toolInvocations: Array<{ toolName: string; state: string; toolCallId: string }> = [];
+
         if (message.parts) {
           for (const part of message.parts) {
             if (part.type === 'text') {
               textParts.push((part as { type: 'text'; text: string }).text);
-            } else if (
-              part.type === 'tool-invocation' &&
-              (part as { toolName?: string }).toolName === 'request_structured_input' &&
-              (part as { state?: string }).state === 'result'
-            ) {
-              const result = (part as { result?: unknown }).result;
+            } else if (part.type === 'tool-invocation') {
+              const toolPart = part as unknown as { toolName: string; state: string; toolCallId: string; result?: unknown };
+
+              // Track tool invocations for loading indicators
+              if (toolPart.state === 'call' && TOOL_LABELS[toolPart.toolName]) {
+                toolInvocations.push({ toolName: toolPart.toolName, state: toolPart.state, toolCallId: toolPart.toolCallId });
+              }
+
+              // Existing: handle structured input results
               if (
-                result &&
-                typeof result === 'object' &&
-                (result as { type?: string }).type === 'structured_input'
+                toolPart.toolName === 'request_structured_input' &&
+                toolPart.state === 'result'
               ) {
-                structuredInputs.push(result as StructuredInputConfig);
+                const result = toolPart.result;
+                if (
+                  result &&
+                  typeof result === 'object' &&
+                  (result as { type?: string }).type === 'structured_input'
+                ) {
+                  structuredInputs.push(result as StructuredInputConfig);
+                }
+              }
+
+              // Clear loading indicator when result arrives
+              if (toolPart.state === 'result') {
+                const idx = toolInvocations.findIndex((t) => t.toolCallId === toolPart.toolCallId);
+                if (idx !== -1) toolInvocations.splice(idx, 1);
               }
             }
           }
@@ -162,6 +195,17 @@ export function MessageList({
                   onSubmit={onStructuredSubmit ?? (() => {})}
                   userCurrency={userCurrency}
                 />
+              ))}
+
+              {/* Tool loading indicators */}
+              {toolInvocations.map((tool) => (
+                <div
+                  key={tool.toolCallId}
+                  className="flex items-center gap-2 text-xs text-muted-foreground py-1.5 px-3"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse flex-shrink-0" />
+                  {TOOL_LABELS[tool.toolName]}
+                </div>
               ))}
             </div>
           </div>

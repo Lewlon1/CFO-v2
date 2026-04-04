@@ -5,6 +5,7 @@ import { chatModel } from '@/lib/ai/provider';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
+import { createToolbox, type ToolContext } from '@/lib/ai/tools';
 
 export const maxDuration = 60;
 
@@ -111,6 +112,22 @@ export async function POST(req: Request) {
       });
     }
   }
+
+  // Fetch user currency for tool context
+  const { data: profileForCurrency } = await supabase
+    .from('user_profiles')
+    .select('primary_currency')
+    .eq('id', user.id)
+    .single();
+
+  const toolCtx: ToolContext = {
+    supabase,
+    userId: user.id,
+    conversationId: activeConversationId!,
+    currency: profileForCurrency?.primary_currency || 'EUR',
+  };
+
+  const toolbox = createToolbox(toolCtx);
 
   // Convert UI messages to model format
   const modelMessages = await convertToModelMessages(messages);
@@ -369,6 +386,9 @@ export async function POST(req: Request) {
           };
         },
       },
+
+      // ── CFO Toolbox (Session 7) ────────────────────────────────────
+      ...toolbox,
     },
     toolChoice: 'auto',
     stopWhen: stepCountIs(5),
@@ -382,18 +402,60 @@ export async function POST(req: Request) {
       return undefined;
     },
     onFinish: async ({ messages: responseMessages }) => {
-      // Save assistant response — get the last assistant message
+      // Save assistant response — get the last assistant message for text
       const assistantMsg = responseMessages
         .filter((m) => m.role === 'assistant')
         .pop();
 
       if (assistantMsg) {
         const textContent = extractTextFromParts(assistantMsg);
+
+        // Extract tool metadata from ALL messages (tool invocations are in
+        // earlier assistant messages, not the final text response)
+        const toolsUsed: string[] = [];
+        const actionsCreated: Array<{ id: string; title: string }> = [];
+        const profileUpdates: Array<{ field: string }> = [];
+
+        for (const msg of responseMessages) {
+          if (!msg.parts) continue;
+          for (const part of msg.parts) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const anyPart = part as any;
+
+            if (anyPart.type === 'tool-invocation' && anyPart.toolName) {
+              const toolName = anyPart.toolName as string;
+
+              // Only count tools that have completed with results
+              if (anyPart.result !== undefined) {
+                if (!toolsUsed.includes(toolName)) {
+                  toolsUsed.push(toolName);
+                }
+
+                const result = anyPart.result;
+                if (toolName === 'create_action_item' && result?.success && result?.action_item) {
+                  actionsCreated.push({
+                    id: result.action_item.id,
+                    title: result.action_item.title,
+                  });
+                }
+                if (toolName === 'update_user_profile' && result?.saved) {
+                  for (const field of result.saved) {
+                    profileUpdates.push({ field });
+                  }
+                }
+              }
+            }
+          }
+        }
+
         if (textContent) {
           await supabase.from('messages').insert({
             conversation_id: activeConversationId,
             role: 'assistant',
             content: textContent,
+            tools_used: toolsUsed.length > 0 ? toolsUsed : null,
+            actions_created: actionsCreated.length > 0 ? actionsCreated : null,
+            profile_updates: profileUpdates.length > 0 ? profileUpdates : null,
           });
         }
       }
