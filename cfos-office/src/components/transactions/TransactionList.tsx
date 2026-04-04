@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CategoryBadge } from './CategoryBadge'
 import { ValueBadge } from './ValueBadge'
 import type { Category } from '@/lib/parsers/types'
@@ -73,7 +73,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
   const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   // Reset page when filters change
-  const filterKey = JSON.stringify(filters)
+  useEffect(() => { setPage(0) }, [filters])
 
   async function saveEdit() {
     if (!edit) return
@@ -106,7 +106,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
   return (
     <div className="space-y-3">
       {/* Mobile: card list */}
-      <div className="md:hidden space-y-2" key={filterKey}>
+      <div className="md:hidden space-y-2">
         {pageRows.map((t) => {
           const cat = categories.find((c) => c.id === t.category_id) ?? null
           return (
@@ -142,7 +142,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
       </div>
 
       {/* Desktop: table */}
-      <div className="hidden md:block rounded-lg border border-border overflow-hidden" key={filterKey}>
+      <div className="hidden md:block rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted">
             <tr>

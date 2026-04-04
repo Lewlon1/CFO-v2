@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { WelcomeState } from './WelcomeState';
@@ -10,11 +10,13 @@ import { WelcomeState } from './WelcomeState';
 interface ChatInterfaceProps {
   initialConversationId: string | null;
   initialMessages?: UIMessage[];
+  conversationType?: string;
 }
 
 export function ChatInterface({
   initialConversationId,
   initialMessages,
+  conversationType,
 }: ChatInterfaceProps) {
   const [conversationId, setConversationId] = useState<string | null>(
     initialConversationId
@@ -23,6 +25,7 @@ export function ChatInterface({
   conversationIdRef.current = conversationId;
 
   const [input, setInput] = useState('');
+  const autoTriggeredRef = useRef(false);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -51,6 +54,23 @@ export function ChatInterface({
     },
   });
 
+  // Auto-trigger for CFO-led conversations: Claude speaks first
+  useEffect(() => {
+    const isAutoTriggerType = conversationType === 'post_upload' || conversationType === 'value_map_complete';
+    if (
+      isAutoTriggerType &&
+      messages.length === 0 &&
+      status === 'ready' &&
+      !autoTriggeredRef.current
+    ) {
+      autoTriggeredRef.current = true;
+      const trigger = conversationType === 'value_map_complete'
+        ? '[System: Value Map just completed. Deliver your Gap analysis — compare their stated values with their actual spending now.]'
+        : '[System: Post-upload analysis triggered. Deliver your first insight.]';
+      sendMessage({ text: trigger });
+    }
+  }, [conversationType, messages.length, status, sendMessage]);
+
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text) return;
@@ -65,9 +85,20 @@ export function ChatInterface({
     [sendMessage]
   );
 
-  const isLoading = status === 'submitted' || status === 'streaming';
+  const handleOptionSelect = useCallback(
+    (text: string) => {
+      sendMessage({ text });
+    },
+    [sendMessage]
+  );
 
-  if (messages.length === 0 && !isLoading) {
+  const isLoading = status === 'submitted' || status === 'streaming';
+  const isAutoTriggered = conversationType === 'post_upload' || conversationType === 'value_map_complete';
+
+  // For auto-triggered conversations, skip the welcome state
+  const showWelcome = messages.length === 0 && !isLoading && !isAutoTriggered;
+
+  if (showWelcome) {
     return (
       <div className="flex flex-col h-full min-w-0">
         <WelcomeState onSelect={handleStarterSelect} />
@@ -83,7 +114,11 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full min-w-0">
-      <MessageList messages={messages} status={status} />
+      <MessageList
+        messages={messages}
+        status={status}
+        onOptionSelect={handleOptionSelect}
+      />
       <ChatInput
         input={input}
         onInputChange={setInput}

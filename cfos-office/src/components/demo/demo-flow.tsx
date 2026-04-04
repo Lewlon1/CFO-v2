@@ -33,10 +33,16 @@ interface ReadingResponse {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function DemoFlow() {
-  const [step, setStep] = useState<DemoStep>('welcome')
-  const [name, setName] = useState('')
-  const [country, setCountry] = useState<string | null>(null)
+interface DemoFlowProps {
+  initialName?: string
+  initialCountry?: string | null
+  isAuthenticated?: boolean
+}
+
+export function DemoFlow({ initialName = '', initialCountry = null, isAuthenticated = false }: DemoFlowProps) {
+  const [step, setStep] = useState<DemoStep>(initialCountry ? 'explainer' : 'welcome')
+  const [name, setName] = useState(initialName)
+  const [country, setCountry] = useState<string | null>(initialCountry)
   const [results, setResults] = useState<ValueMapResult[]>([])
   const [readingData, setReadingData] = useState<ReadingResponse | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -279,6 +285,7 @@ export function DemoFlow() {
           results={results}
           fallback={readingData.fallback}
           sessionId={sessionId}
+          isAuthenticated={isAuthenticated}
         />
       </div>
     )
