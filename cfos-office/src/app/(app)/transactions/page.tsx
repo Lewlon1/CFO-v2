@@ -2,8 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { TransactionsClient } from '@/components/transactions/TransactionsClient'
 import type { Category } from '@/lib/parsers/types'
 import type { Transaction } from '@/components/transactions/TransactionList'
+import type { FilterState } from '@/components/transactions/TransactionFilters'
 
-export default async function TransactionsPage() {
+type Props = {
+  searchParams: Promise<Record<string, string | undefined>>
+}
+
+export default async function TransactionsPage({ searchParams }: Props) {
+  const params = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -25,10 +31,19 @@ export default async function TransactionsPage() {
   const categories: Category[] = catData ?? []
   const transactions: Transaction[] = txnData ?? []
 
+  // Build initial filters from URL search params
+  const initialFilters: FilterState = {
+    search: params.search ?? '',
+    categoryId: params.category ?? '',
+    valueCategory: params.value_category ?? '',
+    month: params.month ?? '',
+  }
+
   return (
     <TransactionsClient
       transactions={transactions}
       categories={categories}
+      initialFilters={initialFilters}
     />
   )
 }
