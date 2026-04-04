@@ -5,32 +5,43 @@ import { useRouter } from 'next/navigation'
 import { UploadWizard } from '@/components/upload/UploadWizard'
 import { TransactionList, type Transaction } from './TransactionList'
 import { TransactionFilters, type FilterState } from './TransactionFilters'
+import { BatchClassifier } from './BatchClassifier'
 import type { Category } from '@/lib/parsers/types'
 
 type Props = {
   transactions: Transaction[]
   categories: Category[]
+  initialFilters?: FilterState
 }
 
-export function TransactionsClient({ transactions, categories }: Props) {
+const EMPTY_FILTERS: FilterState = { search: '', categoryId: '', valueCategory: '', month: '' }
+
+export function TransactionsClient({ transactions, categories, initialFilters }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [showUpload, setShowUpload] = useState(transactions.length === 0)
-  const [filters, setFilters] = useState<FilterState>({
-    search: '',
-    categoryId: '',
-    valueCategory: '',
-    month: '',
-  })
+  const [filters, setFilters] = useState<FilterState>(initialFilters ?? EMPTY_FILTERS)
+
+  const isBatchMode = filters.valueCategory === 'unsure'
 
   function handleImported() {
-    // Data is ready — refresh the transaction list but keep the panel open
-    // so the user can see the ImportResult screen and choose what to do next
     startTransition(() => router.refresh())
   }
 
   function handleDone() {
     setShowUpload(false)
+  }
+
+  function handleFilterChange(newFilters: FilterState) {
+    setFilters(newFilters)
+    // Sync to URL for deep-linking
+    const params = new URLSearchParams()
+    if (newFilters.search) params.set('search', newFilters.search)
+    if (newFilters.categoryId) params.set('category', newFilters.categoryId)
+    if (newFilters.valueCategory) params.set('value_category', newFilters.valueCategory)
+    if (newFilters.month) params.set('month', newFilters.month)
+    const qs = params.toString()
+    router.replace(`/transactions${qs ? `?${qs}` : ''}`, { scroll: false })
   }
 
   return (
@@ -71,15 +82,23 @@ export function TransactionsClient({ transactions, categories }: Props) {
         <>
           <TransactionFilters
             filters={filters}
-            onChange={setFilters}
+            onChange={handleFilterChange}
             categories={categories}
           />
-          <TransactionList
-            transactions={transactions}
-            categories={categories}
-            filters={filters}
-            onRecategorised={() => startTransition(() => router.refresh())}
-          />
+
+          {isBatchMode ? (
+            <BatchClassifier
+              transactions={transactions}
+              onClassified={() => startTransition(() => router.refresh())}
+            />
+          ) : (
+            <TransactionList
+              transactions={transactions}
+              categories={categories}
+              filters={filters}
+              onRecategorised={() => startTransition(() => router.refresh())}
+            />
+          )}
         </>
       )}
 
