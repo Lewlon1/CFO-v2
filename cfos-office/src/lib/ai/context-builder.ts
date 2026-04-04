@@ -87,6 +87,7 @@ export async function buildSystemPrompt(
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildGoalsContext(goals, actions),
+    buildToolUsageInstructions(),
     await buildProfilingContext(userId, supabase),
   ].filter(Boolean);
 
@@ -261,6 +262,29 @@ function buildGoalsContext(goals: any[] | null, actions: any[] | null): string {
 
   if (parts.length === 0) return '';
   return parts.join('\n');
+}
+
+function buildToolUsageInstructions(): string {
+  return `## Available tools
+
+When the user asks about spending, budgets, or comparisons, call the appropriate tool. NEVER calculate financial figures yourself — always use a tool.
+
+- **get_spending_summary**: "How much did I spend on X?" or "What did I spend last month?" Always use this for specific date ranges or category filters rather than citing numbers from the system prompt.
+- **compare_months**: "How was March vs February?" or any month-over-month comparison.
+- **get_value_breakdown**: "Show me my Foundation/Investment/Burden/Leak split" for a period.
+- **calculate_monthly_budget**: "What's my budget?" or "How much can I spend?" Also use as context when discussing any spending number relative to income.
+- **get_action_items**: "What's on my to-do list?" or "What should I be working on?"
+- **create_action_item**: When a conversation produces a concrete next step. Always confirm with the user before creating.
+- **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" All calculations are server-side.
+- **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
+- **suggest_value_recategorisation**: "Are any of my categories wrong?" Find potentially miscategorised transactions.
+
+RULES:
+- ALWAYS call a tool when you need a number. Never estimate, recall, or calculate.
+- You can call multiple tools in sequence — e.g., get_spending_summary then compare with calculate_monthly_budget.
+- If a tool returns an error about missing data, explain what's needed and offer to help collect it.
+- When presenting tool results, be conversational — frame numbers in context of the user's goals and values, don't dump raw data.
+- After creating an action item, briefly confirm and move on.`;
 }
 
 async function buildProfilingContext(
