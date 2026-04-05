@@ -31,10 +31,12 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { messages, conversationId, conversationType: requestedType } = (await req.json()) as {
+  const { messages, conversationId, conversationType: requestedType, conversationMetadata: requestedMetadata } = (await req.json()) as {
     messages: UIMessage[];
     conversationId: string | null;
     conversationType?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    conversationMetadata?: Record<string, any>;
   };
 
   // Fetch existing conversation to get type + metadata (if one exists)
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
   } else if (requestedType) {
     // New conversation with a specific type (e.g. trip_planning, scenario)
     conversationType = requestedType;
+    conversationMetadata = requestedMetadata ?? null;
   }
 
   // Build dynamic system prompt
@@ -103,7 +106,12 @@ export async function POST(req: Request) {
     const newType = requestedType || 'general';
     const { data, error } = await supabase
       .from('conversations')
-      .insert({ user_id: user.id, title: 'New conversation', type: newType })
+      .insert({
+        user_id: user.id,
+        title: 'New conversation',
+        type: newType,
+        ...(requestedMetadata ? { metadata: requestedMetadata } : {}),
+      })
       .select('id')
       .single();
 
