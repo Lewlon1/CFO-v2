@@ -63,7 +63,8 @@ export function ChatInterface({
   useEffect(() => {
     const isAutoTriggerType = conversationType === 'post_upload'
       || conversationType === 'value_map_complete'
-      || conversationType === 'monthly_review';
+      || conversationType === 'monthly_review'
+      || conversationType === 'bill_optimisation';
     if (
       isAutoTriggerType &&
       messages.length === 0 &&
@@ -76,6 +77,8 @@ export function ChatInterface({
         trigger = '[System: Value Map just completed. Deliver your Gap analysis — compare their stated values with their actual spending now.]';
       } else if (conversationType === 'monthly_review') {
         trigger = '[System: Monthly review started. Begin with Phase 1 — the headline number.]';
+      } else if (conversationType === 'bill_optimisation') {
+        trigger = '[System: User wants to discuss a specific bill. Review the bill details in your context and open with a focused observation — cost vs market, contract status, or an obvious saving opportunity.]';
       } else {
         trigger = '[System: Post-upload analysis triggered. Deliver your first insight.]';
       }
@@ -120,7 +123,7 @@ export function ChatInterface({
   );
 
   const isLoading = status === 'submitted' || status === 'streaming';
-  const isAutoTriggered = conversationType === 'post_upload' || conversationType === 'value_map_complete';
+  const isAutoTriggered = conversationType === 'post_upload' || conversationType === 'value_map_complete' || conversationType === 'bill_optimisation' || conversationType === 'monthly_review';
 
   // For auto-triggered conversations, skip the welcome state
   const showWelcome = messages.length === 0 && !isLoading && !isAutoTriggered;

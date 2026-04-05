@@ -8,6 +8,7 @@ import { createCreateActionItemTool } from './create-action-item';
 import { createModelScenarioTool } from './model-scenario';
 import { createAnalyseGapTool } from './analyse-gap';
 import { createSuggestValueRecategorisationTool } from './suggest-value-recategorisation';
+import { createSearchBillAlternativesTool } from './search-bill-alternatives';
 
 export type { ToolContext } from './types';
 
@@ -22,5 +23,6 @@ export function createToolbox(ctx: ToolContext) {
     model_scenario: createModelScenarioTool(ctx),
     analyse_gap: createAnalyseGapTool(ctx),
     suggest_value_recategorisation: createSuggestValueRecategorisationTool(ctx),
+    search_bill_alternatives: createSearchBillAlternativesTool(ctx),
   };
 }

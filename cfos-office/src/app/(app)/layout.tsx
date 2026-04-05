@@ -7,6 +7,7 @@ import { MobileNav } from '@/components/app/mobile-nav'
 const navItems = [
   { href: '/chat', label: 'Chat', icon: '💬' },
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/bills', label: 'Bills', icon: '📋' },
   { href: '/transactions', label: 'Transactions', icon: '↕' },
   { href: '/profile', label: 'Profile', icon: '👤' },
 ]

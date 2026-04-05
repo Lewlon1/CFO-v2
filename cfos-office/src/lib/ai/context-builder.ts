@@ -188,6 +188,24 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
       return sum + Number(r.amount);
     }, 0);
     parts.push(`\nEstimated monthly fixed costs: ${profile?.primary_currency || 'EUR'} ${monthlyFixed.toFixed(2)}`);
+
+    // Bills needing attention (lightweight — drop if token budget tight)
+    const attentionBills: string[] = [];
+    const now = Date.now();
+    for (const r of recurring) {
+      if (r.contract_end_date) {
+        const daysUntil = Math.ceil((new Date(r.contract_end_date).getTime() - now) / (1000 * 60 * 60 * 24));
+        if (daysUntil > 0 && daysUntil <= 60) {
+          attentionBills.push(`- ${r.provider || r.name}: contract ends in ${daysUntil} days${r.potential_saving_monthly ? ` (potential saving: ${profile?.primary_currency || 'EUR'} ${r.potential_saving_monthly}/mo)` : ''}`);
+        }
+      }
+      if (!r.contract_end_date && r.potential_saving_monthly && Number(r.potential_saving_monthly) > 0) {
+        attentionBills.push(`- ${r.provider || r.name}: potential saving ${profile?.primary_currency || 'EUR'} ${r.potential_saving_monthly}/mo`);
+      }
+    }
+    if (attentionBills.length > 0) {
+      parts.push(`\nBills needing attention:\n${attentionBills.slice(0, 3).join('\n')}`);
+    }
   }
 
   if (parts.length === 0) return '';
@@ -279,6 +297,7 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" All calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
 - **suggest_value_recategorisation**: "Are any of my categories wrong?" Find potentially miscategorised transactions.
+- **search_bill_alternatives**: "Can I get a better deal on electricity?" / "Help me switch internet provider." Researches alternatives and compares with the user's current plan.
 
 RULES:
 - ALWAYS call a tool when you need a number. Never estimate, recall, or calculate.
@@ -364,6 +383,9 @@ The user wants to explore a what-if. Use system tools to model the scenario. Pre
 
     case 'value_map_complete':
       return buildValueMapCompletePrompt(metadata, snapshots, profile);
+
+    case 'bill_optimisation':
+      return buildBillOptimisationPrompt(metadata, userId);
 
     default:
       return `## Conversation context: General
@@ -647,6 +669,92 @@ Format tappable options like this:
 - Don't try to give advice yet. This conversation is about understanding, not fixing.
 - End the conversation naturally — "I'll keep watching as more data comes in" is a good close.
 `
+
+  return prompt
+}
+
+async function buildBillOptimisationPrompt(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: Record<string, any> | null | undefined,
+  userId?: string
+): Promise<string> {
+  if (!metadata?.bill_id || !userId) {
+    return `## Conversation context: Bill Optimisation
+
+Help the user optimise their bills. Ask which bill they'd like to review, then use search_bill_alternatives to research better deals.`
+  }
+
+  const { createClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
+
+  const { data: bill } = await supabase
+    .from('recurring_expenses')
+    .select('*')
+    .eq('id', metadata.bill_id)
+    .eq('user_id', userId)
+    .single()
+
+  if (!bill) {
+    return `## Conversation context: Bill Optimisation
+
+The referenced bill could not be found. Ask the user which bill they'd like to review.`
+  }
+
+  const { normaliseToMonthly } = await import('@/lib/bills/normalise')
+  const monthlyAmount = normaliseToMonthly(Number(bill.amount), bill.frequency || 'monthly')
+  const planDetails = bill.current_plan_details as Record<string, unknown> | null
+
+  let prompt = `## Conversation context: Bill Optimisation
+
+You are reviewing the user's ${bill.provider || bill.name} bill.
+
+Current details:
+- Provider: ${bill.provider || 'Unknown'}
+- Amount: ${bill.currency || 'EUR'} ${bill.amount} per ${bill.frequency || 'month'}
+- Monthly equivalent: ${bill.currency || 'EUR'} ${monthlyAmount.toFixed(2)}`
+
+  if (planDetails) {
+    const detailParts: string[] = []
+    if (planDetails.tariff_type) detailParts.push(`Tariff: ${planDetails.tariff_type}`)
+    if (planDetails.power_contracted_kw) detailParts.push(`Contracted power: ${planDetails.power_contracted_kw} kW`)
+    if (planDetails.consumption_kwh) detailParts.push(`Last consumption: ${planDetails.consumption_kwh} kWh`)
+    if (planDetails.consumption_m3) detailParts.push(`Last consumption: ${planDetails.consumption_m3} m³`)
+    if (planDetails.plan_name) detailParts.push(`Plan: ${planDetails.plan_name}`)
+    if (planDetails.speed_mbps) detailParts.push(`Speed: ${planDetails.speed_mbps} Mbps`)
+    if (planDetails.data_gb) detailParts.push(`Data: ${planDetails.data_gb} GB`)
+    if (detailParts.length > 0) prompt += `\n- Plan details: ${detailParts.join(' \u00B7 ')}`
+  } else {
+    prompt += `\n- No plan details uploaded yet`
+  }
+
+  if (bill.contract_end_date) {
+    prompt += `\n- Contract ends: ${bill.contract_end_date}`
+  } else {
+    prompt += `\n- No contract end date known`
+  }
+
+  prompt += `\n- Permanencia: ${bill.has_permanencia ? 'Yes \u2014 check before switching!' : 'No'}`
+
+  if (bill.potential_saving_monthly) {
+    prompt += `\n- Previously researched saving: ${bill.currency || 'EUR'} ${bill.potential_saving_monthly}/month`
+  }
+
+  prompt += `
+
+Your approach:
+1. If plan details are missing, ask the user to upload their latest bill from the /bills page or provide key details (tariff type, consumption, contracted power).
+2. If plan details exist, summarise what you know and ask if the user wants you to research alternatives.
+3. When researching, call the search_bill_alternatives tool with all available details.
+4. Present alternatives clearly with pros/cons. Be specific about potential savings.
+5. If recommending a switch, create an action item with specific steps.
+
+Spanish utility notes:
+- Electricity: Ask about tariff type (PVPC regulated vs mercado libre). PVPC prices change hourly. Mercado libre offers fixed rates.
+- Gas: Often bimonthly in Spain. Check if they heat with gas or just cooking/hot water.
+- Internet: Digi uses the Movistar network for fibra. Check building infrastructure.
+- Insurance: Sanitas/Adeslas are the main private health insurers. Annual renewal standard. Age-based pricing.
+- Water: Usually municipal monopoly. Don't waste time researching alternatives.
+- NEVER recommend switching if permanencia hasn't expired.`
 
   return prompt
 }

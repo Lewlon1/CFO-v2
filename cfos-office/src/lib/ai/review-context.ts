@@ -35,9 +35,14 @@ interface ActionRow {
 
 interface RecurringRow {
   name: string
+  provider: string | null
   amount: number
   currency: string | null
   frequency: string | null
+  contract_end_date: string | null
+  potential_saving_monthly: number | null
+  last_optimisation_check: string | null
+  status: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -129,7 +134,7 @@ export async function assembleReviewContext(
       .limit(10),
     supabase
       .from('recurring_expenses')
-      .select('name, amount, currency, frequency')
+      .select('name, provider, amount, currency, frequency, contract_end_date, potential_saving_monthly, last_optimisation_check, status')
       .eq('user_id', userId),
   ])
 
@@ -243,13 +248,48 @@ ${formatShifts(valueShifts)}`)
   }
   sections.push(`### Action Items\n${actionLines.join('\n')}`)
 
-  // Recurring expenses summary
+  // Recurring expenses summary with bill optimisation context
   if (recurring.length > 0) {
     const recLines = recurring
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 10)
-      .map(r => `- ${r.name}: ${r.amount.toFixed(2)} ${r.currency ?? ''} (${r.frequency ?? 'monthly'})`)
+      .map(r => `- ${r.provider || r.name}: ${r.amount.toFixed(2)} ${r.currency ?? ''} (${r.frequency ?? 'monthly'})`)
     sections.push(`### Recurring Expenses\n${recLines.join('\n')}`)
+
+    // Bill-specific insights for the review
+    const billInsights: string[] = []
+    const now = Date.now()
+
+    // Contract end alerts
+    for (const r of recurring) {
+      if (r.contract_end_date) {
+        const daysUntil = Math.ceil((new Date(r.contract_end_date).getTime() - now) / (1000 * 60 * 60 * 24))
+        if (daysUntil > 0 && daysUntil <= 60) {
+          billInsights.push(`- ${r.provider || r.name} contract ends in ${daysUntil} days — good time to research alternatives`)
+        }
+      }
+    }
+
+    // Total potential savings
+    const totalSavings = recurring.reduce((sum, r) => sum + (r.potential_saving_monthly ?? 0), 0)
+    if (totalSavings > 0) {
+      billInsights.push(`- Total identified potential savings across bills: ${totalSavings.toFixed(2)}/month`)
+    }
+
+    // Stale bills (not checked in 3+ months)
+    const staleBills = recurring.filter(r => {
+      if (r.status !== 'tracked') return false
+      if (!r.last_optimisation_check) return true
+      const daysSince = (now - new Date(r.last_optimisation_check).getTime()) / (1000 * 60 * 60 * 24)
+      return daysSince > 90
+    })
+    if (staleBills.length > 0) {
+      billInsights.push(`- ${staleBills.length} tracked bill${staleBills.length > 1 ? 's' : ''} not reviewed in 3+ months: ${staleBills.map(b => b.provider || b.name).join(', ')}`)
+    }
+
+    if (billInsights.length > 0) {
+      sections.push(`### Bill Optimisation Notes\n${billInsights.join('\n')}`)
+    }
   }
 
   return sections.join('\n\n')

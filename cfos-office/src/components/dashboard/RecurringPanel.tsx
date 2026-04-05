@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '@/lib/constants/dashboard'
 import type { RecurringItem } from '@/app/api/dashboard/summary/route'
@@ -66,11 +67,19 @@ export function RecurringPanel({ items, monthlyTotal }: Props) {
           )
         })}
       </div>
-      {items.length > 8 && (
-        <p className="text-xs text-muted-foreground text-center py-2">
-          +{items.length - 8} more
-        </p>
-      )}
+      <div className="px-4 py-2.5 flex items-center justify-between">
+        {items.length > 8 && (
+          <span className="text-xs text-muted-foreground">
+            +{items.length - 8} more
+          </span>
+        )}
+        <Link
+          href="/bills"
+          className="text-xs text-primary hover:text-primary/80 font-medium ml-auto"
+        >
+          View all bills &rarr;
+        </Link>
+      </div>
     </div>
   )
 }
