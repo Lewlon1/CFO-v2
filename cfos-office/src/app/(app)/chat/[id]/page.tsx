@@ -6,10 +6,13 @@ import { UIMessage } from 'ai';
 
 export default async function ConversationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ starter?: string }>;
 }) {
   const { id } = await params;
+  const { starter } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -70,6 +73,7 @@ export default async function ConversationPage({
           initialMessages={initialMessages}
           conversationType={conversation.type ?? undefined}
           userCurrency={profile?.primary_currency ?? undefined}
+          starterMessage={starter}
         />
       </div>
     </>

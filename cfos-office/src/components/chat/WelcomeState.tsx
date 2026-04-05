@@ -1,13 +1,19 @@
 'use client';
 
 const starters = [
-  "What's on your mind financially?",
-  'Help me understand my spending',
-  'I want to set a savings goal',
-  "What should I focus on this month?",
+  { text: "What's on your mind financially?", type: undefined },
+  { text: 'Help me understand my spending', type: undefined },
+  { text: 'I want to set a savings goal', type: undefined },
+  { text: "What should I focus on this month?", type: undefined },
+  { text: 'Help me plan a trip', type: 'trip_planning' as const },
+  { text: 'What if...?', type: 'scenario' as const },
 ];
 
-export function WelcomeState({ onSelect }: { onSelect: (text: string) => void }) {
+export function WelcomeState({
+  onSelect,
+}: {
+  onSelect: (text: string, conversationType?: string) => void;
+}) {
   return (
     <div className="flex-1 flex items-center justify-center px-6">
       <div className="text-center max-w-md">
@@ -23,10 +29,10 @@ export function WelcomeState({ onSelect }: { onSelect: (text: string) => void })
           Your personal finance advisor. What would you like to talk about?
         </p>
         <div className="grid gap-2">
-          {starters.map((text) => (
+          {starters.map(({ text, type }) => (
             <button
               key={text}
-              onClick={() => onSelect(text)}
+              onClick={() => onSelect(text, type)}
               className="w-full px-4 py-3 text-left text-sm text-foreground/80 bg-card border border-border rounded-xl hover:bg-accent hover:text-foreground transition-colors"
             >
               {text}
