@@ -6,6 +6,8 @@ import Markdown from 'react-markdown';
 import { TappableOptions } from './TappableOptions';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
+import { ScenarioResult } from './ScenarioResult';
+import { TripPlanResult } from './TripPlanResult';
 
 // ── Tool loading labels ───────────────────────────────────────────────────────
 
@@ -21,6 +23,8 @@ const TOOL_LABELS: Record<string, string> = {
   suggest_value_recategorisation: 'Looking for miscategorised transactions...',
   update_value_category: 'Updating your value categories...',
   update_user_profile: 'Saving to your profile...',
+  plan_trip: 'Planning your trip...',
+  search_bill_alternatives: 'Researching alternatives...',
 };
 
 // ── Parsers ────────────────────────────────────────────────────────────────────
@@ -98,6 +102,10 @@ export function MessageList({
         // Extract text parts and structured input tool invocations
         const textParts: string[] = [];
         const structuredInputs: StructuredInputConfig[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const scenarioResults: any[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tripPlanResults: any[] = [];
 
         const toolInvocations: Array<{ toolName: string; state: string; toolCallId: string }> = [];
 
@@ -126,6 +134,32 @@ export function MessageList({
                 ) {
                   structuredInputs.push(result as StructuredInputConfig);
                 }
+              }
+
+              // Collect scenario model results
+              if (
+                toolPart.toolName === 'model_scenario' &&
+                toolPart.state === 'result' &&
+                toolPart.result &&
+                typeof toolPart.result === 'object' &&
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (toolPart.result as any).scenario &&
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                !(toolPart.result as any).error
+              ) {
+                scenarioResults.push(toolPart.result);
+              }
+
+              // Collect trip plan results
+              if (
+                toolPart.toolName === 'plan_trip' &&
+                toolPart.state === 'result' &&
+                toolPart.result &&
+                typeof toolPart.result === 'object' &&
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (toolPart.result as any).type === 'trip_plan'
+              ) {
+                tripPlanResults.push(toolPart.result);
               }
 
               // Clear loading indicator when result arrives
@@ -195,6 +229,20 @@ export function MessageList({
                   onSubmit={onStructuredSubmit ?? (() => {})}
                   userCurrency={userCurrency}
                 />
+              ))}
+
+              {/* Scenario result visualisations */}
+              {scenarioResults.map((result, i) => (
+                <div key={`scenario-${i}`} className="px-3 mt-2">
+                  <ScenarioResult result={result} />
+                </div>
+              ))}
+
+              {/* Trip plan result visualisations */}
+              {tripPlanResults.map((result, i) => (
+                <div key={`trip-${i}`} className="px-3">
+                  <TripPlanResult result={result} />
+                </div>
               ))}
 
               {/* Tool loading indicators */}

@@ -13,6 +13,7 @@ interface ChatInterfaceProps {
   initialMessages?: UIMessage[];
   conversationType?: string;
   userCurrency?: string;
+  starterMessage?: string;
 }
 
 export function ChatInterface({
@@ -20,6 +21,7 @@ export function ChatInterface({
   initialMessages,
   conversationType,
   userCurrency,
+  starterMessage,
 }: ChatInterfaceProps) {
   const router = useRouter();
   const [conversationId, setConversationId] = useState<string | null>(
@@ -30,11 +32,16 @@ export function ChatInterface({
 
   const [input, setInput] = useState('');
   const autoTriggeredRef = useRef(false);
+  const conversationTypeRef = useRef(conversationType);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: () => ({ conversationId: conversationIdRef.current }),
+      body: () => ({
+        conversationId: conversationIdRef.current,
+        // Pass conversation type only when creating a new conversation
+        ...(!conversationIdRef.current && conversationTypeRef.current ? { conversationType: conversationTypeRef.current } : {}),
+      }),
     }),
     messages: initialMessages,
     onFinish: ({ messages: finishedMessages }) => {
@@ -86,6 +93,21 @@ export function ChatInterface({
     }
   }, [conversationType, messages.length, status, sendMessage]);
 
+  // Auto-send starter message (e.g. from /scenarios page redirect)
+  const starterSentRef = useRef(false);
+  useEffect(() => {
+    if (
+      starterMessage &&
+      messages.length === 0 &&
+      status === 'ready' &&
+      !starterSentRef.current &&
+      !autoTriggeredRef.current
+    ) {
+      starterSentRef.current = true;
+      sendMessage({ text: starterMessage });
+    }
+  }, [starterMessage, messages.length, status, sendMessage]);
+
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text) return;
@@ -94,7 +116,10 @@ export function ChatInterface({
   }, [input, sendMessage]);
 
   const handleStarterSelect = useCallback(
-    (text: string) => {
+    (text: string, type?: string) => {
+      if (type) {
+        conversationTypeRef.current = type;
+      }
       sendMessage({ text });
     },
     [sendMessage]

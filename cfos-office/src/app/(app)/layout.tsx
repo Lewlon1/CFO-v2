@@ -9,6 +9,8 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/bills', label: 'Bills', icon: '📋' },
   { href: '/transactions', label: 'Transactions', icon: '↕' },
+  { href: '/scenarios', label: 'What if...', icon: '🔮' },
+  { href: '/trips', label: 'Trips', icon: '✈️' },
   { href: '/profile', label: 'Profile', icon: '👤' },
 ]
 

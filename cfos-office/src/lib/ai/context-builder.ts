@@ -21,6 +21,7 @@ export async function buildSystemPrompt(
     valueMapResult,
     goalsResult,
     actionsResult,
+    tripsResult,
   ] = await Promise.allSettled([
     supabase
       .from('user_profiles')
@@ -60,6 +61,13 @@ export async function buildSystemPrompt(
       .select('*')
       .eq('profile_id', userId)
       .eq('status', 'pending'),
+    supabase
+      .from('trips')
+      .select('name, destination, start_date, end_date, total_estimated, status, currency')
+      .eq('user_id', userId)
+      .in('status', ['planning', 'booked'])
+      .order('start_date', { ascending: true })
+      .limit(3),
   ]);
 
   const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null;
@@ -69,6 +77,7 @@ export async function buildSystemPrompt(
   const valueMap = valueMapResult.status === 'fulfilled' ? valueMapResult.value.data : null;
   const goals = goalsResult.status === 'fulfilled' ? goalsResult.value.data : null;
   const actions = actionsResult.status === 'fulfilled' ? actionsResult.value.data : null;
+  const trips = tripsResult.status === 'fulfilled' ? tripsResult.value.data : null;
 
   // Build advice style modifier
   const adviceStyle = profile?.advice_style || 'direct';
@@ -88,6 +97,7 @@ export async function buildSystemPrompt(
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildGoalsContext(goals, actions),
+    buildTripsContext(trips, profile),
     buildToolUsageInstructions(),
     await buildProfilingContext(userId, supabase),
   ].filter(Boolean);
@@ -283,6 +293,23 @@ function buildGoalsContext(goals: any[] | null, actions: any[] | null): string {
   return parts.join('\n');
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildTripsContext(trips: any[] | null, profile: any): string {
+  if (!trips || trips.length === 0) return '';
+
+  const currency = profile?.primary_currency || 'EUR';
+  const lines = trips.map(t => {
+    let line = `- ${t.name}`;
+    if (t.destination) line += ` (${t.destination})`;
+    line += `: ${t.status}`;
+    if (t.total_estimated) line += `, budget ${currency} ${t.total_estimated}`;
+    if (t.start_date) line += `, ${t.start_date}`;
+    return line;
+  });
+
+  return `## Upcoming trips\n\n${lines.join('\n')}`;
+}
+
 function buildToolUsageInstructions(): string {
   return `## Available tools
 
@@ -294,7 +321,8 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **calculate_monthly_budget**: "What's my budget?" or "How much can I spend?" Also use as context when discussing any spending number relative to income.
 - **get_action_items**: "What's on my to-do list?" or "What should I be working on?"
 - **create_action_item**: When a conversation produces a concrete next step. Always confirm with the user before creating.
-- **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" All calculations are server-side.
+- **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" / "What if I had kids?" / "What if I changed careers?" / "How would my investments grow?" All 6 scenario types are available. All calculations are server-side.
+- **plan_trip**: "Help me plan a trip" — create a trip budget, funding plan, and savings goal. Call this AFTER collecting destination, dates, travel style, and companions, and AFTER researching real costs. All funding calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
 - **suggest_value_recategorisation**: "Are any of my categories wrong?" Find potentially miscategorised transactions.
 - **search_bill_alternatives**: "Can I get a better deal on electricity?" / "Help me switch internet provider." Researches alternatives and compares with the user's current plan.
@@ -373,10 +401,62 @@ This is a new user. Welcome them warmly. If they completed the Value Map, refere
     case 'monthly_review':
       return buildMonthlyReviewPrompt(metadata, userId);
 
+    case 'trip_planning':
+      return `## Conversation type: Trip planning
+
+Help the user plan and budget for a trip. Follow this flow:
+
+STEP 1 — COLLECT (1-2 exchanges):
+Ask about: destination, approximate dates, duration, who's going, travel style (budget/mid-range/luxury).
+If they mention a partner, ask if they'll split costs 50/50.
+Keep it conversational — don't dump all questions at once.
+
+STEP 2 — RESEARCH (use web search if available):
+Estimate current prices for:
+- Flights from their location to destination (use real airlines where possible)
+- Accommodation ranges for their travel style
+- Average daily food costs at destination
+- Key activities/experiences and their costs
+- Local transport costs
+Be specific with real price ranges and practical tips.
+
+STEP 3 — BUDGET (call plan_trip tool):
+Once you have cost estimates, call the plan_trip tool with your estimates.
+Present the results conversationally:
+- Total budget with per-category breakdown
+- Their share (if splitting)
+- Funding plan: "If you save €X/month for Y months..."
+- Feasibility assessment based on their actual cash flow
+- If tight: suggest specific categories where they could cut back, with amounts
+
+STEP 4 — REFINE:
+Let the user adjust. They might say "that's too much for accommodation" or "we'll definitely do X activity."
+Update the budget accordingly (call plan_trip again with revised estimates if significant changes).
+
+STEP 5 — COMMIT:
+Confirm the plan is saved as a goal. Let them know they'll see progress on the dashboard.
+If relevant, create action items: "Book flights when prices drop below €X", "Set up a trip savings pot", etc.
+
+IMPORTANT:
+- All calculations come from the plan_trip tool, not from your head.
+- Reference their actual surplus/discretionary spending when discussing feasibility.
+- If experiences rank high in their values, acknowledge that this trip aligns with their values.
+- Don't be a killjoy. If a trip is expensive but important to them, help them find a way. Only flag "unrealistic" if the numbers truly don't work.`;
+
     case 'scenario':
       return `## Conversation context: Scenario modelling
 
-The user wants to explore a what-if. Use system tools to model the scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation.`;
+The user wants to explore a what-if. Use the model_scenario tool to run the numbers — never calculate yourself.
+
+Available scenario types:
+- **salary_increase**: new income or percentage increase
+- **expense_reduction**: cut a specific spending category by a percentage
+- **property_purchase**: mortgage calculator with deposit, rate, and term
+- **children**: cost of having kids — childcare, food, clothing, activities
+- **career_change**: transition costs, runway analysis, new income comparison
+- **investment_growth**: compound growth projections with year-by-year breakdown
+
+Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. Always mention the impact on their active goals if any exist.`;
 
     case 'post_upload':
       return buildPostUploadPrompt(metadata, snapshots, profile);
