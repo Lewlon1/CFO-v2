@@ -1,9 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ChevronDown, Upload, Settings } from 'lucide-react';
 import { CompletenessIndicator } from './CompletenessIndicator';
 import { ProfileCard } from './ProfileCard';
 import { TraitDisplay } from './TraitDisplay';
+import { DataFreshness } from './DataFreshness';
+import { ImportHistory } from './ImportHistory';
+import { DataManagement } from './DataManagement';
 import { PROFILE_QUESTIONS } from '@/lib/profiling/question-registry';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -23,6 +28,22 @@ type Trait = {
   confidence: number;
   evidence: string | null;
   source: string;
+};
+
+type ImportBatch = {
+  import_batch_id: string;
+  source: string;
+  transaction_count: number;
+  earliest_date: string;
+  latest_date: string;
+  imported_at: string;
+};
+
+type DataSummary = {
+  monthsCovered: number;
+  latestMonth: string | null;
+  totalTransactions: number;
+  traitCount: number;
 };
 
 // ── Field labels ──────────────────────────────────────────────────────────────
@@ -58,16 +79,54 @@ function getQuestion(field: string) {
   return PROFILE_QUESTIONS.find((q) => q.field === field);
 }
 
+// ── Collapsible Section ──────────────────────────────────────────────────────
+
+function CollapsibleSection({
+  title,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="bg-card border border-border rounded-xl">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between w-full p-4 text-left min-h-[44px]"
+      >
+        <div className="flex items-center gap-2">
+          {icon}
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        </div>
+        <ChevronDown
+          className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ProfilePageClient({
   profile,
   profilingEntries,
   traits,
+  dataSummary,
+  imports,
 }: {
   profile: Profile;
   profilingEntries: ProfilingEntry[];
   traits: Trait[];
+  dataSummary: DataSummary;
+  imports: ImportBatch[];
 }) {
   const router = useRouter();
   const completeness = (profile.profile_completeness as number) || 0;
@@ -95,6 +154,13 @@ export function ProfilePageClient({
 
       {/* Completeness */}
       <CompletenessIndicator percentage={completeness} />
+
+      {/* Data Freshness */}
+      <DataFreshness
+        monthsCovered={dataSummary.monthsCovered}
+        latestMonth={dataSummary.latestMonth}
+        totalTransactions={dataSummary.totalTransactions}
+      />
 
       {/* Essentials */}
       <ProfileCard
@@ -151,6 +217,23 @@ export function ProfilePageClient({
 
       {/* Financial Portrait */}
       <TraitDisplay traits={traits} />
+
+      {/* Import History */}
+      <CollapsibleSection
+        title="Import History"
+        icon={<Upload className="w-4 h-4 text-primary" />}
+        defaultOpen={imports.length > 0}
+      >
+        <ImportHistory imports={imports} />
+      </CollapsibleSection>
+
+      {/* Data Management */}
+      <CollapsibleSection
+        title="Data Management"
+        icon={<Settings className="w-4 h-4 text-primary" />}
+      >
+        <DataManagement dataSummary={dataSummary} />
+      </CollapsibleSection>
     </div>
   );
 }
