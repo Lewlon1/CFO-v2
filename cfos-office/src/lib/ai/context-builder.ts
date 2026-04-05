@@ -467,10 +467,68 @@ Ask enough to fill the required params, then call model_scenario. Present the nu
     case 'bill_optimisation':
       return buildBillOptimisationPrompt(metadata, userId);
 
-    default:
+    default: {
+      // Check if this conversation was initiated from a nudge
+      const nudgeType = metadata?.nudge_type as string | undefined;
+      if (nudgeType) {
+        return buildNudgeContext(nudgeType, metadata ?? {});
+      }
+
       return `## Conversation context: General
 
 This is an open conversation. Follow the user's lead. If they ask a question, answer it directly using their actual data. If there are pending action items, you may mention them if relevant.`;
+    }
+  }
+}
+
+function buildNudgeContext(nudgeType: string, params: Record<string, unknown>): string {
+  switch (nudgeType) {
+    case 'payday_savings':
+      return `## Conversation trigger: Payday detected
+The user just received their salary. This is a good moment to discuss:
+1. Transferring a portion to savings (suggest their savings rate target if set)
+2. Any upcoming bills or large expenses this month
+3. Progress on active goals
+Be proactive but not pushy. They tapped the reminder, so they're open to the conversation.`;
+
+    case 'budget_alert':
+      return `## Conversation trigger: Budget alert
+The user's ${params.category ?? 'spending'} is approaching or has exceeded their budget.
+Use the get_spending_summary tool to get the exact numbers. Show them:
+1. Current spend vs budget for this category
+2. What's driving the overspend (largest transactions)
+3. Practical suggestions for the rest of the month
+Don't lecture. Acknowledge and help.`;
+
+    case 'contract_expiry':
+      return `## Conversation trigger: Contract expiry
+The user's ${params.provider ?? 'provider'} contract is expiring soon.
+Use the search_bill_alternatives tool to research current alternatives.
+Present options clearly with potential savings. Help them decide and create an action item.`;
+
+    case 'spending_spike':
+      return `## Conversation trigger: Spending spike
+Unusual spending detected in ${params.category ?? 'a category'}.
+Pull the data with get_spending_summary, then:
+1. Show the spike compared to their average
+2. Ask if it's a one-off or a pattern
+3. If it's travel/holiday related, suggest tagging those transactions
+Don't be alarming. It might be perfectly intentional.`;
+
+    case 'action_reminder':
+      return `## Conversation trigger: Action item reminder
+The user has a pending action item. Retrieve it with get_action_items.
+Help them either complete it, break it into smaller steps, or reschedule it.
+If they've been nudged multiple times about this item, be understanding — maybe the task needs to be reframed or isn't relevant anymore.`;
+
+    case 'upload_reminder':
+      return `## Conversation trigger: Upload reminder
+It's been a while since the user uploaded transaction data.
+Gently remind them that fresh data means better advice.
+Offer to walk them through an upload if they have their statement ready.`;
+
+    default:
+      return '';
   }
 }
 

@@ -12,6 +12,7 @@ interface ChatInterfaceProps {
   initialConversationId: string | null;
   initialMessages?: UIMessage[];
   conversationType?: string;
+  conversationMetadata?: Record<string, string>;
   userCurrency?: string;
   starterMessage?: string;
 }
@@ -20,6 +21,7 @@ export function ChatInterface({
   initialConversationId,
   initialMessages,
   conversationType,
+  conversationMetadata,
   userCurrency,
   starterMessage,
 }: ChatInterfaceProps) {
@@ -41,6 +43,7 @@ export function ChatInterface({
         conversationId: conversationIdRef.current,
         // Pass conversation type only when creating a new conversation
         ...(!conversationIdRef.current && conversationTypeRef.current ? { conversationType: conversationTypeRef.current } : {}),
+        ...(!conversationIdRef.current && conversationMetadata ? { conversationMetadata } : {}),
       }),
     }),
     messages: initialMessages,
@@ -71,7 +74,8 @@ export function ChatInterface({
     const isAutoTriggerType = conversationType === 'post_upload'
       || conversationType === 'value_map_complete'
       || conversationType === 'monthly_review'
-      || conversationType === 'bill_optimisation';
+      || conversationType === 'bill_optimisation'
+      || conversationType === 'nudge_initiated';
     if (
       isAutoTriggerType &&
       messages.length === 0 &&
@@ -86,12 +90,15 @@ export function ChatInterface({
         trigger = '[System: Monthly review started. Begin with Phase 1 — the headline number.]';
       } else if (conversationType === 'bill_optimisation') {
         trigger = '[System: User wants to discuss a specific bill. Review the bill details in your context and open with a focused observation — cost vs market, contract status, or an obvious saving opportunity.]';
+      } else if (conversationType === 'nudge_initiated') {
+        const nudgeType = conversationMetadata?.nudge_type ?? 'general';
+        trigger = `[System: User arrived via ${nudgeType} nudge. Open the conversation proactively.]`;
       } else {
         trigger = '[System: Post-upload analysis triggered. Deliver your first insight.]';
       }
       sendMessage({ text: trigger });
     }
-  }, [conversationType, messages.length, status, sendMessage]);
+  }, [conversationType, conversationMetadata, messages.length, status, sendMessage]);
 
   // Auto-send starter message (e.g. from /scenarios page redirect)
   const starterSentRef = useRef(false);

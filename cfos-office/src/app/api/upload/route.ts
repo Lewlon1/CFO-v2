@@ -12,6 +12,7 @@ import { runImportPipeline, type ImportableTransaction } from '@/lib/upload/pipe
 import { refreshMonthlySnapshots, extractAffectedMonths } from '@/lib/analytics/monthly-snapshot'
 import { detectAndFlagRecurring } from '@/lib/analytics/recurring-detector'
 import { detectAndFlagHolidaySpend } from '@/lib/analytics/holiday-detector'
+import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings'
 import type {
   Category,
   ValueCategoryRule,
@@ -62,6 +63,9 @@ export async function POST(req: NextRequest) {
         .single()
       const primaryCurrency = profile?.primary_currency ?? 'EUR'
       await detectAndFlagHolidaySpend(supabase, user.id, primaryCurrency, importBatchId)
+
+      // Check for payday (salary deposit) in imported transactions
+      evaluatePaydaySavings(supabase, user.id).catch(() => {})
 
       // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
       const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([

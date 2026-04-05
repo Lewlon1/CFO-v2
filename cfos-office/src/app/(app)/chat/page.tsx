@@ -2,11 +2,21 @@ import { createClient } from '@/lib/supabase/server';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { ConversationList } from '@/components/chat/ConversationList';
 
-export default async function ChatPage() {
+export default async function ChatPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const params = await searchParams;
+  const nudgeType = typeof params.nudge === 'string' ? params.nudge : undefined;
+  const nudgeCategory = typeof params.category === 'string' ? params.category : undefined;
+  const nudgeProvider = typeof params.provider === 'string' ? params.provider : undefined;
+  const conversationType = typeof params.type === 'string' ? params.type : undefined;
 
   const [{ data: conversations }, { data: profile }] = await Promise.all([
     supabase
@@ -21,6 +31,32 @@ export default async function ChatPage() {
       .single(),
   ]);
 
+  // Mark originating nudge as read when arriving from a nudge
+  if (nudgeType) {
+    const { data: pendingNudge } = await supabase
+      .from('nudges')
+      .select('id')
+      .eq('user_id', user!.id)
+      .eq('type', nudgeType)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (pendingNudge) {
+      await supabase
+        .from('nudges')
+        .update({ status: 'read', read_at: new Date().toISOString() })
+        .eq('id', pendingNudge.id);
+    }
+  }
+
+  // Build metadata for nudge-initiated conversations
+  const chatConversationType = nudgeType ? 'nudge_initiated' : conversationType;
+  const chatMetadata = nudgeType
+    ? { nudge_type: nudgeType, ...(nudgeCategory ? { category: nudgeCategory } : {}), ...(nudgeProvider ? { provider: nudgeProvider } : {}) }
+    : undefined;
+
   return (
     <>
       {/* Desktop conversation sidebar */}
@@ -31,8 +67,10 @@ export default async function ChatPage() {
       {/* Chat area */}
       <div className="flex-1 flex flex-col min-w-0">
         <ChatInterface
-          key="new"
+          key={nudgeType ? `nudge-${nudgeType}` : 'new'}
           initialConversationId={null}
+          conversationType={chatConversationType}
+          conversationMetadata={chatMetadata}
           userCurrency={profile?.primary_currency ?? undefined}
         />
       </div>

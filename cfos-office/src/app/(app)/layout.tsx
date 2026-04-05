@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { LogoutButton } from '@/components/app/logout-button'
 import { MobileNav } from '@/components/app/mobile-nav'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: '💬' },
@@ -12,6 +13,7 @@ const navItems = [
   { href: '/scenarios', label: 'What if...', icon: '🔮' },
   { href: '/trips', label: 'Trips', icon: '✈️' },
   { href: '/profile', label: 'Profile', icon: '👤' },
+  { href: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -32,14 +34,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex h-dvh overflow-hidden">
       {/* Sidebar — desktop */}
       <aside className="hidden md:flex w-56 flex-col bg-card border-r border-border flex-shrink-0">
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
-          <div className="w-7 h-7 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm flex-shrink-0">
-            £
+        {/* Logo + Notifications */}
+        <div className="flex items-center justify-between px-5 py-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm flex-shrink-0">
+              £
+            </div>
+            <span className="text-sm font-semibold text-foreground leading-tight">
+              The CFO&apos;s<br />Office
+            </span>
           </div>
-          <span className="text-sm font-semibold text-foreground leading-tight">
-            The CFO&apos;s<br />Office
-          </span>
+          <NotificationBell />
         </div>
 
         {/* Nav links */}
@@ -78,7 +83,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </div>
             <span className="text-sm font-semibold text-foreground">The CFO&apos;s Office</span>
           </div>
-          <MobileNav navItems={navItems} userEmail={user.email ?? ''} />
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <MobileNav navItems={navItems} userEmail={user.email ?? ''} />
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto">
