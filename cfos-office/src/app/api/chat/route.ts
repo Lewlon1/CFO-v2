@@ -31,6 +31,7 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  const MAX_MESSAGE_LENGTH = 10_000;
   const { messages, conversationId, conversationType: requestedType, conversationMetadata: requestedMetadata } = (await req.json()) as {
     messages: UIMessage[];
     conversationId: string | null;
@@ -38,6 +39,17 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     conversationMetadata?: Record<string, any>;
   };
+
+  // Validate message length
+  const lastMsg = messages[messages.length - 1];
+  if (lastMsg?.role === 'user') {
+    const textLength = (lastMsg.parts ?? [])
+      .filter((p: { type: string }) => p.type === 'text')
+      .reduce((sum: number, p: { type: string; text?: string }) => sum + (p.text?.length ?? 0), 0);
+    if (textLength > MAX_MESSAGE_LENGTH) {
+      return new Response('Message too long. Please keep messages under 10,000 characters.', { status: 413 });
+    }
+  }
 
   // Fetch existing conversation to get type + metadata (if one exists)
   let conversationType: string | undefined;
@@ -499,9 +511,23 @@ export async function POST(req: Request) {
       }
     },
   });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[chat] unhandled error:', err);
-    return new Response(String(err), { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+
+    if (message.includes('ThrottlingException') || message.includes('Too many requests')) {
+      return new Response('The AI service is temporarily busy. Please try again in a moment.', { status: 429 });
+    }
+    if (message.includes('TimeoutError') || message.includes('ETIMEDOUT') || message.includes('socket hang up')) {
+      return new Response('The request timed out. Please try again.', { status: 504 });
+    }
+    if (message.includes('AccessDeniedException') || message.includes('UnauthorizedAccess')) {
+      return new Response('AI service configuration error. Please contact support.', { status: 503 });
+    }
+    if (message.includes('ValidationException') || message.includes('ModelNotReadyException')) {
+      return new Response('AI service temporarily unavailable. Please try again shortly.', { status: 503 });
+    }
+    return new Response('Something went wrong. Please try again.', { status: 500 });
   }
 }
 

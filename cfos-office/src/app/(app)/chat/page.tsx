@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { ChatInterface } from '@/components/chat/ChatInterface';
+import { ChatErrorBoundary } from '@/components/chat/ChatErrorBoundary';
 import { ConversationList } from '@/components/chat/ConversationList';
 
 export default async function ChatPage({
@@ -66,13 +67,15 @@ export default async function ChatPage({
 
       {/* Chat area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <ChatInterface
-          key={nudgeType ? `nudge-${nudgeType}` : 'new'}
-          initialConversationId={null}
-          conversationType={chatConversationType}
-          conversationMetadata={chatMetadata}
-          userCurrency={profile?.primary_currency ?? undefined}
-        />
+        <ChatErrorBoundary>
+          <ChatInterface
+            key={nudgeType ? `nudge-${nudgeType}` : 'new'}
+            initialConversationId={null}
+            conversationType={chatConversationType}
+            conversationMetadata={chatMetadata}
+            userCurrency={profile?.primary_currency ?? undefined}
+          />
+        </ChatErrorBoundary>
       </div>
     </>
   );

@@ -33,6 +33,7 @@ export function ChatInterface({
   conversationIdRef.current = conversationId;
 
   const [input, setInput] = useState('');
+  const [chatError, setChatError] = useState<string | null>(null);
   const autoTriggeredRef = useRef(false);
   const conversationTypeRef = useRef(conversationType);
 
@@ -47,6 +48,16 @@ export function ChatInterface({
       }),
     }),
     messages: initialMessages,
+    onError: (error) => {
+      const msg = error?.message || '';
+      if (msg.includes('429') || msg.toLowerCase().includes('busy')) {
+        setChatError('Too many requests. Please wait a moment and try again.');
+      } else if (msg.includes('504') || msg.toLowerCase().includes('timeout')) {
+        setChatError('Response timed out. Please try again.');
+      } else {
+        setChatError('Something went wrong. Please try again.');
+      }
+    },
     onFinish: ({ messages: finishedMessages }) => {
       // Extract conversationId from the assistant message metadata
       const lastAssistant = [...finishedMessages]
@@ -118,6 +129,7 @@ export function ChatInterface({
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text) return;
+    setChatError(null);
     setInput('');
     sendMessage({ text });
   }, [input, sendMessage]);
@@ -160,10 +172,23 @@ export function ChatInterface({
   // For auto-triggered conversations, skip the welcome state
   const showWelcome = messages.length === 0 && !isLoading && !isAutoTriggered;
 
+  const errorBanner = chatError ? (
+    <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-amber-800 text-sm flex items-center justify-between">
+      <span>{chatError}</span>
+      <button
+        onClick={() => setChatError(null)}
+        className="ml-3 text-amber-600 hover:text-amber-800 font-medium shrink-0"
+      >
+        Dismiss
+      </button>
+    </div>
+  ) : null;
+
   if (showWelcome) {
     return (
       <div className="flex flex-col h-full min-w-0">
         <WelcomeState onSelect={handleStarterSelect} />
+        {errorBanner}
         <ChatInput
           input={input}
           onInputChange={setInput}
@@ -183,6 +208,7 @@ export function ChatInterface({
         onStructuredSubmit={handleStructuredSubmit}
         userCurrency={userCurrency}
       />
+      {errorBanner}
       <ChatInput
         input={input}
         onInputChange={setInput}

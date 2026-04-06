@@ -26,6 +26,19 @@ export function UploadWizard({ categories, onImported, onDone }: Props) {
   const [state, setState] = useState<WizardState>({ step: 'idle' })
 
   async function handleFile(file: File) {
+    // Client-side validation
+    const MAX_FILE_SIZE = 10 * 1024 * 1024
+    if (file.size > MAX_FILE_SIZE) {
+      setState({ step: 'error', message: 'File too large. Maximum size is 10MB.' })
+      return
+    }
+    const ext = file.name.toLowerCase().split('.').pop()
+    const ALLOWED_EXTS = new Set(['csv', 'xlsx', 'xls', 'png', 'jpg', 'jpeg', 'heic', 'webp'])
+    if (!ext || !ALLOWED_EXTS.has(ext)) {
+      setState({ step: 'error', message: 'Unsupported file type. We accept CSV, Excel, and screenshot images.' })
+      return
+    }
+
     setState({ step: 'uploading' })
     try {
       const formData = new FormData()

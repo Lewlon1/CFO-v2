@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { LogoutButton } from '@/components/app/logout-button'
 import { MobileNav } from '@/components/app/mobile-nav'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { OfflineBanner } from '@/components/app/OfflineBanner'
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: '💬' },
@@ -89,6 +90,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
+        <OfflineBanner />
         <main className="flex-1 overflow-auto">
           {children}
         </main>

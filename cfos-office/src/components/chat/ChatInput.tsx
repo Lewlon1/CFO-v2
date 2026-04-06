@@ -2,6 +2,8 @@
 
 import { useRef, useEffect, useCallback } from 'react';
 
+const MAX_LENGTH = 10_000;
+
 export function ChatInput({
   input,
   onInputChange,
@@ -43,8 +45,11 @@ export function ChatInput({
     }
   }
 
+  const overLimit = input.length > MAX_LENGTH;
+  const showCounter = input.length > 8000;
+
   return (
-    <div className="border-t border-border bg-card px-4 py-3">
+    <div className="border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <div className="flex items-end gap-2 max-w-3xl mx-auto">
         <textarea
           ref={textareaRef}
@@ -53,12 +58,13 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder="Message your CFO..."
           disabled={disabled}
+          maxLength={MAX_LENGTH}
           rows={1}
           className="flex-1 resize-none bg-input border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 min-h-[44px] max-h-[200px]"
         />
         <button
           onClick={onSend}
-          disabled={disabled || !input.trim()}
+          disabled={disabled || !input.trim() || overLimit}
           className="h-[44px] w-[44px] flex-shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
           aria-label="Send message"
         >
@@ -77,6 +83,11 @@ export function ChatInput({
           </svg>
         </button>
       </div>
+      {showCounter && (
+        <p className={`text-xs mt-1 text-right max-w-3xl mx-auto ${overLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+          {input.length.toLocaleString()}/{MAX_LENGTH.toLocaleString()}
+        </p>
+      )}
     </div>
   );
 }
