@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     const base64 = Buffer.from(buffer).toString('base64')
     const mimeType = file.type || 'image/jpeg'
     const dataUrl = `data:${mimeType};base64,${base64}`
-    parseResult = await parseScreenshot(dataUrl)
+    parseResult = await parseScreenshot(dataUrl, user.id)
   } else if (isXlsx) {
     const buffer = await file.arrayBuffer()
     parseResult = parseSantanderXLSX(buffer)

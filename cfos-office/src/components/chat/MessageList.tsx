@@ -8,6 +8,7 @@ import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 import { ScenarioResult } from './ScenarioResult';
 import { TripPlanResult } from './TripPlanResult';
+import { MessageFeedback } from './MessageFeedback';
 
 // ── Tool loading labels ───────────────────────────────────────────────────────
 
@@ -255,6 +256,17 @@ export function MessageList({
                   {TOOL_LABELS[tool.toolName]}
                 </div>
               ))}
+
+              {/* Message feedback (assistant messages with DB IDs only) */}
+              {message.role === 'assistant' &&
+                message.metadata &&
+                typeof message.metadata === 'object' &&
+                'messageDbId' in message.metadata &&
+                message.metadata.messageDbId && (
+                  <div className="px-3">
+                    <MessageFeedback messageId={message.metadata.messageDbId as string} />
+                  </div>
+                )}
             </div>
           </div>
         );

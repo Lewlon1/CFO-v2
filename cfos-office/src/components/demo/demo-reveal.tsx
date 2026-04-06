@@ -10,6 +10,7 @@ import { DemoResonanceFeedback } from '@/components/demo/demo-resonance-feedback
 import { QUADRANT_ORDER, QUADRANTS } from '@/lib/value-map/constants'
 import type { ValueQuadrant, ValueMapResult } from '@/lib/value-map/types'
 import { demoAnalytics } from '@/lib/demo/analytics'
+import { useTrackEvent } from '@/lib/events/use-track-event'
 import { cn } from '@/lib/utils'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -144,6 +145,7 @@ function ShareableCard({
 
 export function DemoReveal({ reading, personality, userName, country, results, fallback, sessionId, isAuthenticated = false }: DemoRevealProps) {
   const router = useRouter()
+  const trackEvent = useTrackEvent()
   const [navigating, setNavigating] = useState(false)
   const displayName = userName === 'You' || userName === 'Anonymous' ? '' : userName
   const hookMessage = `${displayName ? displayName + ', have' : 'Have'} you ever thought about your spending like this before? These were sample transactions — imagine what your CFO could tell you from your real ones. The patterns in how fast you decide, where you hesitate, what you call a "leak" versus a "foundation" — that's your actual relationship with money. And this is just the surface.`
@@ -159,7 +161,8 @@ export function DemoReveal({ reading, personality, userName, country, results, f
   // Track reading generated
   useEffect(() => {
     demoAnalytics(fallback ? 'demo_reading_fallback' : 'demo_reading_generated')
-  }, [fallback])
+    trackEvent('value_map_reading_shown', { archetype: personality.type })
+  }, [fallback, trackEvent, personality.type])
 
   const handleSaveCard = useCallback(async () => {
     if (!cardRef.current || saving) return
@@ -284,6 +287,7 @@ export function DemoReveal({ reading, personality, userName, country, results, f
                 if (navigating) return
                 setNavigating(true)
                 demoAnalytics('demo_finished')
+                trackEvent('value_map_cta_clicked', { cta_type: 'chat' })
                 try {
                   const res = await fetch('/api/insights/value-map-complete', { method: 'POST' })
                   if (res.ok) {
@@ -316,7 +320,10 @@ export function DemoReveal({ reading, personality, userName, country, results, f
             </p>
             <a
               href={sessionId ? `/signup?session_token=${sessionId}` : '/signup'}
-              onClick={() => demoAnalytics('demo_finished')}
+              onClick={() => {
+                demoAnalytics('demo_finished')
+                trackEvent('value_map_cta_clicked', { cta_type: 'signup' })
+              }}
               className="flex items-center justify-center w-full px-4 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors"
             >
               Sign up free — it&apos;s just an email

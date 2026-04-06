@@ -102,7 +102,8 @@ export async function runImportPipeline(
   if (unmatched.length > 0) {
     const llmResults = await llmCategorise(
       unmatched.map((t) => t.description),
-      categories
+      categories,
+      opts.userId
     )
     for (const result of llmResults) {
       const txn = unmatched[result.index - 1]

@@ -141,6 +141,7 @@ export async function POST(req: Request) {
     if (textContent && !textContent.startsWith('[System:')) {
       await supabase.from('messages').insert({
         conversation_id: activeConversationId,
+        user_id: user.id,
         role: 'user',
         content: textContent,
       });
@@ -165,6 +166,9 @@ export async function POST(req: Request) {
 
   // Convert UI messages to model format
   const modelMessages = await convertToModelMessages(messages);
+
+  // Pre-generate DB ID for the assistant message so we can stream it to the client
+  const assistantMessageDbId = crypto.randomUUID();
 
   // Stream response
   const result = streamText({
@@ -431,11 +435,13 @@ export async function POST(req: Request) {
   return result.toUIMessageStreamResponse({
     messageMetadata: ({ part }) => {
       if (part.type === 'finish' || part.type === 'start') {
-        return { conversationId: activeConversationId };
+        return { conversationId: activeConversationId, messageDbId: assistantMessageDbId };
       }
       return undefined;
     },
     onFinish: async ({ messages: responseMessages }) => {
+      // Get token usage from the stream result
+      const usage = await result.usage;
       // Save assistant response — get the last assistant message for text
       const assistantMsg = responseMessages
         .filter((m) => m.role === 'assistant')
@@ -484,12 +490,16 @@ export async function POST(req: Request) {
 
         if (textContent) {
           await supabase.from('messages').insert({
+            id: assistantMessageDbId,
             conversation_id: activeConversationId,
+            user_id: user.id,
             role: 'assistant',
             content: textContent,
             tools_used: toolsUsed.length > 0 ? toolsUsed : null,
             actions_created: actionsCreated.length > 0 ? actionsCreated : null,
             profile_updates: profileUpdates.length > 0 ? profileUpdates : null,
+            prompt_tokens: usage?.inputTokens ?? null,
+            completion_tokens: usage?.outputTokens ?? null,
           });
         }
       }

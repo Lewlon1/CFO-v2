@@ -5,6 +5,7 @@ import { LogoutButton } from '@/components/app/logout-button'
 import { MobileNav } from '@/components/app/mobile-nav'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { OfflineBanner } from '@/components/app/OfflineBanner'
+import { SessionTracker } from '@/components/analytics/SessionTracker'
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: '💬' },
@@ -91,6 +92,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
 
         <OfflineBanner />
+        <SessionTracker />
         <main className="flex-1 overflow-auto">
           {children}
         </main>

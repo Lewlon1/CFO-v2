@@ -37,6 +37,17 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Log portrait feedback event (fire-and-forget)
+  void supabase.from('user_events').insert({
+    profile_id: user.id,
+    event_type: 'portrait_feedback',
+    event_category: 'correction',
+    payload: {
+      trait_id: traitId,
+      accurate,
+    },
+  })
+
   return NextResponse.json({
     success: true,
     previousConfidence: trait.confidence,

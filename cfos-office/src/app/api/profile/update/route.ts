@@ -26,6 +26,13 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid field' }, { status: 400 });
   }
 
+  // Fetch old value before updating
+  const { data: existingProfile } = await supabase
+    .from('user_profiles')
+    .select(field)
+    .eq('id', user.id)
+    .single();
+
   // Update the field
   const { error: updateError } = await supabase
     .from('user_profiles')
@@ -39,6 +46,19 @@ export async function POST(req: Request) {
     console.error('Profile update error:', updateError);
     return Response.json({ error: 'Failed to update' }, { status: 500 });
   }
+
+  // Log correction event (fire-and-forget)
+  void supabase.from('user_events').insert({
+    profile_id: user.id,
+    event_type: 'profile_corrected',
+    event_category: 'correction',
+    payload: {
+      field,
+      old_value: existingProfile?.[field] ?? null,
+      new_value: value,
+      source: 'profile_page',
+    },
+  });
 
   // Track in profiling queue as user-confirmed
   await supabase.from('profiling_queue').upsert(

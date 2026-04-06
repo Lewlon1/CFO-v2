@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
+import { useTrackEvent } from '@/lib/events/use-track-event'
 import { Button } from '@/components/ui/button'
 import { CfoAvatar } from '@/components/chat/cfo-avatar'
 import { ValueMapUpload } from './value-map-upload'
@@ -33,6 +34,7 @@ interface ValueMapFlowProps {
 
 export function ValueMapFlow({ currency, existingTransactions, mode = 'onboarding' }: ValueMapFlowProps) {
   const router = useRouter()
+  const trackEvent = useTrackEvent()
   const [step, setStep] = useState<FlowStep>('intro')
   const [transactions, setTransactions] = useState<ValueMapTransaction[]>([])
   const [results, setResults] = useState<ValueMapResult[]>([])
@@ -93,6 +95,7 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleStart = useCallback(() => {
+    trackEvent('value_map_started', { mode })
     if (mode === 'retake') {
       if (existingTransactions && existingTransactions.length >= 5) {
         setTransactions(existingTransactions)
@@ -104,7 +107,7 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
     } else {
       setStep('anchoring')
     }
-  }, [mode, existingTransactions])
+  }, [mode, existingTransactions, trackEvent])
 
   const handleAnchoringSubmit = useCallback((guess: number) => {
     setAnchoredGuess(guess)
@@ -128,10 +131,17 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
 
   const handleExerciseComplete = useCallback(
     (exerciseResults: ValueMapResult[]) => {
+      trackEvent('value_map_completed', {
+        mode,
+        card_count: exerciseResults.length,
+        is_real_data: isRealData,
+      })
+      const personality = calculatePersonality(exerciseResults)
+      trackEvent('value_map_reading_shown', { archetype: personality.personality })
       setResults(exerciseResults)
       setStep('summary')
     },
-    [],
+    [trackEvent, mode, isRealData],
   )
 
   const handleSummaryNext = useCallback(() => {

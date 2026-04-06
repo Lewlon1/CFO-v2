@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTrackEvent } from '@/lib/events/use-track-event'
 import { UploadZone } from './UploadZone'
 import { ColumnMapper } from './ColumnMapper'
 import { TransactionPreview } from './TransactionPreview'
@@ -23,6 +24,7 @@ type Props = {
 }
 
 export function UploadWizard({ categories, onImported, onDone }: Props) {
+  const trackEvent = useTrackEvent()
   const [state, setState] = useState<WizardState>({ step: 'idle' })
 
   async function handleFile(file: File) {
@@ -39,6 +41,8 @@ export function UploadWizard({ categories, onImported, onDone }: Props) {
       return
     }
 
+    const fileType = ext ?? 'unknown'
+    trackEvent('upload_started', { file_type: fileType })
     setState({ step: 'uploading' })
     try {
       const formData = new FormData()
@@ -47,6 +51,7 @@ export function UploadWizard({ categories, onImported, onDone }: Props) {
       const data = await res.json()
 
       if (!res.ok) {
+        trackEvent('upload_failed', { file_type: fileType, error: data.error ?? 'Upload failed' })
         setState({ step: 'error', message: data.error ?? 'Upload failed' })
         return
       }
@@ -58,6 +63,7 @@ export function UploadWizard({ categories, onImported, onDone }: Props) {
 
       setState({ step: 'preview', preview: data.preview, importBatchId: data.importBatchId })
     } catch {
+      trackEvent('upload_failed', { file_type: fileType, error: 'Network error' })
       setState({ step: 'error', message: 'Network error. Please try again.' })
     }
   }
@@ -100,6 +106,7 @@ export function UploadWizard({ categories, onImported, onDone }: Props) {
         setState({ step: 'error', message: data.error ?? 'Import failed' })
         return
       }
+      trackEvent('upload_completed', { file_type: 'csv', transaction_count: data.imported })
       setState({ step: 'done', imported: data.imported, duplicates: data.duplicates, errors: data.errors, importBatchId })
       onImported()
     } catch {
