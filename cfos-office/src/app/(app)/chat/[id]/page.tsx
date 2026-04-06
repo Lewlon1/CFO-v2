@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ChatInterface } from '@/components/chat/ChatInterface';
+import { ChatErrorBoundary } from '@/components/chat/ChatErrorBoundary';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { UIMessage } from 'ai';
 
@@ -67,14 +68,16 @@ export default async function ConversationPage({
 
       {/* Chat area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <ChatInterface
-          key={conversation.id}
-          initialConversationId={conversation.id}
-          initialMessages={initialMessages}
-          conversationType={conversation.type ?? undefined}
-          userCurrency={profile?.primary_currency ?? undefined}
-          starterMessage={starter}
-        />
+        <ChatErrorBoundary>
+          <ChatInterface
+            key={conversation.id}
+            initialConversationId={conversation.id}
+            initialMessages={initialMessages}
+            conversationType={conversation.type ?? undefined}
+            userCurrency={profile?.primary_currency ?? undefined}
+            starterMessage={starter}
+          />
+        </ChatErrorBoundary>
       </div>
     </>
   );

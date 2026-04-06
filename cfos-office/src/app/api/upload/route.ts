@@ -110,6 +110,25 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
 
+  // File size limit: 10MB
+  const MAX_FILE_SIZE = 10 * 1024 * 1024
+  if (file.size > MAX_FILE_SIZE) {
+    return NextResponse.json(
+      { error: 'File too large. Maximum size is 10MB.' },
+      { status: 413 }
+    )
+  }
+
+  // File type validation
+  const ext = file.name.toLowerCase().split('.').pop()
+  const ALLOWED_EXTS = new Set(['csv', 'xlsx', 'xls', 'png', 'jpg', 'jpeg', 'heic', 'webp'])
+  if (!ext || !ALLOWED_EXTS.has(ext)) {
+    return NextResponse.json(
+      { error: 'Unsupported file type. We accept CSV, Excel, and screenshot images.' },
+      { status: 415 }
+    )
+  }
+
   const filename = file.name
 
   // Quick format sniff without reading full text first

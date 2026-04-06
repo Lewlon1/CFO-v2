@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { useTrends } from '@/lib/hooks/useTrends'
@@ -8,16 +9,32 @@ import { MonthSelector } from './MonthSelector'
 import { ViewToggle } from './ViewToggle'
 import { SummaryCards } from './SummaryCards'
 import { EmptyState } from './EmptyState'
-import { SpendingChart } from './SpendingChart'
 import { CategoryBreakdown } from './CategoryBreakdown'
-import { TrendChart } from './TrendChart'
-import { ValuesDonut } from './ValuesDonut'
 import { ValueSummary } from './ValueSummary'
 import { ValueCategoryCards } from './ValueCategoryCards'
 import { UnsureQueue } from './UnsureQueue'
-import { ValuesTrendChart } from './ValuesTrendChart'
 import { RecurringPanel } from './RecurringPanel'
 import { ReviewBanner } from './ReviewBanner'
+
+// Lazy-load Recharts-based chart components (recharts is ~200KB)
+const ChartSkeleton = () => <div className="h-64 bg-muted rounded-lg animate-pulse" />
+
+const SpendingChart = dynamic(
+  () => import('./SpendingChart').then(m => ({ default: m.SpendingChart })),
+  { loading: ChartSkeleton, ssr: false }
+)
+const TrendChart = dynamic(
+  () => import('./TrendChart').then(m => ({ default: m.TrendChart })),
+  { loading: ChartSkeleton, ssr: false }
+)
+const ValuesDonut = dynamic(
+  () => import('./ValuesDonut').then(m => ({ default: m.ValuesDonut })),
+  { loading: ChartSkeleton, ssr: false }
+)
+const ValuesTrendChart = dynamic(
+  () => import('./ValuesTrendChart').then(m => ({ default: m.ValuesTrendChart })),
+  { loading: ChartSkeleton, ssr: false }
+)
 
 type Props = {
   hasData: boolean
