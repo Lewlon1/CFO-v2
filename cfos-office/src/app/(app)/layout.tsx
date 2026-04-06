@@ -24,11 +24,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  const { data: userProfile } = await supabase
+  let { data: userProfile } = await supabase
     .from('user_profiles')
     .select('profile_completeness')
     .eq('id', user.id)
     .single()
+
+  // Belt-and-suspenders: if handle_new_user trigger failed, create profile row
+  if (!userProfile) {
+    await supabase.from('user_profiles').upsert({ id: user.id }, { onConflict: 'id' })
+    userProfile = { profile_completeness: 0 }
+  }
 
   const profileCompleteness = userProfile?.profile_completeness ?? 0
 

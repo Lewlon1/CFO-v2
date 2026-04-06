@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       break
 
     case 'goals':
-      await serviceClient.from('action_items').delete().eq('profile_id', user.id)
+      await serviceClient.from('action_items').delete().eq('user_id', user.id)
       await serviceClient.from('goals').delete().eq('user_id', user.id)
       break
 

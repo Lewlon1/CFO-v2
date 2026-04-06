@@ -115,15 +115,21 @@ export async function getNextQuestions(
   const recentlyAsked = await getRecentlyAskedFields(userId, supabase);
 
   // Load Value Map for priority boosting
+  // value_map_sessions uses profile_id (same UUID as user_id in auth.users)
   const { data: valueMap } = await supabase
-    .from('value_map_results')
-    .select('conflict_areas')
-    .eq('user_id', userId)
+    .from('value_map_sessions')
+    .select('merchants_by_quadrant')
+    .eq('profile_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
 
-  const conflictAreas: string[] = valueMap?.conflict_areas ?? [];
+  // Use merchants from burden/leak quadrants as "conflict areas" for priority boosting
+  const mbq = valueMap?.merchants_by_quadrant as Record<string, string[]> | null;
+  const conflictAreas: string[] = [
+    ...(mbq?.burden ?? []),
+    ...(mbq?.leak ?? []),
+  ];
 
   // Phase thresholds
   const phaseThresholds: Record<number, number> = {

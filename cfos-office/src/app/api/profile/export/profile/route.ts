@@ -44,15 +44,21 @@ export async function GET() {
   const { data: actions } = await supabase
     .from('action_items')
     .select('title, description, category, priority, status, due_date, completed_at, created_at')
-    .eq('profile_id', user.id)
+    .eq('user_id', user.id)
 
-  // Archetype name only — not the underlying analysis
-  const { data: valueMapSession } = await supabase
+  // Personality type only — not the underlying analysis
+  const { data: valueMapResult } = await supabase
     .from('value_map_sessions')
     .select('personality_type')
     .eq('profile_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
+
+  await supabase.from('user_events').insert({
+    user_id: user.id,
+    event_name: 'export_requested',
+    metadata: { format: 'json', type: 'profile' },
+  })
 
   const exportData = {
     exported_at: new Date().toISOString(),
@@ -61,7 +67,7 @@ export async function GET() {
     ),
     goals: goals ?? [],
     action_items: actions ?? [],
-    value_map_archetype: valueMapSession?.[0]?.personality_type ?? null,
+    value_map_archetype: valueMapResult?.[0]?.personality_type ?? null,
   }
 
   return new Response(JSON.stringify(exportData, null, 2), {

@@ -11,7 +11,7 @@ export async function evaluateActionItemReminders(
   const { data: staleActions } = await supabase
     .from('action_items')
     .select('id, title, created_at, last_nudge_at, nudge_count')
-    .eq('profile_id', userId)
+    .eq('user_id', userId)
     .eq('status', 'pending')
     .lte('created_at', sevenDaysAgo.toISOString())
     .or(`last_nudge_at.is.null,last_nudge_at.lte.${sevenDaysAgo.toISOString()}`);
