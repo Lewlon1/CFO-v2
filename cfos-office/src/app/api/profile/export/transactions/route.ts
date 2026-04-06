@@ -1,5 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 
+function friendlySource(source: string | null): string {
+  if (!source) return ''
+  if (source.startsWith('csv')) return 'Bank statement'
+  if (source === 'screenshot') return 'Screenshot'
+  if (source === 'manual') return 'Manual entry'
+  return 'Imported'
+}
+
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,6 +34,12 @@ export async function GET() {
     return new Response('No transactions found', { status: 404 })
   }
 
+  await supabase.from('user_events').insert({
+    user_id: user.id,
+    event_name: 'export_requested',
+    metadata: { format: 'csv', type: 'transactions' },
+  })
+
   const headers = ['Date', 'Description', 'Amount', 'Currency', 'Category', 'Recurring', 'Source']
   const rows = transactions.map(t => [
     t.date,
@@ -34,7 +48,7 @@ export async function GET() {
     t.currency,
     (t.category as unknown as { name: string } | null)?.name ?? '',
     t.is_recurring ? 'Yes' : 'No',
-    t.source ?? '',
+    friendlySource(t.source),
   ])
 
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')

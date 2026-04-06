@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { useTrackEvent } from '@/lib/events/use-track-event'
 
 function SignupForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const trackEvent = useTrackEvent()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -36,16 +38,20 @@ function SignupForm() {
       return
     }
 
-    // Link anonymous demo session if present
+    // Track signup + link anonymous demo session if present
+    let hasValueMap = false
     if (data.user) {
+      trackEvent('signup_completed', { method: 'email' })
       const sessionToken = localStorage.getItem('cfos_demo_session_token')
       if (sessionToken) {
         try {
-          await fetch('/api/value-map/link-session', {
+          const res = await fetch('/api/value-map/link-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_token: sessionToken }),
           })
+          const json = await res.json()
+          hasValueMap = json?.linked === true
           localStorage.removeItem('cfos_demo_session_token')
         } catch {
           // Non-critical — proceed regardless
@@ -53,7 +59,7 @@ function SignupForm() {
       }
     }
 
-    router.push('/chat')
+    router.push(hasValueMap ? '/chat?type=onboarding' : '/chat?type=onboarding_no_vm')
     router.refresh()
   }
 

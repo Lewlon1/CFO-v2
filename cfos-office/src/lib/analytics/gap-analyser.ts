@@ -288,7 +288,7 @@ function buildNarrative(
 
   switch (gapType) {
     case 'leaking_despite_awareness':
-      return confidence >= 4
+      return confidence >= 0.8
         ? `You were confident that ${category} is a Leak — yet it's still ${pctStr} (${spend}). The awareness is there. The behaviour hasn't caught up yet.`
         : `You called ${category} a Leak. It's still ${pctStr} (${spend}). That gap between knowing and doing is telling.`
 

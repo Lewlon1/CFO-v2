@@ -4,6 +4,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, UIMessage } from 'ai';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { WelcomeState } from './WelcomeState';
@@ -88,7 +89,9 @@ export function ChatInterface({
       || conversationType === 'value_map_complete'
       || conversationType === 'monthly_review'
       || conversationType === 'bill_optimisation'
-      || conversationType === 'nudge_initiated';
+      || conversationType === 'nudge_initiated'
+      || conversationType === 'onboarding'
+      || conversationType === 'onboarding_no_vm';
     if (
       isAutoTriggerType &&
       messages.length === 0 &&
@@ -97,7 +100,11 @@ export function ChatInterface({
     ) {
       autoTriggeredRef.current = true;
       let trigger: string;
-      if (conversationType === 'value_map_complete') {
+      if (conversationType === 'onboarding') {
+        trigger = '[System: New user who just completed the Value Map and signed up. Welcome them warmly, reference their archetype and what you noticed about their spending values. Keep it to 2-3 sentences, then ask what they want to tackle first.]';
+      } else if (conversationType === 'onboarding_no_vm') {
+        trigger = '[System: New user who signed up directly. Welcome them briefly, then suggest the Value Map as a quick way to get started — "a 2-minute exercise that helps me understand how you think about money." You MUST include this exact markdown link in your response: [Try the Value Map](/demo). If they want to skip it, that is fine.]';
+      } else if (conversationType === 'value_map_complete') {
         trigger = '[System: Value Map just completed. Deliver your Gap analysis — compare their stated values with their actual spending now.]';
       } else if (conversationType === 'monthly_review') {
         trigger = '[System: Monthly review started. Begin with Phase 1 — the headline number.]';
@@ -170,7 +177,7 @@ export function ChatInterface({
   );
 
   const isLoading = status === 'submitted' || status === 'streaming';
-  const isAutoTriggered = conversationType === 'post_upload' || conversationType === 'value_map_complete' || conversationType === 'bill_optimisation' || conversationType === 'monthly_review';
+  const isAutoTriggered = conversationType === 'post_upload' || conversationType === 'value_map_complete' || conversationType === 'bill_optimisation' || conversationType === 'monthly_review' || conversationType === 'onboarding' || conversationType === 'onboarding_no_vm';
 
   // For auto-triggered conversations, skip the welcome state
   const showWelcome = messages.length === 0 && !isLoading && !isAutoTriggered;
@@ -202,6 +209,9 @@ export function ChatInterface({
     );
   }
 
+  const showValueMapCta = conversationType === 'onboarding_no_vm' && messages.length > 0 && !isLoading;
+  const showUploadCta = conversationType === 'value_map_complete' && messages.length > 0 && !isLoading;
+
   return (
     <div className="flex flex-col h-full min-w-0">
       <MessageList
@@ -211,6 +221,30 @@ export function ChatInterface({
         onStructuredSubmit={handleStructuredSubmit}
         userCurrency={userCurrency}
       />
+      {showValueMapCta && (
+        <div className="px-4 py-3 border-t border-border bg-primary/5">
+          <Link
+            href="/demo"
+            className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <span>Try the Value Map — 2 minutes</span>
+            <span className="opacity-80">→</span>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-2 text-center">Helps your CFO give you personalised advice</p>
+        </div>
+      )}
+      {showUploadCta && (
+        <div className="px-4 py-3 border-t border-border bg-primary/5">
+          <Link
+            href="/transactions"
+            className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <span>Upload your transactions</span>
+            <span className="opacity-80">→</span>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-2 text-center">So your CFO can complete the gap analysis</p>
+        </div>
+      )}
       {errorBanner}
       <ChatInput
         input={input}

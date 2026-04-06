@@ -45,9 +45,9 @@ export async function buildSystemPrompt(
       .is('dismissed_at', null)
       .order('confidence', { ascending: false }),
     supabase
-      .from('value_map_results')
+      .from('value_map_sessions')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', userId)
       .order('created_at', { ascending: false })
       .limit(1)
       .single(),
@@ -59,7 +59,7 @@ export async function buildSystemPrompt(
     supabase
       .from('action_items')
       .select('*')
-      .eq('profile_id', userId)
+      .eq('user_id', userId)
       .eq('status', 'pending'),
     supabase
       .from('trips')
@@ -229,20 +229,33 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
 function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
   const parts: string[] = [];
 
-  // Value Map archetype
+  // Value Map personality (from value_map_sessions table)
   if (valueMap) {
     parts.push('## Financial personality (from Value Map)');
-    if (valueMap.archetype_name) {
-      parts.push(`Archetype: ${valueMap.archetype_name}${valueMap.archetype_subtitle ? ` — ${valueMap.archetype_subtitle}` : ''}`);
+    if (valueMap.personality_type) {
+      parts.push(`Personality type: ${valueMap.personality_type}`);
     }
-    if (valueMap.certainty_areas && valueMap.certainty_areas.length > 0) {
-      parts.push(`Certainty areas: ${JSON.stringify(valueMap.certainty_areas)}`);
+    if (valueMap.dominant_quadrant) {
+      parts.push(`Dominant quadrant: ${valueMap.dominant_quadrant}`);
     }
-    if (valueMap.conflict_areas && valueMap.conflict_areas.length > 0) {
-      parts.push(`Conflict areas: ${JSON.stringify(valueMap.conflict_areas)}`);
+    if (valueMap.breakdown) {
+      const breakdown = valueMap.breakdown as Record<string, { percentage: number; count: number }>;
+      const parts2 = Object.entries(breakdown)
+        .filter(([, v]) => v.percentage > 0)
+        .sort((a, b) => b[1].percentage - a[1].percentage)
+        .map(([q, v]) => `${q}: ${v.percentage}%`);
+      if (parts2.length > 0) {
+        parts.push(`Quadrant breakdown: ${parts2.join(', ')}`);
+      }
     }
-    if (valueMap.comfort_patterns && valueMap.comfort_patterns.length > 0) {
-      parts.push(`Comfort patterns: ${JSON.stringify(valueMap.comfort_patterns)}`);
+    if (valueMap.merchants_by_quadrant) {
+      const mbq = valueMap.merchants_by_quadrant as Record<string, string[]>;
+      const entries = Object.entries(mbq).filter(([, v]) => v.length > 0);
+      if (entries.length > 0) {
+        for (const [quadrant, merchants] of entries) {
+          parts.push(`${quadrant}: ${merchants.join(', ')}`);
+        }
+      }
     }
   }
 
@@ -396,7 +409,12 @@ async function getConversationInstructions(
     case 'onboarding':
       return `## Conversation context: Onboarding
 
-This is a new user. Welcome them warmly. If they completed the Value Map, reference their archetype naturally. Your goal is to understand what they're working toward financially. Don't overwhelm — one or two good questions, then listen.`;
+This is a new user who completed the Value Map before signing up. Their personality type and value breakdown are in your context above. Welcome them warmly and reference their archetype naturally — show that you already understand something about how they think about money. Your goal is to understand what they're working toward financially. Don't overwhelm — one or two good questions, then listen.`;
+
+    case 'onboarding_no_vm':
+      return `## Conversation context: Onboarding (no Value Map)
+
+This user signed up directly without completing the Value Map. Welcome them warmly but briefly. Suggest the Value Map as a natural first step — it takes 2 minutes and helps you understand their spending psychology. Frame it as useful for them, not as a requirement. Provide the link: [Try the Value Map](/demo). If they want to skip it, that's completely fine — ask what's on their mind financially and proceed normally.`;
 
     case 'monthly_review':
       return buildMonthlyReviewPrompt(metadata, userId);

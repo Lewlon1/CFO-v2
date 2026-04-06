@@ -289,15 +289,23 @@ export function DemoReveal({ reading, personality, userName, country, results, f
                 demoAnalytics('demo_finished')
                 trackEvent('value_map_cta_clicked', { cta_type: 'chat' })
                 try {
+                  // Link the demo session to the authenticated account first
+                  if (sessionId) {
+                    await fetch('/api/value-map/link-session', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ session_token: sessionId }),
+                    })
+                  }
                   const res = await fetch('/api/insights/value-map-complete', { method: 'POST' })
                   if (res.ok) {
                     const { conversationId } = await res.json()
                     router.push(`/chat/${conversationId}`)
                   } else {
-                    router.push('/chat')
+                    router.push('/chat?type=value_map_complete')
                   }
                 } catch {
-                  router.push('/chat')
+                  router.push('/chat?type=value_map_complete')
                 }
               }}
               disabled={navigating}

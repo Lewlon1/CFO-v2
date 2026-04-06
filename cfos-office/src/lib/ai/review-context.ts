@@ -128,7 +128,7 @@ export async function assembleReviewContext(
     supabase
       .from('action_items')
       .select('title, status, category, priority, due_date, completed_at, created_at')
-      .eq('profile_id', userId)
+      .eq('user_id', userId)
       .in('status', ['pending', 'in_progress', 'completed'])
       .order('created_at', { ascending: false })
       .limit(10),

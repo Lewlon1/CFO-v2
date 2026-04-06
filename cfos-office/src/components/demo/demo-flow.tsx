@@ -288,7 +288,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
           country={country ?? 'UK'}
           results={results}
           fallback={readingData.fallback}
-          sessionId={sessionId}
+          sessionId={session.sessionToken}
           isAuthenticated={isAuthenticated}
         />
       </div>

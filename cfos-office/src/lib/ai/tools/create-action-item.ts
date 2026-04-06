@@ -39,7 +39,7 @@ export function createCreateActionItemTool(ctx: ToolContext) {
         const { data, error } = await ctx.supabase
           .from('action_items')
           .insert({
-            profile_id: ctx.userId,
+            user_id: ctx.userId,
             conversation_id: ctx.conversationId,
             title,
             description: description || null,
