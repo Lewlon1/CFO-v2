@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
+import { useTrackEvent } from '@/lib/events/use-track-event';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ type StructuredInputProps = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function StructuredInput({ config, onSubmit, userCurrency }: StructuredInputProps) {
+  const trackEvent = useTrackEvent();
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submittedDisplay, setSubmittedDisplay] = useState('');
@@ -41,6 +43,7 @@ export function StructuredInput({ config, onSubmit, userCurrency }: StructuredIn
     setSubmitting(true);
     try {
       await onSubmit(config.field, value, displayText);
+      trackEvent('profile_question_answered', { field: config.field });
       setSubmitted(true);
       setSubmittedDisplay(displayText);
     } catch {

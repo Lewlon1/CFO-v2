@@ -1,5 +1,6 @@
 import { generateText } from 'ai'
 import { analysisModel } from '@/lib/ai/provider'
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import type { ParsedTransaction, ParseResult } from './types'
 
 const EXTRACTION_PROMPT = `You are extracting bank transactions from a screenshot.
@@ -24,9 +25,10 @@ Rules:
 Return format example:
 [{"date":"2026-03-15","description":"Mercadona","amount":-45.20,"currency":"EUR"}]`
 
-export async function parseScreenshot(imageBase64: string): Promise<ParseResult> {
+export async function parseScreenshot(imageBase64: string, userId?: string): Promise<ParseResult> {
   try {
-    const { text } = await generateText({
+    const startTime = Date.now()
+    const { text, usage } = await generateText({
       model: analysisModel,
       messages: [
         {
@@ -37,6 +39,16 @@ export async function parseScreenshot(imageBase64: string): Promise<ParseResult>
           ],
         },
       ],
+    })
+    const durationMs = Date.now() - startTime
+
+    void trackLLMUsage({
+      userId,
+      callType: 'screenshot_parse',
+      model: 'anthropic.claude-sonnet-4-6-20250514-v1:0',
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      durationMs,
     })
 
     const cleaned = text.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()

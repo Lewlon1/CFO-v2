@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
@@ -15,6 +15,7 @@ import { ValueCategoryCards } from './ValueCategoryCards'
 import { UnsureQueue } from './UnsureQueue'
 import { RecurringPanel } from './RecurringPanel'
 import { ReviewBanner } from './ReviewBanner'
+import { useTrackEvent } from '@/lib/events/use-track-event'
 
 // Lazy-load Recharts-based chart components (recharts is ~200KB)
 const ChartSkeleton = () => <div className="h-64 bg-muted rounded-lg animate-pulse" />
@@ -42,8 +43,17 @@ type Props = {
 
 export function DashboardClient({ hasData }: Props) {
   const router = useRouter()
+  const trackEvent = useTrackEvent()
+  const viewedRef = useRef(false)
   const [selectedMonth, setSelectedMonth] = useState<string | undefined>(undefined)
   const [activeView, setActiveView] = useState<'spending' | 'values'>('spending')
+
+  // Track dashboard viewed on mount
+  useEffect(() => {
+    if (viewedRef.current) return
+    viewedRef.current = true
+    trackEvent('dashboard_viewed')
+  }, [trackEvent])
 
   // Load view preference from localStorage
   useEffect(() => {
@@ -54,8 +64,10 @@ export function DashboardClient({ hasData }: Props) {
   }, [])
 
   function handleViewChange(view: 'spending' | 'values') {
+    const from = activeView
     setActiveView(view)
     localStorage.setItem('dashboard_view', view)
+    trackEvent('dashboard_view_toggled', { from, to: view })
   }
 
   const { summary, isLoading } = useDashboardData(selectedMonth)

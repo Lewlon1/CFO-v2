@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { WelcomeState } from './WelcomeState';
+import { useTrackEvent } from '@/lib/events/use-track-event';
 
 interface ChatInterfaceProps {
   initialConversationId: string | null;
@@ -26,6 +27,7 @@ export function ChatInterface({
   starterMessage,
 }: ChatInterfaceProps) {
   const router = useRouter();
+  const trackEvent = useTrackEvent();
   const [conversationId, setConversationId] = useState<string | null>(
     initialConversationId
   );
@@ -131,8 +133,9 @@ export function ChatInterface({
     if (!text) return;
     setChatError(null);
     setInput('');
+    trackEvent('message_sent');
     sendMessage({ text });
-  }, [input, sendMessage]);
+  }, [input, sendMessage, trackEvent]);
 
   const handleStarterSelect = useCallback(
     (text: string, type?: string) => {

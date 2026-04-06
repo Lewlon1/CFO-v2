@@ -1,5 +1,6 @@
 import { generateText } from 'ai'
 import { analysisModel } from '@/lib/ai/provider'
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import type { Category } from '@/lib/parsers/types'
 
 export type LLMCatResult = {
@@ -14,7 +15,8 @@ export type LLMCatResult = {
  */
 export async function llmCategorise(
   descriptions: string[],
-  categories: Category[]
+  categories: Category[],
+  userId?: string
 ): Promise<LLMCatResult[]> {
   if (descriptions.length === 0) return []
 
@@ -39,9 +41,21 @@ Confidence range: 0.4 to 0.85 (never 1.0 — reserved for exact matches).
 If genuinely uncertain use "shopping" as fallback.`
 
   try {
-    const { text } = await generateText({
+    const startTime = Date.now()
+    const { text, usage } = await generateText({
       model: analysisModel,
       messages: [{ role: 'user', content: prompt }],
+    })
+    const durationMs = Date.now() - startTime
+
+    void trackLLMUsage({
+      userId,
+      callType: 'categorisation',
+      model: 'anthropic.claude-sonnet-4-6-20250514-v1:0',
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      durationMs,
+      metadata: { transaction_count: descriptions.length },
     })
 
     const cleaned = text.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()

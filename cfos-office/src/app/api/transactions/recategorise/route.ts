@@ -22,6 +22,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid field' }, { status: 400 })
   }
 
+  // Fetch old value before updating
+  const { data: existing } = await supabase
+    .from('transactions')
+    .select(field)
+    .eq('id', transactionId)
+    .eq('user_id', user.id)
+    .single()
+
   const { error } = await supabase
     .from('transactions')
     .update({ [field]: newValue, user_confirmed: true })
@@ -29,6 +37,20 @@ export async function POST(req: NextRequest) {
     .eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Log correction event (fire-and-forget)
+  void supabase.from('user_events').insert({
+    profile_id: user.id,
+    event_type: field === 'value_category' ? 'value_category_corrected' : 'category_corrected',
+    event_category: 'correction',
+    payload: {
+      transaction_id: transactionId,
+      field,
+      old_value: existing?.[field] ?? null,
+      new_value: newValue,
+      description: description ?? null,
+    },
+  })
 
   if (applyToSimilar && description && field === 'value_category') {
     const normDesc = normaliseMerchant(description)

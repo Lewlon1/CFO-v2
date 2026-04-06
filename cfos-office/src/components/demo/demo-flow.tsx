@@ -9,6 +9,7 @@ import { DEMO_COUNTRIES, getDemoTransactions } from '@/lib/demo/transactions'
 import { DemoCard } from '@/components/demo/demo-card'
 import { DemoReveal } from '@/components/demo/demo-reveal'
 import { demoAnalytics } from '@/lib/demo/analytics'
+import { useTrackEvent } from '@/lib/events/use-track-event'
 import { useDemoSession } from '@/lib/demo/use-demo-session'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
@@ -48,6 +49,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
   const [sessionId, setSessionId] = useState<string | null>(null)
 
   const session = useDemoSession()
+  const trackEvent = useTrackEvent()
   const selectedCountry = DEMO_COUNTRIES.find((c) => c.code === country)
 
   // ── Welcome → Explainer ───────────────────────────────────────────────────
@@ -55,8 +57,9 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
   const handleStart = useCallback(() => {
     if (!country) return
     demoAnalytics('demo_started', { country })
+    trackEvent('value_map_started', { mode: 'demo', country })
     setStep('explainer')
-  }, [country])
+  }, [country, trackEvent])
 
   // ── Explainer → Exercise ──────────────────────────────────────────────────
 
@@ -70,6 +73,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
     setResults(exerciseResults)
     setStep('loading')
     demoAnalytics('demo_finished', { elapsed_seconds: Math.round(elapsedSeconds), cards: exerciseResults.length })
+    trackEvent('value_map_completed', { mode: 'demo', card_count: exerciseResults.length })
 
     // Save session to DB first (fast insert), then fetch reading with session_id
     let savedSessionId: string | null = null
@@ -145,7 +149,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
     }
 
     setStep('reveal')
-  }, [name, country, selectedCountry, session])
+  }, [name, country, selectedCountry, session, trackEvent])
 
   // ── Render ────────────────────────────────────────────────────────────────
 

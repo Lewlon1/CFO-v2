@@ -3,6 +3,7 @@ import { bedrock } from '@ai-sdk/amazon-bedrock'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { generateObservations } from '@/lib/value-map/observations'
 import { createServiceClient } from '@/lib/supabase/service'
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import type { ValueMapResult, ValueMapTransaction } from '@/lib/value-map/types'
 
 export const maxDuration = 20
@@ -244,9 +245,16 @@ function buildDeterministicReading(
 
 const BEDROCK_CLAUDE_MODEL = process.env.BEDROCK_CLAUDE_MODEL || 'global.anthropic.claude-sonnet-4-6'
 
-async function tryGenerateReading(userMessage: string): Promise<{ text: string; fallback: boolean }> {
+async function tryGenerateReading(userMessage: string): Promise<{
+  text: string;
+  fallback: boolean;
+  model?: string;
+  usage?: { inputTokens?: number; outputTokens?: number };
+  durationMs?: number;
+}> {
   // Attempt 1: Opus
   try {
+    const startTime = Date.now()
     const result = await generateText({
       model: bedrock('global.anthropic.claude-opus-4-6'),
       system: SYSTEM_PROMPT,
@@ -255,8 +263,9 @@ async function tryGenerateReading(userMessage: string): Promise<{ text: string; 
       temperature: 0.8,
       abortSignal: AbortSignal.timeout(15000),
     })
+    const durationMs = Date.now() - startTime
     const text = result.text.trim()
-    if (text && text !== 'INVALID') return { text, fallback: false }
+    if (text && text !== 'INVALID') return { text, fallback: false, model: 'global.anthropic.claude-opus-4-6', usage: result.usage, durationMs }
     if (text === 'INVALID') return { text: 'INVALID', fallback: false }
   } catch (err) {
     console.error('[demo/reading] Opus failed, trying Sonnet:', err instanceof Error ? err.message : err)
@@ -264,6 +273,7 @@ async function tryGenerateReading(userMessage: string): Promise<{ text: string; 
 
   // Attempt 2: Sonnet (the model we know works)
   try {
+    const startTime = Date.now()
     const result = await generateText({
       model: bedrock(BEDROCK_CLAUDE_MODEL),
       system: SYSTEM_PROMPT,
@@ -272,8 +282,9 @@ async function tryGenerateReading(userMessage: string): Promise<{ text: string; 
       temperature: 0.8,
       abortSignal: AbortSignal.timeout(12000),
     })
+    const durationMs = Date.now() - startTime
     const text = result.text.trim()
-    if (text && text !== 'INVALID') return { text, fallback: false }
+    if (text && text !== 'INVALID') return { text, fallback: false, model: BEDROCK_CLAUDE_MODEL, usage: result.usage, durationMs }
     if (text === 'INVALID') return { text: 'INVALID', fallback: false }
   } catch (err) {
     console.error('[demo/reading] Sonnet also failed:', err instanceof Error ? err.message : err)
@@ -330,7 +341,18 @@ AGGREGATE STATS:
 ${JSON.stringify(stats, null, 2)}`
 
     // Try AI models (Opus → Sonnet → deterministic)
-    const { text: aiReading, fallback: aiFailed } = await tryGenerateReading(userMessage)
+    const { text: aiReading, fallback: aiFailed, model: usedModel, usage: readingUsage, durationMs: readingDurationMs } = await tryGenerateReading(userMessage)
+
+    // Track LLM usage if an AI model succeeded
+    if (usedModel && readingUsage) {
+      void trackLLMUsage({
+        callType: 'value_map_reading',
+        model: usedModel,
+        inputTokens: readingUsage.inputTokens,
+        outputTokens: readingUsage.outputTokens,
+        durationMs: readingDurationMs,
+      })
+    }
 
     let reading: string
     let fallback = false

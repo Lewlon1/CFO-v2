@@ -2,6 +2,7 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { analysisModel } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 
 const traitSchema = z.object({
   new_traits: z.array(
@@ -61,7 +62,8 @@ export async function POST(req: Request) {
 
   // Call Bedrock for analysis
   try {
-    const { object } = await generateObject({
+    const startTime = Date.now()
+    const { object, usage } = await generateObject({
       model: analysisModel,
       schema: traitSchema,
       prompt: `You are analysing a conversation between a user and their personal CFO (financial advisor).
@@ -81,6 +83,17 @@ Rules:
 - Return empty arrays if nothing new was found
 - Focus on: spending behavior, financial attitudes, life circumstances, goals, personality traits relevant to financial advice`,
     });
+
+    const durationMs = Date.now() - startTime
+    void trackLLMUsage({
+      userId: user_id,
+      callType: 'post_conversation_analysis',
+      model: 'anthropic.claude-sonnet-4-6-20250514-v1:0',
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      durationMs,
+      metadata: { conversation_id, message_count: messages.length },
+    })
 
     // Write new traits
     let inserted = 0;
