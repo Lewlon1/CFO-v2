@@ -7,6 +7,7 @@ export type LLMCatResult = {
   index: number
   category_id: string
   confidence: number
+  reasoning?: string
 }
 
 /**
@@ -21,7 +22,10 @@ export async function llmCategorise(
   if (descriptions.length === 0) return []
 
   const categoryList = categories
-    .map((c) => `- ${c.id}: ${c.name} — ${c.description ?? ''}`)
+    .map((c) => {
+      const examples = c.examples.length > 0 ? ` Examples: ${c.examples.join(', ')}` : ''
+      return `- ${c.id}: ${c.name} — ${c.description ?? ''}${examples}`
+    })
     .join('\n')
 
   const txnList = descriptions
@@ -36,7 +40,7 @@ Transactions:
 ${txnList}
 
 Return ONLY a JSON array. No other text.
-Format: [{"index":1,"category_id":"groceries","confidence":0.85}, ...]
+Format: [{"index":1,"category_id":"groceries","confidence":0.85,"reasoning":"supermarket chain"}, ...]
 Confidence range: 0.4 to 0.85 (never 1.0 — reserved for exact matches).
 If genuinely uncertain use "shopping" as fallback.`
 

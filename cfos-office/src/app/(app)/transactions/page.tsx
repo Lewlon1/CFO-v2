@@ -22,7 +22,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
       .order('name'),
     supabase
       .from('transactions')
-      .select('id, date, description, amount, currency, category_id, value_category, is_recurring, is_holiday_spend, user_confirmed')
+      .select('id, date, description, amount, currency, category_id, value_category, value_confidence, value_confirmed_by_user, is_recurring, is_holiday_spend, user_confirmed')
       .eq('user_id', user.id)
       .order('date', { ascending: false })
       .limit(1000),
