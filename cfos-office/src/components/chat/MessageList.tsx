@@ -297,12 +297,9 @@ export function MessageList({
 
               {/* Message feedback (assistant messages with DB IDs only) */}
               {message.role === 'assistant' &&
-                message.metadata &&
-                typeof message.metadata === 'object' &&
-                'messageDbId' in message.metadata &&
-                message.metadata.messageDbId && (
+                !!((message.metadata as { messageDbId?: string } | null)?.messageDbId) && (
                   <div className="px-3">
-                    <MessageFeedback messageId={message.metadata.messageDbId as string} />
+                    <MessageFeedback messageId={(message.metadata as { messageDbId: string }).messageDbId} />
                   </div>
                 )}
             </div>
