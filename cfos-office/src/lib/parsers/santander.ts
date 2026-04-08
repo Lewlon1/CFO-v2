@@ -76,6 +76,9 @@ export function parseSantanderXLSX(buffer: ArrayBuffer): ParseResult {
 }
 
 function parseSantanderDate(raw: string): string {
+  // Santander XLSX exports are intentionally date-only — the source file
+  // does not carry time-of-day. Rows land at 00:00:00Z and time-based
+  // contextual rules will not apply to them.
   // DD/MM/YYYY or DD-MM-YYYY
   const m = raw.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
   if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`

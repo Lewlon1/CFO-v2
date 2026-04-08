@@ -7,6 +7,8 @@ import { parseGenericCSV, applyColumnMapping } from '@/lib/parsers/generic'
 import { parseScreenshot } from '@/lib/parsers/screenshot'
 import { categoriseByRules } from '@/lib/categorisation/rules-engine'
 import { assignValueCategory } from '@/lib/categorisation/value-categoriser'
+import { extractSignals, type MerchantHistory } from '@/lib/categorisation/context-signals'
+import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { loadExistingKeys, isDuplicate } from '@/lib/upload/duplicate-detector'
 import { runImportPipeline, type ImportableTransaction } from '@/lib/upload/pipeline'
 import { refreshMonthlySnapshots, extractAffectedMonths } from '@/lib/analytics/monthly-snapshot'
@@ -16,6 +18,8 @@ import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings'
 import type {
   Category,
   ValueCategoryRule,
+  UserMerchantRule,
+  RecurringMatch,
   PreviewTransaction,
   ParsedTransaction,
   ParseResult,
@@ -199,17 +203,54 @@ async function buildPreview(
 ): Promise<PreviewTransaction[]> {
   if (transactions.length === 0) return []
 
-  const { data: catData } = await supabase
-    .from('categories')
-    .select('id, name, tier, icon, color, examples, default_value_category')
-    .eq('is_active', true)
-  const categories: Category[] = catData ?? []
+  const [
+    { data: catData },
+    { data: rulesData },
+    { data: merchantRulesData },
+    { data: recurringData },
+    { data: historyData },
+  ] = await Promise.all([
+    supabase
+      .from('categories')
+      .select('id, name, tier, icon, color, examples, default_value_category')
+      .eq('is_active', true),
+    supabase
+      .from('value_category_rules')
+      .select('match_type, match_value, value_category, confidence, source, context_conditions')
+      .eq('user_id', userId),
+    supabase
+      .from('user_merchant_rules')
+      .select('normalised_merchant, category_id, confidence')
+      .eq('user_id', userId),
+    supabase
+      .from('recurring_expenses')
+      .select('name, category_id')
+      .eq('user_id', userId),
+    supabase.rpc('merchant_history', { p_user_id: userId }).then(
+      (res) => res,
+      () => ({ data: null, error: null })
+    ),
+  ])
 
-  const { data: rulesData } = await supabase
-    .from('value_category_rules')
-    .select('match_type, match_value, value_category, confidence, source')
-    .eq('user_id', userId)
+  const categories: Category[] = catData ?? []
   const userRules: ValueCategoryRule[] = rulesData ?? []
+  const userMerchantRules: UserMerchantRule[] = merchantRulesData ?? []
+  const recurringExpenses: RecurringMatch[] = recurringData ?? []
+
+  const merchantHistory = new Map<string, MerchantHistory>()
+  if (historyData && Array.isArray(historyData)) {
+    for (const row of historyData) {
+      merchantHistory.set(row.merchant, {
+        count: Number(row.count),
+        median_amount: Number(row.median_amount),
+      })
+    }
+  }
+
+  const batchSummaries = transactions.map((t) => ({
+    date: t.date,
+    description: t.description,
+  }))
 
   const dates = transactions.map((t) => t.date).sort()
   const existingKeys = await loadExistingKeys(
@@ -220,17 +261,33 @@ async function buildPreview(
   )
 
   return transactions.map((txn, i) => {
-    const catResult = categoriseByRules(txn.description, categories)
+    const catResult = categoriseByRules(txn.description, {
+      categories,
+      amount: txn.amount,
+      userMerchantRules,
+      recurringExpenses,
+    })
+    const isRecurring = recurringExpenses.some(
+      (r) => normaliseMerchant(txn.description) === normaliseMerchant(r.name)
+    )
+    const signals = extractSignals(
+      { date: txn.date, description: txn.description, amount: txn.amount, is_recurring: isRecurring },
+      merchantHistory,
+      batchSummaries
+    )
     const valResult = assignValueCategory(
       txn.description,
       catResult.categoryId,
       userRules,
-      categories
+      categories,
+      signals,
+      txn.amount
     )
     return {
       ...txn,
       suggestedCategoryId: catResult.categoryId,
       suggestedValueCategory: valResult.valueCategory,
+      suggestedValueConfidence: valResult.confidence,
       isDuplicate: isDuplicate(txn, existingKeys),
       rowIndex: i,
     }

@@ -1,4 +1,4 @@
-import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
+import { streamText, generateText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { chatModel } from '@/lib/ai/provider';
@@ -448,13 +448,22 @@ export async function POST(req: Request) {
         .pop();
 
       if (assistantMsg) {
-        const textContent = extractTextFromParts(assistantMsg);
+        let textContent = extractTextFromParts(assistantMsg);
 
-        // Extract tool metadata from ALL messages (tool invocations are in
-        // earlier assistant messages, not the final text response)
+        // Extract tool metadata from ALL messages. In CoreMessage format
+        // (what onFinish receives), tool calls live in assistant messages
+        // as { type: 'tool-call', toolCallId, toolName, input } parts and
+        // their results live in subsequent tool messages as
+        // { type: 'tool-result', toolCallId, toolName, output } parts.
+        // Match call→result by toolCallId so we only count tools that
+        // actually completed.
         const toolsUsed: string[] = [];
         const actionsCreated: Array<{ id: string; title: string }> = [];
         const profileUpdates: Array<{ field: string }> = [];
+
+        const toolCalls = new Map<string, string>(); // toolCallId → toolName
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const toolResults = new Map<string, any>(); // toolCallId → output
 
         for (const msg of responseMessages) {
           if (!msg.parts) continue;
@@ -462,31 +471,132 @@ export async function POST(req: Request) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const anyPart = part as any;
 
-            if (anyPart.type === 'tool-invocation' && anyPart.toolName) {
-              const toolName = anyPart.toolName as string;
-
-              // Only count tools that have completed with results
-              if (anyPart.result !== undefined) {
-                if (!toolsUsed.includes(toolName)) {
-                  toolsUsed.push(toolName);
-                }
-
-                const result = anyPart.result;
-                if (toolName === 'create_action_item' && result?.success && result?.action_item) {
-                  actionsCreated.push({
-                    id: result.action_item.id,
-                    title: result.action_item.title,
-                  });
-                }
-                if (toolName === 'update_user_profile' && result?.saved) {
-                  for (const field of result.saved) {
-                    profileUpdates.push({ field });
-                  }
-                }
-              }
+            if (anyPart.type === 'tool-call' && anyPart.toolName && anyPart.toolCallId) {
+              toolCalls.set(anyPart.toolCallId, anyPart.toolName);
+            }
+            if (anyPart.type === 'tool-result' && anyPart.toolCallId) {
+              toolResults.set(anyPart.toolCallId, anyPart.output ?? anyPart.result);
             }
           }
         }
+
+        for (const [callId, toolName] of toolCalls) {
+          if (!toolResults.has(callId)) continue; // skip tools that didn't complete
+          if (!toolsUsed.includes(toolName)) toolsUsed.push(toolName);
+
+          const out = toolResults.get(callId);
+          if (toolName === 'create_action_item' && out?.success && out?.action_item) {
+            actionsCreated.push({
+              id: out.action_item.id,
+              title: out.action_item.title,
+            });
+          }
+          if (toolName === 'update_user_profile' && out?.saved) {
+            for (const field of out.saved) {
+              profileUpdates.push({ field });
+            }
+          }
+        }
+
+        // ── Hallucination guard for record_value_classifications ─────────
+        // Detect when the model says "saved/got it/etc." in a value-mapping
+        // context but didn't actually call record_value_classifications,
+        // then auto-retry with a forced tool call.
+        const savedPhraseRegex =
+          /\b(saved|got it|noted|will remember|i'?ll remember|added that|done)\b/i;
+        const valueContextRegex = /\b(foundation|burden|investment|leak)\b/i;
+        const lastUserText = extractTextFromParts(lastUserMessage) ?? '';
+
+        const inValueContext =
+          toolsUsed.includes('get_value_review_queue') ||
+          valueContextRegex.test(textContent) ||
+          valueContextRegex.test(lastUserText);
+
+        const claimedSave = savedPhraseRegex.test(textContent);
+        const actuallySaved = toolsUsed.includes('record_value_classifications');
+        const hallucinated = inValueContext && claimedSave && !actuallySaved;
+
+        if (hallucinated) {
+          // Telemetry: log every detection regardless of whether retry succeeds
+          void supabase.from('user_events').insert({
+            profile_id: user.id,
+            event_type: 'value_save_hallucination_detected',
+            event_category: 'ai_quality',
+            payload: {
+              message_id: assistantMessageDbId,
+              conversation_id: activeConversationId,
+              assistant_text_excerpt: textContent.slice(0, 500),
+              last_user_text_excerpt: lastUserText.slice(0, 500),
+              tools_used: toolsUsed,
+            },
+          });
+
+          // Forced retry: re-invoke the model with toolChoice locked to
+          // record_value_classifications. The tool's execute() writes the
+          // rule directly to the DB, so a successful call self-heals the
+          // hallucination even though the user-visible streamed text has
+          // already been delivered. Hard-cap at 1 retry.
+          let retrySucceeded = false;
+          try {
+            const retryMessages = [
+              ...modelMessages,
+              { role: 'assistant' as const, content: textContent },
+              {
+                role: 'user' as const,
+                content:
+                  '[System] Your previous response said you saved the classification but you did not call record_value_classifications. Call it now with the correct arguments based on the conversation above. Do not output any text — only call the tool.',
+              },
+            ];
+
+            // The retry only needs record_value_classifications. We pass the
+            // CFO toolbox (which contains it, properly typed) and force the
+            // model to call that specific tool.
+            const retry = await generateText({
+              model: chatModel,
+              system: systemPrompt,
+              messages: retryMessages,
+              tools: toolbox,
+              toolChoice: { type: 'tool', toolName: 'record_value_classifications' },
+            });
+
+            // generateText returns toolCalls/toolResults arrays; check that
+            // the tool actually executed and the underlying applyValueClassification
+            // succeeded (its return shape is { success: true, ... }).
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const retryResults: any[] = (retry as any).toolResults ?? [];
+            const matched = retryResults.find(
+              (r) => r?.toolName === 'record_value_classifications'
+            );
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const out = matched?.output ?? matched?.result;
+            if (out?.success) {
+              retrySucceeded = true;
+              if (!toolsUsed.includes('record_value_classifications')) {
+                toolsUsed.push('record_value_classifications');
+              }
+              void supabase.from('user_events').insert({
+                profile_id: user.id,
+                event_type: 'value_save_hallucination_recovered',
+                event_category: 'ai_quality',
+                payload: {
+                  message_id: assistantMessageDbId,
+                  conversation_id: activeConversationId,
+                  classified_count: out.classified_count ?? null,
+                },
+              });
+            }
+          } catch (err) {
+            console.error('[chat] forced-retry generateText failed:', err);
+          }
+
+          if (!retrySucceeded) {
+            // Safety net: append a clarifying line to the persisted message
+            // so the user is never silently lied to.
+            textContent +=
+              '\n\n_(Note: I had trouble persisting that classification — please rephrase and try again.)_';
+          }
+        }
+        // ── end hallucination guard ──────────────────────────────────────
 
         if (textContent) {
           await supabase.from('messages').insert({

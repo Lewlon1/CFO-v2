@@ -14,6 +14,8 @@ export type Transaction = {
   currency: string
   category_id: string | null
   value_category: string | null
+  value_confidence: number | null
+  value_confirmed_by_user: boolean
   is_recurring: boolean
   is_holiday_spend: boolean
   user_confirmed: boolean
@@ -131,7 +133,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
                   onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'unsure', applyToSimilar: false, description: t.description, isSaving: false })}
                   className="min-h-[36px] flex items-center"
                 >
-                  <ValueBadge valueCategory={t.value_category} />
+                  <ValueBadge valueCategory={t.value_category} confidence={t.value_confidence} />
                 </button>
                 {t.is_recurring && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">recurring</span>}
                 {t.is_holiday_spend && <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">holiday</span>}
@@ -182,7 +184,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
                       onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'unsure', applyToSimilar: false, description: t.description, isSaving: false })}
                       className="hover:opacity-70 transition-opacity"
                     >
-                      <ValueBadge valueCategory={t.value_category} />
+                      <ValueBadge valueCategory={t.value_category} confidence={t.value_confidence} />
                     </button>
                   </td>
                 </tr>

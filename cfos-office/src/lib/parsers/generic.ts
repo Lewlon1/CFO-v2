@@ -55,6 +55,9 @@ export function applyColumnMapping(
   return applyMapping(rawRows, mapping, defaultCurrency)
 }
 
+// Generic CSV imports preserve time-of-day when the source provides it
+// (see lib/csv/transform.ts → parseDate). When the source is date-only,
+// rows land at 00:00:00Z and time-based contextual rules won't apply.
 function applyMapping(
   rows: Record<string, string>[],
   mapping: Record<string, string>,

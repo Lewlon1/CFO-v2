@@ -8,16 +8,31 @@ const VALUE_CONFIG: Record<string, { label: string; classes: string }> = {
 
 type Props = {
   valueCategory: string | null
+  confidence?: number | null
   className?: string
 }
 
-export function ValueBadge({ valueCategory, className = '' }: Props) {
+export function ValueBadge({ valueCategory, confidence, className = '' }: Props) {
   const config = VALUE_CONFIG[valueCategory ?? 'unsure'] ?? VALUE_CONFIG.unsure
+  const conf = confidence ?? 0
+
+  // Confidence indicators:
+  // >= 0.8 → solid (no indicator)
+  // 0.5–0.8 → show "?" suffix
+  // < 0.5 → dashed border
+  const isUncertain = conf > 0 && conf < 0.8
+  const isDashed = conf < 0.5
+  const showQuestion = conf >= 0.5 && conf < 0.8
+
+  const borderStyle = isDashed ? 'border border-dashed border-current' : ''
+
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.classes} ${className}`}
+      className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${config.classes} ${borderStyle} ${className}`}
+      title={isUncertain ? `Confidence: ${Math.round(conf * 100)}%` : undefined}
     >
       {config.label}
+      {showQuestion && <span className="opacity-60">?</span>}
     </span>
   )
 }

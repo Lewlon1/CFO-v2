@@ -33,9 +33,9 @@ export function createSuggestValueRecategorisationTool(ctx: ToolContext) {
         // Fetch transactions with low confidence or unsure value_category
         const { data: transactions, error } = await ctx.supabase
           .from('transactions')
-          .select('id, description, amount, date, category_id, value_category, auto_category_confidence, user_confirmed')
+          .select('id, description, amount, date, category_id, value_category, value_confidence, auto_category_confidence, user_confirmed')
           .eq('user_id', ctx.userId)
-          .eq('user_confirmed', false)
+          .eq('value_confirmed_by_user', false)
           .lt('amount', 0)
           .gte('date', startDate)
           .lte('date', endDate)

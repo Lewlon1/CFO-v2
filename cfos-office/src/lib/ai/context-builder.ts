@@ -99,6 +99,7 @@ export async function buildSystemPrompt(
     buildGoalsContext(goals, actions),
     buildTripsContext(trips, profile),
     buildToolUsageInstructions(),
+    await getValueMappingContext(userId, supabase),
     await buildProfilingContext(userId, supabase),
   ].filter(Boolean);
 
@@ -338,6 +339,8 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **plan_trip**: "Help me plan a trip" — create a trip budget, funding plan, and savings goal. Call this AFTER collecting destination, dates, travel style, and companions, and AFTER researching real costs. All funding calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
 - **suggest_value_recategorisation**: "Are any of my categories wrong?" Find potentially miscategorised transactions.
+- **get_value_review_queue**: Fetch merchant groups with uncertain value categories, prioritised by learning value. Use when naturally discussing values or when the value mapping context below suggests it.
+- **record_value_classifications**: Save value category classifications after the user tells you how they feel about a merchant or spending pattern. Always confirm before calling.
 - **search_bill_alternatives**: "Can I get a better deal on electricity?" / "Help me switch internet provider." Researches alternatives and compares with the user's current plan.
 
 RULES:
@@ -393,6 +396,66 @@ use the update_user_profile tool instead.
 Remember: ask late, ask little. One question, naturally placed,
 is better than a checklist. The user should feel like they're having a conversation,
 not filling out a form.`;
+}
+
+async function getValueMappingContext(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any
+): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('value_confirmed_by_user, value_confidence')
+      .eq('user_id', userId)
+      .lt('amount', 0)
+
+    if (error || !data || data.length === 0) return ''
+
+    const total = data.length
+    const unreviewed = data.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (t: any) =>
+        !t.value_confirmed_by_user &&
+        (t.value_confidence === null || Number(t.value_confidence) < 0.7)
+    ).length
+    const reviewed = total - unreviewed
+    const percentReviewed = Math.round((reviewed / total) * 100)
+
+    if (unreviewed < 10) return ''
+    if (percentReviewed > 70) return ''
+
+    return `## Understanding this user's values
+
+${unreviewed} of ${total} expense transactions haven't been value-classified yet (${percentReviewed}% confirmed).
+
+The user's spending tells a story, but you need THEM to tell you what it means.
+The same transaction can be different values in different contexts — a Friday night
+grocery run might be a Leak (didn't plan meals) while a Saturday morning shop is Foundation.
+
+HOW TO APPROACH THIS:
+- Don't present it as a task. Frame it as curiosity: "I noticed you went to [merchant]
+  a few times this month. Are those all the same kind of spend, or do some feel different?"
+- Use the get_value_review_queue tool to find the most interesting transactions to ask about.
+  It groups transactions by merchant and highlights contextual differences.
+- Present ONE group at a time. Show 2-3 specific transactions with dates and times
+  so the user can distinguish between them.
+- After they classify, reflect what you learned: "Got it — weekday coffee is your ritual
+  (Foundation), but the weekend café trips are more about catching up with friends (Investment)."
+- MANDATORY: You MUST call record_value_classifications to persist the user's decisions.
+  Never say "Saved", "Done", or "Got it — I'll remember that" without having called this tool.
+  Saying you've saved something without calling the tool is a lie. If the tool call fails,
+  tell the user — do not silently claim success.
+- Include context_note in each classification when the user explains their reasoning
+  (e.g. "solo delivery = leak, dinner with friends = investment") — this is stored and
+  used to make future classifications smarter.
+- STOP after 2 groups per conversation. Say something like: "I'll ask about more next time.
+  The more I understand, the better I can spot when your spending drifts from what you value."
+- Never present this immediately after upload — let the first spending insight land first.
+  Wait for a natural pause or a new conversation.`
+  } catch {
+    return ''
+  }
 }
 
 async function getConversationInstructions(

@@ -46,9 +46,14 @@ export function parseRevolutCSV(text: string): ParseResult {
 
 function parseRevolutDate(raw: string): string {
   if (!raw) return ''
-  // Format: "2026-01-15 14:23:00" or "2026-01-15"
-  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/)
-  return match ? match[1] : ''
+  // Revolut exports timestamps as "2026-01-15 14:23:00" (UTC) or sometimes
+  // bare "2026-01-15". We preserve the time when present so contextual rules
+  // (e.g. "Aldi after 6pm = Leak") have something to match against.
+  const withTime = raw.match(/^(\d{4}-\d{2}-\d{2})[\sT](\d{2}:\d{2}:\d{2})/)
+  if (withTime) return `${withTime[1]}T${withTime[2]}Z`
+  const dateOnly = raw.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (dateOnly) return `${dateOnly[1]}T00:00:00Z`
+  return ''
 }
 
 export function isRevolutCSV(headers: string[]): boolean {

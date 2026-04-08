@@ -3,7 +3,7 @@ import type { SemanticField } from './column-detector'
 export type ColumnMapping = Record<string, SemanticField>
 
 export type TransformedRow = {
-  date: string         // ISO YYYY-MM-DD or raw if unparseable
+  date: string         // ISO 8601 — "YYYY-MM-DDTHH:mm:ssZ" when source has time, else "YYYY-MM-DDT00:00:00Z" (or raw if unparseable)
   amount: number       // SIGNED: negative = expense, positive = income
   description: string  // description or merchant text
   currency: string
@@ -44,11 +44,28 @@ export function transformRow(
 
 function parseDate(raw: string): string {
   if (!raw) return ''
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
-  const m = raw.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/)
-  if (m) {
-    const year = m[3].length === 2 ? `20${m[3]}` : m[3]
-    return `${year}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  // Preserve time-of-day when the source includes it. Required so contextual
+  // value rules (e.g. "Aldi after 6pm = Leak") have something to match against.
+  // ISO 8601 with time: "2026-01-15 14:23:00" or "2026-01-15T14:23:00" (± seconds)
+  const isoWithTime = raw.match(/^(\d{4}-\d{2}-\d{2})[\sT](\d{2}:\d{2}(?::\d{2})?)/)
+  if (isoWithTime) {
+    const time = isoWithTime[2].length === 5 ? `${isoWithTime[2]}:00` : isoWithTime[2]
+    return `${isoWithTime[1]}T${time}Z`
+  }
+  // ISO date-only
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return `${raw.slice(0, 10)}T00:00:00Z`
+  // DD/MM/YYYY (or DD-MM-YYYY / DD.MM.YYYY) optionally followed by HH:mm[:ss]
+  const dmy = raw.match(
+    /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:[\sT](\d{2}:\d{2}(?::\d{2})?))?/
+  )
+  if (dmy) {
+    const year = dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3]
+    const datePart = `${year}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
+    if (dmy[4]) {
+      const time = dmy[4].length === 5 ? `${dmy[4]}:00` : dmy[4]
+      return `${datePart}T${time}Z`
+    }
+    return `${datePart}T00:00:00Z`
   }
   return ''
 }
