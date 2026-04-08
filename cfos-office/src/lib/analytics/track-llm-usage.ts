@@ -2,7 +2,14 @@ import { createServiceClient } from '@/lib/supabase/service';
 
 interface LLMUsageParams {
   userId?: string;
-  callType: 'categorisation' | 'post_conversation_analysis' | 'screenshot_parse' | 'value_map_reading' | 'bill_analysis';
+  callType:
+    | 'categorisation'
+    | 'post_conversation_analysis'
+    | 'screenshot_parse'
+    | 'value_map_reading'
+    | 'bill_analysis'
+    | 'balance_sheet_screenshot_parse'
+    | 'balance_sheet_pdf_parse';
   model: string;
   inputTokens?: number;
   outputTokens?: number;

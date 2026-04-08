@@ -56,6 +56,32 @@ export type ValueCategoryRule = {
   context_conditions: ContextConditions
 }
 
+// ── Balance sheet parsing (Session 19B) ──────────────────────────────
+// A single row from a holdings/portfolio CSV, post-parsing but pre-save.
+// Consumed by the HoldingsPreview component and, on confirm, turned into
+// investment_holdings rows under a parent `assets` row.
+export type ParsedHolding = {
+  ticker: string | null
+  name: string
+  quantity: number | null
+  current_value: number | null
+  cost_basis: number | null
+  price_per_unit: number | null
+  gain_loss_pct: number | null
+  currency: string
+  asset_type_hint: string | null
+  raw_row: Record<string, string>
+}
+
+export type HoldingsParseResult =
+  | {
+      ok: true
+      holdings: ParsedHolding[]
+      suggestedAssetName: string | null
+      suggestedProvider: string | null
+    }
+  | { ok: false; error: string }
+
 // User-learned traditional category rule from corrections
 export type UserMerchantRule = {
   normalised_merchant: string

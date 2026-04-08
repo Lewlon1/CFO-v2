@@ -5,6 +5,13 @@ import { parseRevolutCSV } from '@/lib/parsers/revolut'
 import { parseSantanderXLSX } from '@/lib/parsers/santander'
 import { parseGenericCSV, applyColumnMapping } from '@/lib/parsers/generic'
 import { parseScreenshot } from '@/lib/parsers/screenshot'
+import { detectHoldingsMapping } from '@/lib/parsers/holdings-detector'
+import { parseHoldingsCSV } from '@/lib/parsers/holdings-csv'
+import { parseBalanceSheetScreenshot } from '@/lib/parsers/balance-sheet-screenshot'
+import { parseBalanceSheetPDF } from '@/lib/parsers/balance-sheet-pdf'
+import { runBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
+import type { ConfirmedBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
+import Papa from 'papaparse'
 import { categoriseByRules } from '@/lib/categorisation/rules-engine'
 import { assignValueCategory } from '@/lib/categorisation/value-categoriser'
 import { extractSignals, type MerchantHistory } from '@/lib/categorisation/context-signals'
@@ -94,6 +101,19 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // Confirm a balance sheet import (holdings / single asset / liability)
+    if (body.action === 'import-balance-sheet') {
+      const payload = body.data as ConfirmedBalanceSheetImport | undefined
+      if (!payload) {
+        return NextResponse.json({ error: 'Missing import payload.' }, { status: 400 })
+      }
+      const result = await runBalanceSheetImport(supabase, user.id, payload)
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+      return NextResponse.json({ ok: true, ...result.summary })
+    }
+
     // Apply column mapping → return preview
     if (body.action === 'apply-mapping') {
       const result = applyColumnMapping(
@@ -125,20 +145,69 @@ export async function POST(req: NextRequest) {
 
   // File type validation
   const ext = file.name.toLowerCase().split('.').pop()
-  const ALLOWED_EXTS = new Set(['csv', 'xlsx', 'xls', 'png', 'jpg', 'jpeg', 'heic', 'webp'])
+  const ALLOWED_EXTS = new Set([
+    'csv',
+    'xlsx',
+    'xls',
+    'png',
+    'jpg',
+    'jpeg',
+    'heic',
+    'webp',
+    'pdf',
+  ])
   if (!ext || !ALLOWED_EXTS.has(ext)) {
     return NextResponse.json(
-      { error: 'Unsupported file type. We accept CSV, Excel, and screenshot images.' },
+      { error: 'Unsupported file type. We accept CSV, Excel, PDF, and screenshot images.' },
       { status: 415 }
     )
   }
 
   const filename = file.name
 
+  // Upload context: 'transactions' (default, existing behaviour) or
+  // 'balance_sheet' (holdings / debts / portfolio screenshots).
+  const uploadContext = (formData.get('upload_context') as string | null) ?? 'transactions'
+  const isBalanceSheetContext = uploadContext === 'balance_sheet'
+
   // Quick format sniff without reading full text first
   const lowerName = filename.toLowerCase()
   const isImage = /\.(png|jpg|jpeg|heic|webp)$/.test(lowerName)
   const isXlsx = /\.(xlsx|xls)$/.test(lowerName)
+  const isPdf = /\.pdf$/.test(lowerName)
+
+  // ── PDF branch (balance sheet only) ──
+  if (isPdf) {
+    const buffer = await file.arrayBuffer()
+    const result = await parseBalanceSheetPDF(buffer, user.id)
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 422 })
+    }
+    return NextResponse.json({
+      type: 'balance_sheet_pdf',
+      data: result.data,
+      suggestedAssetName: result.data.account_name ?? null,
+      suggestedProvider: result.data.provider ?? null,
+    })
+  }
+
+  // ── Balance sheet screenshot branch ──
+  if (isImage && isBalanceSheetContext) {
+    const buffer = await file.arrayBuffer()
+    const base64 = Buffer.from(buffer).toString('base64')
+    const mimeType = file.type || 'image/jpeg'
+    const dataUrl = `data:${mimeType};base64,${base64}`
+    const result = await parseBalanceSheetScreenshot(dataUrl, user.id)
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 422 })
+    }
+    return NextResponse.json({
+      type: 'balance_sheet_screenshot',
+      data: result.data,
+      suggestedAssetName: result.data.account_name ?? null,
+      suggestedProvider: result.data.provider ?? null,
+    })
+  }
 
   let parseResult: Awaited<ReturnType<typeof parseRevolutCSV>> | null = null
   let needsColumnMapping = false
@@ -159,6 +228,32 @@ export async function POST(req: NextRequest) {
     parseResult = parseSantanderXLSX(buffer)
   } else {
     const text = await file.text()
+
+    // Try holdings detection BEFORE transaction detection so a Vanguard
+    // export doesn't get mis-routed into the generic transaction parser.
+    const headerSniff = Papa.parse<Record<string, string>>(text, {
+      header: true,
+      preview: 1,
+    })
+    const headers = headerSniff.meta.fields ?? []
+    const holdingsMapping = detectHoldingsMapping(headers)
+
+    if (holdingsMapping) {
+      const holdingsResult = parseHoldingsCSV(text, holdingsMapping, filename)
+      if (holdingsResult.ok) {
+        return NextResponse.json({
+          type: 'holdings',
+          holdings: holdingsResult.holdings,
+          suggestedAssetName: holdingsResult.suggestedAssetName,
+          suggestedProvider: holdingsResult.suggestedProvider,
+        })
+      }
+      // If holdings detection matched but parsing failed, fall back to an
+      // error rather than silently trying to parse as transactions — the
+      // column shape told us it wasn't a transaction file.
+      return NextResponse.json({ error: holdingsResult.error }, { status: 422 })
+    }
+
     const format = detectFormat(filename, text)
     if (format === 'revolut') {
       parseResult = parseRevolutCSV(text)
