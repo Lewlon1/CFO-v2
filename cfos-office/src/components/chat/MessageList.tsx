@@ -143,58 +143,67 @@ export function MessageList({
           for (const part of message.parts) {
             if (part.type === 'text') {
               textParts.push((part as { type: 'text'; text: string }).text);
-            } else if (part.type === 'tool-invocation') {
-              const toolPart = part as unknown as { toolName: string; state: string; toolCallId: string; result?: unknown };
+            } else if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+              // AI SDK v5+ tool part format: type="tool-{toolName}", state="input-available"|"output-available"|"output-error"
+              const toolName = part.type.slice('tool-'.length);
+              const toolPart = part as unknown as {
+                type: string;
+                state: string;
+                toolCallId?: string;
+                input?: unknown;
+                output?: unknown;
+                errorText?: string;
+              };
+              const toolCallId = toolPart.toolCallId ?? `${toolName}-${textParts.length}`;
 
-              // Track tool invocations for loading indicators
-              if (toolPart.state === 'call' && TOOL_LABELS[toolPart.toolName]) {
-                toolInvocations.push({ toolName: toolPart.toolName, state: toolPart.state, toolCallId: toolPart.toolCallId });
+              // Track in-progress tool calls for loading indicators
+              if (
+                (toolPart.state === 'input-streaming' || toolPart.state === 'input-available') &&
+                TOOL_LABELS[toolName]
+              ) {
+                toolInvocations.push({ toolName, state: toolPart.state, toolCallId });
               }
 
-              // Existing: handle structured input results
-              if (
-                toolPart.toolName === 'request_structured_input' &&
-                toolPart.state === 'result'
-              ) {
-                const result = toolPart.result;
+              // Handle completed tool results
+              if (toolPart.state === 'output-available') {
+                const output = toolPart.output;
+
+                // Structured input component
                 if (
-                  result &&
-                  typeof result === 'object' &&
-                  (result as { type?: string }).type === 'structured_input'
+                  toolName === 'request_structured_input' &&
+                  output &&
+                  typeof output === 'object' &&
+                  (output as { type?: string }).type === 'structured_input'
                 ) {
-                  structuredInputs.push(result as StructuredInputConfig);
+                  structuredInputs.push(output as StructuredInputConfig);
                 }
-              }
 
-              // Collect scenario model results
-              if (
-                toolPart.toolName === 'model_scenario' &&
-                toolPart.state === 'result' &&
-                toolPart.result &&
-                typeof toolPart.result === 'object' &&
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (toolPart.result as any).scenario &&
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                !(toolPart.result as any).error
-              ) {
-                scenarioResults.push(toolPart.result);
-              }
+                // Scenario result visualisation
+                if (
+                  toolName === 'model_scenario' &&
+                  output &&
+                  typeof output === 'object' &&
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (output as any).scenario &&
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  !(output as any).error
+                ) {
+                  scenarioResults.push(output);
+                }
 
-              // Collect trip plan results
-              if (
-                toolPart.toolName === 'plan_trip' &&
-                toolPart.state === 'result' &&
-                toolPart.result &&
-                typeof toolPart.result === 'object' &&
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (toolPart.result as any).type === 'trip_plan'
-              ) {
-                tripPlanResults.push(toolPart.result);
-              }
+                // Trip plan visualisation
+                if (
+                  toolName === 'plan_trip' &&
+                  output &&
+                  typeof output === 'object' &&
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (output as any).type === 'trip_plan'
+                ) {
+                  tripPlanResults.push(output);
+                }
 
-              // Clear loading indicator when result arrives
-              if (toolPart.state === 'result') {
-                const idx = toolInvocations.findIndex((t) => t.toolCallId === toolPart.toolCallId);
+                // Clear the loading indicator for this tool
+                const idx = toolInvocations.findIndex((t) => t.toolCallId === toolCallId);
                 if (idx !== -1) toolInvocations.splice(idx, 1);
               }
             }

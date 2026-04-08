@@ -161,7 +161,16 @@ export function ChatInterface({
 
   const handleOptionSelect = useCallback(
     (text: string) => {
-      sendMessage({ text });
+      // Profiling agreement buttons need a system trigger to force the tool call.
+      // Plain text replies cause the model to generate preamble without calling the tool.
+      const isProfilingAgreement = /let.s do a few now|sure.*profile|do.*now/i.test(text);
+      if (isProfilingAgreement) {
+        sendMessage({
+          text: '[System: User agreed to profiling. IMMEDIATELY call request_structured_input with field="net_monthly_income", input_type="currency_amount", label="What\'s your monthly take-home pay?", rationale="Helps me tell you whether your spending patterns are sustainable". Do not output any text before the tool call — just call the tool now.]',
+        });
+      } else {
+        sendMessage({ text });
+      }
     },
     [sendMessage]
   );

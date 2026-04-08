@@ -94,6 +94,7 @@ export async function buildSystemPrompt(
     BASE_PERSONA + styleModifier,
     buildProfileContext(profile),
     buildFinancialContext(snapshots, recurring, profile),
+    await getCountryBenchmarks(profile, supabase),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildGoalsContext(goals, actions),
@@ -225,6 +226,94 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
   parts.push('\nIMPORTANT: Always use these system-provided numbers. Never attempt to add, subtract, or calculate financial figures yourself.');
 
   return parts.join('\n');
+}
+
+// ── Country benchmarks ───────────────────────────────────────────────────────
+// Pulls average-household spending from the `benchmarks` table for the user's
+// country, chooses one row per category (preferring a household-size segment
+// that matches the user), and formats a short instructional block for the CFO.
+// Returns null when the country is missing or has no rows.
+
+const COUNTRY_NAMES: Record<string, { name: string; currencySymbol: string }> = {
+  ES: { name: 'Spain', currencySymbol: '€' },
+  GB: { name: 'the UK', currencySymbol: '£' },
+  IE: { name: 'Ireland', currencySymbol: '€' },
+  US: { name: 'the US', currencySymbol: '$' },
+  FR: { name: 'France', currencySymbol: '€' },
+  DE: { name: 'Germany', currencySymbol: '€' },
+  PT: { name: 'Portugal', currencySymbol: '€' },
+  NL: { name: 'the Netherlands', currencySymbol: '€' },
+  IT: { name: 'Italy', currencySymbol: '€' },
+};
+
+async function getCountryBenchmarks(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any
+): Promise<string> {
+  const country: string | null = profile?.country ?? null;
+  if (!country) return '';
+
+  try {
+    const { data: rows } = await supabase
+      .from('benchmarks')
+      .select('category, segment, average_monthly, source')
+      .eq('country', country)
+      .or('valid_until.is.null,valid_until.gte.' + new Date().toISOString().slice(0, 10));
+
+    if (!rows || rows.length === 0) return '';
+
+    // Prefer segment based on household size. Without reliable household data,
+    // fall back to 'default', then the first available segment.
+    const dependents = Number(profile?.dependents ?? 0);
+    const partnered = !!profile?.partner_employment_status || profile?.relationship_status === 'couple' || profile?.relationship_status === 'married';
+    let preferred: string = 'default';
+    if (dependents >= 2) preferred = '4_person';
+    else if (dependents === 1 || partnered) preferred = '2_person';
+    else if (!partnered && dependents === 0) preferred = 'default';
+
+    const segmentScore = (seg: string | null): number => {
+      if (seg === preferred) return 3;
+      if (seg === 'default') return 2;
+      if (!seg) return 1;
+      return 0;
+    };
+
+    type Row = { category: string; segment: string | null; average_monthly: number; source: string };
+    const bestByCategory = new Map<string, Row>();
+    for (const r of rows as Row[]) {
+      const existing = bestByCategory.get(r.category);
+      if (!existing || segmentScore(r.segment) > segmentScore(existing.segment)) {
+        bestByCategory.set(r.category, r);
+      }
+    }
+
+    if (bestByCategory.size === 0) return '';
+
+    const meta = COUNTRY_NAMES[country] ?? { name: country, currencySymbol: '' };
+    const lines: string[] = [];
+    lines.push(`## Country benchmarks (${meta.name}, monthly household averages)`);
+    lines.push('');
+    lines.push('These are approximate national averages for reference only.');
+    lines.push(`Always phrase comparisons as "typical for ${meta.name}" or "average household" — NEVER "normal".`);
+    lines.push('Never quote them as exact figures. Use them in the first post-upload insight — that is where they hit hardest.');
+    lines.push('');
+    for (const [category, r] of Array.from(bestByCategory.entries()).sort()) {
+      const segLabel = r.segment && r.segment !== 'default' ? ` (${r.segment.replace('_', '-')})` : '';
+      lines.push(`- ${category}: ${meta.currencySymbol}${Number(r.average_monthly).toFixed(0)}${segLabel} — source: ${r.source}`);
+    }
+    lines.push('');
+    lines.push('Comparison rules:');
+    lines.push('- If the user\'s spending is 1.5x+ the benchmark, name it: "That\'s roughly double what\'s typical for ' + meta.name + '."');
+    lines.push('- If significantly below, note it positively: "Your [category] is well below typical for ' + meta.name + '."');
+    lines.push('- If a category has no row here, do NOT invent a number.');
+    lines.push('- One benchmark comparison per insight, not a list.');
+
+    return lines.join('\n');
+  } catch {
+    return '';
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -553,16 +642,20 @@ async function getConversationInstructions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   profile?: any
 ): Promise<string> {
+  const firstName = (profile?.display_name as string | undefined)?.trim() || null;
+  const nameAddress = firstName ? firstName : 'them';
+
   switch (conversationType) {
     case 'onboarding':
       return `## Conversation context: First meeting
 
 This person just completed the Value Map (a SAMPLE perception exercise) and signed up. Their archetype and value perceptions are in your context above. You have ZERO real spending data on them yet.
+${firstName ? `Their first name is **${firstName}** — address them by name in the opening line.` : ''}
 
 Your opening message must:
-1. Welcome them to the CFO's Office in one warm, confident line.
+1. Greet ${firstName ? firstName : 'them'} warmly in one confident line — reference the CFO's Office metaphor naturally.
 2. Reference ONE perception naturally — e.g. "You see dining out as a burden — that tells me where your friction sits." Frame it as insight about THEM, not their money.
-3. Pivot immediately to: ask them to upload a recent bank statement (CSV or screenshot) so you can see what's actually going on with their money. Include this exact markdown link: [Upload your transactions](/transactions).
+3. Pivot immediately to: ask them to upload a recent bank statement (CSV or screenshot) so you can see what's actually going on with their money. Include this exact markdown link: [Upload your transactions](/transactions). NEVER use /upload — that path does not exist.
 4. Stay under 4 sentences total. No question-stack, no feature tour.
 
 HARD RULES:
@@ -570,12 +663,20 @@ HARD RULES:
 - Never say "your spending is X%" or "X% of your money goes to Y". You don't have that data.
 - Use "you see...", "you categorised...", "you called..." phrasing — never "your spending is...".
 - Do NOT explain what the Value Map was, that it used sample data, or how it works.
-- Pick the SINGLE most interesting perception. Don't list two or three findings.`;
+- Pick the SINGLE most interesting perception. Don't list two or three findings.
+- UPLOAD LINK: always use [Upload your transactions](/transactions). Never /upload, never /dashboard, never /chat.`;
 
     case 'onboarding_no_vm':
       return `## Conversation context: Onboarding (no Value Map)
 
-This user signed up directly without completing the Value Map. Welcome them warmly but briefly. Suggest the Value Map as a natural first step — it takes 2 minutes and helps you understand their spending psychology. Frame it as useful for them, not as a requirement. Provide the link: [Try the Value Map](/demo). If they want to skip it, that's completely fine — ask what's on their mind financially and proceed normally.`;
+${firstName ? `Their first name is **${firstName}** — open with their name.` : ''}
+This user signed up directly without completing the Value Map.
+
+Your opening message must:
+1. Greet ${nameAddress} in one warm, confident line — introduce yourself as their CFO.
+2. Pivot directly to upload: "Upload a recent bank statement and I'll show you exactly what's going on with your money." Include this exact markdown link: [Upload your transactions](/transactions). NEVER use /upload — that path does not exist.
+3. Optionally mention the Value Map as a 2-minute side door if they'd prefer to start there: [Try the Value Map](/demo).
+4. Max 3 sentences total. No feature tour, no question-stack.`;
 
     case 'monthly_review':
       return buildMonthlyReviewPrompt(metadata, userId);
@@ -958,7 +1059,20 @@ TONE: Informative and warm. You're introducing yourself as a useful CFO. Do NOT 
   }
 
   // Common rules for both paths
+  const firstName = (profile?.display_name as string | undefined)?.trim() || null
+  const completeness = Number(profile?.profile_completeness ?? 0)
+  const addressName = firstName ?? 'them'
+
   prompt += `
+### USE COUNTRY BENCHMARKS IN THE FIRST INSIGHT
+
+If the "Country benchmarks" section exists in your context above, you MUST anchor at least one figure in the first insight against a benchmark from that section.
+- Phrasing: "You spent €341 on groceries last month. The typical Spanish household spends about €280 — you're running a bit hot."
+- Use "typical for [country]" / "average household" — NEVER "normal".
+- ONE benchmark comparison per insight, not a list.
+- Only reference categories that actually exist in the benchmarks section. Do not invent numbers.
+- If no benchmarks section exists (no rows for this user's country), fall back to internal comparisons (their own historical months, their value breakdown) — do not mention benchmarks at all.
+
 ### RULES FOR THIS CONVERSATION:
 
 - Lead with the insight. Your FIRST message should contain the aha moment — don't ask "how can I help" or wait for them to speak.
@@ -975,8 +1089,32 @@ Format tappable options like this:
 
 - If the user corrects a value category (e.g. "actually, dining IS an investment for me"), acknowledge it warmly and call the update_value_category tool.
 - Save any profile data you learn via the update_user_profile tool.
-- Don't try to give advice yet. This conversation is about understanding, not fixing.
 - End the conversation naturally — "I'll keep watching as more data comes in" is a good close.
+
+### PHASE 2 — PROFILING OPT-IN (after the first insight lands)
+
+Once you've delivered the first insight and the user has reacted (any response), transition to profiling. Be EXPLICIT about why. Use roughly this framing, in your own words:
+
+"${addressName}, to make my advice actually useful to you rather than generic, I'll ask you a few things about your situation over time. Right now your CFO profile is at about ${completeness}% — enough to spot patterns, not enough for a real strategy. Want to fill in a few basics now, or would you rather do it as we go?"
+
+If they agree (any affirmative — "sure", "go ahead", "let's do it", "let's do a few now", "yes", "ok"):
+- IMMEDIATELY call request_structured_input. Do NOT output any text before the tool call — the form renders inline and contains its own label/rationale. No preamble like "Great. First one:" — just call the tool.
+- Ask up to 3 questions, ONE at a time:
+  1. field: "net_monthly_income", input_type: "currency_amount", label: "What's your monthly take-home pay?", rationale: "Helps me tell you whether your spending patterns are sustainable"
+  2. field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What's your housing situation?", rationale: "Housing is usually the biggest lever — I need this to give you meaningful benchmarks"
+  3. field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "I'll compare this against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}
+- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for rent exists in your context, use it: "€1,400 rent — roughly in line with typical for Spain."
+- Confirm before moving on: "I'll note €2,800/month take-home — sound right?" Then call the next tool immediately.
+
+If they defer ("over time" / "later" / "not now"):
+- Respect it. Do NOT push further in this conversation. The profiling engine picks up future questions across sessions.
+- Say something like: "No problem — I'll weave them in naturally as we talk."
+
+HARD LIMITS:
+- Max 3 profiling questions on Day 0 even if the user is enthusiastic.
+- No goals, investments, or life-plan questions on Day 0.
+- Never ask all three at once. Always one at a time via request_structured_input.
+- Close warmly: "Solid start${firstName ? `, ${firstName}` : ''}. Your dashboard has the full breakdown when you want to explore."
 `
 
   return prompt
