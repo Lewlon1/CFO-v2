@@ -5,11 +5,15 @@ import { useRef, useState } from 'react'
 type Props = {
   onFile: (file: File) => void
   isLoading?: boolean
+  /** 'transactions' (default) or 'balance_sheet'. Changes the accepted file types and helper text. */
+  context?: 'transactions' | 'balance_sheet'
 }
 
-const ACCEPTED = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic'
+const ACCEPTED_TRANSACTIONS = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic'
+const ACCEPTED_BALANCE_SHEET = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic,.webp,.pdf'
 
-export function UploadZone({ onFile, isLoading }: Props) {
+export function UploadZone({ onFile, isLoading, context = 'transactions' }: Props) {
+  const ACCEPTED = context === 'balance_sheet' ? ACCEPTED_BALANCE_SHEET : ACCEPTED_TRANSACTIONS
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -47,10 +51,16 @@ export function UploadZone({ onFile, isLoading }: Props) {
       </div>
       <div className="text-center">
         <p className="font-medium text-foreground">
-          {isLoading ? 'Processing…' : 'Drop your bank statement here'}
+          {isLoading
+            ? 'Processing…'
+            : context === 'balance_sheet'
+              ? 'Drop your holdings file or statement here'
+              : 'Drop your bank statement here'}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          Revolut CSV · Santander XLSX · or a screenshot — or click to browse
+          {context === 'balance_sheet'
+            ? 'Holdings CSV · pension or mortgage PDF · or a screenshot'
+            : 'Revolut CSV · Santander XLSX · or a screenshot — or click to browse'}
         </p>
       </div>
     </div>
