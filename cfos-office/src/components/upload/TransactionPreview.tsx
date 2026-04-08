@@ -3,24 +3,15 @@
 import { useState } from 'react'
 import type { PreviewTransaction, Category } from '@/lib/parsers/types'
 
-const VALUE_OPTIONS = [
-  { value: 'foundation', label: 'Foundation' },
-  { value: 'investment', label: 'Investment' },
-  { value: 'leak', label: 'Leak' },
-  { value: 'burden', label: 'Burden' },
-  { value: 'unsure', label: 'Unsure' },
-]
-
 type RowState = {
   categoryId: string | null
-  valueCategory: string
   selected: boolean
 }
 
 type Props = {
   transactions: PreviewTransaction[]
   categories: Category[]
-  onConfirm: (rows: Array<PreviewTransaction & { categoryId: string | null; valueCategory: string }>) => void
+  onConfirm: (rows: Array<PreviewTransaction & { categoryId: string | null }>) => void
   onCancel: () => void
   isImporting?: boolean
 }
@@ -37,7 +28,6 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
   const [rows, setRows] = useState<RowState[]>(() =>
     transactions.map((t) => ({
       categoryId: t.suggestedCategoryId,
-      valueCategory: t.suggestedValueCategory,
       selected: !t.isDuplicate,
     }))
   )
@@ -57,7 +47,7 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
 
   function handleConfirm() {
     const selected = transactions
-      .map((t, i) => ({ ...t, categoryId: rows[i].categoryId, valueCategory: rows[i].valueCategory }))
+      .map((t, i) => ({ ...t, categoryId: rows[i].categoryId }))
       .filter((_, i) => rows[i].selected)
     onConfirm(selected)
   }
@@ -106,27 +96,16 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
                 </span>
               </div>
 
-              <div className="flex gap-2">
-                <select
-                  value={row.categoryId ?? ''}
-                  onChange={(e) => setRow(i, { categoryId: e.target.value || null })}
-                  className="flex-1 rounded border border-input bg-background px-2 py-1 text-xs min-h-[36px]"
-                >
-                  <option value="">Uncategorised</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <select
-                  value={row.valueCategory}
-                  onChange={(e) => setRow(i, { valueCategory: e.target.value })}
-                  className="flex-1 rounded border border-input bg-background px-2 py-1 text-xs min-h-[36px]"
-                >
-                  {VALUE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={row.categoryId ?? ''}
+                onChange={(e) => setRow(i, { categoryId: e.target.value || null })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm min-h-[44px]"
+              >
+                <option value="">Uncategorised</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
           )
         })}
@@ -151,7 +130,6 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Description</th>
                 <th className="px-3 py-2 text-right font-medium text-muted-foreground">Amount</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Value</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -188,22 +166,11 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
                       <select
                         value={row.categoryId ?? ''}
                         onChange={(e) => setRow(i, { categoryId: e.target.value || null })}
-                        className="w-full rounded border border-input bg-background px-2 py-1 text-xs"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
                       >
                         <option value="">Uncategorised</option>
                         {categories.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={row.valueCategory}
-                        onChange={(e) => setRow(i, { valueCategory: e.target.value })}
-                        className="w-full rounded border border-input bg-background px-2 py-1 text-xs"
-                      >
-                        {VALUE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>
                     </td>

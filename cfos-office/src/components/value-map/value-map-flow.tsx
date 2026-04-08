@@ -412,44 +412,11 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
       } catch (err) {
         console.error('Failed to complete retake:', err)
       }
-    } else {
-      sessionStorage.setItem('bridgePending', 'true')
-
-      // Mark onboarding complete — send personality + micro-interaction data
-      try {
-        const res = await fetch('/api/onboarding-chat/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            painPoint: 'value_map',
-            personalityType: personality.personality,
-            dominantQuadrant,
-            valueMapInsights: {
-              breakdown: personality.breakdown,
-              isRealData,
-              observations: generateObservations(results, transactions).map((o) => ({
-                rule: o.rule,
-                text: o.text,
-                merchants: o.merchants,
-              })),
-              completedAt: new Date().toISOString(),
-            },
-            anchoredGuess,
-            anchoredCategory,
-            oneThing: oneThing || undefined,
-          }),
-        })
-        if (!res.ok) {
-          console.error('Failed to complete onboarding:', await res.text())
-        }
-      } catch (err) {
-        console.error('Failed to complete onboarding:', err)
-      }
     }
 
-    router.push('/chat')
+    router.push(mode === 'retake' ? '/chat' : '/chat?type=onboarding')
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRealData, results, router, anchoredGuess, anchoredCategory, cutDecisions, oneThing, mode, previousIntelligence])
+  }, [isRealData, results, router, cutDecisions, mode, previousIntelligence])
 
   // Trigger final persistence when one_thing step completes
   useEffect(() => {

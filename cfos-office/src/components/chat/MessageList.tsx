@@ -3,6 +3,31 @@
 import { UIMessage } from 'ai';
 import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import type { Components } from 'react-markdown';
+
+// ── Markdown styling ──────────────────────────────────────────────────────────
+// Custom element renderers for assistant messages. Tailwind v4 here does not
+// include the typography plugin, so we style each element explicitly rather
+// than relying on `prose` classes.
+const markdownComponents: Components = {
+  p: ({ children }) => <p className="my-1.5 leading-relaxed first:mt-0 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="my-1.5 pl-5 list-disc space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1.5 pl-5 list-decimal space-y-0.5">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }) => <strong className="font-medium text-foreground">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  h1: ({ children }) => <h1 className="text-base font-semibold text-foreground mt-3 mb-1.5 first:mt-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-sm font-semibold text-foreground mt-3 mb-1.5 first:mt-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground mt-2 mb-1 first:mt-0">{children}</h3>,
+  a: ({ children, href }) => (
+    <a href={href} className="text-primary hover:underline" target={href?.startsWith('http') ? '_blank' : undefined} rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}>
+      {children}
+    </a>
+  ),
+  code: ({ children }) => <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs font-mono">{children}</code>,
+  hr: () => <hr className="my-3 border-border" />,
+  blockquote: ({ children }) => <blockquote className="border-l-2 border-border pl-3 italic text-foreground/80 my-1.5">{children}</blockquote>,
+};
 import { TappableOptions } from './TappableOptions';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
@@ -204,11 +229,11 @@ export function MessageList({
                 className={
                   message.role === 'user'
                     ? 'text-sm text-foreground'
-                    : 'text-sm text-foreground/90 px-3 overflow-hidden break-words prose-invert prose-sm prose-p:my-2 prose-ul:my-2 prose-li:my-0.5 prose-headings:text-foreground prose-headings:font-semibold prose-strong:text-foreground'
+                    : 'text-sm text-foreground/90 px-3 overflow-hidden break-words'
                 }
               >
                 {message.role === 'assistant' ? (
-                  <Markdown>{text}</Markdown>
+                  <Markdown components={markdownComponents}>{text}</Markdown>
                 ) : (
                   <p className="whitespace-pre-wrap">{text}</p>
                 )}

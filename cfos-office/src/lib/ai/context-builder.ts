@@ -470,9 +470,15 @@ async function getConversationInstructions(
 ): Promise<string> {
   switch (conversationType) {
     case 'onboarding':
-      return `## Conversation context: Onboarding
+      return `## Conversation context: First meeting
 
-This is a new user who completed the Value Map before signing up. Their personality type and value breakdown are in your context above. Welcome them warmly and reference their archetype naturally — show that you already understand something about how they think about money. Your goal is to understand what they're working toward financially. Don't overwhelm — one or two good questions, then listen.`;
+This person just completed the Value Map and signed up. Their archetype and value breakdown are in your context above. Reference the archetype in one short line — show you were paying attention. Do NOT explain what the Value Map was, that it used sample data, or how it works.
+
+Your opening message must:
+1. Welcome them to the CFO's Office in one warm, confident line.
+2. Reference their archetype naturally (one line, no listing of percentages).
+3. Pivot immediately to: ask them to upload a recent bank statement (CSV or screenshot) so you can show them what's actually going on with their money. Include this exact markdown link: [Upload your transactions](/transactions).
+4. Stay under 4 sentences total. No question-stack, no feature tour.`;
 
     case 'onboarding_no_vm':
       return `## Conversation context: Onboarding (no Value Map)
