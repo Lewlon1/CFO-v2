@@ -6,16 +6,16 @@ interface Props {
 }
 
 export function ChatCTA({ type, label }: Props) {
-  if (type === 'value_map') {
+  if (type === 'value_checkin') {
     return (
       <div className="mt-3 px-3">
         <Link
-          href="/demo"
+          href="/value-map?mode=checkin"
           className="inline-flex items-center gap-2 px-5 py-3 rounded-xl
-                     bg-foreground text-background text-sm font-medium
+                     bg-[#E8A84C] text-black text-sm font-semibold
                      hover:opacity-90 transition-opacity min-h-[44px]"
         >
-          <span>◇</span> {label}
+          <span>✓</span> {label}
         </Link>
       </div>
     )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { useTrackEvent } from '@/lib/events/use-track-event'
@@ -22,12 +22,22 @@ import { aiCategoriseBatch } from '@/lib/categorisation/ai-categorise'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type FlowStep = 'intro' | 'anchoring' | 'upload' | 'exercise' | 'summary' | 'cut_or_keep' | 'one_thing'
+type FlowStep =
+  | 'intro'
+  | 'anchoring'
+  | 'upload'
+  | 'exercise'
+  | 'summary'
+  | 'cut_or_keep'
+  | 'one_thing'
+  | 'checkin_loading'
+  | 'checkin_empty'
+  | 'checkin_saving'
 
 interface ValueMapFlowProps {
   currency: string
   existingTransactions?: ValueMapTransaction[]
-  mode?: 'onboarding' | 'retake'
+  mode?: 'onboarding' | 'retake' | 'checkin'
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -35,10 +45,11 @@ interface ValueMapFlowProps {
 export function ValueMapFlow({ currency, existingTransactions, mode = 'onboarding' }: ValueMapFlowProps) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
-  const [step, setStep] = useState<FlowStep>('intro')
+  const [step, setStep] = useState<FlowStep>(mode === 'checkin' ? 'checkin_loading' : 'intro')
   const [transactions, setTransactions] = useState<ValueMapTransaction[]>([])
   const [results, setResults] = useState<ValueMapResult[]>([])
   const [isRealData, setIsRealData] = useState(false)
+  const [checkinError, setCheckinError] = useState<string | null>(null)
 
   // New micro-interaction state
   const [anchoredGuess, setAnchoredGuess] = useState<number | null>(null)
@@ -62,6 +73,85 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
     if (focus) setAnchoredCategory(focus)
     if (focusLabel) setAnchoredCategoryLabel(focusLabel)
   }, [])
+
+  // Check-in mode: fetch uncertain transactions on mount (exactly once per mount)
+  const checkinLoadedRef = useRef(false)
+  useEffect(() => {
+    if (mode !== 'checkin') return
+    if (checkinLoadedRef.current) return
+    checkinLoadedRef.current = true
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/value-map/checkin', { cache: 'no-store' })
+        if (cancelled) return
+        if (res.status === 404 || !res.ok) {
+          const body = await res.json().catch(() => ({}))
+          setCheckinError(body?.reason ?? 'No uncertain transactions to review right now.')
+          setStep('checkin_empty')
+          return
+        }
+        const body = await res.json()
+        if (!body.transactions || body.transactions.length === 0) {
+          setCheckinError('No uncertain transactions to review right now.')
+          setStep('checkin_empty')
+          return
+        }
+        setTransactions(body.transactions as ValueMapTransaction[])
+        setIsRealData(true)
+        setStep('exercise')
+        trackEvent('value_checkin_started', { transaction_count: body.transactions.length })
+      } catch (err) {
+        if (cancelled) return
+        console.error('[value-map checkin] load error:', err)
+        setCheckinError('Could not load your value check-in. Please try again.')
+        setStep('checkin_empty')
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+    // trackEvent is a fresh function on every render — intentionally excluded.
+    // Using a ref guard prevents re-fetching on re-renders caused by state updates
+    // like setStep('checkin_saving'), which would otherwise remount ValueMapCard
+    // mid-save and cycle through the cards again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
+  // Check-in mode: save + navigate back to chat when exercise finishes
+  const handleCheckinComplete = useCallback(
+    async (exerciseResults: ValueMapResult[]) => {
+      setStep('checkin_saving')
+      try {
+        const actionable = exerciseResults.filter((r) => r.quadrant !== null)
+        const res = await fetch('/api/value-map/checkin/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            results: actionable.map((r) => ({
+              transaction_id: r.transaction_id,
+              quadrant: r.quadrant,
+              confidence: r.confidence,
+              hard_to_decide: r.hard_to_decide,
+            })),
+          }),
+        })
+        const body = await res.json().catch(() => ({}))
+        const classified = body?.classified ?? actionable.length
+        trackEvent('value_checkin_completed', {
+          classified,
+          propagated: body?.propagated ?? 0,
+        })
+        router.push(`/chat?checkin_done=${encodeURIComponent(String(classified))}`)
+      } catch (err) {
+        console.error('[value-map checkin] save error:', err)
+        // Fall back: still navigate home so user isn't stuck
+        router.push('/chat')
+      }
+    },
+    [router, trackEvent],
+  )
 
   // In retake mode, capture current user_intelligence before the exercise overwrites it
   useEffect(() => {
@@ -474,15 +564,78 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
 
   if (step === 'exercise') {
     return (
-      <ValueMapCard
-        transactions={transactions}
-        currency={currency}
-        onComplete={handleExerciseComplete}
-      />
+      <div className="flex flex-col h-full">
+        {mode === 'checkin' && (
+          <div className="px-6 pt-6 pb-2 text-center">
+            <h2 className="text-base font-semibold text-foreground">Value check-in</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {transactions.length} transactions I&apos;m not sure about
+            </p>
+          </div>
+        )}
+        <div className="flex-1 min-h-0">
+          <ValueMapCard
+            transactions={transactions}
+            currency={currency}
+            onComplete={mode === 'checkin' ? handleCheckinComplete : handleExerciseComplete}
+          />
+        </div>
+        {mode === 'checkin' && (
+          <div className="flex justify-center pb-6 pt-2">
+            <button
+              onClick={() => router.push('/chat')}
+              className="text-sm text-muted-foreground underline min-h-[44px] px-4"
+            >
+              Done for now
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (step === 'checkin_loading') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
+        <CfoAvatar size="lg" />
+        <p className="text-sm text-muted-foreground">Picking the transactions I&apos;m least sure about…</p>
+      </div>
+    )
+  }
+
+  if (step === 'checkin_empty') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
+        <CfoAvatar size="lg" />
+        <div className="space-y-2 max-w-sm">
+          <h1 className="text-xl font-semibold text-foreground">Nothing to check in on</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {checkinError ?? "You've already told me how you feel about most of your spending. Upload more transactions and come back."}
+          </p>
+        </div>
+        <Button
+          onClick={() => router.push('/chat')}
+          className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
+        >
+          Back to chat
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+
+  if (step === 'checkin_saving') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
+        <CfoAvatar size="lg" />
+        <p className="text-sm text-muted-foreground">Learning from your answers…</p>
+      </div>
     )
   }
 
   if (step === 'summary') {
+    // Summary step is only reached from onboarding/retake flows, never checkin
+    const summaryMode: 'onboarding' | 'retake' = mode === 'retake' ? 'retake' : 'onboarding'
     return (
       <ValueMapSummary
         results={results}
@@ -490,7 +643,7 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
         currency={currency}
         isRealData={isRealData}
         onContinue={handleSummaryNext}
-        mode={mode}
+        mode={summaryMode}
         previousIntelligence={previousIntelligence}
       />
     )

@@ -92,7 +92,8 @@ export function ChatInterface({
       || conversationType === 'bill_optimisation'
       || conversationType === 'nudge_initiated'
       || conversationType === 'onboarding'
-      || conversationType === 'onboarding_no_vm';
+      || conversationType === 'onboarding_no_vm'
+      || conversationType === 'value_checkin_done';
     if (
       isAutoTriggerType &&
       messages.length === 0 &&
@@ -114,6 +115,9 @@ export function ChatInterface({
       } else if (conversationType === 'nudge_initiated') {
         const nudgeType = conversationMetadata?.nudge_type ?? 'general';
         trigger = `[System: User arrived via ${nudgeType} nudge. Open the conversation proactively.]`;
+      } else if (conversationType === 'value_checkin_done') {
+        const count = conversationMetadata?.checkin_count ?? 'several';
+        trigger = `[System: User just finished a value check-in — they classified ${count} transactions. Acknowledge what you learned in 2 sentences. Reference one specific insight if visible in your review context (e.g. "so your Friday night takeaways are Leaks, not Foundation"). Do NOT list everything they classified. Keep it warm and brief, then offer to discuss anything on their mind.]`;
       } else {
         trigger = '[System: Post-upload analysis triggered. Deliver your first insight.]';
       }

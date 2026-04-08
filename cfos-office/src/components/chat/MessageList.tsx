@@ -68,12 +68,16 @@ function parseOptions(content: string): { text: string; options: string[] | null
 }
 
 function parseCTA(content: string): { text: string; cta: { type: string; label: string } | null } {
-  const regex = /\[CTA:(\w+)\]\n(.*?)\n\[\/CTA\]/;
+  // Accept both inline ([CTA:type]label[/CTA]) and multi-line variants.
+  // [\s\S] so the label can span newlines; the optional \s* lets us match either form.
+  const regex = /\[CTA:(\w+)\]\s*([\s\S]*?)\s*\[\/CTA\]/;
   const match = content.match(regex);
   if (!match) return { text: content, cta: null };
+  const label = match[2].trim();
+  if (!label) return { text: content, cta: null };
   return {
     text: content.replace(regex, '').trim(),
-    cta: { type: match[1], label: match[2].trim() },
+    cta: { type: match[1], label },
   };
 }
 

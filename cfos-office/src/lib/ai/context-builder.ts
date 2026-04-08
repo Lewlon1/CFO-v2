@@ -100,6 +100,7 @@ export async function buildSystemPrompt(
     buildTripsContext(trips, profile),
     buildToolUsageInstructions(),
     await getValueMappingContext(userId, supabase),
+    await getValueCheckinNudgeContext(userId, supabase, conversationType),
     await buildProfilingContext(userId, supabase),
   ].filter(Boolean);
 
@@ -230,14 +231,23 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
 function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
   const parts: string[] = [];
 
-  // Value Map personality (from value_map_sessions table)
+  // Value Map perceptions (from value_map_sessions table)
+  // IMPORTANT: This is perception data from a SAMPLE exercise, not real spending.
   if (valueMap) {
-    parts.push('## Financial personality (from Value Map)');
+    parts.push('## Value perceptions (from the Value Map sample exercise)');
+    parts.push('');
+    parts.push('IMPORTANT: The data below comes from a short perception exercise where the user');
+    parts.push('classified SAMPLE transactions into Foundation / Investment / Burden / Leak.');
+    parts.push("These are NOT the user's real spending. The numbers below are percentages of");
+    parts.push('sample items the user put in each bucket — they do NOT represent real spending amounts.');
+    parts.push('You have no real transaction data yet until they upload a bank statement.');
+    parts.push('');
+    parts.push('What this tells you about the user:');
     if (valueMap.personality_type) {
-      parts.push(`Personality type: ${valueMap.personality_type}`);
+      parts.push(`- Archetype: ${valueMap.personality_type} — how they relate to money`);
     }
     if (valueMap.dominant_quadrant) {
-      parts.push(`Dominant quadrant: ${valueMap.dominant_quadrant}`);
+      parts.push(`- Dominant perception lens: ${valueMap.dominant_quadrant} (they put the most sample items in this bucket)`);
     }
     if (valueMap.breakdown) {
       const breakdown = valueMap.breakdown as Record<string, { percentage: number; count: number }>;
@@ -246,18 +256,26 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
         .sort((a, b) => b[1].percentage - a[1].percentage)
         .map(([q, v]) => `${q}: ${v.percentage}%`);
       if (parts2.length > 0) {
-        parts.push(`Quadrant breakdown: ${parts2.join(', ')}`);
+        parts.push(`- Perception distribution (sample items, NOT spending): ${parts2.join(', ')}`);
       }
     }
     if (valueMap.merchants_by_quadrant) {
       const mbq = valueMap.merchants_by_quadrant as Record<string, string[]>;
       const entries = Object.entries(mbq).filter(([, v]) => v.length > 0);
       if (entries.length > 0) {
+        parts.push('- Sample categories they associate with each quadrant:');
         for (const [quadrant, merchants] of entries) {
-          parts.push(`${quadrant}: ${merchants.join(', ')}`);
+          parts.push(`    - ${quadrant}: ${merchants.join(', ')}`);
         }
       }
     }
+    parts.push('');
+    parts.push('USE THIS DATA AS A LENS, NOT AS FACTS:');
+    parts.push('- Say "you see X as a burden" NOT "X is 58% of your spending"');
+    parts.push('- Say "you categorised Y as a leak" NOT "you\'re leaking money on Y"');
+    parts.push('- Do NOT quote the breakdown percentages as if they represent real spending amounts');
+    parts.push('- The merchants/categories listed are from the sample exercise — treat them as indicators');
+    parts.push("  of the user's mental model, not confirmed spending behaviour");
   }
 
   // Behavioral traits
@@ -339,8 +357,9 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **plan_trip**: "Help me plan a trip" — create a trip budget, funding plan, and savings goal. Call this AFTER collecting destination, dates, travel style, and companions, and AFTER researching real costs. All funding calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
 - **suggest_value_recategorisation**: "Are any of my categories wrong?" Find potentially miscategorised transactions.
-- **get_value_review_queue**: Fetch merchant groups with uncertain value categories, prioritised by learning value. Use when naturally discussing values or when the value mapping context below suggests it.
-- **record_value_classifications**: Save value category classifications after the user tells you how they feel about a merchant or spending pattern. Always confirm before calling.
+- **check_value_checkin_ready**: THE ONLY tool to use when the user asks for a "value check-in", "check-in", "Value Map", "let me classify some transactions", or any variant. It checks availability then you emit a tappable CTA block that opens a dedicated card-based UI at /value-map?mode=checkin. DO NOT classify transactions inline in chat when the user asks for a check-in — always route to the CTA. If available, reply with one casual sentence ("Yep, 12 transactions ready — want to go?") plus this exact block on its own line: \`[CTA:value_checkin]Start value check-in (N transactions)[/CTA]\`.
+- **get_value_review_queue**: Fetch a SINGLE merchant group for a mid-conversation, inline discussion — e.g. the user mentioned dining out and you want to ask "so what's the story with the three Aldi trips?". Do NOT use this when the user explicitly asked for a "check-in" — that's what check_value_checkin_ready is for. Do NOT use this to batch-classify; one merchant group at a time, woven naturally into the conversation.
+- **record_value_classifications**: Save value category classifications after the user tells you how they feel about a merchant IN CHAT. Only used with the inline flow above (get_value_review_queue). The card-based check-in saves its own classifications server-side — do NOT call this after the user completes a check-in.
 - **search_bill_alternatives**: "Can I get a better deal on electricity?" / "Help me switch internet provider." Researches alternatives and compares with the user's current plan.
 
 RULES:
@@ -398,6 +417,67 @@ is better than a checklist. The user should feel like they're having a conversat
 not filling out a form.`;
 }
 
+async function getValueCheckinNudgeContext(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  conversationType?: string,
+): Promise<string> {
+  // Don't nudge immediately after an upload — let the first insight land.
+  if (conversationType === 'post_upload' || conversationType === 'onboarding') return ''
+
+  try {
+    // Count uncertain transactions
+    const { count, error } = await supabase
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('value_confirmed_by_user', false)
+      .or('value_confidence.is.null,value_confidence.lt.0.7')
+      .lt('amount', 0)
+
+    if (error) return ''
+    const uncertainCount = count ?? 0
+    if (uncertainCount < 10) return ''
+
+    // Last check-in completion
+    const { data: lastEvent } = await supabase
+      .from('user_events')
+      .select('created_at')
+      .eq('profile_id', userId)
+      .eq('event_type', 'value_checkin_completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const lastAt = lastEvent?.created_at
+      ? new Date(lastEvent.created_at)
+      : null
+    if (lastAt) {
+      const daysSince = (Date.now() - lastAt.getTime()) / (1000 * 60 * 60 * 24)
+      if (daysSince < 7) return ''
+    }
+
+    return `## Value check-in opportunity
+
+You have ${uncertainCount} transactions where you're uncertain about the value category. You can offer a tappable "value check-in" when the moment feels natural — e.g. after discussing a spending category, when the user asks about their values view, or mid-conversation if the topic drifts toward how they feel about their money.
+
+HOW TO OFFER IT:
+1. First call check_value_checkin_ready to verify availability and get the count.
+2. Then, in your next message, frame it casually — "Want to? It takes about two minutes" — and include this exact CTA block (replace N with the count):
+
+[CTA:value_checkin]Start value check-in (N transactions)[/CTA]
+
+RULES:
+- Maximum once per conversation. Don't re-offer if the user declined.
+- Never suggest immediately after an upload — let the first insight land first.
+- Don't push if the user declines or changes topic.
+- Don't explain the Value Map or the mechanics — just "want to do a quick check-in?"`
+  } catch {
+    return ''
+  }
+}
+
 async function getValueMappingContext(
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -433,26 +513,31 @@ The user's spending tells a story, but you need THEM to tell you what it means.
 The same transaction can be different values in different contexts — a Friday night
 grocery run might be a Leak (didn't plan meals) while a Saturday morning shop is Foundation.
 
-HOW TO APPROACH THIS:
-- Don't present it as a task. Frame it as curiosity: "I noticed you went to [merchant]
-  a few times this month. Are those all the same kind of spend, or do some feel different?"
-- Use the get_value_review_queue tool to find the most interesting transactions to ask about.
-  It groups transactions by merchant and highlights contextual differences.
-- Present ONE group at a time. Show 2-3 specific transactions with dates and times
-  so the user can distinguish between them.
-- After they classify, reflect what you learned: "Got it — weekday coffee is your ritual
-  (Foundation), but the weekend café trips are more about catching up with friends (Investment)."
-- MANDATORY: You MUST call record_value_classifications to persist the user's decisions.
-  Never say "Saved", "Done", or "Got it — I'll remember that" without having called this tool.
-  Saying you've saved something without calling the tool is a lie. If the tool call fails,
-  tell the user — do not silently claim success.
-- Include context_note in each classification when the user explains their reasoning
-  (e.g. "solo delivery = leak, dinner with friends = investment") — this is stored and
-  used to make future classifications smarter.
-- STOP after 2 groups per conversation. Say something like: "I'll ask about more next time.
-  The more I understand, the better I can spot when your spending drifts from what you value."
-- Never present this immediately after upload — let the first spending insight land first.
-  Wait for a natural pause or a new conversation.`
+TWO WAYS TO LEARN THIS — PICK THE RIGHT ONE:
+
+**1. Batch check-in (PREFERRED when the user asks for one, or when you want to offer one).**
+If the user says "value check-in", "check-in", "Value Map", "let me classify", or any variant —
+OR you decide to proactively offer a batch session — use check_value_checkin_ready and emit a
+[CTA:value_checkin] block. The user swipes through 5-15 cards in a dedicated UI. You do NOT
+classify anything in chat in this flow. You do NOT call record_value_classifications — the
+check-in endpoint saves everything server-side. After they finish, you'll receive a system
+message summarising what they classified; acknowledge briefly and move on.
+
+**2. Inline curiosity (for mid-conversation moments only).**
+When a spending topic comes up naturally — e.g. the user mentions dining out, or you spot
+an interesting merchant pattern — you can use get_value_review_queue to fetch ONE merchant
+group and ask about it conversationally: "I noticed you went to [merchant] a few times.
+Are those all the same kind of spend, or do some feel different?" Present one group at a
+time with 2-3 specific examples. After they answer, you MUST call record_value_classifications
+to persist the decision — never say "Saved", "Got it", or "I'll remember" without calling
+the tool. Include context_note when the user explains their reasoning. STOP after 2 groups
+per conversation.
+
+CRITICAL: NEVER mix the two flows. If the user asked for a "check-in" you emit the CTA and
+stop — do NOT also start classifying inline. The inline flow is reserved for moments you
+wove in naturally, not for requests that contain the word "check-in" or similar.
+
+Never present either flow immediately after upload — let the first spending insight land first.`
   } catch {
     return ''
   }
@@ -472,13 +557,20 @@ async function getConversationInstructions(
     case 'onboarding':
       return `## Conversation context: First meeting
 
-This person just completed the Value Map and signed up. Their archetype and value breakdown are in your context above. Reference the archetype in one short line — show you were paying attention. Do NOT explain what the Value Map was, that it used sample data, or how it works.
+This person just completed the Value Map (a SAMPLE perception exercise) and signed up. Their archetype and value perceptions are in your context above. You have ZERO real spending data on them yet.
 
 Your opening message must:
 1. Welcome them to the CFO's Office in one warm, confident line.
-2. Reference their archetype naturally (one line, no listing of percentages).
-3. Pivot immediately to: ask them to upload a recent bank statement (CSV or screenshot) so you can show them what's actually going on with their money. Include this exact markdown link: [Upload your transactions](/transactions).
-4. Stay under 4 sentences total. No question-stack, no feature tour.`;
+2. Reference ONE perception naturally — e.g. "You see dining out as a burden — that tells me where your friction sits." Frame it as insight about THEM, not their money.
+3. Pivot immediately to: ask them to upload a recent bank statement (CSV or screenshot) so you can see what's actually going on with their money. Include this exact markdown link: [Upload your transactions](/transactions).
+4. Stay under 4 sentences total. No question-stack, no feature tour.
+
+HARD RULES:
+- Quote NO percentages from the Value Map — those reflect sample classifications, not real spending.
+- Never say "your spending is X%" or "X% of your money goes to Y". You don't have that data.
+- Use "you see...", "you categorised...", "you called..." phrasing — never "your spending is...".
+- Do NOT explain what the Value Map was, that it used sample data, or how it works.
+- Pick the SINGLE most interesting perception. Don't list two or three findings.`;
 
     case 'onboarding_no_vm':
       return `## Conversation context: Onboarding (no Value Map)
@@ -861,15 +953,7 @@ This user ${gapResult?.has_value_map ? 'has a Value Map but all categories are a
 
 4. **Ask ONE question** — "What surprised you most in those numbers?" Use tappable options.
 
-5. **Offer the Value Map** — "If you want a deeper look at the gap between what you value and what you spend, try the Value Map — it takes 3 minutes and makes everything I tell you much more personal."
-
-Format the Value Map offer as:
-
-[CTA:value_map]
-Try the Value Map — 3 minutes to understand what your money means to you
-[/CTA]
-
-TONE: Informative and warm. You're introducing yourself as a useful CFO.
+TONE: Informative and warm. You're introducing yourself as a useful CFO. Do NOT suggest the Value Map — the user has already seen it.
 `
   }
 

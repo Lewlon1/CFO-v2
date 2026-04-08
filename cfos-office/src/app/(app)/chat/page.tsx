@@ -18,6 +18,8 @@ export default async function ChatPage({
   const nudgeCategory = typeof params.category === 'string' ? params.category : undefined;
   const nudgeProvider = typeof params.provider === 'string' ? params.provider : undefined;
   const conversationType = typeof params.type === 'string' ? params.type : undefined;
+  const checkinDoneCount =
+    typeof params.checkin_done === 'string' ? params.checkin_done : undefined;
 
   const [{ data: conversations }, { data: profile }] = await Promise.all([
     supabase
@@ -52,11 +54,20 @@ export default async function ChatPage({
     }
   }
 
-  // Build metadata for nudge-initiated conversations
-  const chatConversationType = nudgeType ? 'nudge_initiated' : conversationType;
-  const chatMetadata = nudgeType
-    ? { nudge_type: nudgeType, ...(nudgeCategory ? { category: nudgeCategory } : {}), ...(nudgeProvider ? { provider: nudgeProvider } : {}) }
-    : undefined;
+  // Build metadata for nudge-initiated or check-in-completion conversations
+  const chatConversationType = nudgeType
+    ? 'nudge_initiated'
+    : checkinDoneCount
+      ? 'value_checkin_done'
+      : conversationType;
+  let chatMetadata: Record<string, string> | undefined = undefined;
+  if (nudgeType) {
+    chatMetadata = { nudge_type: nudgeType };
+    if (nudgeCategory) chatMetadata.category = nudgeCategory;
+    if (nudgeProvider) chatMetadata.provider = nudgeProvider;
+  } else if (checkinDoneCount) {
+    chatMetadata = { checkin_count: checkinDoneCount };
+  }
 
   return (
     <>
@@ -69,7 +80,7 @@ export default async function ChatPage({
       <div className="flex-1 flex flex-col min-w-0">
         <ChatErrorBoundary>
           <ChatInterface
-            key={nudgeType ? `nudge-${nudgeType}` : 'new'}
+            key={nudgeType ? `nudge-${nudgeType}` : checkinDoneCount ? `checkin-${checkinDoneCount}` : 'new'}
             initialConversationId={null}
             conversationType={chatConversationType}
             conversationMetadata={chatMetadata}
