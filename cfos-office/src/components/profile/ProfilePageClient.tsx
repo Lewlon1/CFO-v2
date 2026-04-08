@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, Upload, Settings } from 'lucide-react';
 import { CompletenessIndicator } from './CompletenessIndicator';
@@ -133,6 +133,13 @@ export function ProfilePageClient({
   const currency = (profile.primary_currency as string) || 'EUR';
 
   const refresh = () => router.refresh();
+
+  // Sync the sidebar whenever the profile page mounts — the layout is a Server
+  // Component that only re-fetches when router.refresh() is called, so it can
+  // show a stale profile_completeness if the profile was updated via chat.
+  useEffect(() => {
+    router.refresh();
+  }, [router]);
 
   const makeField = (field: string) => ({
     field,

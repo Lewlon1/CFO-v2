@@ -81,6 +81,21 @@ export function ChatInterface({
           router.replace(`/chat/${newId}`);
         }
       }
+
+      // Refresh the layout if the profile was updated via tool so the sidebar
+      // percentage reflects the new value without requiring navigation
+      const profileUpdated = finishedMessages.some(
+        (m) =>
+          m.role === 'assistant' &&
+          Array.isArray(m.parts) &&
+          m.parts.some(
+            (p: { type: string; state?: string }) =>
+              p.type === 'tool-update_user_profile' && p.state === 'output-available'
+          )
+      );
+      if (profileUpdated) {
+        router.refresh();
+      }
     },
   });
 
