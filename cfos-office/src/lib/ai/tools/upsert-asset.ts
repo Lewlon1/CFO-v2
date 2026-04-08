@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { updateAssetPortrait } from '@/lib/balance-sheet/portrait';
+import { refreshCurrentNetWorthSnapshot } from '@/lib/analytics/net-worth-snapshot';
 
 const ASSET_TYPES = ['savings', 'stocks', 'bonds', 'pension', 'crypto', 'property', 'other'] as const;
 type AssetType = (typeof ASSET_TYPES)[number];
@@ -110,12 +111,55 @@ If updating an existing asset, only include the fields that changed plus the ass
           }
 
           await updateAssetPortrait(ctx);
+          await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
           return { action: 'updated', saved: updated };
         }
 
         // INSERT path
         if (!params.asset_type || !params.name) {
           return { error: 'asset_type and name are required for new assets.' };
+        }
+
+        // Dedupe: if an asset already exists for this user with the same
+        // (asset_type, name) — case-insensitive — treat this call as an update
+        // on that row instead of inserting a duplicate. This prevents the
+        // common pattern where the LLM calls upsert_asset twice (once to
+        // create, once to add a detail like provider) without an asset_id.
+        const { data: dupe } = await ctx.supabase
+          .from('assets')
+          .select('id')
+          .eq('user_id', ctx.userId)
+          .eq('asset_type', params.asset_type)
+          .ilike('name', params.name)
+          .maybeSingle();
+
+        if (dupe?.id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updateData: Record<string, any> = { last_updated: nowIso };
+          if (params.name !== undefined) updateData.name = params.name;
+          if (params.provider !== undefined) updateData.provider = params.provider;
+          if (params.currency !== undefined) updateData.currency = params.currency.toUpperCase();
+          if (params.current_value !== undefined) updateData.current_value = params.current_value;
+          if (params.cost_basis !== undefined) updateData.cost_basis = params.cost_basis;
+          if (params.is_accessible !== undefined) updateData.is_accessible = params.is_accessible;
+          if (params.details !== undefined) updateData.details = params.details;
+
+          const { data: merged, error: mergeErr } = await ctx.supabase
+            .from('assets')
+            .update(updateData)
+            .eq('id', dupe.id)
+            .eq('user_id', ctx.userId)
+            .select()
+            .single();
+
+          if (mergeErr) {
+            console.error('[tool:upsert_asset] dedupe-merge error:', mergeErr);
+            return { error: 'Could not update the existing asset. Please try again.' };
+          }
+
+          await updateAssetPortrait(ctx);
+          await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
+          return { action: 'updated', saved: merged, deduped: true };
         }
 
         // Resolve currency default from profile
@@ -160,6 +204,7 @@ If updating an existing asset, only include the fields that changed plus the ass
         }
 
         await updateAssetPortrait(ctx);
+        await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
         return { action: 'created', saved: inserted };
       } catch (err) {
         console.error('[tool:upsert_asset] unexpected error:', err);

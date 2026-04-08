@@ -11,6 +11,7 @@ import { SessionTracker } from '@/components/analytics/SessionTracker'
 const navItems = [
   { href: '/chat', label: 'Chat', icon: '💬' },
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/balance-sheet', label: 'Balance Sheet', icon: '⚖️' },
   { href: '/bills', label: 'Bills', icon: '📋' },
   { href: '/transactions', label: 'Transactions', icon: '↕' },
   { href: '/scenarios', label: 'What if...', icon: '🔮' },

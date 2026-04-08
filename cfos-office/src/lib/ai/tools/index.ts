@@ -16,6 +16,10 @@ import { createPlanTripTool } from './plan-trip';
 import { createUpsertAssetTool } from './upsert-asset';
 import { createUpsertLiabilityTool } from './upsert-liability';
 import { createGetBalanceSheetTool } from './get-balance-sheet';
+import { createCalculateDebtPayoffTool } from './calculate-debt-payoff';
+import { createCalculatePensionProjectionTool } from './calculate-pension-projection';
+import { createCalculateEmergencyFundTool } from './calculate-emergency-fund';
+import { createGetNetWorthHistoryTool } from './get-net-worth-history';
 
 export type { ToolContext } from './types';
 
@@ -38,5 +42,9 @@ export function createToolbox(ctx: ToolContext) {
     upsert_asset: createUpsertAssetTool(ctx),
     upsert_liability: createUpsertLiabilityTool(ctx),
     get_balance_sheet: createGetBalanceSheetTool(ctx),
+    calculate_debt_payoff: createCalculateDebtPayoffTool(ctx),
+    calculate_pension_projection: createCalculatePensionProjectionTool(ctx),
+    calculate_emergency_fund: createCalculateEmergencyFundTool(ctx),
+    get_net_worth_history: createGetNetWorthHistoryTool(ctx),
   };
 }

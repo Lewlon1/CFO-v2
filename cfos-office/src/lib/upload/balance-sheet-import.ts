@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { updateAssetPortrait } from '@/lib/balance-sheet/portrait'
+import { refreshCurrentNetWorthSnapshot } from '@/lib/analytics/net-worth-snapshot'
 import type { ParsedHolding } from '@/lib/parsers/types'
 
 type AssetType = 'savings' | 'stocks' | 'bonds' | 'pension' | 'crypto' | 'property' | 'other'
@@ -336,6 +337,10 @@ export async function runBalanceSheetImport(
 
     // Refresh the balance-sheet-derived portrait traits.
     await updateAssetPortrait({ supabase, userId })
+
+    // Refresh the current month's net-worth snapshot so the Balance Sheet page
+    // reflects the new totals immediately.
+    await refreshCurrentNetWorthSnapshot(supabase, userId)
 
     return { ok: true, summary }
   } catch (err) {

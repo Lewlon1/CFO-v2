@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { updateAssetPortrait } from '@/lib/balance-sheet/portrait';
+import { refreshCurrentNetWorthSnapshot } from '@/lib/analytics/net-worth-snapshot';
 
 const LIABILITY_TYPES = [
   'mortgage',
@@ -151,6 +152,7 @@ AFTER CALLING: Always confirm what you've recorded in natural language. Example:
           }
 
           await updateAssetPortrait(ctx);
+          await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
           return { action: 'updated', saved: updated };
         }
 
@@ -162,6 +164,57 @@ AFTER CALLING: Always confirm what you've recorded in natural language. Example:
           return {
             error: 'outstanding_balance is required and must be greater than 0 for new liabilities.',
           };
+        }
+
+        // Dedupe: if a liability already exists for this user with the same
+        // (liability_type, name) — case-insensitive — treat this call as an
+        // update on that row instead of inserting a duplicate.
+        const { data: dupe } = await ctx.supabase
+          .from('liabilities')
+          .select('id')
+          .eq('user_id', ctx.userId)
+          .eq('liability_type', params.liability_type)
+          .ilike('name', params.name)
+          .maybeSingle();
+
+        if (dupe?.id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updateData: Record<string, any> = { last_updated: nowIso };
+          if (params.name !== undefined) updateData.name = params.name;
+          if (params.provider !== undefined) updateData.provider = params.provider;
+          if (params.currency !== undefined) updateData.currency = params.currency.toUpperCase();
+          if (params.outstanding_balance !== undefined)
+            updateData.outstanding_balance = params.outstanding_balance;
+          if (params.original_amount !== undefined) updateData.original_amount = params.original_amount;
+          if (params.interest_rate !== undefined) updateData.interest_rate = params.interest_rate;
+          if (params.rate_type !== undefined) updateData.rate_type = params.rate_type;
+          if (params.minimum_payment !== undefined) updateData.minimum_payment = params.minimum_payment;
+          if (params.actual_payment !== undefined) updateData.actual_payment = params.actual_payment;
+          if (params.payment_frequency !== undefined)
+            updateData.payment_frequency = params.payment_frequency;
+          if (params.start_date !== undefined) updateData.start_date = params.start_date;
+          if (params.end_date !== undefined) updateData.end_date = params.end_date;
+          if (params.remaining_term_months !== undefined)
+            updateData.remaining_term_months = params.remaining_term_months;
+          if (params.is_priority !== undefined) updateData.is_priority = params.is_priority;
+          if (params.details !== undefined) updateData.details = params.details;
+
+          const { data: merged, error: mergeErr } = await ctx.supabase
+            .from('liabilities')
+            .update(updateData)
+            .eq('id', dupe.id)
+            .eq('user_id', ctx.userId)
+            .select()
+            .single();
+
+          if (mergeErr) {
+            console.error('[tool:upsert_liability] dedupe-merge error:', mergeErr);
+            return { error: 'Could not update the existing liability. Please try again.' };
+          }
+
+          await updateAssetPortrait(ctx);
+          await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
+          return { action: 'updated', saved: merged, deduped: true };
         }
 
         let currency = params.currency?.toUpperCase() || ctx.currency;
@@ -208,6 +261,7 @@ AFTER CALLING: Always confirm what you've recorded in natural language. Example:
         }
 
         await updateAssetPortrait(ctx);
+        await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
         return { action: 'created', saved: inserted };
       } catch (err) {
         console.error('[tool:upsert_liability] unexpected error:', err);
