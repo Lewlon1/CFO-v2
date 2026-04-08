@@ -22,6 +22,8 @@ export async function buildSystemPrompt(
     goalsResult,
     actionsResult,
     tripsResult,
+    assetsResult,
+    liabilitiesResult,
   ] = await Promise.allSettled([
     supabase
       .from('user_profiles')
@@ -68,6 +70,17 @@ export async function buildSystemPrompt(
       .in('status', ['planning', 'booked'])
       .order('start_date', { ascending: true })
       .limit(3),
+    supabase
+      .from('assets')
+      .select('*')
+      .eq('user_id', userId)
+      .order('asset_type', { ascending: true })
+      .order('current_value', { ascending: false, nullsFirst: false }),
+    supabase
+      .from('liabilities')
+      .select('*')
+      .eq('user_id', userId)
+      .order('interest_rate', { ascending: false, nullsFirst: false }),
   ]);
 
   const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null;
@@ -78,6 +91,8 @@ export async function buildSystemPrompt(
   const goals = goalsResult.status === 'fulfilled' ? goalsResult.value.data : null;
   const actions = actionsResult.status === 'fulfilled' ? actionsResult.value.data : null;
   const trips = tripsResult.status === 'fulfilled' ? tripsResult.value.data : null;
+  const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
+  const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
 
   // Build advice style modifier
   const adviceStyle = profile?.advice_style || 'direct';
@@ -97,6 +112,7 @@ export async function buildSystemPrompt(
     await getCountryBenchmarks(profile, supabase),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
+    buildBalanceSheetContext(assets, liabilities),
     buildGoalsContext(goals, actions),
     buildTripsContext(trips, profile),
     buildToolUsageInstructions(),
@@ -382,6 +398,92 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
   return parts.join('\n');
 }
 
+const ADVISORY_BOUNDARIES = `## Advisory boundaries — what you can and cannot do with balance sheet data
+
+YOU CAN:
+- State the user's net worth and how it's changing over time
+- Show asset allocation percentages (e.g., "78% equities, 15% cash, 7% pension")
+- Compare their allocation to generic, widely-published age-based benchmarks (e.g., "a common rule of thumb is 100 minus your age in equities")
+- Name the interest rate on their savings and note if it's below current best-available rates WITHOUT recommending a specific provider
+- Calculate the cost of debt (e.g., "your credit card costs you £X/month in interest")
+- Calculate debt payoff timelines under different payment scenarios
+- Calculate pension projections based on current contribution rates and generic growth assumptions
+- Assess emergency fund adequacy (accessible savings vs monthly essential spending)
+- Explain financial concepts (compound interest, LTV, tax-sheltered wrappers, diversification)
+- Flag observations (e.g., "you have no pension contributions" or "100% of your investments are in one asset class")
+
+YOU MUST NOT:
+- Recommend specific financial products, funds, ETFs, platforms, or providers by name
+- Suggest buy, sell, or hold decisions on any specific security or asset
+- Recommend specific portfolio allocations (e.g., "you should have 60/40 stocks/bonds")
+- Provide suitability assessments for any financial product
+- Give specific tax advice (flag the topic and recommend a specialist)
+- Suggest the user moves money to a specific institution
+- Make predictions about market performance
+
+WHEN THE USER ASKS FOR PRODUCT-SPECIFIC ADVICE:
+Acknowledge the question. Show them what you CAN do — the numbers, the concepts, the tradeoffs. Then say something like: "I can show you the maths and explain the options, but picking a specific product is a decision I'd recommend making with a qualified financial advisor or through a comparison service" — and, if you know the user's country, mention an appropriate one (e.g., MoneySavingExpert in the UK, Finanztest in Germany, NerdWallet in the US).
+
+Frame your role as: "I'm your CFO — I know your numbers inside out and I'll make sure you're asking the right questions. But for regulated product recommendations, you want a licensed advisor."`;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildBalanceSheetContext(assets: any[] | null, liabilities: any[] | null): string {
+  const assetList = assets || [];
+  const liabilityList = liabilities || [];
+  if (!assetList.length && !liabilityList.length) return '';
+
+  const totalAssets = assetList.reduce(
+    (s, a) => s + (Number(a.current_value) || 0),
+    0,
+  );
+  const totalLiabs = liabilityList.reduce(
+    (s, l) => s + (Number(l.outstanding_balance) || 0),
+    0,
+  );
+  const netWorth = totalAssets - totalLiabs;
+  const accessible = assetList
+    .filter((a) => a.is_accessible === true)
+    .reduce((s, a) => s + (Number(a.current_value) || 0), 0);
+
+  let out = `## Balance sheet (system-computed — use these numbers, don't calculate yourself)\n\n`;
+  out += `Net worth: ${netWorth.toFixed(0)}\n`;
+  out += `Total assets: ${totalAssets.toFixed(0)} (accessible: ${accessible.toFixed(0)})\n`;
+  out += `Total liabilities: ${totalLiabs.toFixed(0)}\n\n`;
+
+  if (assetList.length) {
+    out += `### Assets\n`;
+    for (const a of assetList) {
+      out += `- ${a.name} (${a.asset_type}): ${a.currency} ${(Number(a.current_value) || 0).toFixed(0)}`;
+      if (a.provider) out += ` @ ${a.provider}`;
+      if (a.is_accessible === false) out += ` [locked]`;
+      if (a.asset_type === 'savings' && a.details?.interest_rate != null) {
+        out += ` — ${a.details.interest_rate}% interest`;
+      }
+      if (a.asset_type === 'pension' && a.details?.employer_contribution_pct != null) {
+        out += ` — employer ${a.details.employer_contribution_pct}% + employee ${a.details.employee_contribution_pct ?? '?'}%`;
+      }
+      out += `\n`;
+    }
+    out += `\n`;
+  }
+
+  if (liabilityList.length) {
+    out += `### Liabilities\n`;
+    for (const l of liabilityList) {
+      out += `- ${l.name} (${l.liability_type}): ${l.currency} ${Number(l.outstanding_balance).toFixed(0)} outstanding`;
+      if (l.interest_rate != null) out += ` — ${l.interest_rate}% APR`;
+      if (l.actual_payment != null) out += ` — paying ${l.currency} ${l.actual_payment}/${l.payment_frequency || 'mo'}`;
+      if (l.is_priority) out += ` [PRIORITY]`;
+      out += `\n`;
+    }
+    out += `\n`;
+  }
+
+  out += `IMPORTANT: Use these system-provided balance sheet numbers. Do not calculate net worth, gains, or totals yourself. If you need a calculation not shown here (e.g., debt payoff timeline, pension projection), tell the user those tools are coming in a future update.\n\n`;
+  out += ADVISORY_BOUNDARIES;
+  return out;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildGoalsContext(goals: any[] | null, actions: any[] | null): string {
   const parts: string[] = [];
@@ -450,6 +552,9 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **get_value_review_queue**: Fetch a SINGLE merchant group for a mid-conversation, inline discussion — e.g. the user mentioned dining out and you want to ask "so what's the story with the three Aldi trips?". Do NOT use this when the user explicitly asked for a "check-in" — that's what check_value_checkin_ready is for. Do NOT use this to batch-classify; one merchant group at a time, woven naturally into the conversation.
 - **record_value_classifications**: Save value category classifications after the user tells you how they feel about a merchant IN CHAT. Only used with the inline flow above (get_value_review_queue). The card-based check-in saves its own classifications server-side — do NOT call this after the user completes a check-in.
 - **search_bill_alternatives**: "Can I get a better deal on electricity?" / "Help me switch internet provider." Researches alternatives and compares with the user's current plan.
+- **upsert_asset**: Call whenever the user mentions a savings balance, investment, pension pot, crypto holding, or property they own — whether volunteered or in reply to a question. Use asset_id to update an existing entry, omit it to create a new one. Always confirm the saved details naturally afterwards.
+- **upsert_liability**: Call whenever the user mentions a debt balance — mortgage, student loan, credit card, personal loan, BNPL, overdraft. Use liability_id to update, omit to create. Always confirm afterwards.
+- **get_balance_sheet**: "What's my net worth?" / "What's my overall position?" / when you need balance sheet context to answer a question about emergency funds, goal feasibility, or debt burden. Returns totals, itemised lists, and a data_gaps array — use the gaps to naturally prompt for missing information, never to push.
 
 RULES:
 - ALWAYS call a tool when you need a number. Never estimate, recall, or calculate.
