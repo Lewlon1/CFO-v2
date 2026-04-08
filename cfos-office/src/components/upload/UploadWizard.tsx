@@ -90,7 +90,7 @@ export function UploadWizard({ categories, onImported, onDone }: Props) {
   }
 
   async function handleImportConfirm(
-    rows: Array<PreviewTransaction & { categoryId: string | null; valueCategory: string }>
+    rows: Array<PreviewTransaction & { categoryId: string | null }>
   ) {
     if (state.step !== 'preview') return
     const { importBatchId } = state

@@ -3,6 +3,31 @@
 import { UIMessage } from 'ai';
 import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import type { Components } from 'react-markdown';
+
+// ── Markdown styling ──────────────────────────────────────────────────────────
+// Custom element renderers for assistant messages. Tailwind v4 here does not
+// include the typography plugin, so we style each element explicitly rather
+// than relying on `prose` classes.
+const markdownComponents: Components = {
+  p: ({ children }) => <p className="my-1.5 leading-relaxed first:mt-0 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="my-1.5 pl-5 list-disc space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1.5 pl-5 list-decimal space-y-0.5">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }) => <strong className="font-medium text-foreground">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  h1: ({ children }) => <h1 className="text-base font-semibold text-foreground mt-3 mb-1.5 first:mt-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-sm font-semibold text-foreground mt-3 mb-1.5 first:mt-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground mt-2 mb-1 first:mt-0">{children}</h3>,
+  a: ({ children, href }) => (
+    <a href={href} className="text-primary hover:underline" target={href?.startsWith('http') ? '_blank' : undefined} rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}>
+      {children}
+    </a>
+  ),
+  code: ({ children }) => <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs font-mono">{children}</code>,
+  hr: () => <hr className="my-3 border-border" />,
+  blockquote: ({ children }) => <blockquote className="border-l-2 border-border pl-3 italic text-foreground/80 my-1.5">{children}</blockquote>,
+};
 import { TappableOptions } from './TappableOptions';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
@@ -43,12 +68,16 @@ function parseOptions(content: string): { text: string; options: string[] | null
 }
 
 function parseCTA(content: string): { text: string; cta: { type: string; label: string } | null } {
-  const regex = /\[CTA:(\w+)\]\n(.*?)\n\[\/CTA\]/;
+  // Accept both inline ([CTA:type]label[/CTA]) and multi-line variants.
+  // [\s\S] so the label can span newlines; the optional \s* lets us match either form.
+  const regex = /\[CTA:(\w+)\]\s*([\s\S]*?)\s*\[\/CTA\]/;
   const match = content.match(regex);
   if (!match) return { text: content, cta: null };
+  const label = match[2].trim();
+  if (!label) return { text: content, cta: null };
   return {
     text: content.replace(regex, '').trim(),
-    cta: { type: match[1], label: match[2].trim() },
+    cta: { type: match[1], label },
   };
 }
 
@@ -114,58 +143,67 @@ export function MessageList({
           for (const part of message.parts) {
             if (part.type === 'text') {
               textParts.push((part as { type: 'text'; text: string }).text);
-            } else if (part.type === 'tool-invocation') {
-              const toolPart = part as unknown as { toolName: string; state: string; toolCallId: string; result?: unknown };
+            } else if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+              // AI SDK v5+ tool part format: type="tool-{toolName}", state="input-available"|"output-available"|"output-error"
+              const toolName = part.type.slice('tool-'.length);
+              const toolPart = part as unknown as {
+                type: string;
+                state: string;
+                toolCallId?: string;
+                input?: unknown;
+                output?: unknown;
+                errorText?: string;
+              };
+              const toolCallId = toolPart.toolCallId ?? `${toolName}-${textParts.length}`;
 
-              // Track tool invocations for loading indicators
-              if (toolPart.state === 'call' && TOOL_LABELS[toolPart.toolName]) {
-                toolInvocations.push({ toolName: toolPart.toolName, state: toolPart.state, toolCallId: toolPart.toolCallId });
+              // Track in-progress tool calls for loading indicators
+              if (
+                (toolPart.state === 'input-streaming' || toolPart.state === 'input-available') &&
+                TOOL_LABELS[toolName]
+              ) {
+                toolInvocations.push({ toolName, state: toolPart.state, toolCallId });
               }
 
-              // Existing: handle structured input results
-              if (
-                toolPart.toolName === 'request_structured_input' &&
-                toolPart.state === 'result'
-              ) {
-                const result = toolPart.result;
+              // Handle completed tool results
+              if (toolPart.state === 'output-available') {
+                const output = toolPart.output;
+
+                // Structured input component
                 if (
-                  result &&
-                  typeof result === 'object' &&
-                  (result as { type?: string }).type === 'structured_input'
+                  toolName === 'request_structured_input' &&
+                  output &&
+                  typeof output === 'object' &&
+                  (output as { type?: string }).type === 'structured_input'
                 ) {
-                  structuredInputs.push(result as StructuredInputConfig);
+                  structuredInputs.push(output as StructuredInputConfig);
                 }
-              }
 
-              // Collect scenario model results
-              if (
-                toolPart.toolName === 'model_scenario' &&
-                toolPart.state === 'result' &&
-                toolPart.result &&
-                typeof toolPart.result === 'object' &&
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (toolPart.result as any).scenario &&
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                !(toolPart.result as any).error
-              ) {
-                scenarioResults.push(toolPart.result);
-              }
+                // Scenario result visualisation
+                if (
+                  toolName === 'model_scenario' &&
+                  output &&
+                  typeof output === 'object' &&
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (output as any).scenario &&
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  !(output as any).error
+                ) {
+                  scenarioResults.push(output);
+                }
 
-              // Collect trip plan results
-              if (
-                toolPart.toolName === 'plan_trip' &&
-                toolPart.state === 'result' &&
-                toolPart.result &&
-                typeof toolPart.result === 'object' &&
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (toolPart.result as any).type === 'trip_plan'
-              ) {
-                tripPlanResults.push(toolPart.result);
-              }
+                // Trip plan visualisation
+                if (
+                  toolName === 'plan_trip' &&
+                  output &&
+                  typeof output === 'object' &&
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (output as any).type === 'trip_plan'
+                ) {
+                  tripPlanResults.push(output);
+                }
 
-              // Clear loading indicator when result arrives
-              if (toolPart.state === 'result') {
-                const idx = toolInvocations.findIndex((t) => t.toolCallId === toolPart.toolCallId);
+                // Clear the loading indicator for this tool
+                const idx = toolInvocations.findIndex((t) => t.toolCallId === toolCallId);
                 if (idx !== -1) toolInvocations.splice(idx, 1);
               }
             }
@@ -204,11 +242,11 @@ export function MessageList({
                 className={
                   message.role === 'user'
                     ? 'text-sm text-foreground'
-                    : 'text-sm text-foreground/90 px-3 overflow-hidden break-words prose-invert prose-sm prose-p:my-2 prose-ul:my-2 prose-li:my-0.5 prose-headings:text-foreground prose-headings:font-semibold prose-strong:text-foreground'
+                    : 'text-sm text-foreground/90 px-3 overflow-hidden break-words'
                 }
               >
                 {message.role === 'assistant' ? (
-                  <Markdown>{text}</Markdown>
+                  <Markdown components={markdownComponents}>{text}</Markdown>
                 ) : (
                   <p className="whitespace-pre-wrap">{text}</p>
                 )}

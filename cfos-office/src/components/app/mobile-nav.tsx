@@ -4,13 +4,15 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { ProfileCompleteness } from './profile-completeness'
 
 interface MobileNavProps {
   navItems: { href: string; label: string; icon: string }[]
   userEmail: string
+  profileCompleteness: number
 }
 
-export function MobileNav({ navItems, userEmail }: MobileNavProps) {
+export function MobileNav({ navItems, userEmail, profileCompleteness }: MobileNavProps) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
 
@@ -51,7 +53,10 @@ export function MobileNav({ navItems, userEmail }: MobileNavProps) {
             </Link>
           ))}
           <div className="pt-2 border-t border-border mt-2">
-            <p className="px-3 text-xs text-muted-foreground mb-1 truncate">{userEmail}</p>
+            <div onClick={() => setOpen(false)}>
+              <ProfileCompleteness completeness={profileCompleteness} />
+            </div>
+            <p className="px-3 text-xs text-muted-foreground mb-1 mt-2 truncate">{userEmail}</p>
             <button
               onClick={handleLogout}
               className="w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent text-left"

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { LogoutButton } from '@/components/app/logout-button'
 import { MobileNav } from '@/components/app/mobile-nav'
+import { ProfileCompleteness } from '@/components/app/profile-completeness'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { OfflineBanner } from '@/components/app/OfflineBanner'
 import { SessionTracker } from '@/components/analytics/SessionTracker'
@@ -74,6 +75,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
 
+        {/* Profile completeness nudge */}
+        <div className="px-3 pt-2 pb-3 border-t border-border">
+          <ProfileCompleteness completeness={profileCompleteness} />
+        </div>
+
         {/* User info + logout */}
         <div className="px-3 py-4 border-t border-border space-y-2">
           <p className="px-3 text-xs text-muted-foreground truncate">{user.email}</p>
@@ -93,7 +99,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex items-center gap-1">
             <NotificationBell />
-            <MobileNav navItems={navItems} userEmail={user.email ?? ''} />
+            <MobileNav navItems={navItems} userEmail={user.email ?? ''} profileCompleteness={profileCompleteness} />
           </div>
         </header>
 

@@ -10,9 +10,10 @@ interface Props {
   bill: BillRecord
   onClick: () => void
   onPromote?: () => void
+  onDismiss?: () => void
 }
 
-export function BillCard({ bill, onClick, onPromote }: Props) {
+export function BillCard({ bill, onClick, onPromote, onDismiss }: Props) {
   const monthly = normaliseToMonthly(Number(bill.amount), bill.frequency || 'monthly')
   const freq = frequencyLabel(bill.frequency || 'monthly')
   const isDetected = bill.status === 'detected'
@@ -103,17 +104,33 @@ export function BillCard({ bill, onClick, onPromote }: Props) {
           )}
         </div>
 
-        {/* Promote button for detected bills */}
-        {isDetected && onPromote && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onPromote()
-            }}
-            className="text-xs text-primary hover:text-primary/80 font-medium min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
-          >
-            Track
-          </button>
+        {/* Actions for detected bills */}
+        {isDetected && (onPromote || onDismiss) && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {onPromote && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPromote()
+                }}
+                className="text-xs text-primary hover:text-primary/80 font-medium min-h-[44px] min-w-[44px] flex items-center justify-center"
+              >
+                Track
+              </button>
+            )}
+            {onDismiss && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDismiss()
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

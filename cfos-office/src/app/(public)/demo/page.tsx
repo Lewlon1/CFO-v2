@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DemoFlow } from '@/components/demo/demo-flow'
 import { DEMO_COUNTRIES } from '@/lib/demo/transactions'
@@ -10,6 +11,17 @@ export default async function DemoPage() {
   let initialCountry: string | null = null
 
   if (user) {
+    // If this user has already completed the Value Map, skip the demo entirely
+    // and send them straight to chat. The intro is a one-time experience.
+    const { count: completedSessions } = await supabase
+      .from('value_map_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', user.id)
+
+    if ((completedSessions ?? 0) > 0) {
+      redirect('/chat')
+    }
+
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('display_name, country, primary_currency')

@@ -56,6 +56,20 @@ export function BillsClient({ bills: initialBills }: Props) {
     }
   }
 
+  async function handleDismiss(billId: string) {
+    // Optimistic remove
+    setBills((prev) => prev.filter((b) => b.id !== billId))
+    try {
+      await fetch('/api/bills/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bill_id: billId }),
+      })
+    } catch {
+      // Non-fatal — on next page load the bill will reappear if the request failed
+    }
+  }
+
   function handleUploadComplete() {
     setShowUpload(false)
     setUploadBill(null)
@@ -146,6 +160,7 @@ export function BillsClient({ bills: initialBills }: Props) {
                 bill={bill}
                 onClick={() => setSelectedBill(bill)}
                 onPromote={() => handlePromote(bill.id)}
+                onDismiss={() => handleDismiss(bill.id)}
               />
             ))}
           </div>

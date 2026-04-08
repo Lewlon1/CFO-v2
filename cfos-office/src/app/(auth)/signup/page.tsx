@@ -6,12 +6,38 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+import { calculateProfileCompleteness } from '@/lib/profiling/engine'
+
+// Country list (code → currency). Kept short for beta.
+const COUNTRIES = [
+  { code: 'ES', name: 'Spain', currency: 'EUR' },
+  { code: 'GB', name: 'United Kingdom', currency: 'GBP' },
+  { code: 'IE', name: 'Ireland', currency: 'EUR' },
+  { code: 'US', name: 'United States', currency: 'USD' },
+  { code: 'FR', name: 'France', currency: 'EUR' },
+  { code: 'DE', name: 'Germany', currency: 'EUR' },
+  { code: 'PT', name: 'Portugal', currency: 'EUR' },
+  { code: 'NL', name: 'Netherlands', currency: 'EUR' },
+  { code: 'IT', name: 'Italy', currency: 'EUR' },
+] as const
 
 function SignupForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const trackEvent = useTrackEvent()
   const [email, setEmail] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  // Auto-detect country from browser locale as an initial default (user can change).
+  const [country, setCountry] = useState<string>(() => {
+    if (typeof navigator === 'undefined') return ''
+    const locale = navigator.language || navigator.languages?.[0]
+    if (!locale) return ''
+    const regionCode = locale.split('-')[1]?.toUpperCase()
+    if (regionCode && COUNTRIES.some(c => c.code === regionCode)) {
+      return regionCode
+    }
+    return ''
+  })
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -38,10 +64,43 @@ function SignupForm() {
       return
     }
 
-    // Track signup + link anonymous demo session if present
+    // Track signup + persist name/country/currency + link Value Map session
     let hasValueMap = false
     if (data.user) {
-      trackEvent('signup_completed', { method: 'email' })
+      const selectedCountry = COUNTRIES.find(c => c.code === country)
+      const primaryCurrency = selectedCountry?.currency ?? 'EUR'
+      const trimmedName = displayName.trim()
+
+      // Persist profile fields and recompute completeness in one update.
+      // display_name is not in the question registry so it doesn't affect
+      // completeness; country + primary_currency are both weight 3.
+      const completeness = calculateProfileCompleteness({
+        display_name: trimmedName,
+        country,
+        primary_currency: primaryCurrency,
+      })
+
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .update({
+          display_name: trimmedName,
+          country,
+          primary_currency: primaryCurrency,
+          profile_completeness: completeness,
+        })
+        .eq('id', data.user.id)
+
+      if (profileError) {
+        // Non-fatal — user is signed up, profile fields can fill in later.
+        console.error('Profile update after signup failed:', profileError)
+      }
+
+      trackEvent('signup_completed', {
+        method: 'email',
+        country,
+        currency: primaryCurrency,
+      })
+
       const sessionToken = localStorage.getItem('cfos_demo_session_token')
       if (sessionToken) {
         try {
@@ -67,7 +126,7 @@ function SignupForm() {
     <>
       <h2 className="text-lg font-semibold text-foreground mb-2">Create your account</h2>
       <p className="text-sm text-muted-foreground mb-6">
-        Just email and password — nothing else. You can tell us more over time.
+        Four quick fields — then let&apos;s look at your numbers.
       </p>
 
       {error && (
@@ -91,6 +150,42 @@ function SignupForm() {
             className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="you@example.com"
           />
+        </div>
+
+        <div>
+          <label htmlFor="name" className="block text-sm text-muted-foreground mb-1.5">
+            First name
+          </label>
+          <input
+            id="name"
+            type="text"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            required
+            autoComplete="given-name"
+            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder="Your first name"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="country" className="block text-sm text-muted-foreground mb-1.5">
+            Country
+          </label>
+          <select
+            id="country"
+            value={country}
+            onChange={e => setCountry(e.target.value)}
+            required
+            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">Select your country</option>
+            {COUNTRIES.map(c => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>

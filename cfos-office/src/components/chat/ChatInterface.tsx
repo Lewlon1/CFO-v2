@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { WelcomeState } from './WelcomeState';
+import { ChatLoadingScreen } from './ChatLoadingScreen';
 import { useTrackEvent } from '@/lib/events/use-track-event';
 
 interface ChatInterfaceProps {
@@ -80,6 +81,21 @@ export function ChatInterface({
           router.replace(`/chat/${newId}`);
         }
       }
+
+      // Refresh the layout if the profile was updated via tool so the sidebar
+      // percentage reflects the new value without requiring navigation
+      const profileUpdated = finishedMessages.some(
+        (m) =>
+          m.role === 'assistant' &&
+          Array.isArray(m.parts) &&
+          m.parts.some(
+            (p: { type: string; state?: string }) =>
+              p.type === 'tool-update_user_profile' && p.state === 'output-available'
+          )
+      );
+      if (profileUpdated) {
+        router.refresh();
+      }
     },
   });
 
@@ -91,7 +107,8 @@ export function ChatInterface({
       || conversationType === 'bill_optimisation'
       || conversationType === 'nudge_initiated'
       || conversationType === 'onboarding'
-      || conversationType === 'onboarding_no_vm';
+      || conversationType === 'onboarding_no_vm'
+      || conversationType === 'value_checkin_done';
     if (
       isAutoTriggerType &&
       messages.length === 0 &&
@@ -101,7 +118,7 @@ export function ChatInterface({
       autoTriggeredRef.current = true;
       let trigger: string;
       if (conversationType === 'onboarding') {
-        trigger = '[System: New user who just completed the Value Map and signed up. Welcome them warmly, reference their archetype and what you noticed about their spending values. Keep it to 2-3 sentences, then ask what they want to tackle first.]';
+        trigger = '[System: New user just completed the Value Map and signed up. Deliver your first-meeting welcome per your conversation instructions. Reference their archetype in one line, then prompt them to upload a recent bank statement so you can show them what is actually going on with their money. Include the markdown link [Upload your transactions](/transactions). Maximum 4 sentences. Do not mention sample data or the Value Map mechanics.]';
       } else if (conversationType === 'onboarding_no_vm') {
         trigger = '[System: New user who signed up directly. Welcome them briefly, then suggest the Value Map as a quick way to get started — "a 2-minute exercise that helps me understand how you think about money." You MUST include this exact markdown link in your response: [Try the Value Map](/demo). If they want to skip it, that is fine.]';
       } else if (conversationType === 'value_map_complete') {
@@ -113,6 +130,9 @@ export function ChatInterface({
       } else if (conversationType === 'nudge_initiated') {
         const nudgeType = conversationMetadata?.nudge_type ?? 'general';
         trigger = `[System: User arrived via ${nudgeType} nudge. Open the conversation proactively.]`;
+      } else if (conversationType === 'value_checkin_done') {
+        const count = conversationMetadata?.checkin_count ?? 'several';
+        trigger = `[System: User just finished a value check-in — they classified ${count} transactions. Acknowledge what you learned in 2 sentences. Reference one specific insight if visible in your review context (e.g. "so your Friday night takeaways are Leaks, not Foundation"). Do NOT list everything they classified. Keep it warm and brief, then offer to discuss anything on their mind.]`;
       } else {
         trigger = '[System: Post-upload analysis triggered. Deliver your first insight.]';
       }
@@ -156,7 +176,16 @@ export function ChatInterface({
 
   const handleOptionSelect = useCallback(
     (text: string) => {
-      sendMessage({ text });
+      // Profiling agreement buttons need a system trigger to force the tool call.
+      // Plain text replies cause the model to generate preamble without calling the tool.
+      const isProfilingAgreement = /let.s do a few now|sure.*profile|do.*now/i.test(text);
+      if (isProfilingAgreement) {
+        sendMessage({
+          text: '[System: User agreed to profiling. IMMEDIATELY call request_structured_input with field="net_monthly_income", input_type="currency_amount", label="What\'s your monthly take-home pay?", rationale="Helps me tell you whether your spending patterns are sustainable". Do not output any text before the tool call — just call the tool now.]',
+        });
+      } else {
+        sendMessage({ text });
+      }
     },
     [sendMessage]
   );
@@ -205,6 +234,17 @@ export function ChatInterface({
           onSend={handleSend}
           disabled={isLoading}
         />
+      </div>
+    );
+  }
+
+  // For auto-triggered conversations, show a branded loading screen until the
+  // first assistant token arrives, then fall through to the normal chat view.
+  const hasAnyAssistantToken = messages.some((m) => m.role === 'assistant');
+  if (isAutoTriggered && !hasAnyAssistantToken) {
+    return (
+      <div className="flex flex-col h-full min-w-0">
+        <ChatLoadingScreen />
       </div>
     );
   }
