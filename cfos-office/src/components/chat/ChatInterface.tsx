@@ -20,6 +20,7 @@ interface ChatInterfaceProps {
   userCurrency?: string;
   starterMessage?: string;
   conversations?: Array<{ id: string; title: string | null; updated_at: string }>;
+  hasTransactions?: boolean;
 }
 
 export function ChatInterface({
@@ -30,6 +31,7 @@ export function ChatInterface({
   userCurrency,
   starterMessage,
   conversations,
+  hasTransactions = false,
 }: ChatInterfaceProps) {
   const router = useRouter();
   const trackEvent = useTrackEvent();
@@ -246,7 +248,10 @@ export function ChatInterface({
     return (
       <div className="flex flex-col h-full min-h-0 min-w-0">
         {mobileChatHeader}
-        <WelcomeState onSelect={handleStarterSelect} />
+        <WelcomeState
+          onSelect={handleStarterSelect}
+          hasTransactions={hasTransactions}
+        />
         {errorBanner}
         <ChatInput
           input={input}
