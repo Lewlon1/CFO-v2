@@ -68,47 +68,58 @@ export async function analyseGap(
     has_value_map: false,
   }
 
-  // 1. Fetch category-level value_category_rules for this user
+  // 0. Detect Value Map completion independently of rule format.
+  //    The VM seeds merchant_contains rules (see /api/value-map/link-session), so
+  //    a missing category_id rule set does NOT mean "no VM". Always consult
+  //    value_map_results directly before deciding has_value_map.
+  const { data: vmRows } = await supabase
+    .from('value_map_results')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1)
+  const hasValueMap = (vmRows?.length ?? 0) > 0
+
+  // 1. Fetch ALL value category rules for this user (both category_id and merchant_contains).
   const { data: rules } = await supabase
     .from('value_category_rules')
     .select('match_type, match_value, value_category, confidence')
     .eq('user_id', userId)
-    .eq('match_type', 'category_id')
+    .in('match_type', ['category_id', 'merchant_contains'])
 
-  if (!rules || rules.length === 0) return empty
-
-  // Build map: category_slug → { value_category, confidence }
-  const statedMap = new Map<string, { value_category: string; confidence: number }>()
-  for (const rule of rules) {
-    statedMap.set(rule.match_value, {
-      value_category: rule.value_category,
-      confidence: rule.confidence ?? 0.5,
-    })
+  if (!rules || rules.length === 0) {
+    return { ...empty, has_value_map: hasValueMap }
   }
 
-  // 2. Fetch actual spending grouped by category (last N months)
+  // Split rules by type. Category-level rules come from chat corrections;
+  // merchant-level rules come from the Value Map (see /api/value-map/link-session).
+  const categoryRules = rules.filter((r) => r.match_type === 'category_id')
+  const merchantRules = rules.filter((r) => r.match_type === 'merchant_contains')
+
+  // 2. Fetch all expense transactions for the window.
   const sinceDate = new Date()
   sinceDate.setMonth(sinceDate.getMonth() - months)
   const since = sinceDate.toISOString().slice(0, 10)
 
   const { data: transactions } = await supabase
     .from('transactions')
-    .select('amount, category_id, value_category')
+    .select('amount, description, category_id, value_category')
     .eq('user_id', userId)
     .lt('amount', 0) // expenses only
     .gte('date', since)
 
-  if (!transactions || transactions.length === 0) return { ...empty, has_value_map: true }
+  if (!transactions || transactions.length === 0) {
+    return { ...empty, has_value_map: hasValueMap }
+  }
 
   const totalSpend = transactions.reduce((s, t) => s + Math.abs(t.amount), 0)
-  if (totalSpend === 0) return { ...empty, has_value_map: true }
+  if (totalSpend === 0) return { ...empty, has_value_map: hasValueMap }
 
-  // 3. Group transactions by category_id
-  interface CategoryData {
+  // 3. Group transactions by category_id (for category rules).
+  interface GroupData {
     total: number
     by_value: Record<string, number>
   }
-  const byCategory = new Map<string, CategoryData>()
+  const byCategory = new Map<string, GroupData>()
   for (const tx of transactions) {
     const catId = tx.category_id ?? '_unknown'
     const existing = byCategory.get(catId) ?? { total: 0, by_value: {} }
@@ -119,60 +130,68 @@ export async function analyseGap(
     byCategory.set(catId, existing)
   }
 
-  // 4. Fetch category display names
-  const categoryIds = Array.from(statedMap.keys())
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('id, name')
-    .in('id', categoryIds)
-
+  // 4. Fetch category display names (only for category rules).
+  const categoryIds = categoryRules.map((r) => r.match_value)
   const categoryNames = new Map<string, string>()
-  for (const cat of categories ?? []) {
-    categoryNames.set(cat.id, cat.name)
+  if (categoryIds.length > 0) {
+    const { data: categories } = await supabase
+      .from('categories')
+      .select('id, name')
+      .in('id', categoryIds)
+    for (const cat of categories ?? []) {
+      categoryNames.set(cat.id, cat.name)
+    }
   }
 
-  // 5. Compute gaps
   const gaps: CategoryGap[] = []
   const monthDivisor = Math.max(months, 1)
 
-  for (const [slug, stated] of statedMap.entries()) {
-    const catData = byCategory.get(slug)
-    if (!catData || catData.total === 0) {
-      // User has a rule but no transactions — could be 'undervalued'
+  const pushGap = (
+    label: string,
+    slug: string,
+    stated: { value_category: string; confidence: number },
+    groupData: GroupData | undefined,
+  ) => {
+    if (!groupData || groupData.total === 0) {
+      // Stated investment with no spending = undervalued.
       if (stated.value_category === 'investment') {
-        const categoryName = categoryNames.get(slug) ?? slug
         gaps.push({
-          category: categoryName,
+          category: label,
           category_slug: slug,
           stated_value_category: 'investment',
           stated_confidence: stated.confidence,
           actual_monthly_spend: 0,
           pct_of_total_spending: 0,
-          actual_value_breakdown: { foundation_pct: 0, burden_pct: 0, investment_pct: 0, leak_pct: 0, unsure_pct: 0 },
+          actual_value_breakdown: {
+            foundation_pct: 0,
+            burden_pct: 0,
+            investment_pct: 0,
+            leak_pct: 0,
+            unsure_pct: 0,
+          },
           gap_type: 'undervalued',
           gap_severity: 'medium',
-          narrative: buildNarrative('undervalued', categoryName, 0, 0, stated.confidence),
+          narrative: buildNarrative('undervalued', label, 0, 0, stated.confidence),
         })
       }
-      continue
+      return
     }
 
-    const pct = (catData.total / totalSpend) * 100
-    const monthlySpend = catData.total / monthDivisor
-    const vTotal = Object.values(catData.by_value).reduce((s, v) => s + v, 0)
+    const pct = (groupData.total / totalSpend) * 100
+    const monthlySpend = groupData.total / monthDivisor
+    const vTotal = Object.values(groupData.by_value).reduce((s, v) => s + v, 0) || 1
     const vBreakdown = {
-      foundation_pct: ((catData.by_value.foundation ?? 0) / vTotal) * 100,
-      burden_pct: ((catData.by_value.burden ?? 0) / vTotal) * 100,
-      investment_pct: ((catData.by_value.investment ?? 0) / vTotal) * 100,
-      leak_pct: ((catData.by_value.leak ?? 0) / vTotal) * 100,
-      unsure_pct: ((catData.by_value.unsure ?? 0) / vTotal) * 100,
+      foundation_pct: ((groupData.by_value.foundation ?? 0) / vTotal) * 100,
+      burden_pct: ((groupData.by_value.burden ?? 0) / vTotal) * 100,
+      investment_pct: ((groupData.by_value.investment ?? 0) / vTotal) * 100,
+      leak_pct: ((groupData.by_value.leak ?? 0) / vTotal) * 100,
+      unsure_pct: ((groupData.by_value.unsure ?? 0) / vTotal) * 100,
     }
 
     const { gap_type, gap_severity } = classifyGap(stated.value_category, pct)
-    const categoryName = categoryNames.get(slug) ?? slug
 
     gaps.push({
-      category: categoryName,
+      category: label,
       category_slug: slug,
       stated_value_category: stated.value_category as CategoryGap['stated_value_category'],
       stated_confidence: stated.confidence,
@@ -187,8 +206,46 @@ export async function analyseGap(
       },
       gap_type,
       gap_severity,
-      narrative: buildNarrative(gap_type, categoryName, monthlySpend, pct, stated.confidence),
+      narrative: buildNarrative(gap_type, label, monthlySpend, pct, stated.confidence),
     })
+  }
+
+  // 5a. Category-level gaps (chat corrections / category_id rules).
+  for (const rule of categoryRules) {
+    const label = categoryNames.get(rule.match_value) ?? rule.match_value
+    pushGap(label, rule.match_value, {
+      value_category: rule.value_category,
+      confidence: rule.confidence ?? 0.5,
+    }, byCategory.get(rule.match_value))
+  }
+
+  // 5b. Merchant-level gaps (Value Map rules). For each merchant rule, sum
+  //     matching transactions by description substring (same matcher the
+  //     value-categoriser uses).
+  for (const rule of merchantRules) {
+    const needle = rule.match_value.toLowerCase()
+    if (!needle) continue
+
+    const group: GroupData = { total: 0, by_value: {} }
+    for (const tx of transactions) {
+      if (!tx.description) continue
+      if (!tx.description.toLowerCase().includes(needle)) continue
+      const abs = Math.abs(tx.amount)
+      group.total += abs
+      const vc = tx.value_category ?? 'unsure'
+      group.by_value[vc] = (group.by_value[vc] ?? 0) + abs
+    }
+
+    // Title-case the merchant name for display.
+    const label = rule.match_value
+      .split(' ')
+      .map((w: string) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+      .join(' ')
+
+    pushGap(label, `merchant:${needle}`, {
+      value_category: rule.value_category,
+      confidence: rule.confidence ?? 0.5,
+    }, group.total > 0 ? group : undefined)
   }
 
   // 6. Sort by severity (high first)
@@ -238,7 +295,7 @@ export async function analyseGap(
       biggest_gap_type: biggest?.gap_type ?? 'aligned',
       estimated_monthly_leak: Math.round(estimatedLeak * 100) / 100,
     },
-    has_value_map: true,
+    has_value_map: hasValueMap,
   }
 }
 

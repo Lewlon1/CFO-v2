@@ -80,11 +80,9 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
     if (mode !== 'checkin') return
     if (checkinLoadedRef.current) return
     checkinLoadedRef.current = true
-    let cancelled = false
     const load = async () => {
       try {
         const res = await fetch('/api/value-map/checkin', { cache: 'no-store' })
-        if (cancelled) return
         if (res.status === 404 || !res.ok) {
           const body = await res.json().catch(() => ({}))
           setCheckinError(body?.reason ?? 'No uncertain transactions to review right now.')
@@ -102,20 +100,23 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
         setStep('exercise')
         trackEvent('value_checkin_started', { transaction_count: body.transactions.length })
       } catch (err) {
-        if (cancelled) return
         console.error('[value-map checkin] load error:', err)
         setCheckinError('Could not load your value check-in. Please try again.')
         setStep('checkin_empty')
       }
     }
     load()
-    return () => {
-      cancelled = true
-    }
+    // NOTE: no cancellation flag. The ref guard already prevents the double-fetch
+    // that React 18 StrictMode would otherwise cause (mount → unmount → mount).
+    // Using a `cancelled` flag alongside the ref guard was a bug: StrictMode's
+    // simulated unmount would set cancelled = true, the second mount would bail
+    // out of the effect due to the ref, and the in-flight first fetch would then
+    // be ignored on resolve — leaving the UI stuck on "Picking the transactions…".
+    //
     // trackEvent is a fresh function on every render — intentionally excluded.
-    // Using a ref guard prevents re-fetching on re-renders caused by state updates
-    // like setStep('checkin_saving'), which would otherwise remount ValueMapCard
-    // mid-save and cycle through the cards again.
+    // The ref guard also prevents re-fetching on re-renders caused by state
+    // updates like setStep('checkin_saving'), which would otherwise remount
+    // ValueMapCard mid-save and cycle through the cards again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 

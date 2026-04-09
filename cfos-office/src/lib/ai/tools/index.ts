@@ -10,6 +10,7 @@ import { createAnalyseGapTool } from './analyse-gap';
 import { createSuggestValueRecategorisationTool } from './suggest-value-recategorisation';
 import { createGetValueReviewQueueTool } from './get-value-review-queue';
 import { createRecordValueClassificationsTool } from './record-value-classifications';
+import { createDeleteValueRuleTool } from './delete-value-rule';
 import { createCheckValueCheckinReadyTool } from './check-value-checkin-ready';
 import { createSearchBillAlternativesTool } from './search-bill-alternatives';
 import { createPlanTripTool } from './plan-trip';
@@ -36,6 +37,7 @@ export function createToolbox(ctx: ToolContext) {
     suggest_value_recategorisation: createSuggestValueRecategorisationTool(ctx),
     get_value_review_queue: createGetValueReviewQueueTool(ctx),
     record_value_classifications: createRecordValueClassificationsTool(ctx),
+    delete_value_rule: createDeleteValueRuleTool(ctx),
     check_value_checkin_ready: createCheckValueCheckinReadyTool(ctx),
     search_bill_alternatives: createSearchBillAlternativesTool(ctx),
     plan_trip: createPlanTripTool(ctx),

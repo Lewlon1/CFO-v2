@@ -73,7 +73,7 @@ const MERCHANT_RULES: MerchantRule[] = [
   {
     pattern: /pub|bar|the\s?crown|wetherspoon|greene\s?king/i,
     feedback: {
-      leak: '{currency}{amount} at {merchant}. The first couple of rounds are the relationship investment. The rest...',
+      leak: '{currency}{amount} at {merchant}. The first round is a relationship investment — anything past that is usually the hangover talking.',
       investment: 'Social spending as investment — your CFO agrees, up to a point.',
       foundation: '{merchant} as a foundation? Everyone needs a local.',
       burden: '{currency}{amount} at the pub and it weighs on you. That\'s honest.',
@@ -311,12 +311,15 @@ function formatCurrency(amount: number, currency: string): string {
 }
 
 function resolveFeedback(template: string, ctx: FeedbackContext): string {
-  const merchant = ctx.merchant ?? 'this transaction'
+  // Prefer the proper-case description for display; ctx.merchant is the
+  // normalised (lowercase) form used for rule matching and reads badly in UI
+  // copy (e.g. "£17.80 at flahertys irish pub").
+  const merchantDisplay = ctx.description ?? ctx.merchant ?? 'this transaction'
   const formatted = formatCurrency(ctx.amount, ctx.currency)
   const annualised = formatCurrency(ctx.amount * 12, ctx.currency)
 
   return template
-    .replace(/{merchant}/g, merchant)
+    .replace(/{merchant}/g, merchantDisplay)
     .replace(/{amount}/g, ctx.amount.toLocaleString('en', { minimumFractionDigits: ctx.amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 }))
     .replace(/{currency}/g, ({ GBP: '\u00A3', USD: '$', EUR: '\u20AC' }[ctx.currency] ?? ctx.currency + ' '))
     .replace(/{formatted}/g, formatted)

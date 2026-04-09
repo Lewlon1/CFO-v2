@@ -329,14 +329,19 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
 
   if (!tx) return null
 
-  const progressPercent = ((currentIndex + 1) / total) * 100
+  // When the card is in feedback state, the user has already decided this card,
+  // so show it as "done" by displaying the next card's number (capped at total).
+  // This avoids the counter appearing stuck during the feedback reflection moment.
+  const displayIndex =
+    cardState === 'feedback' ? Math.min(currentIndex + 2, total) : currentIndex + 1
+  const progressPercent = (displayIndex / total) * 100
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-y-auto">
       {/* Progress bar */}
       <div className="px-4 pt-4 pb-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-          <span>{currentIndex + 1} of {total}</span>
+          <span>{displayIndex} of {total}</span>
         </div>
         <div className="h-1 w-full rounded-full bg-border overflow-hidden">
           <div
@@ -402,7 +407,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
             )}
 
             <p className="text-lg font-semibold text-foreground">
-              {tx.merchant ?? tx.description ?? 'Transaction'}
+              {tx.description ?? tx.merchant ?? 'Transaction'}
             </p>
             <p className="font-mono text-2xl font-bold text-foreground">
               {formatAmount(tx.amount, currency)}
@@ -416,9 +421,6 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
                 </>
               )}
             </div>
-            {tx.description && (
-              <p className="text-sm text-muted-foreground">{tx.description}</p>
-            )}
             {tx.category_name && (
               <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                 {tx.category_name}

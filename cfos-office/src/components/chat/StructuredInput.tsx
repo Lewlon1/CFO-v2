@@ -66,6 +66,9 @@ export function StructuredInput({ config, onSubmit, userCurrency }: StructuredIn
 
   return (
     <div className="mt-3 px-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      {config.label && (
+        <p className="text-sm text-foreground font-medium mb-1">{config.label}</p>
+      )}
       {config.rationale && (
         <p className="text-xs text-muted-foreground mb-2 italic">{config.rationale}</p>
       )}
