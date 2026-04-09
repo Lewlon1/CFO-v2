@@ -167,15 +167,18 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
 
           const { error: ruleErr } = await ctx.supabase
             .from('value_category_rules')
-            .insert({
-              user_id: ctx.userId,
-              match_type: 'merchant_contains',
-              match_value: normDesc,
-              value_category: c.value_category,
-              confidence: 0.9,
-              source: conditions ? 'user_contextual_rule' : 'user_explicit',
-              context_conditions: conditions,
-            })
+            .upsert(
+              {
+                user_id: ctx.userId,
+                match_type: 'merchant_contains',
+                match_value: normDesc,
+                value_category: c.value_category,
+                confidence: 0.9,
+                source: conditions ? 'user_contextual_rule' : 'user_explicit',
+                context_conditions: conditions,
+              },
+              { onConflict: 'user_id,match_type,match_value' }
+            )
 
           if (ruleErr) {
             errors.push(`Failed to save rule for ${c.merchant_pattern}: ${ruleErr.message}`)
