@@ -1,6 +1,6 @@
 # Tech Debt Registry — The CFO's Office
 
-> Last updated: 2026-04-09
+> Last updated: 2026-04-09 (Session 23)
 > Generated during Session 16 (Repo Audit & Landing Page)
 >
 > Living document — update as debt is added or resolved.
@@ -12,19 +12,9 @@
 
 ## 🔴 Launch Blockers (fix before beta users)
 
-| #  | Issue | Source | Impact | Resolution |
-|----|-------|--------|--------|------------|
-| 1  | `create_action_item` DB error: *"Could not find the 'user_id' column of 'action_items' in the schema cache"* (PGRST204) | Session 19 (balance sheet) | Action item creation silently fails in chat | Next session |
-| 2  | Duplicate rule conflict blocks value category updates (e.g. Deliveroo can't move Foundation → Leak) | Session 17 | Users can't correct their own categorisations | Next session |
-| 3  | `apply_to_similar` may be overwriting manually-confirmed transactions — needs verification test (see Playbook A) | Sessions 16, 17 | Silent data loss on confirmed categories | Next session |
-| 4  | Poison rule mis-categorising late-night Aldi visits — bad rule needs deletion + guardrails | Session 17 | Bad rules compound over time | Next session |
-| 5  | Cannot create new user (blocks seed + onboarding testing) | Sessions 6, 13 | Cannot onboard anyone or reset test state | Next session |
-| 6  | Onboarding flow not validated end-to-end | Session 4 | First impression broken | Next session |
-| 7  | Transaction upload + auto-categorisation review outstanding | Session 3 | Core data pipeline unverified | Next session |
-| 8  | CSV upload flow needs automation + gap analysis verification | Session 15 | Manual gap in beta-ready path | Next session |
-| 9  | Multi-tool chain failures in chat | Session 7 | Conversations break mid-flow | Next session |
-| 10 | Zero-transaction users: *"How much did I spend?"* should return a helpful error | Session 7 | New users hit confusing failures | Next session |
-| 11 | Gap analysis (Value Map vs actual) needs verification | Sessions 7, 15 | Flagship "aha" feature unverified | Next session |
+> All 11 original launch blockers resolved in Session 23. See ✅ Resolved below.
+
+*No open launch blockers.*
 
 ---
 
@@ -83,6 +73,21 @@
 |---|-------|-------------|------|
 | R1 | Default Next.js landing page at `/` | Session 16 (audit) | 2026-04-09 |
 | R2 | Default template SVGs (next, vercel, file, globe, window) | Session 16 (audit) | 2026-04-09 |
+| R3 | `create_action_item` PGRST204 — staging DB had `profile_id` (legacy schema drift); all code uses `user_id`. Migration `024` renames column + repoints FK to `user_profiles`. | Session 23 / PR #22 | 2026-04-09 |
+| R4 | Duplicate rule conflict blocks value category updates — `.insert()` on `value_category_rules` hit unique constraint on re-categorise. Fixed with `.upsert(onConflict: user_id,match_type,match_value)`. | Session 23 / PR #22 | 2026-04-09 |
+| R5 | `apply_to_similar` overwriting confirmed transactions — both update paths filter `value_confirmed_by_user = false`. Verified via Playbook A. | Session 23 (verified) | 2026-04-09 |
+| R6 | Poison rule mis-categorising merchants — added `delete_value_rule` chat tool so users can remove bad rules from conversation; system prompt updated with guidance. | Session 23 / PR #22 | 2026-04-09 |
+| R7 | Cannot create new user — `handle_new_user()` trigger + signup flow confirmed working. Verified via Test 1. | Session 23 (verified) | 2026-04-09 |
+| R8 | Onboarding flow not validated end-to-end — signup → VM link → `/chat?type=onboarding` confirmed. Verified via Test 1. | Session 23 (verified) | 2026-04-09 |
+| R9 | Transaction upload + auto-categorisation — pipeline confirmed working end-to-end. Verified via Test 2. | Session 23 (verified) | 2026-04-09 |
+| R10 | Gap analysis unverified — `gap-analyser.ts` was silently ignoring Value Map `merchant_contains` rules (only read `category_id`). Fixed: VM detected via `value_map_results`; merchant rules aggregated via description substring matching. Post-upload prompt strengthened with HARD rules for gap mention + € figure. | Session 23 / PR #22 | 2026-04-09 |
+| R11 | Multi-tool chain failures — `stopWhen: stepCountIs(5)` with correct tool-result pairing confirmed working. Verified via Test 3. | Session 23 (verified) | 2026-04-09 |
+| R12 | Zero-transaction users get confusing failures — every spending tool returns `{ error: '...' }` on empty data. Verified via Test 3. | Session 23 (verified) | 2026-04-09 |
+| R13 | Structured input had no label — `StructuredInput.tsx` defined `label`/`rationale` in type but never rendered them. Fixed. | Session 23 / PR #22 | 2026-04-09 |
+| R14 | Value check-in stuck on loading — React 18 StrictMode + `cancelled` flag + ref guard conflict. Removed `cancelled` flag; ref guard alone is sufficient. | Session 23 / PR #22 | 2026-04-09 |
+| R15 | Value check-in: lowercase merchant names in card header and CFO feedback — switched display to use `tx.description` (proper case); removed duplicate sub-line; updated `resolveFeedback` to use `ctx.description`. | Session 23 / PR #22 | 2026-04-09 |
+| R16 | Value check-in: progress counter didn't advance during feedback overlay — counter now shows next card number during `feedback` state. | Session 23 / PR #22 | 2026-04-09 |
+| R17 | Value check-in: pub/bar leak template ended with dangling "The rest..." — rewritten as complete sentence. | Session 23 / PR #22 | 2026-04-09 |
 
 ---
 
