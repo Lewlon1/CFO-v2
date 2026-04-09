@@ -234,13 +234,15 @@ export async function POST(req: Request) {
             .eq('id', category_slug)
             .single();
 
+          let affectedCount = 0;
           if (category) {
-            await supabase
+            const { count } = await supabase
               .from('transactions')
-              .update({ value_category })
+              .update({ value_category }, { count: 'exact' })
               .eq('user_id', user.id)
               .eq('category_id', category_slug)
               .eq('user_confirmed', false);
+            affectedCount = count ?? 0;
           }
 
           // Save a portrait trait about this preference
@@ -259,6 +261,9 @@ export async function POST(req: Request) {
 
           return {
             success: true,
+            category_slug,
+            value_category,
+            affected_transactions: affectedCount,
             message: `Updated ${category_slug} to "${value_category}". Your transactions have been updated to reflect this.`,
           };
         },
@@ -267,7 +272,7 @@ export async function POST(req: Request) {
       // ── Channel B: Update user profile from conversation ─────────────
       update_user_profile: {
         description:
-          "Save confirmed profile information to the user's profile. IMPORTANT: Only call this AFTER the user has explicitly confirmed the information is correct. Before calling this tool, you must say what you understood (e.g. 'Your monthly rent is €1,200 — should I save that?') and wait for a yes. If they correct you, adjust and re-confirm before calling. Set confidence to 1.0 for user-confirmed data.\n\nValid field names and expected types:\n- display_name (text)\n- country (text, e.g. 'Spain')\n- city (text)\n- primary_currency (text, e.g. 'EUR')\n- age_range (text, e.g. '31-35')\n- employment_status (text, e.g. 'employed', 'self_employed', 'freelance')\n- gross_salary (number, annual)\n- net_monthly_income (number, monthly take-home)\n- pay_frequency (text, e.g. 'monthly', 'monthly_with_extra_payments')\n- has_bonus_months (boolean)\n- bonus_month_details (text)\n- housing_type (text, e.g. 'renting', 'owned')\n- monthly_rent (number, monthly rent or mortgage payment)\n- relationship_status (text, e.g. 'single', 'partnered', 'married')\n- partner_employment_status (text)\n- partner_monthly_contribution (number)\n- dependents (number, count of dependents)\n- values_ranking (text)\n- spending_triggers (text)\n- risk_tolerance (text, e.g. 'low', 'medium', 'high')\n- financial_awareness (text)\n- advice_style (text, e.g. 'gentle', 'direct', 'blunt')\n- nationality (text)\n- residency_status (text)\n- tax_residency_country (text)\n- years_in_country (number)",
+          "Save confirmed profile information immediately when the user shares it clearly. Do NOT ask 'should I save this?' first — a confirmation card appears in chat showing exactly what was saved, with Undo available to the user. Only pause to clarify when the meaning is genuinely ambiguous. Set confidence to 1.0 for explicit statements, 0.8 for strong implications. Confidence below 0.6 will be skipped server-side.\n\nValid field names and expected types:\n- display_name (text)\n- country (text, e.g. 'Spain')\n- city (text)\n- primary_currency (text, e.g. 'EUR')\n- age_range (text, e.g. '31-35')\n- employment_status (text, e.g. 'employed', 'self_employed', 'freelance')\n- gross_salary (number, annual)\n- net_monthly_income (number, monthly take-home)\n- pay_frequency (text, e.g. 'monthly', 'monthly_with_extra_payments')\n- has_bonus_months (boolean)\n- bonus_month_details (text)\n- housing_type (text, e.g. 'renting', 'owned')\n- monthly_rent (number, monthly rent or mortgage payment)\n- relationship_status (text, e.g. 'single', 'partnered', 'married')\n- partner_employment_status (text)\n- partner_monthly_contribution (number)\n- dependents (number, count of dependents)\n- values_ranking (text)\n- spending_triggers (text)\n- risk_tolerance (text, e.g. 'low', 'medium', 'high')\n- financial_awareness (text)\n- advice_style (text, e.g. 'gentle', 'direct', 'blunt')\n- nationality (text)\n- residency_status (text)\n- tax_residency_country (text)\n- years_in_country (number)",
         inputSchema: z.object({
           updates: z.array(
             z.object({
@@ -285,6 +290,15 @@ export async function POST(req: Request) {
         execute: async ({ updates, source_summary }) => {
           const saved: string[] = [];
           const skipped: string[] = [];
+          const before_values: Record<string, unknown> = {};
+          const saved_values: Record<string, unknown> = {};
+
+          // Snapshot the current profile row so we can capture previous values per field
+          const { data: previousProfile } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
 
           // Check which fields were previously user-confirmed (via structured input)
           const { data: confirmedFields } = await supabase
@@ -341,6 +355,9 @@ export async function POST(req: Request) {
               { onConflict: 'user_id,field' }
             );
 
+            before_values[update.field] =
+              (previousProfile as Record<string, unknown> | null)?.[update.field] ?? null;
+            saved_values[update.field] = update.value;
             saved.push(update.field);
           }
 
@@ -366,6 +383,8 @@ export async function POST(req: Request) {
             saved,
             skipped,
             source: source_summary,
+            before_values,
+            saved_values,
           };
 
           return result;

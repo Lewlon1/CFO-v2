@@ -34,6 +34,14 @@ import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 import { ScenarioResult } from './ScenarioResult';
 import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
+import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
+import {
+  buildActionItemCard,
+  buildProfileUpdateCard,
+  buildAssetOrLiabilityCard,
+  buildValueCategoryCard,
+  buildClassificationsCard,
+} from './savedCardBuilders';
 
 // ── Tool loading labels ───────────────────────────────────────────────────────
 
@@ -56,22 +64,67 @@ const TOOL_LABELS: Record<string, string> = {
 // ── Parsers ────────────────────────────────────────────────────────────────────
 
 function parseOptions(content: string): { text: string; options: string[] | null } {
-  // Primary: explicit [OPTIONS] blocks
-  const regex = /\[OPTIONS\]\n([\s\S]*?)\n\[\/OPTIONS\]/;
-  const match = content.match(regex);
-  if (match) {
-    const text = content.replace(regex, '').trim();
-    const options = match[1]
-      .split('\n')
-      .map((line) => line.replace(/^-\s*/, '').trim())
-      .filter(Boolean);
-    return { text, options: options.length > 0 && options.length <= 5 ? options : null };
+  // Primary: explicit [OPTIONS] blocks. Accept both closed and unclosed forms
+  // — Claude frequently forgets the trailing [/OPTIONS] tag.
+  const markerMatch = content.match(/\[OPTIONS\]\s*\n/);
+  if (markerMatch && markerMatch.index !== undefined) {
+    const markerStart = markerMatch.index;
+    const afterMarker = markerStart + markerMatch[0].length;
+    const tail = content.slice(afterMarker);
+    const lines = tail.split('\n');
+
+    const bulletLines: string[] = [];
+    let consumedLines = 0;
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        // Blank lines inside the block are allowed only between bullets.
+        if (bulletLines.length === 0 || consumedLines === lines.length - 1) {
+          consumedLines++;
+          continue;
+        }
+        consumedLines++;
+        continue;
+      }
+      if (/^[-•]\s+/.test(line)) {
+        bulletLines.push(line.replace(/^[-•]\s*/, '').trim());
+        consumedLines++;
+      } else {
+        break;
+      }
+    }
+
+    // Trim trailing blank lines back off the consumed count so we don't eat
+    // a blank separator that belongs to prose after the block.
+    while (consumedLines > 0 && lines[consumedLines - 1].trim() === '') {
+      consumedLines--;
+    }
+
+    if (bulletLines.length > 0 && bulletLines.length <= 5) {
+      const consumedText = lines.slice(0, consumedLines).join('\n');
+      // +1 for the newline after the last consumed line, if there is one.
+      const hasTrailingNewline = consumedLines < lines.length;
+      const consumedLength = consumedText.length + (hasTrailingNewline ? 1 : 0);
+
+      let removeEnd = afterMarker + consumedLength;
+      // Also consume an optional closing [/OPTIONS] tag immediately after.
+      const closingMatch = content.slice(removeEnd).match(/^\s*\[\/OPTIONS\]\s*\n?/);
+      if (closingMatch) {
+        removeEnd += closingMatch[0].length;
+      }
+
+      const text = (content.slice(0, markerStart) + content.slice(removeEnd))
+        .replace(/\[\/?OPTIONS\]/g, '')
+        .trim();
+      return { text, options: bulletLines };
+    }
   }
 
   // Fallback: trailing bullet list of 2-4 short items that don't look like data.
   // The LLM sometimes forgets the explicit block — this catches "Would you like
   // to..." style responses while skipping spending breakdowns (monetary values).
-  const trailing = content.match(/\n((?:[-•]\s+.{3,60}\n?){2,4})$/);
+  // Allow optional blank lines between bullets (markdown-style paragraphs).
+  const trailing = content.match(/\n((?:[-•]\s+.{3,60}(?:\n\s*)?){2,4})$/);
   if (trailing) {
     const items = trailing[1]
       .split('\n')
@@ -81,7 +134,10 @@ function parseOptions(content: string): { text: string; options: string[] | null
       (i) => i.length <= 60 && !/\d{2,}[.,]\d{2}/.test(i)
     );
     if (looksLikeChoices && items.length >= 2 && items.length <= 4) {
-      const text = content.slice(0, content.length - trailing[0].length).trim();
+      const text = content
+        .slice(0, content.length - trailing[0].length)
+        .replace(/\[\/?OPTIONS\]/g, '')
+        .trim();
       return { text, options: items };
     }
   }
@@ -158,6 +214,7 @@ export function MessageList({
         const scenarioResults: any[] = [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tripPlanResults: any[] = [];
+        const savedCards: Array<SavedItemCardProps & { toolCallId: string }> = [];
 
         const toolInvocations: Array<{ toolName: string; state: string; toolCallId: string }> = [];
 
@@ -224,6 +281,41 @@ export function MessageList({
                   tripPlanResults.push(output);
                 }
 
+                // Saved-item confirmation cards for write tools
+                if (output && typeof output === 'object') {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const o = output as any;
+                  if (toolName === 'create_action_item' && o.success && o.action_item) {
+                    savedCards.push(buildActionItemCard(o, toolCallId));
+                  } else if (
+                    toolName === 'update_user_profile' &&
+                    Array.isArray(o.saved) &&
+                    o.saved.length > 0
+                  ) {
+                    savedCards.push(buildProfileUpdateCard(o, toolCallId));
+                  } else if (
+                    (toolName === 'upsert_asset' || toolName === 'upsert_liability') &&
+                    o.saved &&
+                    !o.error
+                  ) {
+                    savedCards.push(
+                      buildAssetOrLiabilityCard(
+                        toolName as 'upsert_asset' | 'upsert_liability',
+                        o,
+                        toolCallId,
+                      ),
+                    );
+                  } else if (toolName === 'update_value_category' && o.success) {
+                    savedCards.push(buildValueCategoryCard(o, toolCallId));
+                  } else if (
+                    toolName === 'record_value_classifications' &&
+                    typeof o.classified === 'number' &&
+                    o.classified > 0
+                  ) {
+                    savedCards.push(buildClassificationsCard(o, toolCallId));
+                  }
+                }
+
                 // Clear the loading indicator for this tool
                 const idx = toolInvocations.findIndex((t) => t.toolCallId === toolCallId);
                 if (idx !== -1) toolInvocations.splice(idx, 1);
@@ -232,7 +324,14 @@ export function MessageList({
           }
         }
 
-        const rawText = textParts.join('');
+        // Join streamed text parts, preserving whitespace at tool-call boundaries.
+        // When Claude emits `text → tool-call → text`, the adjacent text chunks
+        // can lose the whitespace that would have surrounded the tool call.
+        const rawText = textParts.reduce((acc, part, i) => {
+          if (i === 0) return part;
+          const needsSpace = acc.length > 0 && !/\s$/.test(acc) && !/^\s/.test(part);
+          return acc + (needsSpace ? ' ' : '') + part;
+        }, '');
 
         const { text, options, cta } = message.role === 'assistant'
           ? parseMessageContent(rawText)
@@ -303,6 +402,13 @@ export function MessageList({
               {tripPlanResults.map((result, i) => (
                 <div key={`trip-${i}`} className="px-3">
                   <TripPlanResult result={result} />
+                </div>
+              ))}
+
+              {/* Saved-item confirmation cards (write tools) */}
+              {savedCards.map((card) => (
+                <div key={`saved-${card.toolCallId}`} className="px-3 mt-2">
+                  <SavedItemCard {...card} />
                 </div>
               ))}
 

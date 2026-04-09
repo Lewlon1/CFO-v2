@@ -29,7 +29,7 @@ export function createUpsertLiabilityTool(ctx: ToolContext) {
   return {
     description: `Create or update a liability (something the user owes) when they share information about mortgages, student loans, credit card debt, personal loans, or other debts during conversation.
 
-WHEN TO CALL: When the user mentions a debt balance, loan, mortgage, credit card balance, or any amount they owe — either in response to a direct question or volunteered naturally.
+WHEN TO CALL: When the user mentions a debt balance, loan, mortgage, credit card balance, or any amount they owe — either in response to a direct question or volunteered naturally. Call this tool IMMEDIATELY when the meaning is clear. Do NOT first ask the user "should I save this?" or "is that right?" — just call the tool. A confirmation card with an Undo button appears automatically and is the user's review checkpoint. Only ask the user to clarify BEFORE calling when the meaning is genuinely ambiguous.
 
 VALID FIELDS:
 - liability_id: string (UUID) — optional. Omit for new. Include to update existing.
@@ -53,7 +53,7 @@ VALID FIELDS:
   student_loan: { plan_type: string, threshold: number, repayment_pct: number, is_salary_deducted: boolean, country: string }
   credit_card:  { credit_limit: number, is_zero_pct_period: boolean, zero_pct_ends: string }
 
-AFTER CALLING: Always confirm what you've recorded in natural language. Example: "Got it — £24,000 student loan on Plan 2, deducted from salary. Does that sound right?"`,
+AFTER CALLING: A card with the saved details and an Undo button appears automatically. React in one short sentence and move the conversation forward — do not restate the fields you just saved.`,
     inputSchema: z.object({
       liability_id: z.string().uuid().optional(),
       liability_type: z.enum(LIABILITY_TYPES).optional(),
@@ -101,7 +101,7 @@ AFTER CALLING: Always confirm what you've recorded in natural language. Example:
         if (params.liability_id) {
           const { data: existing, error: fetchErr } = await ctx.supabase
             .from('liabilities')
-            .select('id')
+            .select('*')
             .eq('id', params.liability_id)
             .eq('user_id', ctx.userId)
             .maybeSingle();
@@ -153,7 +153,7 @@ AFTER CALLING: Always confirm what you've recorded in natural language. Example:
 
           await updateAssetPortrait(ctx);
           await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
-          return { action: 'updated', saved: updated };
+          return { action: 'updated', saved: updated, before: existing };
         }
 
         // INSERT path
@@ -171,7 +171,7 @@ AFTER CALLING: Always confirm what you've recorded in natural language. Example:
         // update on that row instead of inserting a duplicate.
         const { data: dupe } = await ctx.supabase
           .from('liabilities')
-          .select('id')
+          .select('*')
           .eq('user_id', ctx.userId)
           .eq('liability_type', params.liability_type)
           .ilike('name', params.name)
@@ -214,7 +214,7 @@ AFTER CALLING: Always confirm what you've recorded in natural language. Example:
 
           await updateAssetPortrait(ctx);
           await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
-          return { action: 'updated', saved: merged, deduped: true };
+          return { action: 'updated', saved: merged, before: dupe, deduped: true };
         }
 
         let currency = params.currency?.toUpperCase() || ctx.currency;

@@ -20,7 +20,7 @@ export function createUpsertAssetTool(ctx: ToolContext) {
   return {
     description: `Create or update an asset (something the user owns) when they share information about savings, investments, pensions, crypto, or property during conversation.
 
-WHEN TO CALL: When the user mentions a balance, account, investment, pension pot, savings amount, property value, or crypto holdings — either in response to a direct question or volunteered naturally.
+WHEN TO CALL: When the user mentions a balance, account, investment, pension pot, savings amount, property value, or crypto holdings — either in response to a direct question or volunteered naturally. Call this tool IMMEDIATELY when the meaning is clear. Do NOT first ask the user "should I save this to your balance sheet?" or "is that right?" — just call the tool. A confirmation card with an Undo button appears automatically and is the user's review checkpoint. Only ask the user to clarify BEFORE calling when the meaning is genuinely ambiguous (e.g. you can't tell which account, or the amount could be one of two things).
 
 VALID FIELDS:
 - asset_id: string (UUID) — optional. Omit for new assets. Include to update existing.
@@ -39,7 +39,7 @@ VALID FIELDS:
   crypto:   { exchange: string }
   property: { purchase_price: number, is_primary_residence: boolean }
 
-AFTER CALLING: Always confirm what you've recorded with the user in natural language. Example: "Noted — £55,000 in your Vanguard S&S ISA. Is that roughly right?"
+AFTER CALLING: A card with the saved details and an Undo button appears automatically. React in one short sentence and move the conversation forward — do not restate the fields you just saved.
 
 If updating an existing asset, only include the fields that changed plus the asset_id.`,
     inputSchema: z.object({
@@ -73,7 +73,7 @@ If updating an existing asset, only include the fields that changed plus the ass
         if (params.asset_id) {
           const { data: existing, error: fetchErr } = await ctx.supabase
             .from('assets')
-            .select('id')
+            .select('*')
             .eq('id', params.asset_id)
             .eq('user_id', ctx.userId)
             .maybeSingle();
@@ -112,7 +112,7 @@ If updating an existing asset, only include the fields that changed plus the ass
 
           await updateAssetPortrait(ctx);
           await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
-          return { action: 'updated', saved: updated };
+          return { action: 'updated', saved: updated, before: existing };
         }
 
         // INSERT path
@@ -127,7 +127,7 @@ If updating an existing asset, only include the fields that changed plus the ass
         // create, once to add a detail like provider) without an asset_id.
         const { data: dupe } = await ctx.supabase
           .from('assets')
-          .select('id')
+          .select('*')
           .eq('user_id', ctx.userId)
           .eq('asset_type', params.asset_type)
           .ilike('name', params.name)
@@ -159,7 +159,7 @@ If updating an existing asset, only include the fields that changed plus the ass
 
           await updateAssetPortrait(ctx);
           await refreshCurrentNetWorthSnapshot(ctx.supabase, ctx.userId);
-          return { action: 'updated', saved: merged, deduped: true };
+          return { action: 'updated', saved: merged, before: dupe, deduped: true };
         }
 
         // Resolve currency default from profile
