@@ -106,7 +106,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         <OfflineBanner />
         <SessionTracker />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto min-h-0">
           {children}
         </main>
       </div>

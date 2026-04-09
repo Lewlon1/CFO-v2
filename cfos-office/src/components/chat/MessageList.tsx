@@ -56,15 +56,37 @@ const TOOL_LABELS: Record<string, string> = {
 // ── Parsers ────────────────────────────────────────────────────────────────────
 
 function parseOptions(content: string): { text: string; options: string[] | null } {
+  // Primary: explicit [OPTIONS] blocks
   const regex = /\[OPTIONS\]\n([\s\S]*?)\n\[\/OPTIONS\]/;
   const match = content.match(regex);
-  if (!match) return { text: content, options: null };
-  const text = content.replace(regex, '').trim();
-  const options = match[1]
-    .split('\n')
-    .map((line) => line.replace(/^-\s*/, '').trim())
-    .filter(Boolean);
-  return { text, options: options.length > 0 ? options : null };
+  if (match) {
+    const text = content.replace(regex, '').trim();
+    const options = match[1]
+      .split('\n')
+      .map((line) => line.replace(/^-\s*/, '').trim())
+      .filter(Boolean);
+    return { text, options: options.length > 0 && options.length <= 5 ? options : null };
+  }
+
+  // Fallback: trailing bullet list of 2-4 short items that don't look like data.
+  // The LLM sometimes forgets the explicit block — this catches "Would you like
+  // to..." style responses while skipping spending breakdowns (monetary values).
+  const trailing = content.match(/\n((?:[-•]\s+.{3,60}\n?){2,4})$/);
+  if (trailing) {
+    const items = trailing[1]
+      .split('\n')
+      .map((l) => l.replace(/^[-•]\s*/, '').trim())
+      .filter(Boolean);
+    const looksLikeChoices = items.every(
+      (i) => i.length <= 60 && !/\d{2,}[.,]\d{2}/.test(i)
+    );
+    if (looksLikeChoices && items.length >= 2 && items.length <= 4) {
+      const text = content.slice(0, content.length - trailing[0].length).trim();
+      return { text, options: items };
+    }
+  }
+
+  return { text: content, options: null };
 }
 
 function parseCTA(content: string): { text: string; cta: { type: string; label: string } | null } {
@@ -127,7 +149,7 @@ export function MessageList({
   });
 
   return (
-    <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 space-y-6">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 space-y-6 min-h-0 overscroll-contain">
       {visibleMessages.map((message) => {
         // Extract text parts and structured input tool invocations
         const textParts: string[] = [];
@@ -242,7 +264,7 @@ export function MessageList({
                 className={
                   message.role === 'user'
                     ? 'text-sm text-foreground'
-                    : 'text-sm text-foreground/90 px-3 overflow-hidden break-words'
+                    : 'text-sm text-foreground/90 px-3 break-words'
                 }
               >
                 {message.role === 'assistant' ? (

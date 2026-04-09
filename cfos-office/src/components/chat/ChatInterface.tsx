@@ -9,6 +9,7 @@ import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { WelcomeState } from './WelcomeState';
 import { ChatLoadingScreen } from './ChatLoadingScreen';
+import { MobileConversationDrawer } from './MobileConversationDrawer';
 import { useTrackEvent } from '@/lib/events/use-track-event';
 
 interface ChatInterfaceProps {
@@ -18,6 +19,7 @@ interface ChatInterfaceProps {
   conversationMetadata?: Record<string, string>;
   userCurrency?: string;
   starterMessage?: string;
+  conversations?: Array<{ id: string; title: string | null; updated_at: string }>;
 }
 
 export function ChatInterface({
@@ -27,6 +29,7 @@ export function ChatInterface({
   conversationMetadata,
   userCurrency,
   starterMessage,
+  conversations,
 }: ChatInterfaceProps) {
   const router = useRouter();
   const trackEvent = useTrackEvent();
@@ -211,6 +214,22 @@ export function ChatInterface({
   // For auto-triggered conversations, skip the welcome state
   const showWelcome = messages.length === 0 && !isLoading && !isAutoTriggered;
 
+  const mobileChatHeader = (
+    <div className="md:hidden flex items-center justify-between px-2 py-1 border-b border-border bg-card">
+      <MobileConversationDrawer conversations={conversations ?? []} />
+      <span className="text-sm font-medium text-foreground">Your CFO</span>
+      <Link
+        href="/chat"
+        className="p-2 text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
+        aria-label="New conversation"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      </Link>
+    </div>
+  );
+
   const errorBanner = chatError ? (
     <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-amber-800 text-sm flex items-center justify-between">
       <span>{chatError}</span>
@@ -225,7 +244,8 @@ export function ChatInterface({
 
   if (showWelcome) {
     return (
-      <div className="flex flex-col h-full min-w-0">
+      <div className="flex flex-col h-full min-h-0 min-w-0">
+        {mobileChatHeader}
         <WelcomeState onSelect={handleStarterSelect} />
         {errorBanner}
         <ChatInput
@@ -243,7 +263,8 @@ export function ChatInterface({
   const hasAnyAssistantToken = messages.some((m) => m.role === 'assistant');
   if (isAutoTriggered && !hasAnyAssistantToken) {
     return (
-      <div className="flex flex-col h-full min-w-0">
+      <div className="flex flex-col h-full min-h-0 min-w-0">
+        {mobileChatHeader}
         <ChatLoadingScreen />
       </div>
     );
@@ -253,7 +274,8 @@ export function ChatInterface({
   const showUploadCta = conversationType === 'value_map_complete' && messages.length > 0 && !isLoading;
 
   return (
-    <div className="flex flex-col h-full min-w-0">
+    <div className="flex flex-col h-full min-h-0 min-w-0">
+      {mobileChatHeader}
       <MessageList
         messages={messages}
         status={status}
