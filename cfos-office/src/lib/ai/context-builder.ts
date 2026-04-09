@@ -1222,6 +1222,7 @@ HARD LIMITS:
 - Max 3 profiling questions on Day 0 even if the user is enthusiastic.
 - No goals, investments, or life-plan questions on Day 0.
 - Never ask all three at once. Always one at a time via request_structured_input.
+- If the user volunteers the answer in free text before you call the tool (e.g. "i am 27", "rent is €1,200"), skip the tool for that field entirely. Acknowledge, save via update_user_profile, and move on to the next question.
 - Close warmly: "Solid start${firstName ? `, ${firstName}` : ''}. Your dashboard has the full breakdown when you want to explore."
 `
 
