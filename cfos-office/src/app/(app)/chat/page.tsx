@@ -21,18 +21,25 @@ export default async function ChatPage({
   const checkinDoneCount =
     typeof params.checkin_done === 'string' ? params.checkin_done : undefined;
 
-  const [{ data: conversations }, { data: profile }] = await Promise.all([
-    supabase
-      .from('conversations')
-      .select('id, title, updated_at')
-      .eq('user_id', user!.id)
-      .order('updated_at', { ascending: false }),
-    supabase
-      .from('user_profiles')
-      .select('primary_currency')
-      .eq('id', user!.id)
-      .single(),
-  ]);
+  const [{ data: conversations }, { data: profile }, { count: transactionCount }] =
+    await Promise.all([
+      supabase
+        .from('conversations')
+        .select('id, title, updated_at')
+        .eq('user_id', user!.id)
+        .order('updated_at', { ascending: false }),
+      supabase
+        .from('user_profiles')
+        .select('primary_currency')
+        .eq('id', user!.id)
+        .single(),
+      supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user!.id),
+    ]);
+
+  const hasTransactions = (transactionCount ?? 0) > 0;
 
   // Mark originating nudge as read when arriving from a nudge
   if (nudgeType) {
@@ -86,6 +93,7 @@ export default async function ChatPage({
             conversationMetadata={chatMetadata}
             userCurrency={profile?.primary_currency ?? undefined}
             conversations={conversations ?? []}
+            hasTransactions={hasTransactions}
           />
         </ChatErrorBoundary>
       </div>
