@@ -85,6 +85,7 @@ export default async function ChatPage({
             conversationType={chatConversationType}
             conversationMetadata={chatMetadata}
             userCurrency={profile?.primary_currency ?? undefined}
+            conversations={conversations ?? []}
           />
         </ChatErrorBoundary>
       </div>

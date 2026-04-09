@@ -76,6 +76,7 @@ export default async function ConversationPage({
             conversationType={conversation.type ?? undefined}
             userCurrency={profile?.primary_currency ?? undefined}
             starterMessage={starter}
+            conversations={conversations ?? []}
           />
         </ChatErrorBoundary>
       </div>
