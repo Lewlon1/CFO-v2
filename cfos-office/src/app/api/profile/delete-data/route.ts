@@ -57,16 +57,22 @@ export async function POST(req: Request) {
       break
 
     case 'everything':
-      // Delete from both profile tables — FK cascades handle all child tables
-      // profiles table cascades: transactions (profile_id), action_items, value_map_results
-      // user_profiles table cascades: conversations, financial_portrait, goals, etc.
-      await serviceClient.from('profiles').delete().eq('id', user.id)
-      await serviceClient.from('user_profiles').delete().eq('id', user.id)
-      // Then delete the auth user record
-      await serviceClient.auth.admin.deleteUser(user.id)
-      // Sign out the current session
-      await supabase.auth.signOut()
-      return NextResponse.json({ success: true, redirect: '/' })
+      // Full account deletion is now handled by /api/account/delete, which
+      // calls the delete_user_account() SQL function for complete coverage.
+      // Delegate here for backwards compatibility with any callers still
+      // targeting this endpoint.
+      {
+        const { error: dbError } = await serviceClient.rpc('delete_user_account', {
+          p_user_id: user.id,
+        })
+        if (dbError) {
+          console.error('[delete-data] delete_user_account failed:', dbError)
+          return NextResponse.json({ error: 'Failed to delete account data' }, { status: 500 })
+        }
+        await serviceClient.auth.admin.deleteUser(user.id)
+        await supabase.auth.signOut()
+        return NextResponse.json({ success: true, redirect: '/' })
+      }
 
     default:
       return NextResponse.json({ error: 'Invalid deletion target' }, { status: 400 })
