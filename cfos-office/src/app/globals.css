@@ -15,6 +15,22 @@
   --accent-foreground: #F2F2F3;
   --destructive: #EF4444;
   --ring: #E8A84C;
+
+  /* Office theme */
+  --office-bg: #0F0F0D;
+  --office-bg-secondary: #1A1A17;
+  --office-bg-tertiary: #252521;
+  --office-border: #2A2A26;
+  --office-border-subtle: #1F1F1B;
+  --office-text: #E8E6E1;
+  --office-text-secondary: #9B9A94;
+  --office-text-muted: #6B6A65;
+  --office-gold: #E8A84C;
+  --office-green: #22C55E;
+  --office-red: #F43F5E;
+  --office-cyan: #06B6D4;
+  --office-purple: #8B5CF6;
+  --office-blue: #3B82F6;
 }
 
 @theme inline {
@@ -35,6 +51,26 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Office fonts — resolve inside (office) layout, fall back to Geist elsewhere */
+  --font-data: var(--font-jetbrains-mono, var(--font-mono));
+  --font-ui: var(--font-dm-sans, var(--font-sans));
+
+  /* Office palette */
+  --color-office-bg: var(--office-bg);
+  --color-office-bg-secondary: var(--office-bg-secondary);
+  --color-office-bg-tertiary: var(--office-bg-tertiary);
+  --color-office-border: var(--office-border);
+  --color-office-border-subtle: var(--office-border-subtle);
+  --color-office-text: var(--office-text);
+  --color-office-text-secondary: var(--office-text-secondary);
+  --color-office-text-muted: var(--office-text-muted);
+  --color-office-gold: var(--office-gold);
+  --color-office-green: var(--office-green);
+  --color-office-red: var(--office-red);
+  --color-office-cyan: var(--office-cyan);
+  --color-office-purple: var(--office-purple);
+  --color-office-blue: var(--office-blue);
 
   /* Custom animations for Demo card exercise */
   --animate-value-feedback: value-feedback 0.4s ease-out forwards;
