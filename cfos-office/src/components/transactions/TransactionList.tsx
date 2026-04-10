@@ -35,7 +35,7 @@ const VALUE_OPTIONS = [
   { value: 'investment', label: 'Investment' },
   { value: 'leak', label: 'Leak' },
   { value: 'burden', label: 'Burden' },
-  { value: 'unsure', label: 'Unsure' },
+  { value: 'no_idea', label: 'No Idea' },
 ]
 
 function formatAmount(amount: number, currency: string) {
@@ -130,7 +130,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
                   <CategoryBadge category={cat} />
                 </button>
                 <button
-                  onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'unsure', applyToSimilar: false, description: t.description, isSaving: false })}
+                  onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'no_idea', applyToSimilar: false, description: t.description, isSaving: false })}
                   className="min-h-[36px] flex items-center"
                 >
                   <ValueBadge valueCategory={t.value_category} confidence={t.value_confidence} />
@@ -181,7 +181,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
                   </td>
                   <td className="px-4 py-2.5">
                     <button
-                      onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'unsure', applyToSimilar: false, description: t.description, isSaving: false })}
+                      onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'no_idea', applyToSimilar: false, description: t.description, isSaving: false })}
                       className="hover:opacity-70 transition-opacity"
                     >
                       <ValueBadge valueCategory={t.value_category} confidence={t.value_confidence} />

@@ -64,7 +64,7 @@ async function getMonthData(
       totalSpending += abs;
       const cat = t.category_id || 'uncategorised';
       byCategory[cat] = (byCategory[cat] || 0) + abs;
-      const vc = t.value_category || 'unsure';
+      const vc = t.value_category || 'no_idea';
       byValue[vc] = (byValue[vc] || 0) + abs;
     } else {
       totalIncome += amt;

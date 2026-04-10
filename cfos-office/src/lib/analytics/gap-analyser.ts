@@ -25,7 +25,7 @@ export interface CategoryGap {
     burden_pct: number
     investment_pct: number
     leak_pct: number
-    unsure_pct: number
+    no_idea_pct: number
   }
   // The gap
   gap_type: GapType
@@ -125,7 +125,7 @@ export async function analyseGap(
     const existing = byCategory.get(catId) ?? { total: 0, by_value: {} }
     const abs = Math.abs(tx.amount)
     existing.total += abs
-    const vc = tx.value_category ?? 'unsure'
+    const vc = tx.value_category ?? 'no_idea'
     existing.by_value[vc] = (existing.by_value[vc] ?? 0) + abs
     byCategory.set(catId, existing)
   }
@@ -167,7 +167,7 @@ export async function analyseGap(
             burden_pct: 0,
             investment_pct: 0,
             leak_pct: 0,
-            unsure_pct: 0,
+            no_idea_pct: 0,
           },
           gap_type: 'undervalued',
           gap_severity: 'medium',
@@ -185,7 +185,7 @@ export async function analyseGap(
       burden_pct: ((groupData.by_value.burden ?? 0) / vTotal) * 100,
       investment_pct: ((groupData.by_value.investment ?? 0) / vTotal) * 100,
       leak_pct: ((groupData.by_value.leak ?? 0) / vTotal) * 100,
-      unsure_pct: ((groupData.by_value.unsure ?? 0) / vTotal) * 100,
+      no_idea_pct: ((groupData.by_value.no_idea ?? 0) / vTotal) * 100,
     }
 
     const { gap_type, gap_severity } = classifyGap(stated.value_category, pct)
@@ -202,7 +202,7 @@ export async function analyseGap(
         burden_pct: Math.round(vBreakdown.burden_pct * 10) / 10,
         investment_pct: Math.round(vBreakdown.investment_pct * 10) / 10,
         leak_pct: Math.round(vBreakdown.leak_pct * 10) / 10,
-        unsure_pct: Math.round(vBreakdown.unsure_pct * 10) / 10,
+        no_idea_pct: Math.round(vBreakdown.no_idea_pct * 10) / 10,
       },
       gap_type,
       gap_severity,
@@ -232,7 +232,7 @@ export async function analyseGap(
       if (!tx.description.toLowerCase().includes(needle)) continue
       const abs = Math.abs(tx.amount)
       group.total += abs
-      const vc = tx.value_category ?? 'unsure'
+      const vc = tx.value_category ?? 'no_idea'
       group.by_value[vc] = (group.by_value[vc] ?? 0) + abs
     }
 

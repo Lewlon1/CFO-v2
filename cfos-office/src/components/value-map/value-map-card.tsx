@@ -489,7 +489,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
             onClick={handleHardToDecide}
             className="text-sm text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
           >
-            I don&apos;t know
+            No idea
           </Button>
         </div>
       )}

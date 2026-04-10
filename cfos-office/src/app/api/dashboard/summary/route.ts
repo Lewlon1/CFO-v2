@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
     const cid = txn.category_id ?? 'uncategorised'
     catCounts[cid] = (catCounts[cid] ?? 0) + 1
 
-    const vc = txn.value_category ?? 'unsure'
+    const vc = txn.value_category ?? 'no_idea'
     vcCounts[vc] = (vcCounts[vc] ?? 0) + 1
 
     if (!vcCatBreakdown[vc]) vcCatBreakdown[vc] = {}

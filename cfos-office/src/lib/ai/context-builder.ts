@@ -396,7 +396,7 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
 
   if (parts.length === 0) return '';
 
-  parts.push("\nUse these traits to personalise your advice. Reference them naturally — don't list them back to the user.");
+  parts.push("\nUse these traits to personalise your guidance. Reference them naturally — don't list them back to the user.");
 
   return parts.join('\n');
 }
@@ -425,9 +425,9 @@ YOU MUST NOT:
 - Make predictions about market performance
 
 WHEN THE USER ASKS FOR PRODUCT-SPECIFIC ADVICE:
-Acknowledge the question. Show them what you CAN do — the numbers, the concepts, the tradeoffs. Then say something like: "I can show you the maths and explain the options, but picking a specific product is a decision I'd recommend making with a qualified financial advisor or through a comparison service" — and, if you know the user's country, mention an appropriate one (e.g., MoneySavingExpert in the UK, Finanztest in Germany, NerdWallet in the US).
+Acknowledge the question. Show them what you CAN do — the numbers, the concepts, the tradeoffs. Then say something like: "I can show you the maths and explain the options, but picking a specific product is a decision I'd recommend making with a qualified financial adviser or through a comparison service" — and, if you know the user's country, mention an appropriate one (e.g., MoneySavingExpert in the UK, Finanztest in Germany, NerdWallet in the US).
 
-Frame your role as: "I'm your CFO — I know your numbers inside out and I'll make sure you're asking the right questions. But for regulated product recommendations, you want a licensed advisor."`;
+Frame your role as: "I'm your CFO — I know your numbers inside out and I'll make sure you're asking the right questions. But for regulated product recommendations, you want a licensed adviser."`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildBalanceSheetContext(assets: any[] | null, liabilities: any[] | null): string {
@@ -766,7 +766,7 @@ This person just completed the Value Map (a SAMPLE perception exercise) and sign
 ${firstName ? `Their first name is **${firstName}** — address them by name in the opening line.` : ''}
 
 Your opening message must:
-1. Greet ${firstName ? firstName : 'them'} warmly in one confident line — reference the CFO's Office metaphor naturally.
+1. Greet ${firstName ? firstName : 'them'} warmly in one line — you're their CFO, make it feel like walking into a friend's office.
 2. Reference ONE perception naturally — e.g. "You see dining out as a burden — that tells me where your friction sits." Frame it as insight about THEM, not their money.
 3. Pivot immediately to: ask them to upload a recent bank statement (CSV or screenshot) so you can see what's actually going on with their money. Include this exact markdown link: [Upload your transactions](/transactions). NEVER use /upload — that path does not exist.
 4. Stay under 4 sentences total. No question-stack, no feature tour.
@@ -786,7 +786,7 @@ ${firstName ? `Their first name is **${firstName}** — open with their name.` :
 This user signed up directly without completing the Value Map.
 
 Your opening message must:
-1. Greet ${nameAddress} in one warm, confident line — introduce yourself as their CFO.
+1. Greet ${nameAddress} in one warm, natural line — you're their CFO, keep it friendly and direct.
 2. Pivot directly to upload: "Upload a recent bank statement and I'll show you exactly what's going on with your money." Include this exact markdown link: [Upload your transactions](/transactions). NEVER use /upload — that path does not exist.
 3. Optionally mention the Value Map as a 2-minute side door if they'd prefer to start there: [Try the Value Map](/demo).
 4. Max 3 sentences total. No feature tour, no question-stack.`;
@@ -869,7 +869,7 @@ Ask enough to fill the required params, then call model_scenario. Present the nu
 
       return `## Conversation context: General
 
-This is an open conversation. Follow the user's lead. If they ask a question, answer it directly using their actual data. If there are pending action items, you may mention them if relevant.`;
+Open conversation. Follow their lead — answer what they actually asked. Don't pivot to what you think they should be asking. If there's something urgent in their data, mention it once at the end. Keep it natural.`;
     }
   }
 }
@@ -1099,7 +1099,7 @@ Value category breakdown:
 - Investment: ${pct('investment')}%
 - Burden: ${pct('burden')}%
 - Leak: ${pct('leak')}%
-- Unsure/untagged: ${pct('unsure')}%
+- No Idea/untagged: ${pct('no_idea')}%
 `
     }
   }

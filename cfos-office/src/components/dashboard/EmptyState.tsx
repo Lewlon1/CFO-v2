@@ -48,7 +48,7 @@ export function EmptyState({ variant }: Props) {
           Take the Value Map
         </Link>
         <Link
-          href="/transactions?value_category=unsure"
+          href="/transactions?value_category=no_idea"
           className="rounded-md border border-border px-5 py-2.5 text-sm font-medium min-h-[44px] inline-flex items-center text-foreground hover:bg-accent transition-colors"
         >
           Classify now

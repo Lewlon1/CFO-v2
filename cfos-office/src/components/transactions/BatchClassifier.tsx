@@ -11,13 +11,13 @@ type Props = {
 }
 
 export function BatchClassifier({ transactions, onClassified }: Props) {
-  const unsure = transactions.filter(t => !t.value_category || t.value_category === 'unsure')
+  const noIdea = transactions.filter(t => !t.value_category || t.value_category === 'no_idea')
   const [currentIdx, setCurrentIdx] = useState(0)
   const [classified, setClassified] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [applyToSimilar, setApplyToSimilar] = useState(true)
 
-  if (unsure.length === 0) {
+  if (noIdea.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
         <p className="text-sm text-muted-foreground">All transactions have been classified.</p>
@@ -25,7 +25,7 @@ export function BatchClassifier({ transactions, onClassified }: Props) {
     )
   }
 
-  const current = unsure[currentIdx]
+  const current = noIdea[currentIdx]
   if (!current) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
@@ -61,16 +61,16 @@ export function BatchClassifier({ transactions, onClassified }: Props) {
       {/* Progress */}
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">
-          {classified} of {unsure.length} classified
+          {classified} of {noIdea.length} classified
         </span>
         <div className="flex-1 mx-4 h-1.5 bg-muted rounded-full overflow-hidden">
           <div
             className="h-full bg-primary rounded-full transition-all"
-            style={{ width: `${(classified / unsure.length) * 100}%` }}
+            style={{ width: `${(classified / noIdea.length) * 100}%` }}
           />
         </div>
         <span className="text-muted-foreground tabular-nums">
-          {unsure.length - classified} left
+          {noIdea.length - classified} left
         </span>
       </div>
 

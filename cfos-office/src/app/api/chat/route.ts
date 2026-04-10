@@ -182,7 +182,7 @@ export async function POST(req: Request) {
     tools: {
       get_current_date: {
         description:
-          'Get the current date and time. Use when the user asks what day or time it is.',
+          'Get today\'s date and time.',
         inputSchema: z.object({}),
         execute: async () => {
           return {
@@ -198,7 +198,7 @@ export async function POST(req: Request) {
       },
       update_value_category: {
         description:
-          'Update the value category for a spending category based on user feedback. Use when the user tells you a category should be classified differently (e.g. "dining is an investment for me, not a leak").',
+          'Update how a spending category is classified when the user tells you it should be different (e.g. "dining is an investment for me, not a leak").',
         inputSchema: z.object({
           category_slug: z
             .string()
@@ -276,7 +276,7 @@ export async function POST(req: Request) {
       // ── Channel B: Update user profile from conversation ─────────────
       update_user_profile: {
         description:
-          "Save confirmed profile information immediately when the user shares it clearly. Do NOT ask 'should I save this?' first — a confirmation card appears in chat showing exactly what was saved, with Undo available to the user. Only pause to clarify when the meaning is genuinely ambiguous. Set confidence to 1.0 for explicit statements, 0.8 for strong implications. Confidence below 0.6 will be skipped server-side.\n\nValid field names and expected types:\n- display_name (text)\n- country (text, e.g. 'Spain')\n- city (text)\n- primary_currency (text, e.g. 'EUR')\n- age_range (text, e.g. '31-35')\n- employment_status (text, e.g. 'employed', 'self_employed', 'freelance')\n- gross_salary (number, annual)\n- net_monthly_income (number, monthly take-home)\n- pay_frequency (text, e.g. 'monthly', 'monthly_with_extra_payments')\n- has_bonus_months (boolean)\n- bonus_month_details (text)\n- housing_type (text, e.g. 'renting', 'owned')\n- monthly_rent (number, monthly rent or mortgage payment)\n- relationship_status (text, e.g. 'single', 'partnered', 'married')\n- partner_employment_status (text)\n- partner_monthly_contribution (number)\n- dependents (number, count of dependents)\n- values_ranking (text)\n- spending_triggers (text)\n- risk_tolerance (text, e.g. 'low', 'medium', 'high')\n- financial_awareness (text)\n- advice_style (text, e.g. 'gentle', 'direct', 'blunt')\n- nationality (text)\n- residency_status (text)\n- tax_residency_country (text)\n- years_in_country (number)",
+          "Save what the user told you about themselves. Do NOT ask 'should I save this?' first — a confirmation card appears in chat showing exactly what was saved, with Undo available to the user. Only pause to clarify when the meaning is genuinely ambiguous. Set confidence to 1.0 for explicit statements, 0.8 for strong implications. Confidence below 0.6 will be skipped server-side.\n\nValid field names and expected types:\n- display_name (text)\n- country (text, e.g. 'Spain')\n- city (text)\n- primary_currency (text, e.g. 'EUR')\n- age_range (text, e.g. '31-35')\n- employment_status (text, e.g. 'employed', 'self_employed', 'freelance')\n- gross_salary (number, annual)\n- net_monthly_income (number, monthly take-home)\n- pay_frequency (text, e.g. 'monthly', 'monthly_with_extra_payments')\n- has_bonus_months (boolean)\n- bonus_month_details (text)\n- housing_type (text, e.g. 'renting', 'owned')\n- monthly_rent (number, monthly rent or mortgage payment)\n- relationship_status (text, e.g. 'single', 'partnered', 'married')\n- partner_employment_status (text)\n- partner_monthly_contribution (number)\n- dependents (number, count of dependents)\n- values_ranking (text)\n- spending_triggers (text)\n- risk_tolerance (text, e.g. 'low', 'medium', 'high')\n- financial_awareness (text)\n- advice_style (text, e.g. 'gentle', 'direct', 'blunt')\n- nationality (text)\n- residency_status (text)\n- tax_residency_country (text)\n- years_in_country (number)",
         inputSchema: z.object({
           updates: z.array(
             z.object({
@@ -398,7 +398,7 @@ export async function POST(req: Request) {
       // ── Channel A: Request structured input ──────────────────────────
       request_structured_input: {
         description:
-          'Ask the user for a specific piece of information using an interactive input component rendered inline in the chat. Use this when you need precise data (numbers, selections, currency amounts) rather than free-text conversation. The component will appear in the chat. Always explain WHY you are asking before calling this tool.',
+          'Show an input form when you need a specific number or choice from the user. The component appears inline in chat. Always explain WHY before calling this.',
         inputSchema: z.object({
           field: z.string().describe('The user_profiles column to update with the response'),
           input_type: z

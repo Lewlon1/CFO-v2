@@ -3,7 +3,7 @@ const VALUE_CONFIG: Record<string, { label: string; classes: string }> = {
   investment: { label: 'Investment', classes: 'bg-green-100 text-green-800' },
   leak: { label: 'Leak', classes: 'bg-red-100 text-red-800' },
   burden: { label: 'Burden', classes: 'bg-amber-100 text-amber-800' },
-  unsure: { label: 'Unsure', classes: 'bg-gray-100 text-gray-500' },
+  no_idea: { label: 'No Idea', classes: 'bg-gray-100 text-gray-500' },
 }
 
 type Props = {
@@ -13,7 +13,7 @@ type Props = {
 }
 
 export function ValueBadge({ valueCategory, confidence, className = '' }: Props) {
-  const config = VALUE_CONFIG[valueCategory ?? 'unsure'] ?? VALUE_CONFIG.unsure
+  const config = VALUE_CONFIG[valueCategory ?? 'no_idea'] ?? VALUE_CONFIG.no_idea
   const conf = confidence ?? 0
 
   // Confidence indicators:

@@ -254,7 +254,7 @@ async function seed() {
     // Value breakdown
     const byVal: Record<string, { amount: number; count: number }> = {};
     for (const t of spending) {
-      const vc = t.value_category || 'unsure';
+      const vc = t.value_category || 'no_idea';
       if (!byVal[vc]) byVal[vc] = { amount: 0, count: 0 };
       byVal[vc].amount += Math.abs(t.amount);
       byVal[vc].count++;

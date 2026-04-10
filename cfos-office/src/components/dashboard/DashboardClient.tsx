@@ -12,7 +12,7 @@ import { EmptyState } from './EmptyState'
 import { CategoryBreakdown } from './CategoryBreakdown'
 import { ValueSummary } from './ValueSummary'
 import { ValueCategoryCards } from './ValueCategoryCards'
-import { UnsureQueue } from './UnsureQueue'
+import { NoIdeaQueue } from './NoIdeaQueue'
 import { RecurringPanel } from './RecurringPanel'
 import { ReviewBanner } from './ReviewBanner'
 import { useTrackEvent } from '@/lib/events/use-track-event'
@@ -102,11 +102,11 @@ export function DashboardClient({ hasData }: Props) {
     router.push(`/transactions?value_category=${vc}&month=${month}`)
   }
 
-  const unsureCount = summary.spending_by_value_category?.unsure?.count ?? 0
+  const noIdeaCount = summary.spending_by_value_category?.no_idea?.count ?? 0
 
   // Check if values view has meaningful data
   const hasValues = Object.entries(summary.spending_by_value_category)
-    .some(([key, val]) => key !== 'unsure' && val.amount > 0)
+    .some(([key, val]) => key !== 'no_idea' && val.amount > 0)
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
@@ -182,7 +182,7 @@ export function DashboardClient({ hasData }: Props) {
                     <h3 className="text-sm font-medium text-muted-foreground mb-2">Your money is...</h3>
                     <ValueSummary breakdown={summary.spending_by_value_category} />
                   </div>
-                  {unsureCount > 0 && <UnsureQueue count={unsureCount} />}
+                  {noIdeaCount > 0 && <NoIdeaQueue count={noIdeaCount} />}
                 </div>
               </div>
 
