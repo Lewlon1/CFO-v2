@@ -547,6 +547,7 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **calculate_monthly_budget**: "What's my budget?" or "How much can I spend?" Also use as context when discussing any spending number relative to income.
 - **get_action_items**: "What's on my to-do list?" or "What should I be working on?"
 - **create_action_item**: When a conversation produces a concrete next step. Always confirm with the user before creating.
+- **create_goal**: "I want to save for X" / "Set a goal to save €Y" / any non-trip savings target (emergency fund, house deposit, big purchase, etc.). Confirm goal name, target amount, and optional deadline with the user, then call. For trip-related savings, use plan_trip instead.
 - **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" / "What if I had kids?" / "What if I changed careers?" / "How would my investments grow?" All 6 scenario types are available. All calculations are server-side.
 - **plan_trip**: "Help me plan a trip" — create a trip budget, funding plan, and savings goal. Call this AFTER collecting destination, dates, travel style, and companions, and AFTER researching real costs. All funding calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
