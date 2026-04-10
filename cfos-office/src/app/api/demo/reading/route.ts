@@ -243,7 +243,7 @@ function buildDeterministicReading(
 
 // ── AI model attempts ──────────────────────────────────────────────────────
 
-const BEDROCK_CLAUDE_MODEL = process.env.BEDROCK_CLAUDE_MODEL || 'global.anthropic.claude-sonnet-4-6'
+const BEDROCK_CLAUDE_MODEL = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
 
 async function tryGenerateReading(userMessage: string): Promise<{
   text: string;
@@ -256,7 +256,7 @@ async function tryGenerateReading(userMessage: string): Promise<{
   try {
     const startTime = Date.now()
     const result = await generateText({
-      model: bedrock('global.anthropic.claude-opus-4-6'),
+      model: bedrock('eu.anthropic.claude-opus-4-6'),
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
       maxOutputTokens: 500,
@@ -265,7 +265,7 @@ async function tryGenerateReading(userMessage: string): Promise<{
     })
     const durationMs = Date.now() - startTime
     const text = result.text.trim()
-    if (text && text !== 'INVALID') return { text, fallback: false, model: 'global.anthropic.claude-opus-4-6', usage: result.usage, durationMs }
+    if (text && text !== 'INVALID') return { text, fallback: false, model: 'eu.anthropic.claude-opus-4-6', usage: result.usage, durationMs }
     if (text === 'INVALID') return { text: 'INVALID', fallback: false }
   } catch (err) {
     console.error('[demo/reading] Opus failed, trying Sonnet:', err instanceof Error ? err.message : err)

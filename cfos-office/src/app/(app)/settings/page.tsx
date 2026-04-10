@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { NudgePreferences } from '@/components/settings/NudgePreferences';
+import { AccountDataManagement } from '@/components/settings/AccountDataManagement';
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -27,6 +28,8 @@ export default async function SettingsPage() {
           }
         />
       </section>
+
+      <AccountDataManagement />
     </div>
   );
 }

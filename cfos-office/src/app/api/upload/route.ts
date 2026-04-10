@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+// GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
+// Any Bedrock calls for categorisation use the EU inference profile.
 import { createClient } from '@/lib/supabase/server'
 import { detectFormat } from '@/lib/parsers'
 import { parseRevolutCSV } from '@/lib/parsers/revolut'
 import { parseSantanderXLSX } from '@/lib/parsers/santander'
+import { parseMonzoCSV } from '@/lib/parsers/monzo'
+import { parseStarlingCSV } from '@/lib/parsers/starling'
+import { parseHsbcCSV } from '@/lib/parsers/hsbc'
+import { parseBarclaysCSV } from '@/lib/parsers/barclays'
 import { parseGenericCSV, applyColumnMapping } from '@/lib/parsers/generic'
 import { parseScreenshot } from '@/lib/parsers/screenshot'
 import { detectHoldingsMapping } from '@/lib/parsers/holdings-detector'
@@ -33,6 +39,7 @@ import type {
 } from '@/lib/parsers/types'
 import { randomUUID } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { sendAlert } from '@/lib/alerts/notify'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -257,6 +264,14 @@ export async function POST(req: NextRequest) {
     const format = detectFormat(filename, text)
     if (format === 'revolut') {
       parseResult = parseRevolutCSV(text)
+    } else if (format === 'monzo') {
+      parseResult = parseMonzoCSV(text)
+    } else if (format === 'starling') {
+      parseResult = parseStarlingCSV(text)
+    } else if (format === 'hsbc') {
+      parseResult = parseHsbcCSV(text)
+    } else if (format === 'barclays') {
+      parseResult = parseBarclaysCSV(text)
     } else {
       const genericResult = parseGenericCSV(text)
       if ('needsMapping' in genericResult && genericResult.needsMapping) {
@@ -280,10 +295,24 @@ export async function POST(req: NextRequest) {
   }
 
   if (!parseResult) {
+    sendAlert({
+      severity: 'critical',
+      event: 'csv_parse_failed',
+      user_id: user.id,
+      details: `No parser matched for file "${filename}" (${file.size} bytes).`,
+      metadata: { filename, fileSize: file.size },
+    }).catch(() => {})
     return NextResponse.json({ error: 'Could not parse file.' }, { status: 422 })
   }
 
   if (!parseResult.ok) {
+    sendAlert({
+      severity: 'critical',
+      event: 'csv_parse_failed',
+      user_id: user.id,
+      details: `Parser returned error for "${filename}": ${parseResult.error}`,
+      metadata: { filename, fileSize: file.size, error: parseResult.error },
+    }).catch(() => {})
     return NextResponse.json({ error: parseResult.error }, { status: 422 })
   }
 

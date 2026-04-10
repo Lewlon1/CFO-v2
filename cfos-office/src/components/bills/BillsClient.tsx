@@ -70,6 +70,22 @@ export function BillsClient({ bills: initialBills }: Props) {
     }
   }
 
+  async function handleDelete(billId: string) {
+    if (!confirm('Delete this bill? This cannot be undone.')) return
+    setBills((prev) => prev.filter((b) => b.id !== billId))
+    setSelectedBill(null)
+    try {
+      await fetch('/api/bills/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bill_id: billId }),
+      })
+    } catch {
+      // Non-fatal — refresh will restore if failed
+      router.refresh()
+    }
+  }
+
   function handleUploadComplete() {
     setShowUpload(false)
     setUploadBill(null)
@@ -173,6 +189,7 @@ export function BillsClient({ bills: initialBills }: Props) {
           bill={selectedBill}
           onClose={() => setSelectedBill(null)}
           onUploadBill={() => handleOpenUpload(selectedBill)}
+          onDelete={() => handleDelete(selectedBill.id)}
         />
       )}
 

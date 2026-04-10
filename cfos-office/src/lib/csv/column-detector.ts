@@ -7,16 +7,17 @@ const FIELD_PATTERNS: Record<Exclude<SemanticField, 'skip'>, RegExp[]> = {
     /^fecha/i, /^date/i, /^datum/i, /^data$/i, /^f\.?oper/i,
     /^value.?date/i, /^transaction.?date/i, /^booking/i,
     /completed.?date/i, /settlement.?date/i, /posting.?date/i,
-    /effective.?date/i, /date$/i,
+    /effective.?date/i, /^posted/i, /^trans.?date/i, /date$/i,
   ],
   amount: [
     /^importe/i, /^amount/i, /^betrag/i, /^montant/i, /^monto/i,
     /^cantidad/i, /^cargo/i, /^abono/i, /^valor/i, /^sum$/i,
+    /^money.?out/i, /^money.?in/i, /^debit$/i, /^credit$/i,
   ],
   description: [
     /^concepto/i, /^descripci/i, /^description/i, /^details/i,
     /^memo/i, /^reference/i, /^remarque/i, /^motivo/i,
-    /^concept/i, /^narrative/i,
+    /^concept/i, /^narrative/i, /^counter.?party/i, /^payee/i,
   ],
   merchant: [
     /^comercio/i, /^merchant/i, /^benefici/i, /^tienda/i,

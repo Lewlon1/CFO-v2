@@ -88,7 +88,7 @@ Rules:
     void trackLLMUsage({
       userId: user_id,
       callType: 'post_conversation_analysis',
-      model: 'anthropic.claude-sonnet-4-6-20250514-v1:0',
+      model: 'eu.anthropic.claude-sonnet-4-6',
       inputTokens: usage?.inputTokens,
       outputTokens: usage?.outputTokens,
       durationMs,

@@ -39,6 +39,7 @@ function SignupForm() {
     return ''
   })
   const [password, setPassword] = useState('')
+  const [consentChecked, setConsentChecked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -115,6 +116,26 @@ function SignupForm() {
         } catch {
           // Non-critical — proceed regardless
         }
+      }
+
+      // Record GDPR consent. The checkbox was required to submit the form,
+      // so by this point the user has granted all three consents. Non-fatal
+      // on failure — we surface it in the console but don't block the flow
+      // since the user is already authenticated.
+      try {
+        await fetch('/api/account/consent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consents: [
+              { type: 'terms_of_service', version: '1.0' },
+              { type: 'privacy_policy', version: '1.0' },
+              { type: 'data_processing', version: '1.0' },
+            ],
+          }),
+        })
+      } catch (consentErr) {
+        console.warn('Consent recording failed (non-fatal):', consentErr)
       }
     }
 
@@ -205,9 +226,30 @@ function SignupForm() {
           />
         </div>
 
+        <label className="flex items-start gap-2.5 text-sm text-muted-foreground pt-1">
+          <input
+            type="checkbox"
+            checked={consentChecked}
+            onChange={e => setConsentChecked(e.target.checked)}
+            className="mt-1 h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+          />
+          <span>
+            I agree to the{' '}
+            <Link href="/terms" target="_blank" className="underline text-foreground">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link href="/privacy" target="_blank" className="underline text-foreground">
+              Privacy Notice
+            </Link>
+            . I understand my financial data will be processed by AI to provide personalised
+            advice.
+          </span>
+        </label>
+
         <Button
           type="submit"
-          disabled={loading}
+          disabled={loading || !consentChecked}
           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
         >
           {loading ? 'Creating account…' : 'Create account'}

@@ -17,7 +17,7 @@ import {
 } from './balance-sheet-schema'
 
 const MODEL_ID =
-  process.env.BEDROCK_CLAUDE_MODEL || 'global.anthropic.claude-sonnet-4-6'
+  process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
 
 // Keep well under Claude's context budget — 15k chars ≈ ~3.5k tokens.
 const MAX_PDF_TEXT_CHARS = 15_000

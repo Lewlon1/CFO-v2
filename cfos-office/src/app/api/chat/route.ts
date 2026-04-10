@@ -1,11 +1,15 @@
 import { streamText, generateText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+// GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
+// Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
+// Supabase is also in eu-west-1. No user data leaves EU infrastructure.
 import { chatModel } from '@/lib/ai/provider';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
 import { createToolbox, type ToolContext } from '@/lib/ai/tools';
+import { sendAlert, wrapToolsWithAlerts } from '@/lib/alerts/notify';
 
 export const maxDuration = 60;
 
@@ -162,7 +166,7 @@ export async function POST(req: Request) {
     currency: profileForCurrency?.primary_currency || 'EUR',
   };
 
-  const toolbox = createToolbox(toolCtx);
+  const toolbox = wrapToolsWithAlerts(createToolbox(toolCtx), user.id);
 
   // Convert UI messages to model format
   const modelMessages = await convertToModelMessages(messages);
@@ -653,6 +657,12 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     console.error('[chat] unhandled error:', err);
     const message = err instanceof Error ? err.message : String(err);
+
+    sendAlert({
+      severity: 'critical',
+      event: 'bedrock_chat_error',
+      details: `Chat API error: ${message.slice(0, 200)}`,
+    }).catch(() => {});
 
     if (message.includes('ThrottlingException') || message.includes('Too many requests')) {
       return new Response('The AI service is temporarily busy. Please try again in a moment.', { status: 429 });

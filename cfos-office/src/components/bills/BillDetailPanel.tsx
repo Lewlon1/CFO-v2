@@ -10,6 +10,7 @@ interface Props {
   bill: BillRecord
   onClose: () => void
   onUploadBill: () => void
+  onDelete?: () => void
 }
 
 interface TransactionHistory {
@@ -18,7 +19,7 @@ interface TransactionHistory {
   description: string
 }
 
-export function BillDetailPanel({ bill, onClose, onUploadBill }: Props) {
+export function BillDetailPanel({ bill, onClose, onUploadBill, onDelete }: Props) {
   const router = useRouter()
   const [history, setHistory] = useState<TransactionHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -276,6 +277,14 @@ export function BillDetailPanel({ bill, onClose, onUploadBill }: Props) {
             >
               Ask CFO About This Bill
             </button>
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                className="w-full text-destructive text-sm font-medium rounded-lg py-2.5 min-h-[44px] hover:bg-destructive/10 transition-colors"
+              >
+                Delete Bill
+              </button>
+            )}
           </div>
         </div>
       </div>

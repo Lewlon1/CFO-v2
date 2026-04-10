@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/chat/rate-limit'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
 
-const OPUS_MODEL = process.env.BEDROCK_OPUS_MODEL ?? 'global.anthropic.claude-opus-4-6'
+const OPUS_MODEL = process.env.BEDROCK_OPUS_MODEL ?? 'eu.anthropic.claude-opus-4-6'
 
 let cachedAgentId: string | null = null
 
