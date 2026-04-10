@@ -5,6 +5,7 @@ import { Undo2, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CfoAvatar } from '@/components/chat/cfo-avatar'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
+import { formatAmount, formatDate } from '@/lib/value-map/format'
 import { getFeedback, getMilestoneFeedback } from '@/lib/value-map/feedback'
 import type { ValueMapTransaction, ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import { cn } from '@/lib/utils'
@@ -17,25 +18,6 @@ const CARD_TRANSITION = 250 // ms
 const GATE_DURATION = 1500 // ms — buttons inert for this long
 const HARD_TO_DECIDE_DELAY = 3000 // ms — escape hatch appears after this
 
-// ── Currency formatting ──────────────────────────────────────────────────────
-
-function currencySymbol(currency: string): string {
-  return { GBP: '\u00A3', USD: '$', EUR: '\u20AC' }[currency] ?? currency + ' '
-}
-
-function formatAmount(amount: number, currency: string): string {
-  const sym = currencySymbol(currency)
-  return `${sym}${amount.toLocaleString('en', { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr + 'T00:00:00')
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-  } catch {
-    return dateStr
-  }
-}
 
 function contextHint(tx: ValueMapTransaction): string | null {
   if (tx.is_recurring) return 'Recurring monthly'
@@ -507,7 +489,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
             onClick={handleHardToDecide}
             className="text-sm text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
           >
-            Hard to decide? Skip this one
+            I don&apos;t know
           </Button>
         </div>
       )}

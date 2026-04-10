@@ -3,6 +3,7 @@ import { BASE_PERSONA } from './system-prompt';
 import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
+import { PERSONALITIES } from '@/lib/value-map/constants';
 
 export async function buildSystemPrompt(
   userId: string,
@@ -349,7 +350,9 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
     parts.push('');
     parts.push('What this tells you about the user:');
     if (valueMap.personality_type) {
-      parts.push(`- Archetype: ${valueMap.personality_type} — how they relate to money`);
+      const personality = PERSONALITIES[valueMap.personality_type];
+      const displayName = personality?.name ?? valueMap.personality_type;
+      parts.push(`- Archetype: ${displayName} — ${personality?.headline ?? 'how they relate to money'}`);
     }
     if (valueMap.dominant_quadrant) {
       parts.push(`- Dominant perception lens: ${valueMap.dominant_quadrant} (they put the most sample items in this bucket)`);

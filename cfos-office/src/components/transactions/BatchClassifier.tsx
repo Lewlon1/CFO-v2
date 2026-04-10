@@ -1,16 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Shield, TrendingUp, Droplets, Weight } from 'lucide-react'
-import { VALUE_COLORS, formatCurrency } from '@/lib/constants/dashboard'
+import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
+import { formatAmount, formatDate } from '@/lib/value-map/format'
 import type { Transaction } from './TransactionList'
-
-const VC_BUTTONS = [
-  { vc: 'foundation', Icon: Shield },
-  { vc: 'investment', Icon: TrendingUp },
-  { vc: 'leak', Icon: Droplets },
-  { vc: 'burden', Icon: Weight },
-] as const
 
 type Props = {
   transactions: Transaction[]
@@ -82,44 +75,69 @@ export function BatchClassifier({ transactions, onClassified }: Props) {
       </div>
 
       {/* Current transaction card */}
-      <div className="rounded-xl border border-border bg-card p-6 animate-[value-card-enter_0.3s_ease-out]">
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div className="min-w-0 flex-1">
-            <p className="text-lg font-medium text-foreground">{current.description}</p>
-            <p className="text-sm text-muted-foreground mt-1">{current.date}</p>
+      <div className="rounded-xl border border-border bg-card px-6 py-4 animate-[value-card-enter_0.3s_ease-out]">
+        <div className="flex flex-col items-center text-center space-y-1">
+          <p className="text-lg font-semibold text-foreground">
+            {current.description ?? 'Transaction'}
+          </p>
+          <p className="font-mono text-2xl font-bold text-foreground">
+            {formatAmount(Math.abs(current.amount), current.currency)}
+          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{formatDate(current.date)}</span>
           </div>
-          <span className={`text-lg font-semibold tabular-nums flex-shrink-0 ${
-            current.amount >= 0 ? 'text-emerald-400' : 'text-foreground'
-          }`}>
-            {current.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(current.amount), current.currency)}
-          </span>
+          {current.category_id && (
+            <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              {current.category_id.replace(/_/g, ' ')}
+            </span>
+          )}
         </div>
 
-        <p className="text-sm text-muted-foreground mb-4">What does this spending mean to you?</p>
+        {/* Question */}
+        <p className="text-xs font-medium text-muted-foreground text-center uppercase tracking-wide mt-4 mb-3">
+          How do you feel about this spend?
+        </p>
 
-        {/* Value category buttons */}
-        <div className="grid grid-cols-2 gap-3">
-          {VC_BUTTONS.map(({ vc, Icon }) => {
-            const colors = VALUE_COLORS[vc]
+        {/* Value category buttons — matching ValueMapCard styling */}
+        <div className="grid grid-cols-2 gap-2">
+          {QUADRANT_ORDER.map((qId) => {
+            const q = QUADRANTS[qId]
             return (
               <button
-                key={vc}
-                onClick={() => classify(vc)}
+                key={qId}
+                onClick={() => classify(qId)}
                 disabled={isSaving}
-                className={`rounded-lg border ${colors.border} ${colors.bg} p-4 text-left hover:opacity-80 transition-opacity disabled:opacity-40 min-h-[44px]`}
+                className="flex flex-col items-center justify-center gap-1 rounded-xl border-2 p-4 transition-all duration-150 active:scale-[0.97] min-h-[80px] hover:bg-card/80 disabled:opacity-40"
+                style={{
+                  borderColor: q.colour + '40',
+                  backgroundColor: q.colour + '08',
+                }}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <Icon className={`w-4 h-4 ${colors.text}`} />
-                  <span className={`text-sm font-medium ${colors.text}`}>{colors.label}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">{colors.description}</p>
+                <span className="text-xl" role="img" aria-hidden>{q.emoji}</span>
+                <span className="text-sm font-semibold" style={{ color: q.colour }}>
+                  {q.name}
+                </span>
+                <span className="text-xs text-muted-foreground leading-tight">
+                  {q.tagline}
+                </span>
               </button>
             )
           })}
         </div>
 
+        {/* Skip */}
+        <div className="flex justify-center mt-3">
+          <button
+            onClick={() => setCurrentIdx(i => i + 1)}
+            disabled={isSaving}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[44px] px-4 disabled:opacity-40"
+          >
+            Skip
+          </button>
+        </div>
+
         {/* Apply to similar toggle */}
-        <label className="flex items-center gap-2 text-sm text-muted-foreground mt-4 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground mt-2 cursor-pointer">
           <input
             type="checkbox"
             checked={applyToSimilar}
