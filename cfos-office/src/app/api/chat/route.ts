@@ -1,6 +1,9 @@
 import { streamText, generateText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+// GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
+// Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
+// Supabase is also in eu-west-1. No user data leaves EU infrastructure.
 import { chatModel } from '@/lib/ai/provider';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';

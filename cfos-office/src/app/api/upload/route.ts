@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+// GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
+// Any Bedrock calls for categorisation use the EU inference profile.
 import { createClient } from '@/lib/supabase/server'
 import { detectFormat } from '@/lib/parsers'
 import { parseRevolutCSV } from '@/lib/parsers/revolut'

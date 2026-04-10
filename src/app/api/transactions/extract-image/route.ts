@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/chat/rate-limit'
 
-const BEDROCK_MODEL = process.env.BEDROCK_CLAUDE_MODEL ?? 'global.anthropic.claude-sonnet-4-6'
+const BEDROCK_MODEL = process.env.BEDROCK_CLAUDE_MODEL ?? 'eu.anthropic.claude-sonnet-4-6'
 
 const extractionSchema = z.object({
   transactions: z.array(

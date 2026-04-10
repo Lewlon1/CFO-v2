@@ -45,7 +45,7 @@ export async function parseScreenshot(imageBase64: string, userId?: string): Pro
     void trackLLMUsage({
       userId,
       callType: 'screenshot_parse',
-      model: 'anthropic.claude-sonnet-4-6-20250514-v1:0',
+      model: 'eu.anthropic.claude-sonnet-4-6',
       inputTokens: usage?.inputTokens,
       outputTokens: usage?.outputTokens,
       durationMs,

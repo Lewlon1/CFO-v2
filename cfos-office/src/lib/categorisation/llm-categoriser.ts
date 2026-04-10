@@ -55,7 +55,7 @@ If genuinely uncertain use "shopping" as fallback.`
     void trackLLMUsage({
       userId,
       callType: 'categorisation',
-      model: 'anthropic.claude-sonnet-4-6-20250514-v1:0',
+      model: 'eu.anthropic.claude-sonnet-4-6',
       inputTokens: usage?.inputTokens,
       outputTokens: usage?.outputTokens,
       durationMs,

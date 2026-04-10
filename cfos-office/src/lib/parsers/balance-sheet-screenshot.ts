@@ -14,7 +14,7 @@ import {
 } from './balance-sheet-schema'
 
 const MODEL_ID =
-  process.env.BEDROCK_CLAUDE_MODEL || 'global.anthropic.claude-sonnet-4-6'
+  process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
 
 export type BalanceSheetScreenshotResult =
   | { ok: true; data: BalanceSheetDocument }

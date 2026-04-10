@@ -6,7 +6,7 @@ export const bedrock = createAmazonBedrock({
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
 })
 
-const chatModelId = process.env.BEDROCK_CLAUDE_MODEL || 'global.anthropic.claude-sonnet-4-6'
+const chatModelId = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
 // Log the resolved model ID once at module load so cold-start logs always
 // record exactly which Bedrock inference profile is in use. Misconfigured
 // BEDROCK_CLAUDE_MODEL env vars previously surfaced as an opaque
