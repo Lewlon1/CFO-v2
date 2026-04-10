@@ -1,6 +1,10 @@
 export type ParsedTransactionSource =
   | 'csv_revolut'
   | 'csv_santander'
+  | 'csv_monzo'
+  | 'csv_starling'
+  | 'csv_hsbc'
+  | 'csv_barclays'
   | 'csv_generic'
   | 'screenshot'
 

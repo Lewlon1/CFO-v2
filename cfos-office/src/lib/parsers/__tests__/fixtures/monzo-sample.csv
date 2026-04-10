@@ -1,0 +1,9 @@
+Date,Time,Type,Name,Emoji,Category,Amount,Currency,Local amount,Local currency,Notes and #tags,Address,Receipt,Description,Category split,Money Out,Money In,Balance
+01/03/2026,08:15:00,Card payment,Tesco Express,🛒,Groceries,-12.45,GBP,-12.45,GBP,,,,"Tesco Express London",,12.45,,1487.55
+03/03/2026,12:30:00,Card payment,Pret A Manger,🍔,Eating out,-6.80,GBP,-6.80,GBP,,,,"Pret A Manger",,6.80,,1480.75
+05/03/2026,09:00:00,Direct Debit,Netflix,📺,Entertainment,-15.99,GBP,-15.99,GBP,,,,"Netflix Monthly",,15.99,,1464.76
+07/03/2026,07:45:00,Card payment,TfL,🚇,Transport,-2.80,GBP,-2.80,GBP,,,,"TfL Travel",,2.80,,1461.96
+10/03/2026,00:00:00,Faster payment,ACME Corp Ltd,💰,Income,3200.00,GBP,3200.00,GBP,March salary,,,"ACME Corp Ltd Salary",,,3200.00,4661.96
+12/03/2026,19:30:00,Card payment,Sainsburys,🛒,Groceries,-34.20,GBP,-34.20,GBP,,,,"Sainsburys Supermarket",,34.20,,4627.76
+15/03/2026,14:00:00,Pot transfer,Savings Pot,🏦,Savings,-500.00,GBP,-500.00,GBP,,,,"Savings Pot",,500.00,,4127.76
+18/03/2026,18:45:00,Card payment,Spotify,🎵,Entertainment,-10.99,GBP,-10.99,GBP,,,,"Spotify Premium",,10.99,,4116.77

@@ -1,0 +1,9 @@
+Date,Counter Party,Reference,Type,Amount (GBP),Balance (GBP),Spending Category
+02/03/2026,Waitrose,Card payment,CARD,-45.30,2154.70,GROCERIES
+04/03/2026,Uber,Uber trip,CARD,-8.50,2146.20,TRANSPORT
+06/03/2026,Amazon Prime,Direct Debit,DD,-8.99,2137.21,ENTERTAINMENT
+09/03/2026,TfL,Contactless,CARD,-3.40,2133.81,TRANSPORT
+10/03/2026,ACME Corp Ltd,March salary,FPO,3200.00,5333.81,INCOME
+14/03/2026,Nando's,Card payment,CARD,-22.50,5311.31,EATING_OUT
+20/03/2026,British Gas,Energy bill,DD,-85.00,5226.31,BILLS
+25/03/2026,Boots,Card payment,CARD,-14.99,5211.32,HEALTH
