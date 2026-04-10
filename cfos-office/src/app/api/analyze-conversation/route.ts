@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const { object, usage } = await generateObject({
       model: analysisModel,
       schema: traitSchema,
-      prompt: `You are analysing a conversation between a user and their personal CFO (financial advisor).
+      prompt: `You are analysing a conversation between a user and their personal CFO.
 Extract any NEW behavioral traits, patterns, or profile-relevant information
 that was revealed but not explicitly captured by a tool call during the conversation.
 

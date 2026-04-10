@@ -20,7 +20,7 @@ const VALUE_OPTIONS = [
   { value: 'investment', label: 'Investment' },
   { value: 'leak', label: 'Leak' },
   { value: 'burden', label: 'Burden' },
-  { value: 'unsure', label: 'Unsure' },
+  { value: 'no_idea', label: 'No Idea' },
 ]
 
 export function TransactionFilters({ filters, onChange, categories }: Props) {

@@ -54,7 +54,7 @@ export function WelcomeState({
           Welcome to the CFO&apos;s Office
         </h1>
         <p className="text-sm text-muted-foreground mb-8">
-          Your personal finance advisor. What would you like to talk about?
+          Your personal CFO. What would you like to talk about?
         </p>
         <div className="grid gap-2">
           {prompts.map((prompt) => (

@@ -34,7 +34,7 @@ export function createGetValueBreakdownTool(ctx: ToolContext) {
         const buckets: Record<string, { total: number; count: number; items: Array<{ description: string; amount: number }> }> = {};
 
         for (const t of transactions) {
-          const vc = t.value_category || 'unsure';
+          const vc = t.value_category || 'no_idea';
           if (!buckets[vc]) buckets[vc] = { total: 0, count: 0, items: [] };
           const abs = Math.abs(Number(t.amount));
           buckets[vc].total += abs;
@@ -68,9 +68,9 @@ export function createGetValueBreakdownTool(ctx: ToolContext) {
           }
         }
 
-        const unsureBucket = buckets['unsure'];
-        const uncategorised = unsureBucket
-          ? { total: Math.round(unsureBucket.total * 100) / 100, count: unsureBucket.count }
+        const noIdeaBucket = buckets['no_idea'];
+        const uncategorised = noIdeaBucket
+          ? { total: Math.round(noIdeaBucket.total * 100) / 100, count: noIdeaBucket.count }
           : { total: 0, count: 0 };
 
         return {

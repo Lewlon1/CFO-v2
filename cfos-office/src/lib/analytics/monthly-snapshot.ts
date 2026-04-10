@@ -45,7 +45,7 @@ async function refreshOneMonth(
     if (txn.category_id) {
       spendingByCategory[txn.category_id] = (spendingByCategory[txn.category_id] ?? 0) + abs
     }
-    const vc = txn.value_category ?? 'unsure'
+    const vc = txn.value_category ?? 'no_idea'
     spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + abs
     if (abs > largestTxn) {
       largestTxn = abs

@@ -193,7 +193,7 @@ export async function selectValueReviewCandidates(
     const groups: ReviewGroup[] = topGroups.map((g) => {
       const examples = pickDiverseExamples(g.transactions, maxPerGroup)
       const mostCommonValue = getMostCommon(
-        g.transactions.map((t) => t.value_category || 'unsure')
+        g.transactions.map((t) => t.value_category || 'no_idea')
       )
       return {
         merchant: g.merchant,
@@ -444,7 +444,7 @@ function pickDiverseExamples(
       formatted_date: formatDate(d),
       time_of_day: timeOfDay,
       day_of_week: getDayName(d.getDay()),
-      value_category: txn.value_category || 'unsure',
+      value_category: txn.value_category || 'no_idea',
       value_confidence: Number(txn.value_confidence) || 0,
     })
 
@@ -464,7 +464,7 @@ function pickDiverseExamples(
         formatted_date: formatDate(d),
         time_of_day: getTimeOfDay(d.getHours()),
         day_of_week: getDayName(d.getDay()),
-        value_category: txn.value_category || 'unsure',
+        value_category: txn.value_category || 'no_idea',
         value_confidence: Number(txn.value_confidence) || 0,
       })
       if (result.length >= count) break
@@ -510,7 +510,7 @@ function getMostCommon(values: string[]): string {
     counts.set(v, (counts.get(v) || 0) + 1)
   }
   let max = 0
-  let result = 'unsure'
+  let result = 'no_idea'
   for (const [value, count] of counts) {
     if (count > max) {
       max = count

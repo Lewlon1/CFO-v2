@@ -30,7 +30,7 @@ export function createSuggestValueRecategorisationTool(ctx: ToolContext) {
           ruleMap.set(rule.match_value, rule.value_category);
         }
 
-        // Fetch transactions with low confidence or unsure value_category
+        // Fetch transactions with low confidence or no_idea value_category
         const { data: transactions, error } = await ctx.supabase
           .from('transactions')
           .select('id, description, amount, date, category_id, value_category, value_confidence, auto_category_confidence, user_confirmed')
@@ -68,7 +68,7 @@ export function createSuggestValueRecategorisationTool(ctx: ToolContext) {
         for (const t of transactions) {
           if (suggestions.length >= maxSuggestions) break;
 
-          const currentVc = t.value_category || 'unsure';
+          const currentVc = t.value_category || 'no_idea';
           const categoryId = t.category_id;
           const autoConfidence = t.auto_category_confidence ? Number(t.auto_category_confidence) : 1;
 
@@ -91,28 +91,28 @@ export function createSuggestValueRecategorisationTool(ctx: ToolContext) {
           }
 
           // Check 2: Low auto-confidence
-          if (autoConfidence < 0.7 && currentVc !== 'unsure') {
+          if (autoConfidence < 0.7 && currentVc !== 'no_idea') {
             suggestions.push({
               transaction_id: t.id,
               description: t.description || 'Unknown',
               amount: Math.abs(Number(t.amount)),
               date: t.date,
               current_value_category: currentVc,
-              suggested_value_category: 'unsure',
+              suggested_value_category: 'no_idea',
               reason: `This was auto-categorised as ${currentVc} with low confidence (${Math.round(autoConfidence * 100)}%). Worth reviewing.`,
               confidence: autoConfidence,
             });
             continue;
           }
 
-          // Check 3: Unsure transactions
-          if (currentVc === 'unsure' && categoryId && ruleMap.has(categoryId)) {
+          // Check 3: No Idea transactions
+          if (currentVc === 'no_idea' && categoryId && ruleMap.has(categoryId)) {
             suggestions.push({
               transaction_id: t.id,
               description: t.description || 'Unknown',
               amount: Math.abs(Number(t.amount)),
               date: t.date,
-              current_value_category: 'unsure',
+              current_value_category: 'no_idea',
               suggested_value_category: ruleMap.get(categoryId)!,
               reason: `This is uncategorised but falls under ${categoryId}, which you\'ve classified as ${ruleMap.get(categoryId)}.`,
               confidence: 0.7,

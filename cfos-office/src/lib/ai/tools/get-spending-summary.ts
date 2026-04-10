@@ -91,7 +91,7 @@ export function createGetSpendingSummaryTool(ctx: ToolContext) {
         // Value breakdown
         const valueMap = new Map<string, number>();
         for (const t of transactions) {
-          const vc = t.value_category || 'unsure';
+          const vc = t.value_category || 'no_idea';
           valueMap.set(vc, (valueMap.get(vc) || 0) + Math.abs(Number(t.amount)));
         }
         const valueBreakdown: Record<string, number> = {};

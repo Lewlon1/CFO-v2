@@ -22,7 +22,7 @@ export function TransactionsClient({ transactions, categories, initialFilters }:
   const [showUpload, setShowUpload] = useState(transactions.length === 0)
   const [filters, setFilters] = useState<FilterState>(initialFilters ?? EMPTY_FILTERS)
 
-  const isBatchMode = filters.valueCategory === 'unsure'
+  const isBatchMode = filters.valueCategory === 'no_idea'
 
   function handleImported() {
     startTransition(() => router.refresh())

@@ -7,7 +7,7 @@ type Props = {
   count: number
 }
 
-export function UnsureQueue({ count }: Props) {
+export function NoIdeaQueue({ count }: Props) {
   if (count <= 0) return null
 
   return (
@@ -24,7 +24,7 @@ export function UnsureQueue({ count }: Props) {
         </p>
       </div>
       <Link
-        href="/transactions?value_category=unsure"
+        href="/transactions?value_category=no_idea"
         className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium min-h-[44px] inline-flex items-center flex-shrink-0"
       >
         Classify now

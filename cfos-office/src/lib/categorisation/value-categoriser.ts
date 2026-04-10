@@ -25,7 +25,7 @@ export type ValueCatResult = {
  * 2. User rules WITH context match — merchant match + context_conditions satisfied
  * 3. User rules WITHOUT context — legacy merchant_contains / category_id matching
  * 4. Category default + ambiguity discount — graduated contextual adjustments
- * 5. Fallback → 'unsure', confidence 0
+ * 5. Fallback → 'no_idea', confidence 0
  *
  * When `signals` is omitted (preview, backwards compat), tiers 1 and 4 contextual
  * adjustments are skipped; behaviour degrades gracefully to the old 3-tier logic.
@@ -134,7 +134,7 @@ export function assignValueCategory(
   }
 
   // ── Tier 5: Fallback ───────────────────────────────────────────────
-  return { valueCategory: 'unsure', confidence: 0, source: 'none' }
+  return { valueCategory: 'no_idea', confidence: 0, source: 'none' }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
