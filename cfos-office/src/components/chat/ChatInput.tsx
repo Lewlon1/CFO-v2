@@ -60,7 +60,7 @@ export function ChatInput({
           disabled={disabled}
           maxLength={MAX_LENGTH}
           rows={1}
-          className="flex-1 resize-none bg-input border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 min-h-[44px] max-h-[200px]"
+          className="flex-1 resize-none bg-input border border-border rounded-xl px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 min-h-[44px] max-h-[200px]"
         />
         <button
           onClick={onSend}

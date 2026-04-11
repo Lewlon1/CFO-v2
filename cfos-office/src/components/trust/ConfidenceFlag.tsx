@@ -22,9 +22,9 @@ export function ConfidenceFlag() {
       onClick={() =>
         router.push('/office/cash-flow/transactions?confidence=low')
       }
-      className="flex items-center gap-1.5 mt-2 text-xs text-office-text-muted hover:text-office-text-secondary transition-colors min-h-[44px]"
+      className="flex items-center gap-1.5 mt-2 font-data text-[8px] text-accent-gold-soft border border-dashed border-accent-gold-border rounded-[8px] px-2.5 py-1.5 hover:bg-accent-gold-bg transition-colors min-h-[44px]"
     >
-      <AlertTriangle size={12} className="text-office-gold shrink-0" />
+      <span className="shrink-0">~</span>
       <span>
         {count} auto-sorted &mdash; tap to check
       </span>

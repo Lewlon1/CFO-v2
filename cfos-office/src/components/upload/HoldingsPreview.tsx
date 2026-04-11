@@ -347,7 +347,7 @@ export function HoldingsPreview({
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
               placeholder="e.g. Vanguard S&S ISA"
-              className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+              className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
             />
           </label>
           <label className="block">
@@ -357,7 +357,7 @@ export function HoldingsPreview({
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               placeholder="e.g. Vanguard"
-              className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+              className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
             />
           </label>
           <label className="block">
@@ -365,7 +365,7 @@ export function HoldingsPreview({
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+              className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
             >
               <option value="GBP">GBP</option>
               <option value="EUR">EUR</option>
@@ -381,7 +381,7 @@ export function HoldingsPreview({
                 onChange={(e) =>
                   setAssetType(e.target.value as HoldingsAssetType)
                 }
-                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
               >
                 <option value="stocks">Stocks / ETFs</option>
                 <option value="bonds">Bonds</option>
@@ -399,7 +399,7 @@ export function HoldingsPreview({
                 onChange={(e) =>
                   setSingleAssetType(e.target.value as (typeof SINGLE_ASSET_TYPES)[number])
                 }
-                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
               >
                 {SINGLE_ASSET_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -418,7 +418,7 @@ export function HoldingsPreview({
                 onChange={(e) =>
                   setSingleLiabilityType(e.target.value as (typeof LIABILITY_TYPES)[number])
                 }
-                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
               >
                 {LIABILITY_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -463,7 +463,7 @@ export function HoldingsPreview({
                         type="text"
                         value={r.name}
                         onChange={(e) => updateRow(r.__key, 'name', e.target.value)}
-                        className="w-full min-h-[36px] rounded border border-input bg-background px-2 text-sm"
+                        className="w-full min-h-[36px] rounded border border-input bg-background px-2 text-base"
                       />
                     </td>
                     <td className="py-2 pr-2">
@@ -473,7 +473,7 @@ export function HoldingsPreview({
                         onChange={(e) =>
                           updateRow(r.__key, 'ticker', e.target.value || null)
                         }
-                        className="w-20 min-h-[36px] rounded border border-input bg-background px-2 text-sm"
+                        className="w-20 min-h-[36px] rounded border border-input bg-background px-2 text-base"
                       />
                     </td>
                     <td className="py-2 pr-2 text-right">
@@ -487,7 +487,7 @@ export function HoldingsPreview({
                             e.target.value === '' ? null : Number(e.target.value)
                           )
                         }
-                        className="w-24 min-h-[36px] rounded border border-input bg-background px-2 text-sm text-right"
+                        className="w-24 min-h-[36px] rounded border border-input bg-background px-2 text-base text-right"
                       />
                     </td>
                     <td className="py-2 pr-2 text-right">
@@ -501,7 +501,7 @@ export function HoldingsPreview({
                             e.target.value === '' ? null : Number(e.target.value)
                           )
                         }
-                        className="w-28 min-h-[36px] rounded border border-input bg-background px-2 text-sm text-right"
+                        className="w-28 min-h-[36px] rounded border border-input bg-background px-2 text-base text-right"
                       />
                     </td>
                     <td className="py-2 pr-2 text-right">
@@ -515,7 +515,7 @@ export function HoldingsPreview({
                             e.target.value === '' ? null : Number(e.target.value)
                           )
                         }
-                        className="w-28 min-h-[36px] rounded border border-input bg-background px-2 text-sm text-right"
+                        className="w-28 min-h-[36px] rounded border border-input bg-background px-2 text-base text-right"
                       />
                     </td>
                     <td className="py-2 text-right">
@@ -558,7 +558,7 @@ export function HoldingsPreview({
                 type="number"
                 value={balance || ''}
                 onChange={(e) => setBalance(Number(e.target.value))}
-                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
               />
             </label>
 
@@ -573,7 +573,7 @@ export function HoldingsPreview({
                     onChange={(e) =>
                       setInterestRate(e.target.value === '' ? '' : Number(e.target.value))
                     }
-                    className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                    className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
                   />
                 </label>
                 <label className="block">
@@ -584,7 +584,7 @@ export function HoldingsPreview({
                     onChange={(e) =>
                       setMinimumPayment(e.target.value === '' ? '' : Number(e.target.value))
                     }
-                    className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                    className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
                   />
                 </label>
                 <label className="block">
@@ -595,7 +595,7 @@ export function HoldingsPreview({
                     onChange={(e) =>
                       setMonthlyPayment(e.target.value === '' ? '' : Number(e.target.value))
                     }
-                    className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                    className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
                   />
                 </label>
                 {singleLiabilityType === 'credit_card' && (
@@ -607,7 +607,7 @@ export function HoldingsPreview({
                       onChange={(e) =>
                         setCreditLimit(e.target.value === '' ? '' : Number(e.target.value))
                       }
-                      className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-sm"
+                      className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
                     />
                   </label>
                 )}

@@ -168,7 +168,7 @@ function SignupForm() {
             onChange={e => setEmail(e.target.value)}
             required
             autoComplete="email"
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="you@example.com"
           />
         </div>
@@ -184,7 +184,7 @@ function SignupForm() {
             onChange={e => setDisplayName(e.target.value)}
             required
             autoComplete="given-name"
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Your first name"
           />
         </div>
@@ -198,7 +198,7 @@ function SignupForm() {
             value={country}
             onChange={e => setCountry(e.target.value)}
             required
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="">Select your country</option>
             {COUNTRIES.map(c => (
@@ -221,7 +221,7 @@ function SignupForm() {
             required
             minLength={8}
             autoComplete="new-password"
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="At least 8 characters"
           />
         </div>

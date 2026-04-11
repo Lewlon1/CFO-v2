@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { DollarSign, Heart, Scale, Sparkles } from 'lucide-react'
+import { DollarSign, User, Heart, Scale, Sparkles } from 'lucide-react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { FolderSection } from '@/components/office/FolderSection'
 import { CashFlowSection } from '@/components/office/sections/CashFlowSection'
@@ -20,6 +20,7 @@ interface OfficeHomeClientProps {
   hasBalanceSheet: boolean
   nextTrip: { name: string; start_date: string; end_date: string; total_estimated: number | null; currency: string } | null
   currency: string
+  profileCompleteness: number
 }
 
 export function OfficeHomeClient({
@@ -31,6 +32,7 @@ export function OfficeHomeClient({
   hasBalanceSheet,
   nextTrip,
   currency,
+  profileCompleteness,
 }: OfficeHomeClientProps) {
   const { summary, isLoading } = useDashboardData()
   const trackEvent = useTrackEvent()
@@ -41,7 +43,7 @@ export function OfficeHomeClient({
   }, [])
 
   return (
-    <div className="p-4 space-y-2">
+    <div className="p-4 space-y-6">
       {/* Scroll sentinel for ChatBar welcome/compact transition */}
       <div data-scroll-sentinel className="h-0 w-0" aria-hidden="true" />
 
@@ -65,10 +67,10 @@ export function OfficeHomeClient({
       </FolderSection>
 
       <FolderSection
-        icon={<Heart size={16} />}
-        label="Values"
-        subtitle="What your spending says about you"
-        accentColor="var(--office-cyan)"
+        icon={<User size={16} />}
+        label="Financial Portrait"
+        subtitle="What your CFO knows about you and how you value money"
+        accentColor="var(--accent-gold)"
         openHref="/office/values"
       >
         <ValuesSection
@@ -76,6 +78,7 @@ export function OfficeHomeClient({
           isLoading={isLoading}
           gaps={gaps}
           archetype={archetype}
+          profileCompleteness={profileCompleteness}
         />
       </FolderSection>
 

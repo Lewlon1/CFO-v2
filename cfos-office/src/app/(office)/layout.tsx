@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { JetBrains_Mono, DM_Sans } from 'next/font/google'
+import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { Breadcrumb } from '@/components/navigation/Breadcrumb'
@@ -19,10 +19,18 @@ const dmSans = DM_Sans({
   display: 'swap',
 })
 
+const cormorantGaramond = Cormorant_Garamond({
+  variable: '--font-cormorant',
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  display: 'swap',
+})
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString('en-GB', {
+    weekday: 'long',
     day: 'numeric',
-    month: 'short',
+    month: 'long',
     year: 'numeric',
   })
 }
@@ -46,23 +54,31 @@ export default async function OfficeLayout({ children }: { children: React.React
 
   return (
     <div
-      className={`${jetbrainsMono.variable} ${dmSans.variable} h-dvh flex flex-col overflow-hidden bg-office-bg text-office-text font-ui`}
+      className={`${jetbrainsMono.variable} ${dmSans.variable} ${cormorantGaramond.variable} h-dvh flex flex-col overflow-hidden bg-office-bg text-office-text font-ui`}
     >
-      {/* Header — 56px */}
-      <header className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-office-border">
+      {/* Header */}
+      <header className="flex items-center justify-between px-[18px] pt-[14px] pb-[10px] shrink-0 border-b border-border-medium">
         <div className="flex items-center gap-2.5">
           <CFOAvatar size={30} />
-          <span className="text-lg font-medium text-office-text">
-            The CFO&apos;s Office
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="font-data text-xs text-office-text-secondary hidden sm:block">
-            {formatDate(new Date())}
-          </span>
-          <div className="w-7 h-7 rounded-full bg-office-bg-tertiary border border-office-border flex items-center justify-center text-xs font-medium text-office-text-secondary">
-            {initial}
+          <div>
+            <div className="flex items-baseline" style={{ lineHeight: 1.1 }}>
+              <span className="font-data text-[10px] font-normal tracking-[0.04em] text-[rgba(245,245,240,0.35)] mr-1.5">
+                THE
+              </span>
+              <span
+                style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em' }}
+                className="text-text-primary"
+              >
+                CFO&apos;s Office
+              </span>
+            </div>
+            <p className="font-data text-[9px] text-text-muted mt-[3px]">
+              {formatDate(new Date())}
+            </p>
           </div>
+        </div>
+        <div className="w-8 h-8 rounded-full bg-accent-gold-bg border border-accent-gold-border flex items-center justify-center text-[11px] font-medium text-accent-gold-soft">
+          {initial}
         </div>
       </header>
 
@@ -72,7 +88,9 @@ export default async function OfficeLayout({ children }: { children: React.React
       <ChatProvider userCurrency={currency}>
         {/* Scrollable content */}
         <main className="flex-1 min-h-0 overflow-y-auto">
-          {children}
+          <div className="max-w-[430px] mx-auto w-full">
+            {children}
+          </div>
         </main>
 
         {/* Persistent chat bar */}

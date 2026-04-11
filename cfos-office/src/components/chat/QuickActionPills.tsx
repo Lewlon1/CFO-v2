@@ -44,12 +44,12 @@ export function QuickActionPills() {
   }
 
   return (
-    <div className="flex gap-2 overflow-x-auto scrollbar-hide pl-[38px]">
+    <div className="flex gap-2 overflow-x-auto scrollbar-hide pl-[52px]">
       {PILLS.map((pill) => (
         <button
           key={pill.label}
           onClick={() => handleTap(pill)}
-          className="whitespace-nowrap px-3 py-1.5 rounded-full bg-office-bg-tertiary border border-office-border-subtle text-xs text-office-text-secondary hover:text-office-text hover:border-office-border transition-colors min-h-[44px] shrink-0"
+          className="whitespace-nowrap px-3 font-data text-[10px] rounded-[16px] border border-border-medium text-text-secondary hover:text-text-primary hover:border-border-visible transition-colors min-h-[28px] shrink-0"
         >
           {pill.label}
         </button>

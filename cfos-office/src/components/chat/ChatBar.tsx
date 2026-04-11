@@ -75,9 +75,9 @@ export function ChatBar() {
 
   return (
     <div
-      className="shrink-0 bg-office-bg-secondary border-t border-office-border transition-[height,padding] duration-200 ease-out overflow-hidden"
+      className="shrink-0 bg-bg-elevated border-t border-border-medium transition-[height,padding] duration-200 ease-out overflow-hidden"
       style={{
-        height: isExpanded && isHomePage ? '140px' : '64px',
+        height: isExpanded && isHomePage ? '160px' : '64px',
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
       data-chat-bar
@@ -87,17 +87,19 @@ export function ChatBar() {
         <div className="px-4 pt-3 pb-1 space-y-2">
           {/* Avatar + name row */}
           <div className="flex items-center gap-2.5">
-            <CFOAvatar size={28} withOnlineDot />
+            <CFOAvatar size={42} withOnlineDot />
             <div>
-              <span className="text-sm font-medium text-office-text">Your CFO</span>
-              <span className="ml-2 text-[10px] text-office-green font-data">online</span>
+              <span className="text-[15px] font-bold text-text-primary">Your CFO</span>
+              <span className="ml-2 text-[10px] text-positive font-data">online</span>
             </div>
           </div>
 
-          {/* Latest message preview */}
-          <p className="text-xs text-office-text-secondary line-clamp-1 pl-[38px]">
-            {previewText}
-          </p>
+          {/* Chat bubble with latest message preview */}
+          <div className="pl-[52px]">
+            <p className="text-[12px] text-text-secondary bg-bg-card border border-border-subtle rounded-[12px_12px_12px_4px] px-3 py-2 line-clamp-1">
+              {previewText}
+            </p>
+          </div>
 
           {/* Quick action pills */}
           <QuickActionPills />
@@ -111,12 +113,12 @@ export function ChatBar() {
         style={{ height: '64px' }}
         aria-label="Open chat"
       >
-        {!isExpanded && <CFOAvatar size={28} />}
-        <div className="flex-1 flex items-center h-10 px-3 rounded-lg bg-office-bg-tertiary border border-office-border-subtle">
-          <span className="text-sm text-office-text-muted">Ask your CFO&hellip;</span>
+        {!isExpanded && <CFOAvatar size={38} />}
+        <div className="flex-1 flex items-center h-10 px-3 rounded-[10px] bg-bg-inset border border-border-subtle">
+          <span className="text-[13px] text-text-tertiary">Ask your CFO&hellip;</span>
         </div>
-        <div className="w-10 h-10 flex items-center justify-center rounded-lg text-office-text-muted">
-          <Send size={18} />
+        <div className="w-10 h-10 flex items-center justify-center rounded-[10px] bg-accent-gold">
+          <Send size={18} className="text-bg-base" />
         </div>
       </button>
     </div>
