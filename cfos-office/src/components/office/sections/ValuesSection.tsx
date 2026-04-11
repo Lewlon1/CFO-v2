@@ -37,7 +37,7 @@ interface ValuesSectionProps {
   profileCompleteness?: number
 }
 
-export function ValuesSection({ summary, isLoading, archetype, profileCompleteness = 0 }: ValuesSectionProps) {
+export function ValuesSection({ summary, isLoading, gaps, archetype, profileCompleteness = 0 }: ValuesSectionProps) {
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -65,7 +65,7 @@ export function ValuesSection({ summary, isLoading, archetype, profileCompletene
     <div className="space-y-4">
       {/* Profile completeness */}
       <Link
-        href="/profile"
+        href="/office/values/portrait"
         className="block rounded-[8px] bg-bg-deep px-3 py-2.5 hover:bg-tap-highlight transition-colors"
       >
         <div className="flex items-center justify-between mb-1.5">
@@ -114,6 +114,23 @@ export function ValuesSection({ summary, isLoading, archetype, profileCompletene
             </p>
             <span className="text-[11px] font-semibold text-accent-gold">Take the Value Map &rarr;</span>
           </div>
+        </Link>
+      )}
+
+      {/* Gap analysis insights */}
+      {gaps.length > 0 && (
+        <Link
+          href="/office/values/the-gap"
+          className="block rounded-[8px] bg-bg-deep px-3 py-2.5 hover:bg-tap-highlight transition-colors space-y-1.5"
+        >
+          <span className="font-data text-[8px] uppercase tracking-[0.06em] text-text-tertiary">
+            The Gap
+          </span>
+          {gaps.slice(0, 2).map((gap, i) => (
+            <p key={i} className="text-[10px] text-text-secondary leading-snug line-clamp-2">
+              {gap.trait_value}
+            </p>
+          ))}
         </Link>
       )}
 

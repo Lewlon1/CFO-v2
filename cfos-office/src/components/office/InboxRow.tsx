@@ -33,9 +33,9 @@ export function InboxRow() {
     fetch('/api/nudges?status=pending&limit=5')
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((data) => {
-        const items = data.data ?? data ?? []
+        const items = data.nudges ?? []
         setNudges(items)
-        setCount(items.length)
+        setCount(data.unread_count ?? items.length)
       })
       .catch(() => {})
   }, [])
