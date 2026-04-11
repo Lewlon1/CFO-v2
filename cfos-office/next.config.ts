@@ -5,8 +5,43 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/upload',
-        destination: '/transactions',
+        destination: '/office/cash-flow/transactions',
         permanent: false,
+      },
+      {
+        source: '/dashboard',
+        destination: '/office',
+        permanent: true,
+      },
+      {
+        source: '/chat',
+        destination: '/office',
+        permanent: true,
+      },
+      {
+        source: '/bills',
+        destination: '/office/cash-flow/bills',
+        permanent: true,
+      },
+      {
+        source: '/transactions',
+        destination: '/office/cash-flow/transactions',
+        permanent: true,
+      },
+      {
+        source: '/scenarios',
+        destination: '/office/scenarios/what-if',
+        permanent: true,
+      },
+      {
+        source: '/trips',
+        destination: '/office/scenarios/trips',
+        permanent: true,
+      },
+      {
+        source: '/profile',
+        destination: '/office/values/portrait',
+        permanent: true,
       },
     ]
   },

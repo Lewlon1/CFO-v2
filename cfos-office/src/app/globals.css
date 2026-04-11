@@ -94,6 +94,54 @@
     from { width: 0%; }
     to   { width: 100%; }
   }
+
+  /* Office folder detail stagger animation */
+  --animate-fade-in: fade-in 0.25s ease-out forwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Chat sheet slide-up animation */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.animate-sheet-up {
+  animation: sheet-up 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Theme bridge — maps app tokens to office palette inside the chat sheet */
+.chat-sheet-scope {
+  --card: var(--office-bg-secondary);
+  --card-foreground: var(--office-text);
+  --border: var(--office-border);
+  --foreground: var(--office-text);
+  --muted-foreground: var(--office-text-muted);
+  --input: var(--office-bg-tertiary);
+  --primary: var(--office-gold);
+  --primary-foreground: var(--office-bg);
+  --ring: var(--office-gold);
+  --muted: var(--office-bg-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  [data-chat-sheet],
+  [data-chat-bar] {
+    animation: none !important;
+    transition-duration: 0s !important;
+  }
+  .animate-sheet-up {
+    animation: none !important;
+    transform: translateY(0) !important;
+  }
 }
 
 body {

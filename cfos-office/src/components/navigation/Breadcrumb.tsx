@@ -5,6 +5,26 @@ import { usePathname } from 'next/navigation'
 
 const SEGMENT_LABELS: Record<string, string> = {
   office: '~',
+  'cash-flow': 'cash-flow',
+  values: 'values',
+  'net-worth': 'net-worth',
+  scenarios: 'scenarios',
+  inbox: 'inbox',
+  'monthly-overview': 'monthly-overview',
+  'spending-breakdown': 'spending-breakdown',
+  trends: 'trends',
+  bills: 'bills',
+  optimise: 'optimise',
+  transactions: 'transactions',
+  'value-split': 'value-split',
+  'the-gap': 'the-gap',
+  portrait: 'portrait',
+  export: 'export',
+  'balance-sheet': 'balance-sheet',
+  assets: 'assets',
+  liabilities: 'liabilities',
+  'what-if': 'what-if',
+  trips: 'trips',
 }
 
 export function Breadcrumb() {
