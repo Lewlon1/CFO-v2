@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { calculateCompleteness } from '@/lib/profile/completeness'
 import { OfficeHomeClient } from './OfficeHomeClient'
 
 export default async function OfficePage() {
@@ -67,10 +68,10 @@ export default async function OfficePage() {
       .limit(1)
       .maybeSingle(),
 
-    // User currency preference
+    // User profile (currency + completeness fields)
     supabase
       .from('user_profiles')
-      .select('currency')
+      .select('*')
       .eq('id', user.id)
       .single(),
   ])
@@ -94,7 +95,10 @@ export default async function OfficePage() {
 
   const nextTrip = tripResult.data ?? null
 
-  const currency = profileResult.data?.currency ?? 'EUR'
+  const currency = profileResult.data?.currency ?? profileResult.data?.primary_currency ?? 'EUR'
+  const profileCompleteness = profileResult.data
+    ? calculateCompleteness(profileResult.data as Record<string, unknown>)
+    : 0
 
   return (
     <OfficeHomeClient
@@ -106,6 +110,7 @@ export default async function OfficePage() {
       hasBalanceSheet={hasBalanceSheet}
       nextTrip={nextTrip}
       currency={currency}
+      profileCompleteness={profileCompleteness}
     />
   )
 }

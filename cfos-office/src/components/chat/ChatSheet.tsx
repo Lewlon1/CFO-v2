@@ -122,21 +122,26 @@ export function ChatSheet() {
       data-state="open"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/55" style={{ transition: 'opacity 200ms ease' }} />
 
       {/* Sheet */}
       <div
         ref={sheetRef}
-        className="chat-sheet-scope relative w-full max-h-[92dvh] bg-office-bg-secondary rounded-t-2xl flex flex-col animate-sheet-up"
+        className="chat-sheet-scope relative w-full max-h-[85dvh] bg-bg-elevated rounded-t-[20px] flex flex-col animate-sheet-up"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-9 h-1 rounded-full bg-text-ghost" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 h-14 shrink-0 border-b border-office-border">
-          <CFOAvatar size={28} withOnlineDot />
+        <div className="flex items-center gap-3 px-4 h-14 shrink-0 border-b border-border-medium">
+          <CFOAvatar size={44} withOnlineDot />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-office-text">Your CFO</p>
-            <p className="text-[10px] text-office-text-muted font-data tracking-wide">
+            <p className="text-[15px] font-bold text-text-primary">Your CFO</p>
+            <p className="text-[9px] text-text-muted font-data tracking-[0.06em] uppercase">
               Observes &middot; Calculates &middot; Educates
             </p>
           </div>
@@ -151,17 +156,17 @@ export function ChatSheet() {
               <MoreVertical size={18} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-office-bg-tertiary border border-office-border rounded-lg shadow-lg z-10 py-1">
+              <div className="absolute right-0 top-full mt-1 w-52 bg-bg-elevated border border-border-medium rounded-[10px] shadow-lg z-10 py-1">
                 <button
                   onClick={handleNewConversation}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-office-text hover:bg-office-bg-secondary min-h-[44px]"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-primary hover:bg-tap-highlight min-h-[44px]"
                 >
                   <Plus size={16} />
                   New conversation
                 </button>
                 <button
                   onClick={handleShowConversations}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-office-text hover:bg-office-bg-secondary min-h-[44px]"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-primary hover:bg-tap-highlight min-h-[44px]"
                 >
                   <MessageSquare size={16} />
                   Previous conversations

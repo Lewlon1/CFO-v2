@@ -32,7 +32,7 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR', provenan
       <div className="space-y-3">
         <div className="grid grid-cols-3 gap-2">
           {[0, 1, 2].map(i => (
-            <div key={i} className="h-16 rounded-lg bg-office-bg-tertiary animate-pulse" />
+            <div key={i} className="h-16 rounded-[8px] bg-bg-deep animate-pulse" />
           ))}
         </div>
       </div>
@@ -69,25 +69,25 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR', provenan
     <div className="space-y-4">
       {/* Metric cards */}
       <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-lg bg-office-bg-tertiary px-3 py-2.5">
-          <p className="text-[11px] text-office-text-muted mb-1">Income</p>
-          <p className="font-data text-lg text-office-green leading-tight">
+        <div className="rounded-[8px] bg-bg-deep px-3 py-2.5">
+          <p className="font-data text-[8px] uppercase tracking-[0.06em] text-text-tertiary mb-1">Income</p>
+          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-positive leading-tight">
             {formatCurrency(total_income, currency)}
           </p>
           <SysTag />
         </div>
-        <div className="rounded-lg bg-office-bg-tertiary px-3 py-2.5">
-          <p className="text-[11px] text-office-text-muted mb-1">Spending</p>
-          <p className="font-data text-lg text-office-red leading-tight">
+        <div className="rounded-[8px] bg-bg-deep px-3 py-2.5">
+          <p className="font-data text-[8px] uppercase tracking-[0.06em] text-text-tertiary mb-1">Spending</p>
+          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-negative leading-tight">
             {formatCurrency(total_spending, currency)}
           </p>
           <SysTag />
         </div>
-        <div className="rounded-lg bg-office-bg-tertiary px-3 py-2.5">
-          <p className="text-[11px] text-office-text-muted mb-1">
+        <div className="rounded-[8px] bg-bg-deep px-3 py-2.5">
+          <p className="font-data text-[8px] uppercase tracking-[0.06em] text-text-tertiary mb-1">
             {surplus_deficit >= 0 ? 'Surplus' : 'Deficit'}
           </p>
-          <p className={`font-data text-lg leading-tight ${surplus_deficit >= 0 ? 'text-office-green' : 'text-office-red'}`}>
+          <p className={`font-data text-[16px] font-extrabold tracking-[-0.03em] leading-tight ${surplus_deficit >= 0 ? 'text-positive' : 'text-negative'}`}>
             {formatCurrency(surplus_deficit, currency)}
           </p>
           <SysTag />
@@ -106,20 +106,21 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR', provenan
 
       {/* Top 3 categories */}
       {topCategories.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {topCategories.map(([slug, cat]) => (
             <div key={slug} className="flex items-center gap-3">
-              <span className="w-20 text-xs text-office-text-secondary truncate">{cat.name}</span>
-              <div className="flex-1 h-2 rounded-full bg-office-bg-tertiary overflow-hidden">
+              <span className="w-20 font-data text-[8px] text-text-secondary truncate">{cat.name}</span>
+              <div className="flex-1 h-[5px] rounded-[3px] bg-border-subtle overflow-hidden">
                 <div
-                  className="h-full rounded-full"
+                  className="h-full rounded-[3px]"
                   style={{
                     width: `${(cat.amount / maxCatAmount) * 100}%`,
-                    backgroundColor: cat.color || 'var(--office-gold)',
+                    backgroundColor: cat.color || 'var(--accent-gold)',
+                    opacity: 0.6,
                   }}
                 />
               </div>
-              <span className="font-data text-xs text-office-text-secondary w-16 text-right">
+              <span className="font-data text-[8px] text-text-secondary w-16 text-right">
                 {formatCurrency(cat.amount, currency)}
               </span>
             </div>

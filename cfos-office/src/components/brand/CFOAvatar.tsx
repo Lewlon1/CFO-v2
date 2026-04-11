@@ -5,71 +5,38 @@ interface CFOAvatarProps {
 }
 
 export function CFOAvatar({ size, withOnlineDot, className }: CFOAvatarProps) {
-  const dotSize = Math.max(6, Math.round(size * 0.22))
-  const borderWidth = Math.max(1.5, Math.round(size * 0.05))
-
   return (
     <span className={`relative inline-flex shrink-0 ${className ?? ''}`}>
       <svg
         width={size}
         height={size}
-        viewBox="0 0 46 46"
+        viewBox="0 0 100 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
+        style={{ flexShrink: 0, borderRadius: Math.round(size * 0.07) }}
       >
-        {/* Face shape — rounded rectangle */}
-        <rect x="3" y="3" width="40" height="40" rx="12" fill="#252521" />
-
-        {/* Left lens */}
-        <path
-          d="M8 18c0-2 1.5-4 4-4h3.5c2 0 3.5 1.5 3.5 3.5v4c0 2.5-1.2 4.5-3.5 5-1.5.3-3.2.2-4.5-.5C9.2 25 8 23 8 21v-3z"
-          fill="#1A1A17"
-          stroke="#E8A84C"
-          strokeWidth="1.8"
-        />
-
-        {/* Right lens */}
-        <path
-          d="M27 18c0-2 1.5-4 4-4h3.5c2 0 3.5 1.5 3.5 3.5v4c0 2.5-1.2 4.5-3.5 5-1.5.3-3.2.2-4.5-.5C28.2 25 27 23 27 21v-3z"
-          fill="#1A1A17"
-          stroke="#E8A84C"
-          strokeWidth="1.8"
-        />
-
-        {/* Bridge */}
-        <path
-          d="M19 18.5c1-1.5 3.2-2 5-2 1.8 0 2.5.5 3 2"
-          stroke="#E8A84C"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          fill="none"
-        />
-
-        {/* Left arm */}
-        <path
-          d="M8 19.5L4.5 18"
-          stroke="#E8A84C"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-
-        {/* Right arm */}
-        <path
-          d="M38 19.5L41.5 18"
-          stroke="#E8A84C"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
+        <rect width="100" height="100" rx="22" fill="#E8A84C" />
+        <circle cx="50" cy="38" r="20" fill="#F0E6D4" opacity="0.9" />
+        {/* Left glasses lens */}
+        <path d="M30 30 Q30 26 36 26 L46 26 Q50 26 50 30 L50 38 Q50 42 46 42 L36 42 Q30 42 30 38 Z" fill="#1A1A18" opacity="0.8" />
+        {/* Right glasses lens */}
+        <path d="M54 30 Q54 26 60 26 L70 26 Q74 26 74 30 L74 38 Q74 42 70 42 L60 42 Q54 42 54 38 Z" fill="#1A1A18" opacity="0.8" />
+        {/* Glasses bridge */}
+        <line x1="50" y1="32" x2="54" y2="32" stroke="#1A1A18" strokeWidth="1.5" opacity="0.6" />
+        {/* Smile */}
+        <path d="M43 50 Q50 54 57 50" fill="none" stroke="#1A1A18" strokeWidth="1.5" strokeLinecap="round" opacity="0.22" />
+        {/* Suit/body */}
+        <path d="M14 66 Q14 56 50 56 Q86 56 86 66 L86 100 L14 100 Z" fill="#0F0F0D" opacity="0.6" />
       </svg>
 
       {withOnlineDot && (
         <span
-          className="absolute bottom-0 right-0 rounded-full bg-office-green"
+          className="absolute bottom-0 right-0 rounded-full bg-positive"
           style={{
-            width: dotSize,
-            height: dotSize,
-            boxShadow: `0 0 0 ${borderWidth}px var(--office-bg)`,
+            width: Math.max(10, Math.round(size * 0.26)),
+            height: Math.max(10, Math.round(size * 0.26)),
+            boxShadow: `0 0 0 2px var(--bg-elevated)`,
           }}
         />
       )}

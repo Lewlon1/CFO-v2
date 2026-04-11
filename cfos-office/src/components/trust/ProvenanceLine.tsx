@@ -45,7 +45,8 @@ export function ProvenanceLine({ transactionCount, source, uploadDate }: Provena
   }
 
   return (
-    <p className="font-data text-xs text-office-text-muted">
+    <p className="font-data text-[8px] text-text-ghost flex items-center gap-1.5">
+      <span className="w-[3px] h-[3px] rounded-full bg-text-ghost shrink-0" />
       {parts.join(' \u00b7 ')}
     </p>
   )

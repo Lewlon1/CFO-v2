@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronRight } from 'lucide-react'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 
 interface Nudge {
@@ -46,23 +47,28 @@ export function InboxRow() {
   return (
     <button
       onClick={() => router.push('/office/inbox')}
-      className="w-full flex items-center gap-3 px-4 py-3 bg-office-bg-secondary/50 rounded-lg border border-office-border-subtle hover:bg-office-bg-secondary transition-colors min-h-[44px]"
+      className="w-full flex items-center gap-3 px-4 py-3 rounded-[10px] border border-border-subtle hover:bg-tap-highlight transition-colors min-h-[48px]"
     >
-      <CFOAvatar size={22} />
+      <div className="relative shrink-0">
+        <CFOAvatar size={28} />
+        {count > 0 && (
+          <span className="absolute -top-1 -right-1 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-negative text-bg-base text-[8px] font-bold font-data">
+            {count}
+          </span>
+        )}
+      </div>
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-office-text">Inbox</span>
-        <p className="text-xs text-office-text-muted truncate">
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-text-primary">Inbox</span>
+          <span className="font-data text-[9px] text-text-muted shrink-0">
+            {latest ? timeAgo(latest.created_at) : ''}
+          </span>
+        </div>
+        <p className="font-data text-[10px] text-text-tertiary truncate">
           {latest?.title ?? 'New message from your CFO'}
         </p>
       </div>
-      <span className="text-xs text-office-text-muted shrink-0">
-        {latest ? timeAgo(latest.created_at) : ''}
-      </span>
-      {count > 0 && (
-        <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-office-gold text-office-bg text-[10px] font-bold font-data shrink-0">
-          {count}
-        </span>
-      )}
+      <ChevronRight size={14} className="shrink-0 opacity-[0.15]" />
     </button>
   )
 }

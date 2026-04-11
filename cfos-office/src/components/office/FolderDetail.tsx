@@ -39,43 +39,43 @@ export function FolderDetail({ icon, label, subtitle, files }: FolderDetailProps
 
   return (
     <div className="flex flex-col gap-0 p-4">
-      {/* Header — matches FolderSection styling */}
+      {/* Header */}
       <div className="flex items-center gap-2.5 mb-1">
-        <span className="text-base shrink-0 text-office-text-secondary">{icon}</span>
-        <span className="font-medium text-sm text-office-text">{label}</span>
+        <span className="text-base shrink-0 text-text-secondary">{icon}</span>
+        <span className="text-[18px] font-extrabold tracking-[-0.02em] text-text-primary">{label}</span>
       </div>
-      <p className="text-sm text-office-text-secondary mb-4">{subtitle}</p>
+      <p className="text-[10px] text-text-tertiary mb-4">{subtitle}</p>
 
       {/* File list */}
       {files.length === 0 ? (
-        <p className="text-sm text-office-text-muted py-6 text-center">
+        <p className="text-[13px] text-text-tertiary py-6 text-center">
           No files in this folder yet.
         </p>
       ) : (
-        <ul className="flex flex-col">
+        <ul className="flex flex-col gap-1.5">
           {files.map((file, i) => (
             <li
               key={file.id}
               className="animate-fade-in"
               style={{
-                animationDelay: `${i * 50}ms`,
+                animationDelay: `${i * 60}ms`,
               }}
             >
               <Link
                 href={file.href}
-                className="flex items-center gap-3 min-h-[48px] px-3 py-2.5 -mx-1 rounded-lg transition-colors hover:bg-office-bg-secondary active:bg-office-bg-tertiary"
+                className="flex items-center gap-3 min-h-[48px] p-3.5 rounded-[10px] border border-border-subtle transition-colors hover:bg-tap-highlight active:bg-bg-inset"
               >
-                <span className="text-office-text-muted shrink-0">{file.icon}</span>
+                <span className="text-[13px] w-[18px] text-center shrink-0 text-text-tertiary">{file.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-office-text">{file.label}</span>
-                  <span className="block text-xs text-office-text-muted truncate">{file.description}</span>
+                  <span className="block text-[13px] font-semibold text-text-primary">{file.label}</span>
+                  <span className="block font-data text-[9px] text-text-muted truncate">{file.description}</span>
                 </div>
                 {file.badge && (
-                  <span className={`shrink-0 text-[10px] font-data px-1.5 py-0.5 rounded ${BADGE_STYLES[file.badge]}`}>
+                  <span className={`shrink-0 font-data text-[9px] px-1.5 py-0.5 rounded ${BADGE_STYLES[file.badge]}`}>
                     {file.badge}
                   </span>
                 )}
-                <ChevronRight size={16} className="shrink-0 text-office-text-muted" />
+                <ChevronRight size={14} className="shrink-0 opacity-[0.15]" />
               </Link>
             </li>
           ))}

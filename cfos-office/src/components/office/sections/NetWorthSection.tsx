@@ -38,23 +38,23 @@ export function NetWorthSection({ totalAssets, totalLiabilities, currency = 'EUR
 
   return (
     <div className="grid grid-cols-3 gap-2">
-      <div className="rounded-lg bg-office-bg-tertiary px-3 py-2.5">
-        <p className="text-[11px] text-office-text-muted mb-1">Assets</p>
-        <p className="font-data text-lg text-office-green leading-tight">
+      <div className="rounded-[8px] bg-bg-deep px-3 py-2.5">
+        <p className="font-data text-[8px] uppercase tracking-[0.06em] text-text-tertiary mb-1">Assets</p>
+        <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-positive leading-tight">
           {formatCurrency(totalAssets, currency)}
         </p>
         <SysTag />
       </div>
-      <div className="rounded-lg bg-office-bg-tertiary px-3 py-2.5">
-        <p className="text-[11px] text-office-text-muted mb-1">Liabilities</p>
-        <p className="font-data text-lg text-office-red leading-tight">
+      <div className="rounded-[8px] bg-bg-deep px-3 py-2.5">
+        <p className="font-data text-[8px] uppercase tracking-[0.06em] text-text-tertiary mb-1">Liabilities</p>
+        <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-negative leading-tight">
           {formatCurrency(totalLiabilities, currency)}
         </p>
         <SysTag />
       </div>
-      <div className="rounded-lg bg-office-bg-tertiary px-3 py-2.5">
-        <p className="text-[11px] text-office-text-muted mb-1">Net Worth</p>
-        <p className={`font-data text-lg leading-tight ${netWorth >= 0 ? 'text-office-green' : 'text-office-red'}`}>
+      <div className="rounded-[8px] bg-bg-deep px-3 py-2.5">
+        <p className="font-data text-[8px] uppercase tracking-[0.06em] text-text-tertiary mb-1">Net Worth</p>
+        <p className={`font-data text-[16px] font-extrabold tracking-[-0.03em] leading-tight ${netWorth >= 0 ? 'text-positive' : 'text-negative'}`}>
           {formatCurrency(netWorth, currency)}
         </p>
         <SysTag />

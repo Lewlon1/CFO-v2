@@ -16,21 +16,58 @@
   --destructive: #EF4444;
   --ring: #E8A84C;
 
-  /* Office theme */
-  --office-bg: #0F0F0D;
-  --office-bg-secondary: #1A1A17;
-  --office-bg-tertiary: #252521;
-  --office-border: #2A2A26;
-  --office-border-subtle: #1F1F1B;
-  --office-text: #E8E6E1;
-  --office-text-secondary: #9B9A94;
-  --office-text-muted: #6B6A65;
-  --office-gold: #E8A84C;
-  --office-green: #22C55E;
-  --office-red: #F43F5E;
-  --office-cyan: #06B6D4;
-  --office-purple: #8B5CF6;
-  --office-blue: #3B82F6;
+  /* === UI-DIRECTION token system === */
+
+  /* Backgrounds */
+  --bg-base: #0F0F0D;
+  --bg-elevated: #111110;
+  --bg-card: rgba(255,255,255,0.015);
+  --bg-inset: rgba(0,0,0,0.15);
+  --bg-deep: rgba(0,0,0,0.2);
+
+  /* Text */
+  --text-primary: #F5F5F0;
+  --text-secondary: rgba(245,245,240,0.55);
+  --text-tertiary: rgba(245,245,240,0.3);
+  --text-muted: rgba(245,245,240,0.18);
+  --text-ghost: rgba(245,245,240,0.12);
+
+  /* Accent — Gold */
+  --accent-gold: #E8A84C;
+  --accent-gold-soft: rgba(232,168,76,0.5);
+  --accent-gold-bg: rgba(232,168,76,0.06);
+  --accent-gold-border: rgba(232,168,76,0.12);
+
+  /* Semantic */
+  --positive: #22C55E;
+  --negative: #F43F5E;
+  --info: #3B82F6;
+  --accent-cyan: #06B6D4;
+  --accent-purple: #8B5CF6;
+
+  /* Borders */
+  --border-subtle: rgba(255,255,255,0.04);
+  --border-medium: rgba(255,255,255,0.06);
+  --border-visible: rgba(255,255,255,0.07);
+
+  /* Interactive */
+  --tap-highlight: rgba(255,255,255,0.03);
+
+  /* === Office aliases (point to new tokens, keeps existing classes working) === */
+  --office-bg: var(--bg-base);
+  --office-bg-secondary: var(--bg-elevated);
+  --office-bg-tertiary: var(--bg-inset);
+  --office-border: var(--border-medium);
+  --office-border-subtle: var(--border-subtle);
+  --office-text: var(--text-primary);
+  --office-text-secondary: var(--text-secondary);
+  --office-text-muted: var(--text-tertiary);
+  --office-gold: var(--accent-gold);
+  --office-green: var(--positive);
+  --office-red: var(--negative);
+  --office-cyan: var(--accent-cyan);
+  --office-purple: var(--accent-purple);
+  --office-blue: var(--info);
 }
 
 @theme inline {
@@ -56,7 +93,30 @@
   --font-data: var(--font-jetbrains-mono, var(--font-mono));
   --font-ui: var(--font-dm-sans, var(--font-sans));
 
-  /* Office palette */
+  /* UI-DIRECTION token system */
+  --color-bg-base: var(--bg-base);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-card: var(--bg-card);
+  --color-bg-inset: var(--bg-inset);
+  --color-bg-deep: var(--bg-deep);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-muted: var(--text-muted);
+  --color-text-ghost: var(--text-ghost);
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-gold-soft: var(--accent-gold-soft);
+  --color-accent-gold-bg: var(--accent-gold-bg);
+  --color-accent-gold-border: var(--accent-gold-border);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-info: var(--info);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-medium: var(--border-medium);
+  --color-border-visible: var(--border-visible);
+  --color-tap-highlight: var(--tap-highlight);
+
+  /* Office aliases (backwards-compatible) */
   --color-office-bg: var(--office-bg);
   --color-office-bg-secondary: var(--office-bg-secondary);
   --color-office-bg-tertiary: var(--office-bg-tertiary);
@@ -100,7 +160,7 @@
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
