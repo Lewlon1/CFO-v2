@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { DollarSign, Heart, Scale, Sparkles } from 'lucide-react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { FolderSection } from '@/components/office/FolderSection'
@@ -7,6 +8,8 @@ import { CashFlowSection } from '@/components/office/sections/CashFlowSection'
 import { ValuesSection } from '@/components/office/sections/ValuesSection'
 import { NetWorthSection } from '@/components/office/sections/NetWorthSection'
 import { ScenariosSection } from '@/components/office/sections/ScenariosSection'
+import { InboxRow } from '@/components/office/InboxRow'
+import { useTrackEvent } from '@/lib/events/use-track-event'
 
 interface OfficeHomeClientProps {
   provenance?: { source: string | null; uploadDate: string | null }
@@ -30,9 +33,21 @@ export function OfficeHomeClient({
   currency,
 }: OfficeHomeClientProps) {
   const { summary, isLoading } = useDashboardData()
+  const trackEvent = useTrackEvent()
+
+  useEffect(() => {
+    trackEvent('home_viewed', 'engagement')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="p-4 space-y-3">
+      {/* Scroll sentinel for ChatBar welcome/compact transition */}
+      <div data-scroll-sentinel className="h-0 w-0" aria-hidden="true" />
+
+      {/* Inbox row — shows when there are unread nudges */}
+      <InboxRow />
+
       <FolderSection
         icon={<DollarSign size={16} />}
         label="Cash Flow"

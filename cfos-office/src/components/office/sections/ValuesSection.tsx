@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { SysTag } from '@/components/trust/SysTag'
+import { ConfidenceFlag } from '@/components/trust/ConfidenceFlag'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import type { DashboardSummary } from '@/app/api/dashboard/summary/route'
 
@@ -116,6 +117,7 @@ export function ValuesSection({ summary, isLoading, gaps, archetype }: ValuesSec
               </div>
             ))}
           </div>
+          <ConfidenceFlag />
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { Upload } from 'lucide-react'
 import Link from 'next/link'
 import { SysTag } from '@/components/trust/SysTag'
 import { ProvenanceLine } from '@/components/trust/ProvenanceLine'
+import { ConfidenceFlag } from '@/components/trust/ConfidenceFlag'
 import type { DashboardSummary } from '@/app/api/dashboard/summary/route'
 
 function formatCurrency(amount: number, currency = 'EUR'): string {
@@ -99,6 +100,9 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR', provenan
         source={provenance?.source}
         uploadDate={provenance?.uploadDate}
       />
+
+      {/* Confidence flag */}
+      <ConfidenceFlag />
 
       {/* Top 3 categories */}
       {topCategories.length > 0 && (
