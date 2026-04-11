@@ -9,7 +9,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   values: 'values',
   'net-worth': 'net-worth',
   scenarios: 'scenarios',
-  inbox: 'inbox',
+  inbox: 'Inbox',
   'monthly-overview': 'monthly-overview',
   'spending-breakdown': 'spending-breakdown',
   trends: 'trends',
