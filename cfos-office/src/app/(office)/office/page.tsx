@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { calculateCompleteness } from '@/lib/profile/completeness'
+import { PERSONALITIES } from '@/lib/value-map/constants'
 import { OfficeHomeClient } from './OfficeHomeClient'
 
 export default async function OfficePage() {
@@ -36,11 +37,11 @@ export default async function OfficePage() {
       .order('confidence', { ascending: false })
       .limit(2),
 
-    // Archetype from value map
+    // Archetype from value map sessions
     supabase
-      .from('value_map_results')
-      .select('archetype_name, archetype_subtitle')
-      .eq('user_id', user.id)
+      .from('value_map_sessions')
+      .select('personality_type')
+      .eq('profile_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -85,8 +86,11 @@ export default async function OfficePage() {
     trait_value: g.trait_value,
   }))
 
-  const archetype = archetypeResult.data
-    ? { archetype_name: archetypeResult.data.archetype_name, archetype_subtitle: archetypeResult.data.archetype_subtitle }
+  const personality = archetypeResult.data?.personality_type
+    ? PERSONALITIES[archetypeResult.data.personality_type]
+    : null
+  const archetype = personality
+    ? { archetype_name: personality.name, archetype_subtitle: personality.headline }
     : null
 
   const totalAssets = (assetsResult.data ?? []).reduce((sum, a) => sum + (a.current_value ?? 0), 0)
@@ -95,7 +99,7 @@ export default async function OfficePage() {
 
   const nextTrip = tripResult.data ?? null
 
-  const currency = profileResult.data?.currency ?? profileResult.data?.primary_currency ?? 'EUR'
+  const currency = profileResult.data?.primary_currency ?? 'EUR'
   const profileCompleteness = profileResult.data
     ? calculateCompleteness(profileResult.data as Record<string, unknown>)
     : 0

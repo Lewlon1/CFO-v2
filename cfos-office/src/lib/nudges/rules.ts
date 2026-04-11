@@ -59,7 +59,7 @@ export const NUDGE_RULES: Record<NudgeType, NudgeRule> = {
     title_template: '{{bill_name}} due in {{days}} days',
     body_template:
       '{{bill_name}} ({{amount}} {{currency}}) is due on {{due_date}}. Make sure you have funds available.',
-    action_url: '/bills',
+    action_url: '/office/cash-flow/bills',
     priority: 'medium',
     frequency: 'recurring',
     cooldown_hours: 168, // 7 days
@@ -144,7 +144,7 @@ export const NUDGE_RULES: Record<NudgeType, NudgeRule> = {
       "You've hit {{percentage}}% of your {{goal_name}} goal!",
     body_template:
       "You've saved {{current}} of {{target}} {{currency}} for {{goal_name}}. Keep it up — you're on track to hit it by {{target_date}}.",
-    action_url: '/goals',
+    action_url: '/office',
     priority: 'low',
     frequency: 'once',
     cooldown_hours: 720, // 30 days

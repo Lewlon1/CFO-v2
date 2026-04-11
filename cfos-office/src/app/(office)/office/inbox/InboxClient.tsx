@@ -66,7 +66,7 @@ export function InboxClient({ groups, unreadCount }: InboxClientProps) {
       await fetch('/api/nudges', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: nudge.id, status: 'read' }),
+        body: JSON.stringify({ nudge_ids: [nudge.id], action: 'read' }),
       }).catch(() => {})
     }
 
