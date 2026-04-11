@@ -41,7 +41,7 @@ export function OfficeHomeClient({
   }, [])
 
   return (
-    <div className="p-4 space-y-3">
+    <div className="p-4 space-y-2">
       {/* Scroll sentinel for ChatBar welcome/compact transition */}
       <div data-scroll-sentinel className="h-0 w-0" aria-hidden="true" />
 

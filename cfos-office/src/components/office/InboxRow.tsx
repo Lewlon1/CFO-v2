@@ -49,9 +49,12 @@ export function InboxRow() {
       className="w-full flex items-center gap-3 px-4 py-3 bg-office-bg-secondary/50 rounded-lg border border-office-border-subtle hover:bg-office-bg-secondary transition-colors min-h-[44px]"
     >
       <CFOAvatar size={22} />
-      <span className="flex-1 text-sm text-office-text truncate text-left">
-        {latest?.title ?? 'New message from your CFO'}
-      </span>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-office-text">Inbox</span>
+        <p className="text-xs text-office-text-muted truncate">
+          {latest?.title ?? 'New message from your CFO'}
+        </p>
+      </div>
       <span className="text-xs text-office-text-muted shrink-0">
         {latest ? timeAgo(latest.created_at) : ''}
       </span>

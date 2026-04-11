@@ -31,6 +31,21 @@ export function ChatSheet() {
   >([])
   const sheetRef = useRef<HTMLDivElement>(null)
 
+  // Dynamically adjust sheet height when iOS keyboard opens
+  useEffect(() => {
+    if (!isSheetOpen) return
+    const vv = window.visualViewport
+    if (!vv) return
+    const handleResize = () => {
+      if (sheetRef.current) {
+        sheetRef.current.style.maxHeight = `${vv.height * 0.92}px`
+      }
+    }
+    vv.addEventListener('resize', handleResize)
+    handleResize()
+    return () => vv.removeEventListener('resize', handleResize)
+  }, [isSheetOpen])
+
   // Body scroll lock
   useEffect(() => {
     if (isSheetOpen) {
@@ -112,7 +127,8 @@ export function ChatSheet() {
       {/* Sheet */}
       <div
         ref={sheetRef}
-        className="chat-sheet-scope relative w-full max-h-[82dvh] bg-office-bg-secondary rounded-t-2xl flex flex-col animate-sheet-up"
+        className="chat-sheet-scope relative w-full max-h-[92dvh] bg-office-bg-secondary rounded-t-2xl flex flex-col animate-sheet-up"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

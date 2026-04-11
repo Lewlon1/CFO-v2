@@ -79,21 +79,36 @@ export function InboxClient({ groups, unreadCount }: InboxClientProps) {
     }
   }
 
+  const heading = (
+    <div className="flex items-center gap-3">
+      <h1 className="text-lg font-medium text-office-text">Inbox</h1>
+      {unreadCount > 0 && (
+        <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-office-gold text-office-bg text-[10px] font-bold font-data">
+          {unreadCount}
+        </span>
+      )}
+    </div>
+  )
+
   if (groups.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-        <CFOAvatar size={38} />
-        <p className="mt-4 text-sm text-office-text">Nothing here yet</p>
-        <p className="mt-1 text-xs text-office-text-muted max-w-[280px]">
-          Your CFO will drop you a note when there&apos;s something worth
-          knowing.
-        </p>
+      <div className="p-4 space-y-6">
+        {heading}
+        <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+          <CFOAvatar size={38} />
+          <p className="mt-4 text-sm text-office-text">Nothing here yet</p>
+          <p className="mt-1 text-xs text-office-text-muted max-w-[280px]">
+            Your CFO will drop you a note when there&apos;s something worth
+            knowing.
+          </p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="p-4 space-y-6">
+      {heading}
       {groups.map((group) => (
         <div key={group.label}>
           <h3 className="text-xs font-medium text-office-text-muted uppercase tracking-wider mb-2 px-1">
