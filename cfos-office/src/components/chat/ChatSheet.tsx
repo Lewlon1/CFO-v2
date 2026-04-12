@@ -116,7 +116,7 @@ export function ChatSheet() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end"
+      className="fixed inset-0 z-50 flex items-start"
       onClick={handleBackdropClick}
       data-chat-sheet
       data-state="open"
@@ -124,26 +124,17 @@ export function ChatSheet() {
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/55" style={{ transition: 'opacity 200ms ease' }} />
 
-      {/* Sheet */}
+      {/* Sheet — drops from top */}
       <div
         ref={sheetRef}
-        className="chat-sheet-scope relative w-full max-h-[85dvh] bg-bg-elevated rounded-t-[20px] flex flex-col animate-sheet-up"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="chat-sheet-scope relative w-full max-h-[82dvh] bg-bg-elevated rounded-b-[20px] flex flex-col animate-sheet-down shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-9 h-1 rounded-full bg-text-ghost" />
-        </div>
-
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 h-14 shrink-0 border-b border-border-medium">
+        <div className="flex items-center gap-3 px-4 pt-1 shrink-0 bg-bg-base">
           <CFOAvatar size={44} withOnlineDot />
           <div className="flex-1 min-w-0">
             <p className="text-[15px] font-bold text-text-primary">Your CFO</p>
-            <p className="text-[9px] text-text-muted font-data tracking-[0.06em] uppercase">
-              Observes &middot; Calculates &middot; Educates
-            </p>
           </div>
 
           {/* Menu */}
@@ -178,11 +169,16 @@ export function ChatSheet() {
           {/* Close */}
           <button
             onClick={closeSheet}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-office-text-secondary hover:text-office-text"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[rgba(245,245,240,0.4)] hover:text-office-text"
             aria-label="Close chat"
           >
             <X size={20} />
           </button>
+        </div>
+
+        {/* Status line */}
+        <div className="flex items-center gap-3 px-4 pt-1 pb-2.5 bg-bg-base border-b border-border-medium">
+          <span className="text-[13px] text-[rgba(245,245,240,0.5)] flex-1">Your CFO is online</span>
         </div>
 
         {/* Content */}
@@ -215,6 +211,11 @@ export function ChatSheet() {
             />
           </>
         )}
+
+        {/* Drag handle — at bottom */}
+        <div className="flex justify-center py-1.5 shrink-0" onClick={closeSheet}>
+          <div className="w-9 h-1 rounded-full bg-[rgba(245,245,240,0.1)] cursor-pointer" />
+        </div>
       </div>
     </div>
   )
