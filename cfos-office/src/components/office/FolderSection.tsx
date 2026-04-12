@@ -20,26 +20,17 @@ export function FolderSection({
   children,
 }: FolderSectionProps) {
   return (
-    <div className="relative" style={{ paddingTop: '28px' }}>
-      {/* Folder tab — positioned above card */}
+    <div className="mb-6">
+      {/* Folder tab — floats above card */}
       <div
-        className="absolute top-0 left-4 flex items-center gap-1.5 px-3 h-7 rounded-t-[10px]"
+        className="inline-flex items-center gap-1.5 py-[5px] px-[12px] rounded-t-[8px] ml-3 relative z-[1] -mb-px text-[13px] font-bold"
         style={{
           color: accentColor,
-          backgroundColor: `color-mix(in srgb, ${accentColor} 12%, var(--bg-elevated))`,
-          borderTop: `1px solid color-mix(in srgb, ${accentColor} 30%, transparent)`,
-          borderLeft: `1px solid color-mix(in srgb, ${accentColor} 30%, transparent)`,
-          borderRight: `1px solid color-mix(in srgb, ${accentColor} 30%, transparent)`,
+          backgroundColor: `color-mix(in srgb, ${accentColor} 8%, transparent)`,
         }}
       >
-        {/* Icon container — 20x20, radius 5 */}
-        <span
-          className="shrink-0 w-5 h-5 flex items-center justify-center rounded-[5px]"
-          style={{ backgroundColor: `color-mix(in srgb, ${accentColor} 18%, transparent)` }}
-        >
-          {icon}
-        </span>
-        <span className="text-[13px] font-bold">{label}</span>
+        <span className="shrink-0">{icon}</span>
+        <span>{label}</span>
         {fileCount != null && (
           <span
             className="font-data text-[10px] px-1.5 py-0.5 rounded-sm ml-0.5"
@@ -53,32 +44,34 @@ export function FolderSection({
         )}
       </div>
 
-      {/* Folder body — 4px top-left (tab join), 14px elsewhere */}
+      {/* Folder body */}
       <div
-        className="bg-bg-elevated overflow-hidden"
+        className="overflow-hidden"
         style={{
           borderRadius: '4px 14px 14px 14px',
-          border: `1px solid color-mix(in srgb, ${accentColor} 30%, transparent)`,
+          border: `1px solid rgba(255,255,255,0.04)`,
+          borderLeft: `2px solid color-mix(in srgb, ${accentColor} 20%, transparent)`,
+          backgroundColor: 'rgba(255,255,255,0.015)',
         }}
       >
         {/* Subtitle */}
-        <p className="px-3.5 pt-3 pb-3 text-[10px] text-text-tertiary">{subtitle}</p>
+        <p className="px-[14px] pt-[14px] text-[10px] text-[rgba(245,245,240,0.3)]">{subtitle}</p>
 
         {/* Content */}
-        <div className="px-3.5 pb-3.5">
+        <div className="px-[14px] pb-[14px]">
           {children}
         </div>
 
         {/* Open link */}
         <Link
           href={openHref}
-          className="flex items-center justify-center min-h-[44px] border-t text-[11px] font-semibold transition-colors hover:bg-tap-highlight"
+          className="flex items-center justify-end gap-1 min-h-[44px] px-[14px] border-t text-[11px] font-semibold transition-colors hover:bg-[rgba(255,255,255,0.03)]"
           style={{
             color: accentColor,
-            borderColor: `color-mix(in srgb, ${accentColor} 10%, transparent)`,
+            borderColor: 'rgba(255,255,255,0.03)',
           }}
         >
-          Open {label} &rarr;
+          Open {label} <span style={{ opacity: 0.5 }}>&rsaquo;</span>
         </Link>
       </div>
     </div>

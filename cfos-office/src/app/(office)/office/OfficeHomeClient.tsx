@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { DollarSign, User, Heart, Scale, Sparkles } from 'lucide-react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { FolderSection } from '@/components/office/FolderSection'
 import { CashFlowSection } from '@/components/office/sections/CashFlowSection'
@@ -43,19 +42,15 @@ export function OfficeHomeClient({
   }, [])
 
   return (
-    <div className="p-4 space-y-6">
-      {/* Scroll sentinel for ChatBar welcome/compact transition */}
-      <div data-scroll-sentinel className="h-0 w-0" aria-hidden="true" />
-
+    <div className="px-3.5 pt-2 pb-6">
       {/* Inbox row — shows when there are unread nudges */}
       <InboxRow />
 
       <FolderSection
-        icon={<DollarSign size={16} />}
+        icon="$"
         label="Cash Flow"
-        subtitle="Where your money goes"
-        fileCount={summary?.transaction_count}
-        accentColor="var(--office-green)"
+        subtitle={`${summary?.month ? new Date(summary.month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'This month'} · ${summary?.transaction_count ?? 0} transactions`}
+        accentColor="#22C55E"
         openHref="/office/cash-flow"
       >
         <CashFlowSection
@@ -67,10 +62,10 @@ export function OfficeHomeClient({
       </FolderSection>
 
       <FolderSection
-        icon={<User size={16} />}
-        label="Financial Portrait"
-        subtitle="What your CFO knows about you and how you value money"
-        accentColor="var(--accent-gold)"
+        icon="◈"
+        label="Values & You"
+        subtitle={`${archetype?.archetype_name ?? 'Not yet profiled'} · ${Math.round(profileCompleteness)}% profiled`}
+        accentColor="#E8A84C"
         openHref="/office/values"
       >
         <ValuesSection
@@ -83,10 +78,10 @@ export function OfficeHomeClient({
       </FolderSection>
 
       <FolderSection
-        icon={<Scale size={16} />}
+        icon="≡"
         label="Net Worth"
         subtitle="The big picture"
-        accentColor="var(--office-purple)"
+        accentColor="#06B6D4"
         openHref="/office/net-worth"
       >
         <NetWorthSection
@@ -98,10 +93,10 @@ export function OfficeHomeClient({
       </FolderSection>
 
       <FolderSection
-        icon={<Sparkles size={16} />}
-        label="Scenarios"
+        icon="⊕"
+        label="Scenario Planning"
         subtitle="What if..."
-        accentColor="var(--office-gold)"
+        accentColor="#F43F5E"
         openHref="/office/scenarios"
       >
         <ScenariosSection

@@ -2,10 +2,10 @@ import { redirect } from 'next/navigation'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
-import { Breadcrumb } from '@/components/navigation/Breadcrumb'
 import { ChatProvider } from '@/components/chat/ChatProvider'
 import { ChatBar } from '@/components/chat/ChatBar'
 import { ChatSheet } from '@/components/chat/ChatSheet'
+import { NavigationBar } from '@/components/navigation/NavigationBar'
 
 const jetbrainsMono = JetBrains_Mono({
   variable: '--font-jetbrains-mono',
@@ -28,11 +28,17 @@ const cormorantGaramond = Cormorant_Garamond({
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString('en-GB', {
-    weekday: 'long',
+    weekday: 'short',
     day: 'numeric',
-    month: 'long',
-    year: 'numeric',
+    month: 'short',
   })
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Morning'
+  if (h < 18) return 'Afternoon'
+  return 'Evening'
 }
 
 export default async function OfficeLayout({ children }: { children: React.ReactNode }) {
@@ -43,58 +49,66 @@ export default async function OfficeLayout({ children }: { children: React.React
 
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
-  // Fetch user currency for chat context
+  // Fetch user currency + display name for chat context & header
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency')
+    .select('primary_currency, display_name')
     .eq('id', user.id)
     .single()
 
   const currency = profile?.primary_currency ?? 'EUR'
+  const displayName = profile?.display_name
+    ?? user.user_metadata?.full_name?.split(' ')[0]
+    ?? user.email?.split('@')[0]
+    ?? null
 
   return (
     <div
       className={`${jetbrainsMono.variable} ${dmSans.variable} ${cormorantGaramond.variable} h-dvh flex flex-col overflow-hidden bg-office-bg text-office-text font-ui`}
     >
       {/* Header */}
-      <header className="flex items-center justify-between px-[18px] pt-[14px] pb-[10px] shrink-0 border-b border-border-medium">
-        <div className="flex items-center gap-2.5">
-          <CFOAvatar size={30} />
-          <div>
-            <div className="flex items-baseline" style={{ lineHeight: 1.1 }}>
-              <span className="font-data text-[10px] font-normal tracking-[0.04em] text-[rgba(245,245,240,0.35)] mr-1.5">
-                THE
-              </span>
-              <span
-                style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em' }}
-                className="text-text-primary"
-              >
-                CFO&apos;s Office
-              </span>
-            </div>
-            <p className="font-data text-[9px] text-text-muted mt-[3px]">
-              {formatDate(new Date())}
-            </p>
+      <header className="flex items-center gap-[11px] px-4 pt-4 pb-1.5 shrink-0 bg-bg-base z-10">
+        <CFOAvatar size={48} withOnlineDot />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline" style={{ lineHeight: 1 }}>
+            <span className="font-data text-[9px] font-normal tracking-[0.04em] text-[rgba(245,245,240,0.2)] mr-1.5">
+              THE
+            </span>
+            <span
+              style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 18, fontWeight: 600 }}
+              className="text-[rgba(245,245,240,0.45)]"
+            >
+              CFO&apos;s Office
+            </span>
           </div>
+          <p className="text-[15px] font-bold mt-[3px]">
+            {getGreeting()},{' '}
+            {displayName && <span className="text-accent-gold">{displayName}</span>}
+          </p>
         </div>
-        <div className="w-8 h-8 rounded-full bg-accent-gold-bg border border-accent-gold-border flex items-center justify-center text-[11px] font-medium text-accent-gold-soft">
+        <div className="text-right shrink-0">
+          <span className="font-data text-[11px] text-[rgba(245,245,240,0.4)]">
+            {formatDate(new Date())}
+          </span>
+        </div>
+        <div className="w-8 h-8 rounded-full bg-accent-gold-bg border border-accent-gold-border flex items-center justify-center text-[12px] font-bold text-accent-gold shrink-0">
           {initial}
         </div>
       </header>
 
-      {/* Breadcrumb — 36px */}
-      <Breadcrumb />
-
       <ChatProvider userCurrency={currency}>
+        {/* Persistent chat bar — always visible, between header and nav */}
+        <ChatBar />
+
+        {/* Navigation bar (back button on sub-pages) */}
+        <NavigationBar />
+
         {/* Scrollable content */}
         <main className="flex-1 min-h-0 overflow-y-auto">
           <div className="max-w-[430px] mx-auto w-full">
             {children}
           </div>
         </main>
-
-        {/* Persistent chat bar */}
-        <ChatBar />
 
         {/* Chat sheet overlay */}
         <ChatSheet />
