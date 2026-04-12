@@ -7,6 +7,7 @@ export type ParsedTransactionSource =
   | 'csv_barclays'
   | 'csv_generic'
   | 'screenshot'
+  | 'pdf_statement'
 
 export type ParsedTransaction = {
   date: string            // ISO 8601 — "YYYY-MM-DDTHH:mm:ssZ" when source has time, else "YYYY-MM-DDT00:00:00Z"
