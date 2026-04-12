@@ -93,7 +93,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       'jpeg',
       'heic',
       'webp',
-      ...(context === 'balance_sheet' ? ['pdf'] : []),
+      'pdf',
     ])
     if (!ext || !ALLOWED_EXTS.has(ext)) {
       setState({ step: 'error', message: 'Unsupported file type.' })

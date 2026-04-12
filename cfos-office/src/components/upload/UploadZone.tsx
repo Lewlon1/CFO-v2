@@ -9,7 +9,7 @@ type Props = {
   context?: 'transactions' | 'balance_sheet'
 }
 
-const ACCEPTED_TRANSACTIONS = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic'
+const ACCEPTED_TRANSACTIONS = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic,.pdf'
 const ACCEPTED_BALANCE_SHEET = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic,.webp,.pdf'
 
 export function UploadZone({ onFile, isLoading, context = 'transactions' }: Props) {

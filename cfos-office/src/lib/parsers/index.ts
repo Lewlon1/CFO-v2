@@ -16,10 +16,14 @@ export type DetectedFormat =
   | 'barclays'
   | 'generic'
   | 'screenshot'
+  | 'pdf'
   | 'unknown'
 
 export function detectFormat(filename: string, fileText?: string): DetectedFormat {
   const lower = filename.toLowerCase()
+
+  // PDF files
+  if (/\.pdf$/.test(lower)) return 'pdf'
 
   // Image files
   if (/\.(png|jpg|jpeg|heic|webp)$/.test(lower)) return 'screenshot'
@@ -62,6 +66,7 @@ export function sourceFromFormat(format: DetectedFormat): ParsedTransactionSourc
     case 'hsbc': return 'csv_hsbc'
     case 'barclays': return 'csv_barclays'
     case 'screenshot': return 'screenshot'
+    case 'pdf': return 'pdf_statement'
     default: return 'csv_generic'
   }
 }

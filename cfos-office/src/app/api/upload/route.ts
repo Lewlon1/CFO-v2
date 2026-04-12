@@ -15,6 +15,7 @@ import { detectHoldingsMapping } from '@/lib/parsers/holdings-detector'
 import { parseHoldingsCSV } from '@/lib/parsers/holdings-csv'
 import { parseBalanceSheetScreenshot } from '@/lib/parsers/balance-sheet-screenshot'
 import { parseBalanceSheetPDF } from '@/lib/parsers/balance-sheet-pdf'
+import { parsePdfTransactions } from '@/lib/parsers/pdf-transactions'
 import { runBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import type { ConfirmedBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import Papa from 'papaparse'
@@ -183,8 +184,8 @@ export async function POST(req: NextRequest) {
   const isXlsx = /\.(xlsx|xls)$/.test(lowerName)
   const isPdf = /\.pdf$/.test(lowerName)
 
-  // ── PDF branch (balance sheet only) ──
-  if (isPdf) {
+  // ── PDF branch — balance sheet or transaction extraction ──
+  if (isPdf && isBalanceSheetContext) {
     const buffer = await file.arrayBuffer()
     const result = await parseBalanceSheetPDF(buffer, user.id)
     if (!result.ok) {
@@ -196,6 +197,17 @@ export async function POST(req: NextRequest) {
       suggestedAssetName: result.data.account_name ?? null,
       suggestedProvider: result.data.provider ?? null,
     })
+  }
+
+  if (isPdf) {
+    const buffer = await file.arrayBuffer()
+    const result = await parsePdfTransactions(buffer, user.id)
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 422 })
+    }
+    const clientBatchId = formData.get('batchId') as string | null
+    const preview = await buildPreview(result.transactions, user.id, supabase)
+    return NextResponse.json({ preview, importBatchId: clientBatchId ?? randomUUID() })
   }
 
   // ── Balance sheet screenshot branch ──
@@ -316,8 +328,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parseResult.error }, { status: 422 })
   }
 
+  const clientBatchId = (formData.get('batchId') as string | null)
   const preview = await buildPreview(parseResult.transactions, user.id, supabase)
-  return NextResponse.json({ preview, importBatchId: randomUUID() })
+  return NextResponse.json({ preview, importBatchId: clientBatchId ?? randomUUID() })
 }
 
 async function buildPreview(
