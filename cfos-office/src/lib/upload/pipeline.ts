@@ -27,6 +27,7 @@ type TxnToInsert = ParsedTransaction & {
   confidence: number
   valueCategory: string
   valueConfidence: number
+  valuePredictionSource: string
   needsLLM: boolean
   tier: CatResult['tier']
 }
@@ -60,7 +61,7 @@ export async function runImportPipeline(
       .eq('is_active', true),
     supabase
       .from('value_category_rules')
-      .select('match_type, match_value, value_category, confidence, source, context_conditions')
+      .select('id, match_type, match_value, value_category, confidence, total_signals, agreement_ratio, avg_amount_low, avg_amount_high, time_context, source')
       .eq('user_id', opts.userId),
     supabase
       .from('user_merchant_rules')
@@ -125,7 +126,7 @@ export async function runImportPipeline(
     if (txn.presetCategoryId !== undefined || txn.presetValueCategory !== undefined) {
       const categoryId = txn.presetCategoryId !== undefined ? txn.presetCategoryId : null
       const valResult = txn.presetValueCategory
-        ? { valueCategory: txn.presetValueCategory, confidence: 1.0 }
+        ? { valueCategory: txn.presetValueCategory, confidence: 1.0, source: 'user_confirmed' as const }
         : assignValueCategory(txn.description, categoryId, userRules, categories, signals, txn.amount)
       toInsert.push({
         ...txn,
@@ -133,6 +134,7 @@ export async function runImportPipeline(
         confidence: 1.0,
         valueCategory: valResult.valueCategory,
         valueConfidence: valResult.confidence,
+        valuePredictionSource: mapSource(valResult.source),
         needsLLM: false,
         tier: 'user_rule',
       })
@@ -166,6 +168,7 @@ export async function runImportPipeline(
       confidence: catResult.confidence,
       valueCategory: valResult.valueCategory,
       valueConfidence: valResult.confidence,
+      valuePredictionSource: mapSource(valResult.source),
       needsLLM: catResult.categoryId === null,
       tier: catResult.tier,
     })
@@ -195,6 +198,7 @@ export async function runImportPipeline(
         )
         txn.valueCategory = valResult.valueCategory
         txn.valueConfidence = valResult.confidence
+        txn.valuePredictionSource = mapSource(valResult.source)
       }
     }
   }
@@ -216,6 +220,7 @@ export async function runImportPipeline(
       value_category: txn.valueCategory,
       value_confidence: txn.valueConfidence,
       value_confirmed_by_user: false,
+      prediction_source: txn.valuePredictionSource,
       source: txn.source,
       import_batch_id: opts.importBatchId,
       user_confirmed: false,
@@ -229,4 +234,24 @@ export async function runImportPipeline(
   }
 
   return stats
+}
+
+/** Map value categoriser source to the prediction_source column value */
+function mapSource(source: string): string {
+  switch (source) {
+    case 'recurring_essential': return 'recurring_essential'
+    case 'user_merchant_time_rule':
+    case 'user_merchant_amount_rule':
+    case 'user_merchant_rule':
+    case 'user_category_time_rule':
+    case 'user_category_amount_rule':
+    case 'user_category_rule':
+    case 'user_global_rule':
+      return 'merchant_rule'
+    case 'user_confirmed': return 'user_confirmed'
+    case 'category_default':
+    case 'none':
+    default:
+      return 'category_default'
+  }
 }

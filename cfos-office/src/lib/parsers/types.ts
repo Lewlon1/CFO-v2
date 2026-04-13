@@ -43,22 +43,29 @@ export type Category = {
   default_value_category: string | null
 }
 
-// Contextual conditions for when a value category rule applies.
-// null means "match in any context" (unconditional).
-export type ContextConditions = {
-  hour_range?: { from: number; to: number } // 0–23, wraps midnight (e.g. {from:22,to:5})
-  day_type?: 'weekday' | 'weekend' | 'friday_evening'
-  amount_range?: { min?: number; max?: number }
-} | null
+// Value category rule match types (Session 28 — new schema)
+export type ValueRuleMatchType =
+  | 'merchant'         // exact normalised merchant
+  | 'merchant_time'    // merchant + time_context bucket
+  | 'merchant_amount'  // merchant + amount band
+  | 'category'         // traditional category fallback
+  | 'category_time'    // category + time_context bucket
+  | 'category_amount'  // category + amount band
+  | 'global'           // user-wide prior
 
 // Value category rule loaded from value_category_rules
 export type ValueCategoryRule = {
-  match_type: string
+  id?: string
+  match_type: ValueRuleMatchType
   match_value: string
   value_category: string
   confidence: number
+  total_signals: number
+  agreement_ratio: number
+  avg_amount_low: number | null
+  avg_amount_high: number | null
+  time_context: string | null
   source: string
-  context_conditions: ContextConditions
 }
 
 // ── Balance sheet parsing (Session 19B) ──────────────────────────────

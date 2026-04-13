@@ -69,7 +69,7 @@ export async function analyseGap(
   }
 
   // 0. Detect Value Map completion independently of rule format.
-  //    The VM seeds merchant_contains rules (see /api/value-map/link-session), so
+  //    The VM seeds merchant rules (see /api/value-map/link-session), so
   //    a missing category_id rule set does NOT mean "no VM". Always consult
   //    value_map_results directly before deciding has_value_map.
   const { data: vmRows } = await supabase
@@ -79,12 +79,12 @@ export async function analyseGap(
     .limit(1)
   const hasValueMap = (vmRows?.length ?? 0) > 0
 
-  // 1. Fetch ALL value category rules for this user (both category_id and merchant_contains).
+  // 1. Fetch ALL value category rules for this user (both category and merchant).
   const { data: rules } = await supabase
     .from('value_category_rules')
     .select('match_type, match_value, value_category, confidence')
     .eq('user_id', userId)
-    .in('match_type', ['category_id', 'merchant_contains'])
+    .in('match_type', ['category', 'merchant'])
 
   if (!rules || rules.length === 0) {
     return { ...empty, has_value_map: hasValueMap }
@@ -92,8 +92,8 @@ export async function analyseGap(
 
   // Split rules by type. Category-level rules come from chat corrections;
   // merchant-level rules come from the Value Map (see /api/value-map/link-session).
-  const categoryRules = rules.filter((r) => r.match_type === 'category_id')
-  const merchantRules = rules.filter((r) => r.match_type === 'merchant_contains')
+  const categoryRules = rules.filter((r) => r.match_type === 'category')
+  const merchantRules = rules.filter((r) => r.match_type === 'merchant')
 
   // 2. Fetch all expense transactions for the window.
   const sinceDate = new Date()

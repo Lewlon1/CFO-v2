@@ -218,13 +218,15 @@ export async function POST(req: Request) {
             .upsert(
               {
                 user_id: user.id,
-                match_type: 'category_id',
+                match_type: 'category' as const,
                 match_value: category_slug,
                 value_category,
                 confidence: 1.0,
-                source: 'user_correction_chat',
+                source: 'correction',
+                last_signal_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
               },
-              { onConflict: 'user_id,match_type,match_value' },
+              { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' },
             );
 
           if (ruleError) {

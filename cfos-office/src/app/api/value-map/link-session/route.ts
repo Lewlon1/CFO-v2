@@ -115,16 +115,18 @@ export async function POST(request: Request) {
   if (decided.length > 0) {
     const rules = decided.map(r => ({
       user_id: user.id,
-      match_type: 'merchant_contains' as const,
+      match_type: 'merchant' as const,
       match_value: r.merchant.toLowerCase(),
       value_category: r.quadrant,
       confidence: r.confidence / 5, // Convert 1-5 scale to 0-1
       source: 'value_map',
+      last_signal_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }))
 
     const { error: rulesError } = await service
       .from('value_category_rules')
-      .upsert(rules, { onConflict: 'user_id,match_type,match_value' })
+      .upsert(rules, { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' })
 
     if (rulesError) {
       console.error('[link-session] value_category_rules seed error:', rulesError)

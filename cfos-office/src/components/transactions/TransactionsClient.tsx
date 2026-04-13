@@ -6,17 +6,20 @@ import { UploadWizard } from '@/components/upload/UploadWizard'
 import { TransactionList, type Transaction } from './TransactionList'
 import { TransactionFilters, type FilterState } from './TransactionFilters'
 import { BatchClassifier } from './BatchClassifier'
+import { UncategorisedQueue, type UncategorisedTransaction } from './UncategorisedQueue'
 import type { Category } from '@/lib/parsers/types'
 
 type Props = {
   transactions: Transaction[]
   categories: Category[]
   initialFilters?: FilterState
+  uncategorised?: UncategorisedTransaction[]
+  uncategorisedCount?: number
 }
 
 const EMPTY_FILTERS: FilterState = { search: '', categoryId: '', valueCategory: '', month: '' }
 
-export function TransactionsClient({ transactions, categories, initialFilters }: Props) {
+export function TransactionsClient({ transactions, categories, initialFilters, uncategorised, uncategorisedCount }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [showUpload, setShowUpload] = useState(transactions.length === 0)
@@ -92,12 +95,20 @@ export function TransactionsClient({ transactions, categories, initialFilters }:
               onClassified={() => startTransition(() => router.refresh())}
             />
           ) : (
-            <TransactionList
-              transactions={transactions}
-              categories={categories}
-              filters={filters}
-              onRecategorised={() => startTransition(() => router.refresh())}
-            />
+            <>
+              {uncategorised && uncategorised.length > 0 && (
+                <UncategorisedQueue
+                  transactions={uncategorised}
+                  totalCount={uncategorisedCount ?? uncategorised.length}
+                />
+              )}
+              <TransactionList
+                transactions={transactions}
+                categories={categories}
+                filters={filters}
+                onRecategorised={() => startTransition(() => router.refresh())}
+              />
+            </>
           )}
         </>
       )}

@@ -69,10 +69,12 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
 
   const handleValueChange = async (txId: string, newCategory: ValueCategory) => {
     try {
-      await fetch('/api/transactions/recategorise', {
+      // Map display value 'unsure' to DB enum 'no_idea'
+      const dbValue = newCategory === 'unsure' ? 'no_idea' : newCategory
+      await fetch('/api/corrections/signal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaction_id: txId, value_category: newCategory }),
+        body: JSON.stringify({ transaction_id: txId, value_category: dbValue }),
       })
     } catch {
       // Silently fail — pill already updated optimistically

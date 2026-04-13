@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { CategoryBadge } from './CategoryBadge'
-import { ValueBadge } from './ValueBadge'
+import { ValueCategoryPill } from './ValueCategoryPill'
 import type { Category } from '@/lib/parsers/types'
 import type { FilterState } from './TransactionFilters'
 
@@ -16,6 +16,7 @@ export type Transaction = {
   value_category: string | null
   value_confidence: number | null
   value_confirmed_by_user: boolean
+  prediction_source: string | null
   is_recurring: boolean
   is_holiday_spend: boolean
   user_confirmed: boolean
@@ -30,14 +31,6 @@ type Props = {
 
 const PAGE_SIZE = 50
 
-const VALUE_OPTIONS = [
-  { value: 'foundation', label: 'Foundation' },
-  { value: 'investment', label: 'Investment' },
-  { value: 'leak', label: 'Leak' },
-  { value: 'burden', label: 'Burden' },
-  { value: 'no_idea', label: 'No Idea' },
-]
-
 function formatAmount(amount: number, currency: string) {
   const abs = Math.abs(amount)
   const formatted = abs.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -48,7 +41,6 @@ function formatAmount(amount: number, currency: string) {
 
 type EditState = {
   transactionId: string
-  field: 'category_id' | 'value_category'
   newValue: string
   applyToSimilar: boolean
   description: string
@@ -58,9 +50,13 @@ type EditState = {
 export function TransactionList({ transactions, categories, filters, onRecategorised }: Props) {
   const [page, setPage] = useState(0)
   const [edit, setEdit] = useState<EditState | null>(null)
+  const [localTxns, setLocalTxns] = useState(transactions)
+
+  // Sync when parent data changes
+  useEffect(() => { setLocalTxns(transactions) }, [transactions])
 
   // Filter
-  const filtered = transactions.filter((t) => {
+  const filtered = localTxns.filter((t) => {
     if (filters.search) {
       const q = filters.search.toLowerCase()
       if (!t.description.toLowerCase().includes(q)) return false
@@ -77,6 +73,18 @@ export function TransactionList({ transactions, categories, filters, onRecategor
   // Reset page when filters change
   useEffect(() => { setPage(0) }, [filters])
 
+  // Optimistic value category update from pill
+  function handleValueUpdate(txnId: string, newCategory: string) {
+    setLocalTxns((prev) =>
+      prev.map((t) =>
+        t.id === txnId
+          ? { ...t, value_category: newCategory, value_confidence: 1.0, value_confirmed_by_user: true, prediction_source: 'user_confirmed' }
+          : t
+      )
+    )
+  }
+
+  // Category change via modal
   async function saveEdit() {
     if (!edit) return
     setEdit({ ...edit, isSaving: true })
@@ -86,7 +94,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         transactionId: edit.transactionId,
-        field: edit.field,
+        field: 'category_id',
         newValue: edit.newValue,
         applyToSimilar: edit.applyToSimilar,
         description: edit.description,
@@ -122,19 +130,20 @@ export function TransactionList({ transactions, categories, filters, onRecategor
                   {formatAmount(t.amount, t.currency)}
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
-                  onClick={() => setEdit({ transactionId: t.id, field: 'category_id', newValue: t.category_id ?? '', applyToSimilar: false, description: t.description, isSaving: false })}
+                  onClick={() => setEdit({ transactionId: t.id, newValue: t.category_id ?? '', applyToSimilar: false, description: t.description, isSaving: false })}
                   className="min-h-[36px] flex items-center"
                 >
                   <CategoryBadge category={cat} />
                 </button>
-                <button
-                  onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'no_idea', applyToSimilar: false, description: t.description, isSaving: false })}
-                  className="min-h-[36px] flex items-center"
-                >
-                  <ValueBadge valueCategory={t.value_category} confidence={t.value_confidence} />
-                </button>
+                <ValueCategoryPill
+                  transactionId={t.id}
+                  currentCategory={t.value_category}
+                  confidence={t.value_confidence ?? 0}
+                  description={t.description}
+                  onUpdate={(newCat) => handleValueUpdate(t.id, newCat)}
+                />
                 {t.is_recurring && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">recurring</span>}
                 {t.is_holiday_spend && <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">holiday</span>}
               </div>
@@ -173,19 +182,20 @@ export function TransactionList({ transactions, categories, filters, onRecategor
                   </td>
                   <td className="px-4 py-2.5">
                     <button
-                      onClick={() => setEdit({ transactionId: t.id, field: 'category_id', newValue: t.category_id ?? '', applyToSimilar: false, description: t.description, isSaving: false })}
+                      onClick={() => setEdit({ transactionId: t.id, newValue: t.category_id ?? '', applyToSimilar: false, description: t.description, isSaving: false })}
                       className="hover:opacity-70 transition-opacity"
                     >
                       <CategoryBadge category={cat} />
                     </button>
                   </td>
                   <td className="px-4 py-2.5">
-                    <button
-                      onClick={() => setEdit({ transactionId: t.id, field: 'value_category', newValue: t.value_category ?? 'no_idea', applyToSimilar: false, description: t.description, isSaving: false })}
-                      className="hover:opacity-70 transition-opacity"
-                    >
-                      <ValueBadge valueCategory={t.value_category} confidence={t.value_confidence} />
-                    </button>
+                    <ValueCategoryPill
+                      transactionId={t.id}
+                      currentCategory={t.value_category}
+                      confidence={t.value_confidence ?? 0}
+                      description={t.description}
+                      onUpdate={(newCat) => handleValueUpdate(t.id, newCat)}
+                    />
                   </td>
                 </tr>
               )
@@ -219,7 +229,7 @@ export function TransactionList({ transactions, categories, filters, onRecategor
         </div>
       )}
 
-      {/* Recategorise modal */}
+      {/* Category recategorise modal (value category now handled by pill) */}
       {edit && (
         <div
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
@@ -227,46 +237,20 @@ export function TransactionList({ transactions, categories, filters, onRecategor
         >
           <div className="bg-card rounded-t-2xl md:rounded-xl border border-border w-full max-w-sm p-5 space-y-4">
             <div>
-              <h3 className="font-semibold text-foreground">
-                {edit.field === 'category_id' ? 'Change category' : 'Change value type'}
-              </h3>
+              <h3 className="font-semibold text-foreground">Change category</h3>
               <p className="text-sm text-muted-foreground mt-0.5 truncate">{edit.description}</p>
             </div>
 
-            {edit.field === 'category_id' ? (
-              <select
-                value={edit.newValue}
-                onChange={(e) => setEdit({ ...edit, newValue: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[44px]"
-              >
-                <option value="">Uncategorised</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            ) : (
-              <select
-                value={edit.newValue}
-                onChange={(e) => setEdit({ ...edit, newValue: e.target.value })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[44px]"
-              >
-                {VALUE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            )}
-
-            {edit.field === 'value_category' && (
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={edit.applyToSimilar}
-                  onChange={(e) => setEdit({ ...edit, applyToSimilar: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                Apply to all similar transactions
-              </label>
-            )}
+            <select
+              value={edit.newValue}
+              onChange={(e) => setEdit({ ...edit, newValue: e.target.value })}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[44px]"
+            >
+              <option value="">Uncategorised</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
 
             <div className="flex gap-2">
               <button
