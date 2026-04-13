@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { getTimeContext } from '@/lib/utils/time-context'
+import { processSignals } from '@/lib/prediction/process-signals'
+import { backfillForMerchant } from '@/lib/prediction/backfill'
 
 const VALID_VALUES = ['foundation', 'investment', 'leak', 'burden', 'no_idea']
 
@@ -68,31 +70,18 @@ export async function POST(req: NextRequest) {
     weight_multiplier: 1.0,
   })
 
-  // 5. Upsert merchant rule
-  await supabase.from('value_category_rules').upsert(
-    {
-      user_id: user.id,
-      match_type: 'merchant' as const,
-      match_value: merchantClean,
-      value_category,
-      confidence: 1.0,
-      source: 'correction',
-      last_signal_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' }
-  )
-
-  // 6. Count signals for this merchant
-  const { count } = await supabase
-    .from('correction_signals')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('merchant_clean', merchantClean)
+  // 5. Trigger async learning — runs after response is sent
+  after(async () => {
+    try {
+      await processSignals(user.id, merchantClean)
+      await backfillForMerchant(user.id, merchantClean)
+    } catch (err) {
+      console.error('[learning-engine] processSignals failed:', err)
+    }
+  })
 
   return NextResponse.json({
     success: true,
     merchant_clean: merchantClean,
-    signals_for_merchant: count ?? 1,
   })
 }
