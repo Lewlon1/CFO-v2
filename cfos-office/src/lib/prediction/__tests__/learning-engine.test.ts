@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { computeFlatRule, computeTimeRules, computeAmountRules } from '../learning-engine'
-import type { CorrectionSignal, RuleCandidate } from '../types'
+import type { CorrectionSignal } from '../types'
 
 const signal = (
   value_category: 'foundation' | 'investment' | 'leak' | 'burden',

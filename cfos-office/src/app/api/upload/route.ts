@@ -353,7 +353,7 @@ async function buildPreview(
       .eq('is_active', true),
     supabase
       .from('value_category_rules')
-      .select('id, match_type, match_value, value_category, confidence, total_signals, agreement_ratio, avg_amount_low, avg_amount_high, time_context, source')
+      .select('id, match_type, match_value, value_category, confidence, total_signals, agreement_ratio, avg_amount_low, avg_amount_high, time_context, source, last_signal_at')
       .eq('user_id', userId),
     supabase
       .from('user_merchant_rules')

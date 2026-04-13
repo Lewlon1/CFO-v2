@@ -29,8 +29,13 @@ export async function getPredictionMetrics(
       .eq('match_type', 'merchant'),
   ])
 
+  type TxnMetrics = {
+    total: number; confirmed: number; predicted: number; uncategorised: number
+    avg_confidence: number; high_confidence_pct: number; low_confidence_pct: number
+  }
+
   // If the RPC doesn't exist yet, fall back to defaults
-  const txnData = txnResult.data ?? {
+  const txnData: TxnMetrics = (txnResult.data as TxnMetrics) ?? {
     total: 0, confirmed: 0, predicted: 0, uncategorised: 0,
     avg_confidence: 0, high_confidence_pct: 0, low_confidence_pct: 0,
   }
