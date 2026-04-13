@@ -139,7 +139,7 @@ function SignupForm() {
       }
     }
 
-    router.push(hasValueMap ? '/chat?type=onboarding' : '/chat?type=onboarding_no_vm')
+    router.push('/dashboard')
     router.refresh()
   }
 

@@ -7,6 +7,7 @@ import { ProfileCompleteness } from '@/components/app/profile-completeness'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { OfflineBanner } from '@/components/app/OfflineBanner'
 import { SessionTracker } from '@/components/analytics/SessionTracker'
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: '💬' },
@@ -29,19 +30,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   let { data: userProfile } = await supabase
     .from('user_profiles')
-    .select('profile_completeness')
+    .select('profile_completeness, onboarding_completed_at, onboarding_progress, display_name, primary_currency')
     .eq('id', user.id)
     .single()
 
   // Belt-and-suspenders: if handle_new_user trigger failed, create profile row
   if (!userProfile) {
     await supabase.from('user_profiles').upsert({ id: user.id }, { onConflict: 'id' })
-    userProfile = { profile_completeness: 0 }
+    userProfile = { profile_completeness: 0, onboarding_completed_at: null, onboarding_progress: null, display_name: null, primary_currency: 'GBP' }
   }
 
   const profileCompleteness = userProfile?.profile_completeness ?? 0
 
+  const showOnboarding = !userProfile?.onboarding_completed_at
+
   return (
+  <>
     <div className="flex h-dvh overflow-hidden">
       {/* Sidebar — desktop */}
       <aside className="hidden md:flex w-56 flex-col bg-card border-r border-border flex-shrink-0">
@@ -112,5 +116,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+
+    {showOnboarding && (
+      <OnboardingModal
+        initialProgress={userProfile?.onboarding_progress as import('@/lib/onboarding/types').OnboardingState | null}
+        userName={userProfile?.display_name ?? undefined}
+        currency={userProfile?.primary_currency ?? 'GBP'}
+      />
+    )}
+  </>
   )
 }

@@ -111,6 +111,7 @@ export async function buildSystemPrompt(
     buildProfileContext(profile),
     buildFinancialContext(snapshots, recurring, profile),
     await getCountryBenchmarks(profile, supabase),
+    getOnboardingResumeContext(profile),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
@@ -123,6 +124,72 @@ export async function buildSystemPrompt(
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
+}
+
+// ── Onboarding resume context ───────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getOnboardingResumeContext(profile: any): string {
+  // Onboarding complete — no resume context needed
+  if (!profile || profile.onboarding_completed_at) return '';
+
+  // No onboarding progress at all — user never started
+  if (!profile.onboarding_progress) return '';
+
+  // Parse the onboarding state
+  const progress = profile.onboarding_progress as {
+    completedBeats?: string[]
+    data?: {
+      personalityType?: string
+      importBatchId?: string | null
+      selectedCapabilities?: string[]
+    }
+  }
+
+  const completedBeats = progress.completedBeats ?? []
+  const data = progress.data ?? {}
+
+  const parts: string[] = []
+  parts.push('## Onboarding Status')
+  parts.push("The user started onboarding but didn't finish. Here's what they completed:")
+
+  const valueMapDone = completedBeats.includes('value_map') && data.personalityType
+  const csvUploaded = completedBeats.includes('csv_upload') && data.importBatchId
+  const insightSeen = completedBeats.includes('first_insight')
+
+  if (valueMapDone) {
+    parts.push(`- Completed the Value Map exercise (personality type: ${data.personalityType})`)
+  }
+  if (csvUploaded) {
+    parts.push('- Uploaded a bank statement')
+  }
+
+  // Priority 1: They have both Value Map + CSV but never saw the first insight
+  if (valueMapDone && csvUploaded && !insightSeen) {
+    parts.push('')
+    parts.push("IMPORTANT: They completed the Value Map AND uploaded a CSV, but never saw their first insight.")
+    parts.push("Lead with this — it's the hook. Something like: \"I've been going through your statement since we last spoke. Something jumped out.\"")
+    parts.push("Then call the analyse_gap tool to deliver their first Gap insight.")
+    return parts.join('\n')
+  }
+
+  // Priority 2: CSV not uploaded (higher value than Value Map)
+  if (!csvUploaded) {
+    parts.push('')
+    parts.push("They haven't uploaded a bank statement yet. When relevant, encourage it:")
+    parts.push("\"Upload a statement when you're ready — that's when things get interesting.\"")
+    parts.push("This is the single most valuable next step. Mention it once, naturally, then let it go.")
+  }
+
+  // Priority 3: Value Map not done
+  if (!valueMapDone) {
+    parts.push('')
+    parts.push("They haven't completed the Value Map exercise yet. If natural, suggest it:")
+    parts.push("\"We never finished setting up your baseline — want to do that quick categorisation exercise?\"")
+    parts.push("Don't push it. Mention it once, early, then let it go. CSV upload is higher priority.")
+  }
+
+  return parts.join('\n')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -9,11 +9,12 @@ import { CfoAvatar } from '@/components/chat/cfo-avatar'
 import { ValueMapUpload } from './value-map-upload'
 import { ValueMapCard } from './value-map-card'
 import { ValueMapSummary } from './value-map-summary'
-import { AnchoringQuestion } from './anchoring-question'
 import { CutOrKeep } from './cut-or-keep'
 import { OneThing } from './one-thing'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { generateObservations } from '@/lib/value-map/observations'
+import { selectTransactions } from '@/lib/value-map/selection'
+import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
 import { categoriseTransaction, type MerchantMapping } from '@/lib/categorisation/categorise-transaction'
@@ -24,7 +25,6 @@ import { aiCategoriseBatch } from '@/lib/categorisation/ai-categorise'
 
 type FlowStep =
   | 'intro'
-  | 'anchoring'
   | 'upload'
   | 'exercise'
   | 'summary'
@@ -38,11 +38,13 @@ interface ValueMapFlowProps {
   currency: string
   existingTransactions?: ValueMapTransaction[]
   mode?: 'onboarding' | 'retake' | 'checkin'
+  onComplete?: (personalityType: string, dominantQuadrant: string, breakdown: Record<string, { total: number; percentage: number; count: number }>, results?: ValueMapResult[]) => void
+  onTransactionResult?: (result: ValueMapResult, index: number, total: number) => void
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ValueMapFlow({ currency, existingTransactions, mode = 'onboarding' }: ValueMapFlowProps) {
+export function ValueMapFlow({ currency, existingTransactions, mode = 'onboarding', onComplete, onTransactionResult }: ValueMapFlowProps) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
   const [step, setStep] = useState<FlowStep>(mode === 'checkin' ? 'checkin_loading' : 'intro')
@@ -51,10 +53,6 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
   const [isRealData, setIsRealData] = useState(false)
   const [checkinError, setCheckinError] = useState<string | null>(null)
 
-  // New micro-interaction state
-  const [anchoredGuess, setAnchoredGuess] = useState<number | null>(null)
-  const [anchoredCategory, setAnchoredCategory] = useState('all')
-  const [anchoredCategoryLabel, setAnchoredCategoryLabel] = useState('in total')
   const [cutDecisions, setCutDecisions] = useState<Array<{ transaction_id: string; cut: boolean }>>([])
   const [oneThing, setOneThing] = useState('')
 
@@ -66,13 +64,6 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
     completedAt: string | null
   } | null>(null)
 
-  // Read focus category from sessionStorage (set by onboarding-chat)
-  useEffect(() => {
-    const focus = sessionStorage.getItem('onboardingFocus')
-    const focusLabel = sessionStorage.getItem('onboardingFocusLabel')
-    if (focus) setAnchoredCategory(focus)
-    if (focusLabel) setAnchoredCategoryLabel(focusLabel)
-  }, [])
 
   // Check-in mode: fetch uncertain transactions on mount (exactly once per mount)
   const checkinLoadedRef = useRef(false)
@@ -187,29 +178,20 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
 
   const handleStart = useCallback(() => {
     trackEvent('value_map_started', { mode })
-    if (mode === 'retake') {
-      if (existingTransactions && existingTransactions.length >= 5) {
-        setTransactions(existingTransactions)
-        setIsRealData(true)
-        setStep('exercise')
-      } else {
-        setStep('upload')
-      }
-    } else {
-      setStep('anchoring')
-    }
-  }, [mode, existingTransactions, trackEvent])
-
-  const handleAnchoringSubmit = useCallback((guess: number) => {
-    setAnchoredGuess(guess)
-    if (existingTransactions && existingTransactions.length >= 5) {
+    if (mode === 'onboarding') {
+      // Always use sample data in onboarding — real CSV upload comes after archetype
+      const selected = selectTransactions(SAMPLE_TRANSACTIONS)
+      setTransactions(selected)
+      setIsRealData(false)
+      setStep('exercise')
+    } else if (existingTransactions && existingTransactions.length >= 5) {
       setTransactions(existingTransactions)
       setIsRealData(true)
       setStep('exercise')
     } else {
       setStep('upload')
     }
-  }, [existingTransactions])
+  }, [mode, existingTransactions, trackEvent])
 
   const handleTransactionsReady = useCallback(
     (txs: ValueMapTransaction[], real: boolean) => {
@@ -236,8 +218,13 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
   )
 
   const handleSummaryNext = useCallback(() => {
-    setStep('cut_or_keep')
-  }, [])
+    if (mode === 'onboarding') {
+      // Skip cut_or_keep and one_thing — go straight to completion
+      setReadyToFinish(true)
+    } else {
+      setStep('cut_or_keep')
+    }
+  }, [mode])
 
   const handleCutOrKeepComplete = useCallback((decisions: Array<{ transaction_id: string; cut: boolean }>) => {
     setCutDecisions(decisions)
@@ -505,9 +492,13 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
       }
     }
 
-    router.push(mode === 'retake' ? '/chat' : '/chat?type=onboarding')
+    if (onComplete && mode === 'onboarding') {
+      onComplete(personality.personality, dominantQuadrant, personality.breakdown, results)
+    } else {
+      router.push(mode === 'retake' ? '/chat' : '/chat?type=onboarding')
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRealData, results, router, cutDecisions, mode, previousIntelligence])
+  }, [isRealData, results, router, cutDecisions, mode, previousIntelligence, onComplete])
 
   // Trigger final persistence when one_thing step completes
   useEffect(() => {
@@ -543,17 +534,6 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
     )
   }
 
-  if (step === 'anchoring') {
-    return (
-      <AnchoringQuestion
-        category={anchoredCategory}
-        categoryLabel={anchoredCategoryLabel}
-        currency={currency}
-        onSubmit={handleAnchoringSubmit}
-      />
-    )
-  }
-
   if (step === 'upload') {
     return (
       <ValueMapUpload
@@ -579,6 +559,7 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
             transactions={transactions}
             currency={currency}
             onComplete={mode === 'checkin' ? handleCheckinComplete : handleExerciseComplete}
+            onTransactionResult={mode === 'onboarding' ? onTransactionResult : undefined}
           />
         </div>
         {mode === 'checkin' && (

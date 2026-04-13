@@ -66,13 +66,15 @@ type WizardState =
 
 type Props = {
   categories: Category[]
-  onImported: () => void
+  onImported: (importBatchId?: string, count?: number) => void
   onDone?: () => void
   /** 'transactions' (default) or 'balance_sheet'. */
   context?: 'transactions' | 'balance_sheet'
+  /** When true, skip review and auto-import after upload. */
+  autoImport?: boolean
 }
 
-export function UploadWizard({ categories, onImported, onDone, context = 'transactions' }: Props) {
+export function UploadWizard({ categories, onImported, onDone, context = 'transactions', autoImport }: Props) {
   const trackEvent = useTrackEvent()
   const [state, setState] = useState<WizardState>({ step: 'idle' })
 
@@ -204,7 +206,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       }
       trackEvent('upload_completed', { file_type: 'csv', transaction_count: data.imported })
       setState({ step: 'done', imported: data.imported, duplicates: data.duplicates, errors: data.errors, importBatchId })
-      onImported()
+      onImported(importBatchId, data.imported)
     } catch {
       setState({ step: 'error', message: 'Network error. Please try again.' })
     }
@@ -311,6 +313,20 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
   }
 
   if (state.step === 'preview') {
+    if (autoImport) {
+      // Skip review — import immediately with server-assigned categories
+      const rows = state.preview.map(tx => ({ ...tx, categoryId: tx.suggestedCategoryId ?? null }))
+      handleImportConfirm(rows)
+      return (
+        <TransactionPreview
+          transactions={[]}
+          categories={[]}
+          onConfirm={() => {}}
+          onCancel={() => {}}
+          isImporting
+        />
+      )
+    }
     return (
       <TransactionPreview
         transactions={state.preview}

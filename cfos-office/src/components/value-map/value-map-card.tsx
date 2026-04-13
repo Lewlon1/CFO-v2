@@ -36,6 +36,7 @@ interface ValueMapCardProps {
   transactions: ValueMapTransaction[]
   currency: string
   onComplete: (results: ValueMapResult[]) => void
+  onTransactionResult?: (result: ValueMapResult, index: number, total: number) => void
 }
 
 type CardState = 'visible' | 'exiting' | 'feedback' | 'entering'
@@ -79,7 +80,7 @@ function ConfidenceDots({
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCardProps) {
+export function ValueMapCard({ transactions, currency, onComplete, onTransactionResult }: ValueMapCardProps) {
   const trackEvent = useTrackEvent()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [results, setResults] = useState<ValueMapResult[]>([])
@@ -210,6 +211,9 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
     const newResults = [...results, result]
     setResults(newResults)
 
+    // Fire per-transaction callback for reactive comments
+    onTransactionResult?.(result, currentIndex, total)
+
     // Get feedback
     const feedback = getFeedback({
       merchant: tx.merchant,
@@ -246,7 +250,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
         advanceToNext()
       }, FEEDBACK_DURATION)
     }, CARD_TRANSITION)
-  }, [selectedQuadrant, cardState, tx, results, currency, confidence, currentIndex, total, onComplete, advanceToNext])
+  }, [selectedQuadrant, cardState, tx, results, currency, confidence, currentIndex, total, onComplete, onTransactionResult, advanceToNext])
 
   // ── Hard to decide (escape hatch) ──────────────────────────────────────────
 
@@ -269,6 +273,9 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
     const newResults = [...results, result]
     setResults(newResults)
 
+    // Fire per-transaction callback for reactive comments
+    onTransactionResult?.(result, currentIndex, total)
+
     // Skip feedback — advance directly
     if (currentIndex + 1 >= total) {
       onComplete(newResults)
@@ -282,7 +289,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
     setTimeout(() => {
       setCardState('visible')
     }, CARD_TRANSITION)
-  }, [cardState, tx, results, currentIndex, total, onComplete])
+  }, [cardState, tx, results, currentIndex, total, onComplete, onTransactionResult])
 
   // Tap-to-skip: clicking anywhere during feedback advances immediately
   const handleFeedbackTap = useCallback(() => {
@@ -489,7 +496,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
             onClick={handleHardToDecide}
             className="text-sm text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
           >
-            No idea
+            Unsure
           </Button>
         </div>
       )}

@@ -6,6 +6,8 @@ import { ChatProvider } from '@/components/chat/ChatProvider'
 import { ChatBar } from '@/components/chat/ChatBar'
 import { ChatSheet } from '@/components/chat/ChatSheet'
 import { NavigationBar } from '@/components/navigation/NavigationBar'
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
+import type { OnboardingState } from '@/lib/onboarding/types'
 
 const jetbrainsMono = JetBrains_Mono({
   variable: '--font-jetbrains-mono',
@@ -52,7 +54,7 @@ export default async function OfficeLayout({ children }: { children: React.React
   // Fetch user currency + display name for chat context & header
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name')
+    .select('primary_currency, display_name, onboarding_completed_at, onboarding_progress')
     .eq('id', user.id)
     .single()
 
@@ -113,6 +115,14 @@ export default async function OfficeLayout({ children }: { children: React.React
         {/* Chat sheet overlay */}
         <ChatSheet />
       </ChatProvider>
+
+      {!profile?.onboarding_completed_at && (
+        <OnboardingModal
+          initialProgress={profile?.onboarding_progress as OnboardingState | null}
+          userName={displayName ?? undefined}
+          currency={currency}
+        />
+      )}
     </div>
   )
 }
