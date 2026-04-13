@@ -216,6 +216,11 @@ function buildProfileContext(profile: any): string {
   if (profile.dependents) fields.push(`Dependents: ${profile.dependents}`);
   if (profile.nationality) fields.push(`Nationality: ${profile.nationality}`);
   if (profile.risk_tolerance) fields.push(`Risk tolerance: ${profile.risk_tolerance}`);
+  if (profile.values_ranking) fields.push(`Values ranking: ${JSON.stringify(profile.values_ranking)}`);
+  if (profile.financial_awareness) fields.push(`Financial awareness: ${profile.financial_awareness}`);
+  if (profile.residency_status) fields.push(`Residency status: ${profile.residency_status}`);
+  if (profile.tax_residency_country) fields.push(`Tax residency: ${profile.tax_residency_country}`);
+  if (profile.years_in_country) fields.push(`Years in country: ${profile.years_in_country}`);
 
   if (fields.length === 0) return '';
 
@@ -245,6 +250,10 @@ function buildProfileContext(profile: any): string {
   if (profile.advice_style) knownFieldLabels.push('advice style');
   if (profile.spending_triggers) knownFieldLabels.push('spending triggers');
   if (profile.values_ranking) knownFieldLabels.push('values ranking');
+  if (profile.financial_awareness) knownFieldLabels.push('financial awareness');
+  if (profile.residency_status) knownFieldLabels.push('residency status');
+  if (profile.tax_residency_country) knownFieldLabels.push('tax residency country');
+  if (profile.years_in_country) knownFieldLabels.push('years in country');
 
   let doNotAskBlock = '';
   if (knownFieldLabels.length > 0) {
