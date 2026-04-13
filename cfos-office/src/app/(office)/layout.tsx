@@ -52,11 +52,21 @@ export default async function OfficeLayout({ children }: { children: React.React
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
   // Fetch user currency + display name for chat context & header
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('user_profiles')
     .select('primary_currency, display_name, onboarding_completed_at, onboarding_progress')
     .eq('id', user.id)
     .single()
+
+  // Fallback: if onboarding_progress isn't in schema cache yet, retry without it
+  if (!profile) {
+    const { data: fallback } = await supabase
+      .from('user_profiles')
+      .select('primary_currency, display_name, onboarding_completed_at')
+      .eq('id', user.id)
+      .single()
+    if (fallback) profile = { ...fallback, onboarding_progress: null }
+  }
 
   const currency = profile?.primary_currency ?? 'EUR'
   const displayName = profile?.display_name

@@ -220,7 +220,7 @@ export function useOnboarding({ initialProgress, userName, currency }: UseOnboar
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
-  const dismiss = useCallback(() => {
+  const dismiss = useCallback(async () => {
     trackOnboarding('onboarding_completed', {
       total_elapsed_ms: Date.now() - startedAt.current,
       capabilities: state.data.selectedCapabilities,
@@ -228,15 +228,17 @@ export function useOnboarding({ initialProgress, userName, currency }: UseOnboar
 
     dispatch({ type: 'DISMISS' })
 
-    // Mark complete in DB and seed profile data
-    fetch('/api/onboarding/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        capabilities: state.data.selectedCapabilities,
-        onboardingData: state.data,
-      }),
-    }).catch(() => {})
+    // Await completion before refreshing so server re-render sees onboarding_completed_at
+    try {
+      await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          capabilities: state.data.selectedCapabilities,
+          onboardingData: state.data,
+        }),
+      })
+    } catch {}
 
     router.refresh()
   // eslint-disable-next-line react-hooks/exhaustive-deps

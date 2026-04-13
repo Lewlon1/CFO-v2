@@ -34,6 +34,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('id', user.id)
     .single()
 
+  // Fallback: if onboarding_progress isn't in schema cache yet, retry without it
+  if (!userProfile) {
+    const { data: fallback } = await supabase
+      .from('user_profiles')
+      .select('profile_completeness, onboarding_completed_at, display_name, primary_currency')
+      .eq('id', user.id)
+      .single()
+    if (fallback) userProfile = { ...fallback, onboarding_progress: null }
+  }
+
   // Belt-and-suspenders: if handle_new_user trigger failed, create profile row
   if (!userProfile) {
     await supabase.from('user_profiles').upsert({ id: user.id }, { onConflict: 'id' })
