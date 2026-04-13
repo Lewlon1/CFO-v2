@@ -2,7 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { categoriseByRules } from '@/lib/categorisation/rules-engine'
 import { llmCategorise } from '@/lib/categorisation/llm-categoriser'
 import { assignValueCategory } from '@/lib/categorisation/value-categoriser'
-import { extractSignals, type MerchantHistory } from '@/lib/categorisation/context-signals'
+import { extractSignals, CATEGORY_AMBIGUITY, type MerchantHistory } from '@/lib/categorisation/context-signals'
+import { resolveValueCategory, loadUserRules } from '@/lib/prediction/predictor'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { computeCategorizationStats, type CategorizationStats } from '@/lib/categorisation/categorisation-stats'
 import { loadExistingKeys, isDuplicate } from './duplicate-detector'
@@ -59,10 +60,7 @@ export async function runImportPipeline(
       .from('categories')
       .select('id, name, tier, icon, color, examples, default_value_category')
       .eq('is_active', true),
-    supabase
-      .from('value_category_rules')
-      .select('id, match_type, match_value, value_category, confidence, total_signals, agreement_ratio, avg_amount_low, avg_amount_high, time_context, source')
-      .eq('user_id', opts.userId),
+    loadUserRules(supabase, opts.userId).then(data => ({ data, error: null })),
     supabase
       .from('user_merchant_rules')
       .select('normalised_merchant, category_id, confidence')
@@ -152,21 +150,38 @@ export async function runImportPipeline(
     const isRecurring = recurringExpenses.some(
       (r) => normaliseMerchant(txn.description) === normaliseMerchant(r.name)
     )
+    // Recurring essentials bypass the predictor — high confidence from structure
+    if (isRecurring && catResult.categoryId) {
+      const cat = categories.find(c => c.id === catResult.categoryId)
+      if (cat?.default_value_category && (CATEGORY_AMBIGUITY[catResult.categoryId] ?? 'high') === 'low') {
+        toInsert.push({
+          ...txn,
+          categoryId: catResult.categoryId,
+          confidence: catResult.confidence,
+          valueCategory: cat.default_value_category,
+          valueConfidence: 0.9,
+          valuePredictionSource: 'recurring_essential',
+          needsLLM: false,
+          tier: catResult.tier,
+        })
+        continue
+      }
+    }
 
-    const valResult = assignValueCategory(
-      txn.description,
-      catResult.categoryId,
+    const valResult = resolveValueCategory(
       userRules,
       categories,
-      { ...signals, is_recurring: isRecurring },
-      txn.amount
+      normaliseMerchant(txn.description),
+      catResult.categoryId,
+      txn.amount,
+      new Date(txn.date)
     )
 
     toInsert.push({
       ...txn,
       categoryId: catResult.categoryId,
       confidence: catResult.confidence,
-      valueCategory: valResult.valueCategory,
+      valueCategory: valResult.value_category ?? 'no_idea',
       valueConfidence: valResult.confidence,
       valuePredictionSource: mapSource(valResult.source),
       needsLLM: catResult.categoryId === null,
@@ -188,15 +203,15 @@ export async function runImportPipeline(
         txn.categoryId = result.category_id
         txn.confidence = result.confidence
         txn.tier = 'keyword' // LLM results tracked separately in stats via needsLLM
-        const signals = extractSignals(
-          { date: txn.date, description: txn.description, amount: txn.amount },
-          merchantHistory,
-          batchSummaries
+        const valResult = resolveValueCategory(
+          userRules,
+          categories,
+          normaliseMerchant(txn.description),
+          txn.categoryId,
+          txn.amount,
+          new Date(txn.date)
         )
-        const valResult = assignValueCategory(
-          txn.description, txn.categoryId, userRules, categories, signals, txn.amount
-        )
-        txn.valueCategory = valResult.valueCategory
+        txn.valueCategory = valResult.value_category ?? 'no_idea'
         txn.valueConfidence = valResult.confidence
         txn.valuePredictionSource = mapSource(valResult.source)
       }
@@ -236,22 +251,19 @@ export async function runImportPipeline(
   return stats
 }
 
-/** Map value categoriser source to the prediction_source column value */
+/** Map predictor source to the prediction_source column value */
 function mapSource(source: string): string {
   switch (source) {
     case 'recurring_essential': return 'recurring_essential'
-    case 'user_merchant_time_rule':
-    case 'user_merchant_amount_rule':
-    case 'user_merchant_rule':
-    case 'user_category_time_rule':
-    case 'user_category_amount_rule':
-    case 'user_category_rule':
-    case 'user_global_rule':
-      return 'merchant_rule'
+    case 'merchant_time': return 'merchant_rule'
+    case 'merchant_amount': return 'merchant_rule'
+    case 'merchant': return 'merchant_rule'
+    case 'category_time': return 'category_rule'
+    case 'category_amount': return 'category_rule'
+    case 'category': return 'category_rule'
+    case 'global': return 'global_rule'
     case 'user_confirmed': return 'user_confirmed'
-    case 'category_default':
-    case 'none':
-    default:
-      return 'category_default'
+    case 'category_default': return 'category_default'
+    default: return 'category_default'
   }
 }
