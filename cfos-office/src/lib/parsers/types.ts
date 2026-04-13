@@ -66,6 +66,7 @@ export type ValueCategoryRule = {
   avg_amount_high: number | null
   time_context: string | null
   source: string
+  last_signal_at: string | null
 }
 
 // ── Balance sheet parsing (Session 19B) ──────────────────────────────
