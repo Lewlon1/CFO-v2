@@ -6,6 +6,7 @@ import { useChatContext } from './ChatProvider'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
+import { RETURNING_USER_PROMPTS } from '@/lib/chat/prompt-buttons'
 
 export function ChatSheet() {
   const {
@@ -19,6 +20,7 @@ export function ChatSheet() {
     startConversation,
     handleOptionSelect,
     handleStructuredSubmit,
+    sendChatMessage,
     chatError,
     dismissError,
     userCurrency,
@@ -191,7 +193,7 @@ export function ChatSheet() {
           <>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {messages.length === 0 ? (
-                <SheetEmptyState />
+                <SheetEmptyState onSelect={sendChatMessage} />
               ) : (
                 <MessageList
                   messages={messages}
@@ -223,16 +225,27 @@ export function ChatSheet() {
 
 // ── Empty state when no messages ────────────────────────────────────────────
 
-function SheetEmptyState() {
+function SheetEmptyState({ onSelect }: { onSelect: (text: string) => void }) {
   return (
-    <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
+    <div className="flex flex-col items-center px-5 py-8 text-center">
       <CFOAvatar size={48} />
-      <p className="mt-4 text-sm text-office-text">
+      <p className="mt-4 text-sm text-office-text font-medium">
         What&apos;s on your mind?
       </p>
-      <p className="mt-1 text-xs text-office-text-muted">
-        Ask about your spending, plan a trip, or just check in.
+      <p className="mt-1 text-xs text-office-text-muted mb-5">
+        Pick a topic or type your own question below.
       </p>
+      <div className="w-full grid gap-1.5">
+        {RETURNING_USER_PROMPTS.map((prompt) => (
+          <button
+            key={prompt.id}
+            onClick={() => onSelect(prompt.message)}
+            className="w-full px-4 py-3 text-left text-[13px] text-office-text/80 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors min-h-[44px]"
+          >
+            {prompt.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

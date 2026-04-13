@@ -443,7 +443,71 @@ export function HoldingsPreview({
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile card layout */}
+          <div className="space-y-3 md:hidden">
+            {visibleRows.map((r) => (
+              <div key={r.__key} className="rounded-lg border border-border bg-background p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <input
+                    type="text"
+                    value={r.name}
+                    onChange={(e) => updateRow(r.__key, 'name', e.target.value)}
+                    className="flex-1 min-h-[36px] rounded border border-input bg-background px-2 text-base font-medium"
+                    placeholder="Name"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeRow(r.__key)}
+                    className="text-xs text-muted-foreground hover:text-destructive min-h-[36px] px-2 shrink-0"
+                    aria-label="Remove row"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Ticker</label>
+                    <input
+                      type="text"
+                      value={r.ticker ?? ''}
+                      onChange={(e) => updateRow(r.__key, 'ticker', e.target.value || null)}
+                      className="w-full min-h-[36px] rounded border border-input bg-background px-2 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Qty</label>
+                    <input
+                      type="number"
+                      value={r.quantity ?? ''}
+                      onChange={(e) => updateRow(r.__key, 'quantity', e.target.value === '' ? null : Number(e.target.value))}
+                      className="w-full min-h-[36px] rounded border border-input bg-background px-2 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Value</label>
+                    <input
+                      type="number"
+                      value={r.current_value ?? ''}
+                      onChange={(e) => updateRow(r.__key, 'current_value', e.target.value === '' ? null : Number(e.target.value))}
+                      className="w-full min-h-[36px] rounded border border-input bg-background px-2 text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Cost</label>
+                    <input
+                      type="number"
+                      value={r.cost_basis ?? ''}
+                      onChange={(e) => updateRow(r.__key, 'cost_basis', e.target.value === '' ? null : Number(e.target.value))}
+                      className="w-full min-h-[36px] rounded border border-input bg-background px-2 text-base"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table layout */}
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b border-border">

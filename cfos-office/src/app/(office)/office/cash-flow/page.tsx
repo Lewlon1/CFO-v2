@@ -18,17 +18,24 @@ const files: FileItem[] = [
   },
   {
     id: 'bills',
-    label: 'Recurring expenses',
-    description: 'tracker · detected charges',
+    label: 'Bills & subscriptions',
+    description: 'tracker · known providers',
     icon: '↻',
     href: '/office/cash-flow/bills',
+  },
+  {
+    id: 'patterns',
+    label: 'Spending patterns',
+    description: 'insights · regular habits',
+    icon: '◈',
+    href: '/office/cash-flow/patterns',
   },
   {
     id: 'upload',
     label: 'Upload statement',
     description: 'action · csv / screenshot',
     icon: '⊕',
-    href: '/chat?prefill=I%27d+like+to+upload+a+bank+statement',
+    href: '/office/cash-flow/upload',
   },
   {
     id: 'spending-breakdown',

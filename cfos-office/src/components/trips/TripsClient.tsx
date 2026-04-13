@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useChatContext } from '@/components/chat/ChatProvider';
 
 function formatCurrency(amount: number, currency?: string): string {
   const c = currency || 'EUR';
@@ -48,38 +48,28 @@ export function TripsClient({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  async function handlePlanTrip() {
+  // Use office ChatSheet when available
+  let chatCtx: ReturnType<typeof useChatContext> | null = null
+  try {
+    chatCtx = useChatContext()
+  } catch {
+    // Not inside ChatProvider
+  }
+
+  function handlePlanTrip() {
     if (loading) return;
     setLoading(true);
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
-      await supabase
-        .from('conversations')
-        .update({ status: 'completed', updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-
-      const { data: conv } = await supabase
-        .from('conversations')
-        .insert({
-          user_id: user.id,
-          title: 'Trip planning',
-          type: 'trip_planning',
-        })
-        .select('id')
-        .single();
-
-      if (conv) {
-        router.push(`/chat/${conv.id}?starter=${encodeURIComponent('Help me plan a trip')}`);
-      }
-    } catch (err) {
-      console.error('Error starting trip planning:', err);
-    } finally {
+    if (chatCtx) {
+      chatCtx.startConversation('trip_planning')
+      chatCtx.setInput('Help me plan a trip')
       setLoading(false);
+      return;
     }
+
+    // Fallback for non-office routes
+    router.push('/chat?type=trip_planning');
+    setLoading(false);
   }
 
   const activeTrips = trips.filter(t => t.status === 'planning' || t.status === 'booked' || t.status === 'in_progress');
@@ -118,7 +108,14 @@ export function TripsClient({
           {activeTrips.length > 0 && (
             <div className="space-y-3">
               {activeTrips.map((trip) => (
-                <TripCard key={trip.id} trip={trip} goal={trip.goal_id ? goals[trip.goal_id] : undefined} />
+                <TripCard key={trip.id} trip={trip} goal={trip.goal_id ? goals[trip.goal_id] : undefined} onOpenConversation={(id) => {
+                    if (chatCtx) {
+                      chatCtx.loadConversation(id)
+                      chatCtx.openSheet()
+                    } else {
+                      router.push(`/chat/${id}`)
+                    }
+                  }} />
               ))}
             </div>
           )}
@@ -128,7 +125,14 @@ export function TripsClient({
               <h2 className="text-sm font-medium text-muted-foreground mb-3">Past trips</h2>
               <div className="space-y-2">
                 {pastTrips.map((trip) => (
-                  <TripCard key={trip.id} trip={trip} goal={trip.goal_id ? goals[trip.goal_id] : undefined} />
+                  <TripCard key={trip.id} trip={trip} goal={trip.goal_id ? goals[trip.goal_id] : undefined} onOpenConversation={(id) => {
+                    if (chatCtx) {
+                      chatCtx.loadConversation(id)
+                      chatCtx.openSheet()
+                    } else {
+                      router.push(`/chat/${id}`)
+                    }
+                  }} />
                 ))}
               </div>
             </div>
@@ -139,7 +143,7 @@ export function TripsClient({
   );
 }
 
-function TripCard({ trip, goal }: { trip: Trip; goal?: GoalProgress }) {
+function TripCard({ trip, goal, onOpenConversation }: { trip: Trip; goal?: GoalProgress; onOpenConversation?: (id: string) => void }) {
   const router = useRouter();
   const fundingPct = goal && goal.target_amount > 0
     ? Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100))
@@ -149,7 +153,11 @@ function TripCard({ trip, goal }: { trip: Trip; goal?: GoalProgress }) {
     <button
       onClick={() => {
         if (trip.conversation_id) {
-          router.push(`/chat/${trip.conversation_id}`);
+          if (onOpenConversation) {
+            onOpenConversation(trip.conversation_id);
+          } else {
+            router.push(`/chat/${trip.conversation_id}`);
+          }
         }
       }}
       className="w-full text-left bg-card border border-border rounded-xl p-4 hover:bg-accent transition-colors"

@@ -21,7 +21,7 @@ const files: FileItem[] = [
     label: 'Your archetype',
     description: 'profile · financial personality',
     icon: '☆',
-    href: '/office/values/portrait',
+    href: '/office/values/archetype',
   },
   {
     id: 'profile',
