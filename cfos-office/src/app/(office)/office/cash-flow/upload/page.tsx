@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
-import { BalanceSheetClient } from '@/components/balance-sheet/BalanceSheetClient'
+import { UploadPageClient } from './UploadPageClient'
 import type { Category } from '@/lib/parsers/types'
 
-export default async function LiabilitiesPage() {
+export default async function CashFlowUploadPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -15,9 +15,5 @@ export default async function LiabilitiesPage() {
 
   const categories: Category[] = catData ?? []
 
-  return (
-    <div className="flex flex-col h-full">
-      <BalanceSheetClient categories={categories} view="liabilities" />
-    </div>
-  )
+  return <UploadPageClient categories={categories} />
 }

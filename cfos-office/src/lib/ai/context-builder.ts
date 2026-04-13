@@ -153,12 +153,38 @@ function buildProfileContext(profile: any): string {
   if (fields.length === 0) return '';
 
   const completeness = profile.profile_completeness || 0;
-  let completenessNote = `\nProfile completeness: ${completeness}%.`;
-  if (completeness < 50) {
-    completenessNote += ' Many fields are still unknown. Gather more context naturally through conversation.';
+  const completenessNote = `\nProfile completeness: ${completeness}%.`;
+
+  // Build an explicit "already known" list so the LLM never re-asks for populated fields
+  const knownFieldLabels: string[] = [];
+  if (profile.display_name) knownFieldLabels.push('name');
+  if (profile.country) knownFieldLabels.push('country');
+  if (profile.city) knownFieldLabels.push('city');
+  if (profile.primary_currency) knownFieldLabels.push('currency');
+  if (profile.age_range) knownFieldLabels.push('age');
+  if (profile.employment_status) knownFieldLabels.push('employment status');
+  if (profile.net_monthly_income) knownFieldLabels.push('monthly take-home pay');
+  if (profile.gross_salary) knownFieldLabels.push('gross salary');
+  if (profile.pay_frequency) knownFieldLabels.push('pay frequency');
+  if (profile.has_bonus_months) knownFieldLabels.push('bonus months');
+  if (profile.housing_type) knownFieldLabels.push('housing type');
+  if (profile.monthly_rent) knownFieldLabels.push('rent/mortgage amount');
+  if (profile.relationship_status) knownFieldLabels.push('relationship status');
+  if (profile.partner_employment_status) knownFieldLabels.push('partner employment');
+  if (profile.partner_monthly_contribution) knownFieldLabels.push('partner contribution');
+  if (profile.dependents) knownFieldLabels.push('dependents');
+  if (profile.nationality) knownFieldLabels.push('nationality');
+  if (profile.risk_tolerance) knownFieldLabels.push('risk tolerance');
+  if (profile.advice_style) knownFieldLabels.push('advice style');
+  if (profile.spending_triggers) knownFieldLabels.push('spending triggers');
+  if (profile.values_ranking) knownFieldLabels.push('values ranking');
+
+  let doNotAskBlock = '';
+  if (knownFieldLabels.length > 0) {
+    doNotAskBlock = `\n\nCRITICAL — You already have: ${knownFieldLabels.join(', ')}. DO NOT ask for any of these again. Use the values above directly. If the user volunteers an update, accept it — but never re-ask.`;
   }
 
-  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}`;
+  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}${doNotAskBlock}`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

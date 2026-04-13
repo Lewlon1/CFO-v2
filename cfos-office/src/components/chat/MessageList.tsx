@@ -3,6 +3,7 @@
 import { UIMessage } from 'ai';
 import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 
 // ── Markdown styling ──────────────────────────────────────────────────────────
@@ -27,6 +28,20 @@ const markdownComponents: Components = {
   code: ({ children }) => <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs font-mono">{children}</code>,
   hr: () => <hr className="my-3 border-border" />,
   blockquote: ({ children }) => <blockquote className="border-l-2 border-border pl-3 italic text-foreground/80 my-1.5">{children}</blockquote>,
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-3 -mx-1">
+      <table className="w-full text-sm border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="border-b border-border">{children}</thead>,
+  tbody: ({ children }) => <tbody className="divide-y divide-border/50">{children}</tbody>,
+  tr: ({ children }) => <tr>{children}</tr>,
+  th: ({ children }) => (
+    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{children}</th>
+  ),
+  td: ({ children }) => (
+    <td className="px-3 py-2 text-sm text-foreground/90 whitespace-nowrap">{children}</td>
+  ),
 };
 import { TappableOptions } from './TappableOptions';
 import { ChatCTA } from './ChatCTA';
@@ -367,7 +382,7 @@ export function MessageList({
                 }
               >
                 {message.role === 'assistant' ? (
-                  <Markdown components={markdownComponents}>{text}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{text}</Markdown>
                 ) : (
                   <p className="whitespace-pre-wrap">{text}</p>
                 )}

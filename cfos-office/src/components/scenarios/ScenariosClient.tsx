@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useChatContext } from '@/components/chat/ChatProvider';
 
 const SCENARIO_CARDS = [
   {
@@ -64,48 +64,29 @@ export function ScenariosClient({
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
 
-  async function handleCardClick(card: (typeof SCENARIO_CARDS)[number]) {
+  // Use office ChatSheet when available (office layout provides ChatProvider)
+  let chatCtx: ReturnType<typeof useChatContext> | null = null
+  try {
+    chatCtx = useChatContext()
+  } catch {
+    // Not inside ChatProvider — fall through to router.push fallback
+  }
+
+  function handleCardClick(card: (typeof SCENARIO_CARDS)[number]) {
     if (loading) return;
     setLoading(card.type);
 
-    try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Mark existing active conversations as completed
-      await supabase
-        .from('conversations')
-        .update({ status: 'completed', updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-
-      // Create new scenario conversation
-      const { data: conv, error } = await supabase
-        .from('conversations')
-        .insert({
-          user_id: user.id,
-          title: card.title,
-          type: 'scenario',
-          metadata: { scenario_type: card.type },
-        })
-        .select('id')
-        .single();
-
-      if (error || !conv) {
-        console.error('Failed to create scenario conversation:', error);
-        setLoading(null);
-        return;
-      }
-
-      // Navigate to the chat with the first message
-      router.push(`/chat/${conv.id}?starter=${encodeURIComponent(card.message)}`);
-    } catch (err) {
-      console.error('Error starting scenario:', err);
+    if (chatCtx) {
+      // Open in ChatSheet within the office layout
+      chatCtx.startConversation('scenario', { scenario_type: card.type })
+      chatCtx.setInput(card.message)
       setLoading(null);
+      return;
     }
+
+    // Fallback for non-office routes
+    router.push(`/chat?type=scenario`);
+    setLoading(null);
   }
 
   function formatDate(dateStr: string): string {
@@ -157,7 +138,14 @@ export function ScenariosClient({
             {recentScenarios.map((s) => (
               <button
                 key={s.id}
-                onClick={() => router.push(`/chat/${s.id}`)}
+                onClick={() => {
+                  if (chatCtx) {
+                    chatCtx.loadConversation(s.id)
+                    chatCtx.openSheet()
+                  } else {
+                    router.push(`/chat/${s.id}`)
+                  }
+                }}
                 className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left hover:bg-accent transition-colors"
               >
                 <span className="text-sm text-foreground truncate">{s.title}</span>

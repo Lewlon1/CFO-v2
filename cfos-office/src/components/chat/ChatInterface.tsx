@@ -10,6 +10,8 @@ import { ChatInput } from './ChatInput';
 import { WelcomeState } from './WelcomeState';
 import { ChatLoadingScreen } from './ChatLoadingScreen';
 import { MobileConversationDrawer } from './MobileConversationDrawer';
+import { PresetDropdown } from './PresetDropdown';
+import type { PromptButton } from '@/lib/chat/prompt-buttons';
 import { useTrackEvent } from '@/lib/events/use-track-event';
 
 interface ChatInterfaceProps {
@@ -43,6 +45,16 @@ export function ChatInterface({
 
   const [input, setInput] = useState('');
   const [chatError, setChatError] = useState<string | null>(null);
+  const [presetOpen, setPresetOpen] = useState(false);
+  const [subject, setSubject] = useState<string>(
+    () => {
+      if (initialConversationId && conversations) {
+        const match = conversations.find((c) => c.id === initialConversationId);
+        return match?.title || 'New conversation';
+      }
+      return 'New conversation';
+    }
+  );
   const autoTriggeredRef = useRef(false);
   const conversationTypeRef = useRef(conversationType);
 
@@ -165,9 +177,13 @@ export function ChatInterface({
     if (!text) return;
     setChatError(null);
     setInput('');
+    // Update subject from first manual message (matches server-side title logic)
+    if (messages.length === 0 && subject === 'New conversation') {
+      setSubject(text.slice(0, 80));
+    }
     trackEvent('message_sent');
     sendMessage({ text });
-  }, [input, sendMessage, trackEvent]);
+  }, [input, messages.length, subject, sendMessage, trackEvent]);
 
   const handleStarterSelect = useCallback(
     (text: string, type?: string) => {
@@ -210,6 +226,23 @@ export function ChatInterface({
     [sendMessage]
   );
 
+  const handlePresetSelect = useCallback(
+    (prompt: PromptButton) => {
+      setSubject(prompt.label);
+      setPresetOpen(false);
+      trackEvent('prompt_button_clicked', 'engagement', {
+        prompt_id: prompt.id,
+        prompt_label: prompt.label,
+        source: 'header_dropdown',
+      });
+      if (prompt.conversationType) {
+        conversationTypeRef.current = prompt.conversationType;
+      }
+      sendMessage({ text: prompt.message });
+    },
+    [sendMessage, trackEvent]
+  );
+
   const isLoading = status === 'submitted' || status === 'streaming';
   const isAutoTriggered = conversationType === 'post_upload' || conversationType === 'value_map_complete' || conversationType === 'bill_optimisation' || conversationType === 'monthly_review' || conversationType === 'onboarding' || conversationType === 'onboarding_no_vm';
 
@@ -217,18 +250,44 @@ export function ChatInterface({
   const showWelcome = messages.length === 0 && !isLoading && !isAutoTriggered;
 
   const mobileChatHeader = (
-    <div className="md:hidden flex items-center justify-between px-2 py-1 border-b border-border bg-card">
-      <MobileConversationDrawer conversations={conversations ?? []} />
-      <span className="text-sm font-medium text-foreground">Your CFO</span>
-      <Link
-        href="/chat"
-        className="p-2 text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
-        aria-label="New conversation"
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-      </Link>
+    <div className="md:hidden relative border-b border-border bg-card">
+      <div className="flex items-center justify-between px-2 py-1">
+        <MobileConversationDrawer conversations={conversations ?? []} />
+        <button
+          onClick={() => setPresetOpen((v) => !v)}
+          className="flex items-center gap-1 min-w-0 flex-1 justify-center px-2 min-h-[44px]"
+          aria-label="Open preset questions"
+        >
+          <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
+            {subject}
+          </span>
+          <svg
+            className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${presetOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        <Link
+          href="/chat"
+          className="p-2 text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="New conversation"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </Link>
+      </div>
+      {presetOpen && (
+        <PresetDropdown
+          hasTransactions={hasTransactions}
+          onSelect={handlePresetSelect}
+          onClose={() => setPresetOpen(false)}
+        />
+      )}
     </div>
   );
 

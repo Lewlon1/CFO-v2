@@ -17,7 +17,7 @@ export default async function AssetsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <BalanceSheetClient categories={categories} />
+      <BalanceSheetClient categories={categories} view="assets" />
     </div>
   )
 }
