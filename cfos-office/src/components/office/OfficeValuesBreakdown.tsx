@@ -8,6 +8,7 @@ const VALUE_CONFIG = {
   investment: { color: '#3B82F6', label: 'Investment', desc: 'Building future value' },
   leak: { color: '#F43F5E', label: 'Leak', desc: 'Avoidable, habitual drain' },
   burden: { color: '#8B5CF6', label: 'Burden', desc: 'Unavoidable but resented' },
+  no_idea: { color: '#F59E0B', label: 'Unsure', desc: 'Not yet classified' },
 } as const
 
 type VCKey = keyof typeof VALUE_CONFIG
@@ -88,7 +89,7 @@ export function OfficeValuesBreakdown() {
   }
 
   const vcData = summary.spending_by_value_category
-  const valueOrder: VCKey[] = ['foundation', 'investment', 'leak', 'burden']
+  const valueOrder: VCKey[] = ['foundation', 'investment', 'leak', 'burden', 'no_idea']
   const segments = valueOrder
     .map(key => ({ key, pct: vcData[key]?.pct ?? 0, amount: vcData[key]?.amount ?? 0 }))
     .filter(s => s.pct > 0)
@@ -100,6 +101,9 @@ export function OfficeValuesBreakdown() {
   // Top leaks — we don't have per-category value info, so just show the leak total
   const leakData = vcData['leak']
   const hasLeaks = leakData && leakData.amount > 0
+
+  const unsureData = vcData['no_idea']
+  const hasUnsure = unsureData && unsureData.amount > 0
 
   // Month selector
   const monthLabel = new Date(summary.month).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }).toUpperCase()
@@ -180,6 +184,27 @@ export function OfficeValuesBreakdown() {
             </div>
             <span className="font-data text-[12px] font-medium text-[#F43F5E] shrink-0">
               -{formatCurrency(leakData.amount)}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* Unsure summary */}
+      {hasUnsure && (
+        <>
+          <p className="text-[10px] font-bold text-[rgba(245,245,240,0.25)] tracking-[0.04em] uppercase mt-4 mb-1.5">
+            Unsure this month
+          </p>
+          <div className="flex items-center gap-2 py-2.5 border-b border-[rgba(255,255,255,0.03)]">
+            <div className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px] shrink-0 bg-[rgba(245,158,11,0.1)] text-[#F59E0B]">
+              ?
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-medium">Not yet classified</p>
+              <p className="font-data text-[8px] text-[rgba(245,245,240,0.22)] mt-[2px]">{unsureData.count} transactions</p>
+            </div>
+            <span className="font-data text-[12px] font-medium text-[#F59E0B] shrink-0">
+              -{formatCurrency(unsureData.amount)}
             </span>
           </div>
         </>

@@ -60,6 +60,23 @@ export function ArchetypePageClient({
     (data?.updated_at && data.updated_at !== mountedUpdatedRef.current)
 
   if (!data || !data.archetype_name) {
+    if (pendingRegen) {
+      return (
+        <div className="p-4 md:p-8 max-w-2xl mx-auto">
+          <h1 className="text-xl font-semibold text-foreground mb-6">Your Money Personality</h1>
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 text-center space-y-4">
+            <Sparkles className="h-8 w-8 text-amber-400 mx-auto animate-pulse" />
+            <p className="text-sm text-foreground font-medium">
+              Building your money personality…
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Your CFO is analysing your answers. This takes about a minute.
+            </p>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="p-4 md:p-8 max-w-2xl mx-auto">
         <h1 className="text-xl font-semibold text-foreground mb-6">Your Money Personality</h1>
@@ -128,15 +145,37 @@ export function ArchetypePageClient({
         </div>
       )}
 
-      {/* Full analysis */}
-      {data.full_analysis && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-          <h2 className="text-sm font-medium text-foreground">Analysis</h2>
-          <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-            {data.full_analysis}
+      {/* Full analysis — traits stored as JSON array or plain text */}
+      {data.full_analysis && (() => {
+        let lines: string[] | null = null
+        try {
+          const parsed = JSON.parse(data.full_analysis!)
+          if (Array.isArray(parsed) && parsed.every((t) => typeof t === 'string')) {
+            lines = parsed
+          }
+        } catch { /* plain text — fall through */ }
+
+        return lines ? (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+            <h2 className="text-sm font-medium text-foreground">Analysis</h2>
+            <ul className="space-y-2">
+              {lines.map((line, i) => (
+                <li key={i} className="text-sm text-muted-foreground leading-relaxed flex items-start gap-2">
+                  <span className="text-muted-foreground mt-0.5 shrink-0">·</span>
+                  {line}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+            <h2 className="text-sm font-medium text-foreground">Analysis</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {data.full_analysis}
+            </p>
+          </div>
+        )
+      })()}
 
       {/* Certainty areas */}
       {data.certainty_areas && data.certainty_areas.length > 0 && (
