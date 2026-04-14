@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { useChatContext } from '@/components/chat/ChatProvider'
 
 interface Trip {
   name: string
@@ -25,14 +25,20 @@ function formatCurrency(amount: number, currency = 'EUR'): string {
 }
 
 export function ScenariosSection({ nextTrip, currency = 'EUR' }: ScenariosSectionProps) {
+  const { setInput, openSheet } = useChatContext()
+
   if (!nextTrip) {
     return (
-      <Link
-        href="/chat?prefill=I%27d+like+to+plan+a+trip"
-        className="block text-[11px] text-text-secondary py-2 hover:text-text-primary transition-colors"
+      <button
+        type="button"
+        onClick={() => {
+          setInput("I'd like to plan a trip")
+          openSheet()
+        }}
+        className="block text-left w-full text-[11px] text-text-secondary py-2 hover:text-text-primary transition-colors"
       >
         No active scenarios yet. Plan a trip or model a change &rarr;
-      </Link>
+      </button>
     )
   }
 

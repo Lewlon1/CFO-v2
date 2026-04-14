@@ -16,6 +16,13 @@ const files: FileItem[] = [
     icon: '✈',
     href: '/office/scenarios/trips',
   },
+  {
+    id: 'goals',
+    label: 'Goals',
+    description: 'track financial goals',
+    icon: '◎',
+    href: '/office/scenarios/goals',
+  },
 ]
 
 export default function ScenariosPage() {

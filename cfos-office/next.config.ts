@@ -43,6 +43,26 @@ const nextConfig: NextConfig = {
         destination: '/office/values/portrait',
         permanent: true,
       },
+      {
+        source: '/chat/:id',
+        destination: '/office',
+        permanent: true,
+      },
+      {
+        source: '/balance-sheet',
+        destination: '/office/net-worth/balance-sheet',
+        permanent: true,
+      },
+      {
+        source: '/goals',
+        destination: '/office/scenarios/goals',
+        permanent: true,
+      },
+      {
+        source: '/settings',
+        destination: '/office/settings',
+        permanent: true,
+      },
     ]
   },
 };

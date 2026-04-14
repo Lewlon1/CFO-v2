@@ -7,6 +7,7 @@ import { ChatBar } from '@/components/chat/ChatBar'
 import { ChatSheet } from '@/components/chat/ChatSheet'
 import { NavigationBar } from '@/components/navigation/NavigationBar'
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
+import { UserAvatarMenu } from '@/components/office/UserAvatarMenu'
 import type { OnboardingState } from '@/lib/onboarding/types'
 
 const jetbrainsMono = JetBrains_Mono({
@@ -103,9 +104,7 @@ export default async function OfficeLayout({ children }: { children: React.React
             {formatDate(new Date())}
           </span>
         </div>
-        <div className="w-8 h-8 rounded-full bg-accent-gold-bg border border-accent-gold-border flex items-center justify-center text-[12px] font-bold text-accent-gold shrink-0">
-          {initial}
-        </div>
+        <UserAvatarMenu initial={initial} />
       </header>
 
       <ChatProvider userCurrency={currency}>
