@@ -17,6 +17,7 @@
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.1",
     "@types/papaparse": "^5.5.2",
+    "@vercel/analytics": "^2.0.1",
     "ai": "^6.0.145",
     "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",
