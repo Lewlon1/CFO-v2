@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ValueMapFlow } from '@/components/value-map/value-map-flow'
 
-type Mode = 'onboarding' | 'retake' | 'checkin' | 'personal'
+type Mode = 'onboarding' | 'checkin' | 'personal'
 
 export default async function ValueMapPage({
   searchParams,
@@ -19,7 +19,6 @@ export default async function ValueMapPage({
   const rawMode = typeof params.mode === 'string' ? params.mode : 'checkin'
   const mode: Mode =
     rawMode === 'onboarding' ||
-    rawMode === 'retake' ||
     rawMode === 'checkin' ||
     rawMode === 'personal'
       ? rawMode
