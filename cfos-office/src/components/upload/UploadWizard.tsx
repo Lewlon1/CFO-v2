@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { UploadZone } from './UploadZone'
 import { ColumnMapper } from './ColumnMapper'
@@ -77,6 +77,7 @@ type Props = {
 export function UploadWizard({ categories, onImported, onDone, context = 'transactions', autoImport }: Props) {
   const trackEvent = useTrackEvent()
   const [state, setState] = useState<WizardState>({ step: 'idle' })
+  const autoImportFiredRef = useRef(false)
 
   async function handleFile(file: File) {
     // Client-side validation
@@ -247,8 +248,20 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
   }
 
   function reset() {
+    autoImportFiredRef.current = false
     setState({ step: 'idle' })
   }
+
+  // Auto-import: when autoImport is true and the wizard reaches 'preview',
+  // fire the import exactly once via an effect (never during render).
+  useEffect(() => {
+    if (state.step === 'preview' && autoImport && !autoImportFiredRef.current) {
+      autoImportFiredRef.current = true
+      const rows = state.preview.map(tx => ({ ...tx, categoryId: tx.suggestedCategoryId ?? null }))
+      handleImportConfirm(rows)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, autoImport])
 
   if (state.step === 'idle') {
     return <UploadZone onFile={handleFile} context={context} />
@@ -314,9 +327,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
 
   if (state.step === 'preview') {
     if (autoImport) {
-      // Skip review — import immediately with server-assigned categories
-      const rows = state.preview.map(tx => ({ ...tx, categoryId: tx.suggestedCategoryId ?? null }))
-      handleImportConfirm(rows)
+      // Auto-import fires via useEffect above — render the importing state only
       return (
         <TransactionPreview
           transactions={[]}

@@ -68,14 +68,37 @@ async function computeSpendingSummary(
 
   if (!topCategory || topCategory.length === 0) return null
 
-  // Group by category
+  // Group by categorised amount, separately track uncategorised amount.
+  // "Uncategorised" on its own is never a useful headline insight — if it's the
+  // biggest bucket, the better move is to invite the user into a categorisation
+  // review. So we route to the 'needs_categorisation' insight when >50% is
+  // uncategorised, and otherwise pick the biggest real category only.
   const byCat = new Map<string, number>()
+  let uncategorisedTotal = 0
+  let grandTotal = 0
   for (const tx of topCategory) {
-    const cat = tx.category_id ?? 'uncategorised'
-    byCat.set(cat, (byCat.get(cat) ?? 0) + Math.abs(tx.amount))
+    const abs = Math.abs(tx.amount)
+    grandTotal += abs
+    if (!tx.category_id) {
+      uncategorisedTotal += abs
+      continue
+    }
+    byCat.set(tx.category_id, (byCat.get(tx.category_id) ?? 0) + abs)
   }
 
-  // Find top
+  if (grandTotal > 0 && uncategorisedTotal / grandTotal > 0.5) {
+    const pct = Math.round((uncategorisedTotal / grandTotal) * 100)
+    return {
+      type: 'needs_categorisation',
+      merchant_or_category: 'uncategorised',
+      reality: {
+        description: `${pct}% of your spending isn't categorised yet, which means any "biggest category" insight I'd give you right now would really just be measuring the unknown.`,
+        monthly_amount: 0,
+      },
+    }
+  }
+
+  // Find top categorised bucket
   let topCatId = ''
   let topAmount = 0
   for (const [cat, amount] of byCat) {
@@ -84,17 +107,16 @@ async function computeSpendingSummary(
       topAmount = amount
     }
   }
+  if (!topCatId) return null
 
   // Get category name
   let catName = topCatId
-  if (topCatId && topCatId !== 'uncategorised') {
-    const { data: catData } = await supabase
-      .from('categories')
-      .select('name')
-      .eq('id', topCatId)
-      .single()
-    if (catData) catName = catData.name
-  }
+  const { data: catData } = await supabase
+    .from('categories')
+    .select('name')
+    .eq('id', topCatId)
+    .single()
+  if (catData) catName = catData.name
 
   // Count months in the batch for monthly average
   const { data: dateRange } = await supabase
@@ -168,16 +190,18 @@ export async function POST(req: Request) {
   const currency = profile?.currency ?? 'GBP'
   const sym = getCurrencySymbol(currency)
 
-  // Get archetype name for the prompt
-  const { data: vmResult } = await supabase
-    .from('value_map_results')
+  // Get archetype name for the prompt.
+  // archetype_name lives on value_map_sessions (keyed by profile_id), not value_map_results.
+  const { data: vmSession } = await supabase
+    .from('value_map_sessions')
     .select('archetype_name')
-    .eq('user_id', user.id)
+    .eq('profile_id', user.id)
+    .not('archetype_name', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  const archetypeName = vmResult?.archetype_name ?? 'your CFO'
+  const archetypeName = vmSession?.archetype_name ?? 'your CFO'
 
   // ── Compute insight data ──────────────────────────────────────────────────
 

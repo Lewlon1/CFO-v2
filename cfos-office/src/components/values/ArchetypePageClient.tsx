@@ -26,7 +26,7 @@ export function ArchetypePageClient({ data }: { data: ArchetypeData | null }) {
             feel about your spending.
           </p>
           <Link
-            href="/demo"
+            href="/value-map?mode=retake"
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
           >
             Start the Value Map
@@ -105,7 +105,7 @@ export function ArchetypePageClient({ data }: { data: ArchetypeData | null }) {
       {/* Retake */}
       <div className="pt-2">
         <Link
-          href="/demo"
+          href="/value-map?mode=retake"
           className="text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           Retake the Value Map

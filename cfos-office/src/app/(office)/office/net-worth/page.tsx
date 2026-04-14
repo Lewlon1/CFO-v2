@@ -26,5 +26,14 @@ const files: FileItem[] = [
 ]
 
 export default function NetWorthPage() {
-  return <FolderDetail accentColor="#06B6D4" files={files} />
+  return (
+    <>
+      <div className="mx-3.5 mt-1 mb-3 px-3 py-2.5 rounded-[10px] bg-[rgba(6,182,212,0.06)] border border-[rgba(6,182,212,0.15)] text-[12px] text-text-secondary leading-relaxed">
+        Tip: you can tell your CFO about assets and liabilities directly in chat.
+        Try <span className="text-text-primary">&ldquo;I have a savings account with £5,000&rdquo;</span> or{' '}
+        <span className="text-text-primary">&ldquo;I owe £12,000 on my car loan&rdquo;</span>.
+      </div>
+      <FolderDetail accentColor="#06B6D4" files={files} />
+    </>
+  )
 }

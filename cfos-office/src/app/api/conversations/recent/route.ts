@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   // Fetch messages for this conversation (most recent 20)
   const { data: messages } = await supabase
     .from('messages')
-    .select('id, role, content, created_at')
+    .select('id, role, content, created_at, parts, metadata')
     .eq('conversation_id', conversation.id)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })

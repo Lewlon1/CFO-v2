@@ -282,7 +282,18 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
     if (latest.total_income) parts.push(`Total income: ${currency} ${latest.total_income}`);
     if (latest.surplus_deficit) parts.push(`Surplus/deficit: ${currency} ${latest.surplus_deficit}`);
     if (latest.spending_by_category && Object.keys(latest.spending_by_category).length > 0) {
-      parts.push(`Spending by category: ${JSON.stringify(latest.spending_by_category)}`);
+      // Filter out null/uncategorised keys so Claude doesn't present "uncategorised"
+      // as a meaningful spending category to the user.
+      const filtered = Object.fromEntries(
+        Object.entries(latest.spending_by_category).filter(([k]) => {
+          if (!k || k === 'null') return false;
+          const lc = k.toLowerCase();
+          return lc !== 'uncategorised' && lc !== 'uncategorized' && lc !== 'unknown' && lc !== 'other';
+        }),
+      );
+      if (Object.keys(filtered).length > 0) {
+        parts.push(`Spending by category: ${JSON.stringify(filtered)}`);
+      }
     }
     if (latest.spending_by_value_category && Object.keys(latest.spending_by_value_category).length > 0) {
       parts.push(`Spending by value category: ${JSON.stringify(latest.spending_by_value_category)}`);

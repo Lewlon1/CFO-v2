@@ -33,19 +33,40 @@ export function ChatSheet() {
   >([])
   const sheetRef = useRef<HTMLDivElement>(null)
 
-  // Dynamically adjust sheet height when iOS keyboard opens
+  // Anchor sheet to the visual viewport so the chat input stays pinned above
+  // the iOS keyboard. iOS fires BOTH `resize` (when the keyboard appears/disappears)
+  // AND `scroll` (when the OS shifts the viewport to bring a focused input into
+  // view). Missing either event lets the sheet drift out of alignment — the input
+  // appears to scroll off screen. We set `position/top/height` inline so they
+  // override the Tailwind `items-start` positioning on the parent.
   useEffect(() => {
     if (!isSheetOpen) return
     const vv = window.visualViewport
     if (!vv) return
-    const handleResize = () => {
-      if (sheetRef.current) {
-        sheetRef.current.style.maxHeight = `${vv.height * 0.92}px`
+    const el = sheetRef.current
+    if (!el) return
+
+    const apply = () => {
+      // 92% of the visible viewport so the backdrop peeks through at the top.
+      el.style.position = 'fixed'
+      el.style.top = `${vv.offsetTop}px`
+      el.style.height = `${vv.height * 0.92}px`
+      el.style.maxHeight = 'none'
+    }
+    apply()
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      // Reset inline styles so the next open re-applies cleanly.
+      if (el) {
+        el.style.position = ''
+        el.style.top = ''
+        el.style.height = ''
+        el.style.maxHeight = ''
       }
     }
-    vv.addEventListener('resize', handleResize)
-    handleResize()
-    return () => vv.removeEventListener('resize', handleResize)
   }, [isSheetOpen])
 
   // Body scroll lock
@@ -129,7 +150,7 @@ export function ChatSheet() {
       {/* Sheet — drops from top */}
       <div
         ref={sheetRef}
-        className="chat-sheet-scope relative w-full max-h-[82dvh] bg-bg-elevated rounded-b-[20px] flex flex-col animate-sheet-down shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="chat-sheet-scope relative w-full bg-bg-elevated rounded-b-[20px] flex flex-col animate-sheet-down shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

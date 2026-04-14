@@ -161,23 +161,40 @@ export async function POST(req: Request) {
     usedFallback = true
   }
 
-  // ── Persist to value_map_results ──────────────────────────────────────────
+  // ── Persist archetype to the latest onboarding value_map_sessions row ─────
+  // Note: archetype_* columns live on value_map_sessions, not value_map_results.
+  // value_map_results uses profile_id (not user_id). value-map-flow.tsx's
+  // handleContinue is responsible for INSERTing both tables; this route only
+  // UPDATEs the session row with archetype data generated from those responses.
 
-  const { error: updateError } = await supabase
-    .from('value_map_results')
-    .update({
-      archetype_name: archetype.archetype_name,
-      archetype_subtitle: archetype.archetype_subtitle,
-      full_analysis: JSON.stringify(archetype.traits),
-      certainty_areas: archetype.certainty_areas,
-      conflict_areas: archetype.conflict_areas,
-    })
-    .eq('user_id', user.id)
+  const { data: latestSession } = await supabase
+    .from('value_map_sessions')
+    .select('id')
+    .eq('profile_id', user.id)
+    .eq('type', 'onboarding')
     .order('created_at', { ascending: false })
     .limit(1)
+    .maybeSingle()
 
-  if (updateError) {
-    console.error('[archetype] Failed to persist to value_map_results:', updateError)
+  if (latestSession?.id) {
+    const { error: updateError } = await supabase
+      .from('value_map_sessions')
+      .update({
+        archetype_name: archetype.archetype_name,
+        archetype_subtitle: archetype.archetype_subtitle,
+        archetype_traits: archetype.traits,
+        archetype_analysis: JSON.stringify(archetype.traits),
+        certainty_areas: archetype.certainty_areas,
+        conflict_areas: archetype.conflict_areas,
+        used_fallback: usedFallback,
+      })
+      .eq('id', latestSession.id)
+
+    if (updateError) {
+      console.error('[archetype] Failed to persist to value_map_sessions:', updateError)
+    }
+  } else {
+    console.warn('[archetype] No onboarding value_map_sessions row found for user — cannot persist archetype. value-map-flow.tsx should insert the session before this endpoint is called.')
   }
 
   // ── Persist to financial_portrait ─────────────────────────────────────────

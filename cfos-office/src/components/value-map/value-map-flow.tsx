@@ -539,6 +539,35 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
         }))
         await supabase2.from('value_map_results').insert(resultRows)
 
+        // Seed value_category_rules from the quadrant assignments so the
+        // system can start classifying future transactions by value category
+        // even before the user corrects anything. Mirrors link-session
+        // (demo path) — see cfos-office/src/app/api/value-map/link-session/route.ts
+        const decidedForRules = results.filter(
+          (r): r is ValueMapResult & { quadrant: NonNullable<ValueMapResult['quadrant']> } =>
+            r.quadrant !== null,
+        )
+        if (decidedForRules.length > 0) {
+          const rules = decidedForRules.map((r) => ({
+            user_id: currentUser.id,
+            match_type: 'merchant' as const,
+            match_value: r.merchant.toLowerCase(),
+            value_category: r.quadrant,
+            confidence: r.confidence / 5, // 1-5 scale → 0-1
+            source: 'value_map',
+            last_signal_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }))
+          const { error: rulesError } = await supabase2
+            .from('value_category_rules')
+            .upsert(rules, {
+              onConflict: "user_id,match_type,match_value,coalesce(time_context,'__none__')",
+            })
+          if (rulesError) {
+            console.error('[value-map] value_category_rules upsert error:', rulesError)
+          }
+        }
+
         // Persist cut_intent decisions from cut-or-keep exercise
         if (cutDecisions.length > 0) {
           for (const decision of cutDecisions) {

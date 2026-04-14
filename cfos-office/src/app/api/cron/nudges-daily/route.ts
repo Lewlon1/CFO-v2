@@ -1,3 +1,5 @@
+// TODO: Not registered in vercel.json — decide between Vercel cron vs Supabase
+// Edge Function + pg_cron. See cfos-office/DEFERRED.md for tracking.
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings';

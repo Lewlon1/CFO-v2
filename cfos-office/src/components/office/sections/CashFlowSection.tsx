@@ -1,7 +1,7 @@
 'use client'
 
+import Link from 'next/link'
 import { Upload } from 'lucide-react'
-import { useChatContext } from '@/components/chat/ChatProvider'
 import type { DashboardSummary } from '@/app/api/dashboard/summary/route'
 
 function formatCurrency(amount: number, currency = 'EUR'): string {
@@ -24,8 +24,6 @@ interface CashFlowSectionProps {
 }
 
 export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFlowSectionProps) {
-  const { setInput, openSheet } = useChatContext()
-
   if (isLoading) {
     return (
       <div className="space-y-2 py-1">
@@ -37,12 +35,8 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFl
 
   if (!summary) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setInput("I'd like to upload my first bank statement")
-          openSheet()
-        }}
+      <Link
+        href="/office/cash-flow/upload"
         className="flex flex-col items-center gap-3 py-6 text-center w-full"
       >
         <div className="w-10 h-10 rounded-full bg-bg-deep flex items-center justify-center">
@@ -52,7 +46,7 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFl
           Upload your first CSV to see your cash flow
         </p>
         <span className="text-sm font-medium text-[#22C55E]">Upload &rarr;</span>
-      </button>
+      </Link>
     )
   }
 

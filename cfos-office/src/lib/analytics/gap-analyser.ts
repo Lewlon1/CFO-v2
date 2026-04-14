@@ -72,10 +72,11 @@ export async function analyseGap(
   //    The VM seeds merchant rules (see /api/value-map/link-session), so
   //    a missing category_id rule set does NOT mean "no VM". Always consult
   //    value_map_results directly before deciding has_value_map.
+  //    Note: value_map_results is keyed by profile_id (same UUID as user_id in auth.users).
   const { data: vmRows } = await supabase
     .from('value_map_results')
     .select('id')
-    .eq('user_id', userId)
+    .eq('profile_id', userId)
     .limit(1)
   const hasValueMap = (vmRows?.length ?? 0) > 0
 

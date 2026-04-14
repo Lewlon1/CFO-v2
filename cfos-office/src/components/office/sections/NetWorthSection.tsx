@@ -1,6 +1,6 @@
 'use client'
 
-import { useChatContext } from '@/components/chat/ChatProvider'
+import Link from 'next/link'
 
 function formatCurrency(amount: number, currency = 'EUR'): string {
   return new Intl.NumberFormat('en-IE', {
@@ -19,23 +19,17 @@ interface NetWorthSectionProps {
 }
 
 export function NetWorthSection({ totalAssets, totalLiabilities, currency = 'EUR', hasData }: NetWorthSectionProps) {
-  const { setInput, openSheet } = useChatContext()
-
   if (!hasData) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setInput("I'd like to set up my balance sheet")
-          openSheet()
-        }}
+      <Link
+        href="/office/net-worth/upload"
         className="flex flex-col items-center gap-3 py-6 text-center w-full"
       >
         <p className="text-sm text-text-secondary">
           Track your assets and debts to see your net worth
         </p>
         <span className="text-sm font-medium text-[#06B6D4]">Set up &rarr;</span>
-      </button>
+      </Link>
     )
   }
 

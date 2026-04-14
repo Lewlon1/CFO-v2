@@ -8,7 +8,6 @@ import { UploadBeat } from './beats/UploadBeat'
 import { ArchetypeBeat } from './beats/ArchetypeBeat'
 import { InsightBeat } from './beats/InsightBeat'
 import { CapabilitySelector } from './beats/CapabilitySelector'
-// HandoffBeat handled by MessageRenderer's ActionButton
 import { TypingIndicator } from './TypingIndicator'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { ONBOARDING_BEATS } from '@/lib/onboarding/types'
@@ -78,6 +77,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
   const [dynamicMessages, setDynamicMessages] = useState<DynamicMessage[]>([])
   const [typingReaction, setTypingReaction] = useState(false)
   const valueMapResultsRef = useRef<ValueMapResult[]>([])
+  const processedIndicesRef = useRef<Set<number>>(new Set())
 
   // ── Auto-advance messages ───────────────────────────────────────────────
 
@@ -106,6 +106,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
       setDynamicMessages([])
       setTypingReaction(false)
       valueMapResultsRef.current = []
+      processedIndicesRef.current.clear()
     }
   }, [currentBeat])
 
@@ -266,6 +267,11 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
     index: number,
     total: number
   ) => {
+    // Idempotency guard — prevent duplicate reactions if onTransactionResult
+    // is fired twice for the same transaction (double-tap, React 18 dev double-invoke)
+    if (processedIndicesRef.current.has(index)) return
+    processedIndicesRef.current.add(index)
+
     valueMapResultsRef.current = [...valueMapResultsRef.current, result]
 
     const ctx: ReactionContext = {
@@ -403,8 +409,6 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
           />
         )}
 
-        {/* HandoffBeat removed — MessageRenderer renders the "Enter the Office" button
-           from the handoff message's action+buttonText, which calls handleAction('handoff') → dismiss() */}
       </div>
 
       {/* Safe area bottom padding */}

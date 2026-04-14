@@ -1,7 +1,7 @@
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface FirstInsightData {
-  type: 'gap' | 'confirmation' | 'discovery' | 'summary'
+  type: 'gap' | 'confirmation' | 'discovery' | 'summary' | 'needs_categorisation'
   merchant_or_category: string
   user_believed?: {
     category: string
@@ -46,6 +46,17 @@ Type: Confirmation (belief matches reality)
 Category: ${insightData.merchant_or_category}
 Reality: ${insightData.reality.description}
 ${insightData.reality.monthly_amount ? `Monthly spend: ${currencySymbol}${insightData.reality.monthly_amount.toFixed(2)}` : ''}`
+  } else if (insightData.type === 'needs_categorisation') {
+    dataBlock = `## Insight data
+
+Type: Most of the user's transactions aren't categorised yet, so the usual "biggest category" insight isn't useful on its own.
+Reality: ${insightData.reality.description}
+
+Guidance for this type:
+- Acknowledge warmly that you can't give proper insight until these are categorised
+- Offer to review them together — one merchant at a time, with the user in charge
+- Don't lecture; treat categorisation as a quick shared task
+- Keep energy forward-looking: the review unlocks everything else`
   } else {
     dataBlock = `## Insight data (all numbers pre-computed)
 
@@ -94,6 +105,10 @@ export function buildTemplateFallback(
 
   if (type === 'confirmation') {
     return `${merchant_or_category}: ${reality.description}. Your instinct matched the data — that's a strong foundation to build on.`
+  }
+
+  if (type === 'needs_categorisation') {
+    return `${reality.description} Let's run through them together — tell me about a few merchants and I'll take care of the rest.`
   }
 
   if (reality.monthly_amount) {

@@ -47,6 +47,13 @@ const SCENARIO_CARDS = [
     description: 'What if I reduced a category?',
     message: 'I want to model cutting my spending on a category',
   },
+  {
+    type: 'other',
+    icon: '💡',
+    title: 'Something else',
+    description: 'Model a scenario not listed here',
+    message: "I want to model a financial scenario that isn't in the standard options. Tell me what you're thinking and I'll help you work through the numbers.",
+  },
 ];
 
 interface RecentScenario {

@@ -60,7 +60,7 @@ export function ValuesSection({ summary, isLoading, archetype, profileCompletene
         </div>
       ) : !archetype?.archetype_name ? (
         <Link
-          href="/demo"
+          href="/office/values/archetype"
           className="block text-[11px] text-text-secondary hover:text-text-primary transition-colors"
         >
           Discover your financial personality &rarr;

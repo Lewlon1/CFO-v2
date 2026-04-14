@@ -241,6 +241,9 @@ export function useOnboarding({ initialProgress, userName, currency }: UseOnboar
     } catch {}
 
     router.refresh()
+    // Explicit navigation in case the user landed on onboarding from a non-/office
+    // URL; idempotent if already on /office.
+    router.push('/office')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, router])
 
