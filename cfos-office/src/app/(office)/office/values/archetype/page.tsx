@@ -11,11 +11,7 @@ export default async function ArchetypePage() {
   // Latest session that has an archetype populated — this is the "current" view.
   const { data: currentSession } = await supabase
     .from('value_map_sessions')
-    .select(
-      'session_number, type, created_at, ' +
-        'archetype_name, archetype_subtitle, archetype_analysis, archetype_traits, ' +
-        'certainty_areas, conflict_areas, archetype_history, shift_narrative, trigger_reason',
-    )
+    .select('session_number, type, created_at, archetype_name, archetype_subtitle, archetype_analysis, archetype_traits, certainty_areas, conflict_areas, archetype_history, shift_narrative, trigger_reason')
     .eq('profile_id', user.id)
     .not('archetype_name', 'is', null)
     .is('deleted_at', null)

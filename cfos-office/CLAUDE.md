@@ -86,7 +86,7 @@ export const chatModel = bedrock('anthropic.claude-sonnet-4-6-20250514-v1:0');
 ### Environment Variables Required
 
 ```
-# Supabase
+# Supabase - note that Claude should can apply migrations to staging but never to production. All SQL migrtations to production require approval by Lewis.
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
