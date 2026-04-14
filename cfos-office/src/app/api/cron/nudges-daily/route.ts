@@ -5,6 +5,7 @@ import { evaluateBudgetAlerts } from '@/lib/nudges/evaluators/budget-alert';
 import { evaluateBillDue } from '@/lib/nudges/evaluators/bill-due';
 import { evaluateContractExpiry } from '@/lib/nudges/evaluators/contract-expiry';
 import { evaluateSpendingSpikes } from '@/lib/nudges/evaluators/spending-spike';
+import { evaluateValueMapRetake } from '@/lib/nudges/evaluators/value-map-retake';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const maxDuration = 60;
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest) {
         evaluateBillDue(sb, userId),
         evaluateContractExpiry(sb, userId),
         evaluateSpendingSpikes(sb, userId),
+        evaluateValueMapRetake(sb, userId),
       ]);
     } catch (err) {
       errors.push(`User ${userId}: ${(err as Error).message}`);

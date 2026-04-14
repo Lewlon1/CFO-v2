@@ -29,6 +29,7 @@ import { refreshMonthlySnapshots, extractAffectedMonths } from '@/lib/analytics/
 import { detectAndFlagRecurring } from '@/lib/analytics/recurring-detector'
 import { detectAndFlagHolidaySpend } from '@/lib/analytics/holiday-detector'
 import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings'
+import { evaluateValueMapRetake } from '@/lib/nudges/evaluators/value-map-retake'
 import type {
   Category,
   ValueCategoryRule,
@@ -85,6 +86,9 @@ export async function POST(req: NextRequest) {
 
       // Check for payday (salary deposit) in imported transactions
       evaluatePaydaySavings(supabase, user.id).catch(() => {})
+
+      // Check if CFO should propose a personal Value Map retake (cooldown-gated)
+      evaluateValueMapRetake(supabase, user.id).catch(() => {})
 
       // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
       const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([

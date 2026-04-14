@@ -11,6 +11,7 @@ import { ValueMapCard } from './value-map-card'
 import { ValueMapSummary } from './value-map-summary'
 import { CutOrKeep } from './cut-or-keep'
 import { OneThing } from './one-thing'
+import { RetakeImpact } from './retake-impact'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { generateObservations } from '@/lib/value-map/observations'
 import { selectTransactions } from '@/lib/value-map/selection'
@@ -33,11 +34,15 @@ type FlowStep =
   | 'checkin_loading'
   | 'checkin_empty'
   | 'checkin_saving'
+  | 'personal_loading'
+  | 'personal_empty'
+  | 'personal_saving'
+  | 'impact_summary'
 
 interface ValueMapFlowProps {
   currency: string
   existingTransactions?: ValueMapTransaction[]
-  mode?: 'onboarding' | 'retake' | 'checkin'
+  mode?: 'onboarding' | 'retake' | 'checkin' | 'personal'
   onComplete?: (personalityType: string, dominantQuadrant: string, breakdown: Record<string, { total: number; percentage: number; count: number }>, results?: ValueMapResult[]) => void
   onTransactionResult?: (result: ValueMapResult, index: number, total: number) => void
 }
@@ -47,11 +52,15 @@ interface ValueMapFlowProps {
 export function ValueMapFlow({ currency, existingTransactions, mode = 'onboarding', onComplete, onTransactionResult }: ValueMapFlowProps) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
-  const [step, setStep] = useState<FlowStep>(mode === 'checkin' ? 'checkin_loading' : 'intro')
+  const [step, setStep] = useState<FlowStep>(
+    mode === 'checkin' ? 'checkin_loading' : mode === 'personal' ? 'personal_loading' : 'intro',
+  )
   const [transactions, setTransactions] = useState<ValueMapTransaction[]>([])
   const [results, setResults] = useState<ValueMapResult[]>([])
   const [isRealData, setIsRealData] = useState(false)
   const [checkinError, setCheckinError] = useState<string | null>(null)
+  const [personalError, setPersonalError] = useState<string | null>(null)
+  const [retakeId, setRetakeId] = useState<string | null>(null)
 
   const [cutDecisions, setCutDecisions] = useState<Array<{ transaction_id: string; cut: boolean }>>([])
   const [oneThing, setOneThing] = useState('')
@@ -139,6 +148,109 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
       } catch (err) {
         console.error('[value-map checkin] save error:', err)
         // Fall back: still navigate home so user isn't stuck
+        router.push('/chat')
+      }
+    },
+    [router, trackEvent],
+  )
+
+  // Personal mode: fetch CFO-selected low-confidence transactions on mount (once)
+  const personalLoadedRef = useRef(false)
+  useEffect(() => {
+    if (mode !== 'personal') return
+    if (personalLoadedRef.current) return
+    personalLoadedRef.current = true
+    const load = async () => {
+      try {
+        const res = await fetch('/api/value-map/personal', { cache: 'no-store' })
+        if (res.status === 404 || !res.ok) {
+          const reasonBody = await res.json().catch(() => ({}))
+          const reason = reasonBody?.reason as string | undefined
+          setPersonalError(
+            reason === 'insufficient_merchants'
+              ? "Your categorisation is looking good — I don't have enough uncertain spending to make a retake worthwhile yet."
+              : reason === 'no_low_confidence_spend'
+                ? 'No uncertain transactions to retake yet.'
+                : 'Could not prepare a retake right now.',
+          )
+          setStep('personal_empty')
+          return
+        }
+        const reasonBody = await res.json()
+        const txns = reasonBody.transactions as ValueMapTransaction[] | undefined
+        if (!txns || txns.length === 0) {
+          setPersonalError('No uncertain transactions to retake right now.')
+          setStep('personal_empty')
+          return
+        }
+        setTransactions(txns)
+        setIsRealData(true)
+        setStep('exercise')
+        trackEvent('value_map_personal_started', { transaction_count: txns.length })
+      } catch (err) {
+        console.error('[value-map personal] load error:', err)
+        setPersonalError('Could not load your retake. Please try again.')
+        setStep('personal_empty')
+      }
+    }
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
+  // Personal mode: save retake, wait for impact screen
+  const handlePersonalComplete = useCallback(
+    async (exerciseResults: ValueMapResult[]) => {
+      setStep('personal_saving')
+      try {
+        const actionable = exerciseResults.filter((r) => r.quadrant !== null)
+        const personality = calculatePersonality(exerciseResults)
+        const dominantQuadrant = (
+          Object.entries(personality.breakdown) as [string, { percentage: number }][]
+        ).sort((a, b) => b[1].percentage - a[1].percentage)[0][0]
+
+        // Build merchants_by_quadrant lookup
+        const merchantsByQuadrant: Record<string, string[]> = {}
+        for (const r of exerciseResults) {
+          if (r.quadrant) {
+            if (!merchantsByQuadrant[r.quadrant]) merchantsByQuadrant[r.quadrant] = []
+            if (!merchantsByQuadrant[r.quadrant].includes(r.merchant)) {
+              merchantsByQuadrant[r.quadrant].push(r.merchant)
+            }
+          }
+        }
+
+        const res = await fetch('/api/value-map/personal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            results: actionable.map((r) => ({
+              transaction_id: r.transaction_id,
+              quadrant: r.quadrant,
+              confidence: r.confidence,
+              first_tap_ms: r.first_tap_ms,
+              card_time_ms: r.card_time_ms,
+              deliberation_ms: r.deliberation_ms,
+              hard_to_decide: r.hard_to_decide,
+            })),
+            personalityType: personality.personality,
+            dominantQuadrant,
+            breakdown: personality.breakdown,
+            merchantsByQuadrant,
+          }),
+        })
+        const saved = await res.json().catch(() => ({}))
+        trackEvent('value_map_personal_completed', {
+          classified: saved?.classified ?? actionable.length,
+          merchants_affected: saved?.merchants_affected ?? 0,
+        })
+        if (saved?.retake_id) {
+          setRetakeId(saved.retake_id as string)
+        }
+        setResults(exerciseResults)
+        setStep('impact_summary')
+      } catch (err) {
+        console.error('[value-map personal] save error:', err)
+        // Fall back — navigate to chat
         router.push('/chat')
       }
     },
@@ -554,15 +666,29 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
             </p>
           </div>
         )}
+        {mode === 'personal' && (
+          <div className="px-6 pt-6 pb-2 text-center">
+            <h2 className="text-base font-semibold text-foreground">Your retake</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {transactions.length} transactions I want to learn about
+            </p>
+          </div>
+        )}
         <div className="flex-1 min-h-0">
           <ValueMapCard
             transactions={transactions}
             currency={currency}
-            onComplete={mode === 'checkin' ? handleCheckinComplete : handleExerciseComplete}
+            onComplete={
+              mode === 'checkin'
+                ? handleCheckinComplete
+                : mode === 'personal'
+                  ? handlePersonalComplete
+                  : handleExerciseComplete
+            }
             onTransactionResult={mode === 'onboarding' ? onTransactionResult : undefined}
           />
         </div>
-        {mode === 'checkin' && (
+        {(mode === 'checkin' || mode === 'personal') && (
           <div className="flex justify-center pb-6 pt-2">
             <button
               onClick={() => router.push('/chat')}
@@ -646,6 +772,60 @@ export function ValueMapFlow({ currency, existingTransactions, mode = 'onboardin
       <OneThing
         onSubmit={handleOneThingSubmit}
         onSkip={() => handleOneThingSubmit('')}
+      />
+    )
+  }
+
+  if (step === 'personal_loading') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
+        <CfoAvatar size="lg" />
+        <p className="text-sm text-muted-foreground">
+          Pulling the transactions I&apos;m least sure about…
+        </p>
+      </div>
+    )
+  }
+
+  if (step === 'personal_empty') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
+        <CfoAvatar size="lg" />
+        <div className="space-y-2 max-w-sm">
+          <h1 className="text-xl font-semibold text-foreground">Nothing to retake yet</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {personalError ??
+              "Your categorisation is looking good. I'll let you know when I could use your help."}
+          </p>
+        </div>
+        <Button
+          onClick={() => router.push('/chat')}
+          className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
+        >
+          Back to chat
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+
+  if (step === 'personal_saving') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
+        <CfoAvatar size="lg" />
+        <p className="text-sm text-muted-foreground">Learning from your answers…</p>
+      </div>
+    )
+  }
+
+  if (step === 'impact_summary') {
+    return (
+      <RetakeImpact
+        retakeId={retakeId}
+        onContinue={() => {
+          const n = results.filter((r) => r.quadrant !== null).length
+          router.push(`/chat?retake_done=${encodeURIComponent(String(n))}`)
+        }}
       />
     )
   }

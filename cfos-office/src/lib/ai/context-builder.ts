@@ -120,6 +120,8 @@ export async function buildSystemPrompt(
     buildToolUsageInstructions(),
     await getValueMappingContext(userId, supabase),
     await getValueCheckinNudgeContext(userId, supabase, conversationType),
+    await getRetakeSuggestionContext(userId, supabase, conversationType),
+    await getPredictionQualityContext(userId, supabase),
     await buildProfilingContext(userId, supabase),
   ].filter(Boolean);
 
@@ -439,25 +441,58 @@ async function getCountryBenchmarks(
 function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
   const parts: string[] = [];
 
-  // Value Map perceptions (from value_map_sessions table)
-  // IMPORTANT: This is perception data from a SAMPLE exercise, not real spending.
+  // Determine whether this session reflects real behaviour or only the sample exercise.
+  const isPersonalRetake = valueMap?.type === 'personal' || valueMap?.is_real_data === true;
+  const archetypeName = valueMap?.archetype_name as string | undefined;
+  const archetypeSubtitle = valueMap?.archetype_subtitle as string | undefined;
+  const archetypeTraits = Array.isArray(valueMap?.archetype_traits)
+    ? (valueMap.archetype_traits as string[])
+    : [];
+  const shiftNarrative = valueMap?.shift_narrative as string | undefined;
+  const archetypeHistory = Array.isArray(valueMap?.archetype_history)
+    ? (valueMap.archetype_history as Array<{ name?: string; archived_at?: string }>)
+    : [];
+
   if (valueMap) {
-    parts.push('## Value perceptions (from the Value Map sample exercise)');
-    parts.push('');
-    parts.push('IMPORTANT: The data below comes from a short perception exercise where the user');
-    parts.push('classified SAMPLE transactions into Foundation / Investment / Burden / Leak.');
-    parts.push("These are NOT the user's real spending. The numbers below are percentages of");
-    parts.push('sample items the user put in each bucket — they do NOT represent real spending amounts.');
-    parts.push('You have no real transaction data yet until they upload a bank statement.');
-    parts.push('');
-    parts.push('What this tells you about the user:');
-    if (valueMap.personality_type) {
+    if (isPersonalRetake) {
+      parts.push('## Value Map archetype (regenerated from real behaviour)');
+      parts.push('');
+      parts.push("The archetype below was generated from the user's actual transactions,");
+      parts.push('correction signals, and monthly spending trends — not the onboarding sample.');
+      parts.push('Treat it as an up-to-date read on their financial personality.');
+      parts.push('');
+    } else {
+      parts.push('## Value perceptions (from the Value Map sample exercise)');
+      parts.push('');
+      parts.push('IMPORTANT: The data below comes from a short perception exercise where the user');
+      parts.push('classified SAMPLE transactions into Foundation / Investment / Burden / Leak.');
+      parts.push("These are NOT the user's real spending. The numbers below are percentages of");
+      parts.push('sample items the user put in each bucket — they do NOT represent real spending amounts.');
+      parts.push('You have no real transaction data yet until they upload a bank statement.');
+      parts.push('');
+      parts.push('What this tells you about the user:');
+    }
+
+    if (archetypeName) {
+      parts.push(`- Archetype: ${archetypeName}${archetypeSubtitle ? ` — ${archetypeSubtitle}` : ''}`);
+    } else if (valueMap.personality_type) {
       const personality = PERSONALITIES[valueMap.personality_type];
       const displayName = personality?.name ?? valueMap.personality_type;
       parts.push(`- Archetype: ${displayName} — ${personality?.headline ?? 'how they relate to money'}`);
     }
+
+    if (archetypeTraits.length > 0) {
+      parts.push('- Traits:');
+      for (const t of archetypeTraits) {
+        parts.push(`    - ${t}`);
+      }
+    }
+
     if (valueMap.dominant_quadrant) {
-      parts.push(`- Dominant perception lens: ${valueMap.dominant_quadrant} (they put the most sample items in this bucket)`);
+      const lensLabel = isPersonalRetake
+        ? 'Dominant real-data lens'
+        : 'Dominant perception lens (sample items)';
+      parts.push(`- ${lensLabel}: ${valueMap.dominant_quadrant}`);
     }
     if (valueMap.breakdown) {
       const breakdown = valueMap.breakdown as Record<string, { percentage: number; count: number }>;
@@ -466,10 +501,13 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
         .sort((a, b) => b[1].percentage - a[1].percentage)
         .map(([q, v]) => `${q}: ${v.percentage}%`);
       if (parts2.length > 0) {
-        parts.push(`- Perception distribution (sample items, NOT spending): ${parts2.join(', ')}`);
+        const label = isPersonalRetake
+          ? 'Real distribution'
+          : 'Perception distribution (sample items, NOT spending)';
+        parts.push(`- ${label}: ${parts2.join(', ')}`);
       }
     }
-    if (valueMap.merchants_by_quadrant) {
+    if (valueMap.merchants_by_quadrant && !isPersonalRetake) {
       const mbq = valueMap.merchants_by_quadrant as Record<string, string[]>;
       const entries = Object.entries(mbq).filter(([, v]) => v.length > 0);
       if (entries.length > 0) {
@@ -479,13 +517,33 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
         }
       }
     }
+
+    // ── Archetype evolution (shift narrative) ──
+    // Only include when there IS a history AND the latest regeneration was recent-ish.
+    if (shiftNarrative && archetypeHistory.length > 0) {
+      const latestHistory = archetypeHistory[archetypeHistory.length - 1];
+      const previousName = latestHistory?.name ?? 'previous archetype';
+      parts.push('');
+      parts.push('## Archetype evolution');
+      parts.push(`- Previous archetype: ${previousName}`);
+      parts.push(`- What shifted: ${shiftNarrative}`);
+      parts.push('- You can reference this evolution naturally in conversation when it helps.');
+    }
+
     parts.push('');
-    parts.push('USE THIS DATA AS A LENS, NOT AS FACTS:');
-    parts.push('- Say "you see X as a burden" NOT "X is 58% of your spending"');
-    parts.push('- Say "you categorised Y as a leak" NOT "you\'re leaking money on Y"');
-    parts.push('- Do NOT quote the breakdown percentages as if they represent real spending amounts');
-    parts.push('- The merchants/categories listed are from the sample exercise — treat them as indicators');
-    parts.push("  of the user's mental model, not confirmed spending behaviour");
+    if (isPersonalRetake) {
+      parts.push('USE THIS DATA TO PERSONALISE GUIDANCE:');
+      parts.push('- This archetype reflects how the user actually spends, not how they claim to.');
+      parts.push('- Reference specific traits and merchants naturally — do not list them back verbatim.');
+      parts.push('- When spending contradicts a stated value, name it once without judgement.');
+    } else {
+      parts.push('USE THIS DATA AS A LENS, NOT AS FACTS:');
+      parts.push('- Say "you see X as a burden" NOT "X is 58% of your spending"');
+      parts.push('- Say "you categorised Y as a leak" NOT "you\'re leaking money on Y"');
+      parts.push('- Do NOT quote the breakdown percentages as if they represent real spending amounts');
+      parts.push('- The merchants/categories listed are from the sample exercise — treat them as indicators');
+      parts.push("  of the user's mental model, not confirmed spending behaviour");
+    }
   }
 
   // Behavioral traits
@@ -777,6 +835,84 @@ RULES:
 - Never suggest immediately after an upload — let the first insight land first.
 - Don't push if the user declines or changes topic.
 - Don't explain the Value Map or the mechanics — just "want to do a quick check-in?"`
+  } catch {
+    return ''
+  }
+}
+
+async function getRetakeSuggestionContext(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  conversationType?: string,
+): Promise<string> {
+  // Don't propose a retake right after an upload — insights first.
+  if (conversationType === 'post_upload' || conversationType === 'onboarding') return ''
+
+  try {
+    // Dynamic import avoids circular deps (retake-trigger imports selectRetakeCandidates
+    // which needs the review-queue helper; this context-builder is high-level).
+    const { shouldTriggerRetake } = await import('@/lib/value-map/retake-trigger')
+    const decision = await shouldTriggerRetake(supabase, userId)
+    if (!decision.trigger) return ''
+
+    const topLabel =
+      decision.top_merchants.length > 0
+        ? decision.top_merchants.slice(0, 3).join(', ')
+        : 'several merchants'
+
+    return `## Retake opportunity (CFO-proposed)
+
+The user has ${decision.low_confidence_count} low-confidence transactions in the last 60 days — enough to make a personal Value Map retake meaningful. Uncertain merchants include: ${topLabel}.
+
+If the conversation allows, you can offer a tappable retake CTA. This is distinct from the value check-in: a retake is a deeper, archetype-regenerating exercise that leverages the user's actual spending.
+
+WHEN TO OFFER:
+- When the user asks about their financial personality, values, or "why do you think X about me"
+- When you're about to reference the archetype and notice it might be stale
+- In a monthly review conversation, as a natural follow-up
+- When the user expresses confusion about categorisations
+
+HOW TO OFFER:
+Include this exact CTA block (replace N with the count):
+[CTA:value_map_retake]Retake (${decision.low_confidence_count} transactions)[/CTA]
+
+RULES:
+- Maximum once per conversation. If the user declines, don't re-offer.
+- Never immediately after an upload.
+- Don't lecture about accuracy — just "want to help me sharpen this?"
+- The retake takes 2 minutes.`
+  } catch {
+    return ''
+  }
+}
+
+async function getPredictionQualityContext(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+): Promise<string> {
+  try {
+    const { getPredictionMetrics } = await import('@/lib/prediction/metrics')
+    const metrics = await getPredictionMetrics(supabase, userId)
+    if (metrics.total_transactions < 20) return ''
+
+    const predicted = metrics.confirmed_count + metrics.predicted_count
+    const predictedPct = metrics.total_transactions > 0
+      ? Math.round((predicted / metrics.total_transactions) * 100)
+      : 0
+
+    return `## Prediction quality (how confident is the CFO's categorisation?)
+
+- ${predictedPct}% of transactions are confidently categorised (${predicted} of ${metrics.total_transactions})
+- Average confidence: ${metrics.avg_confidence}
+- Merchants the CFO has learned rules for: ${metrics.merchants_learned}
+- Low-confidence transactions: ${metrics.low_confidence_pct}% of the total
+
+USE THIS AS A TRUST CALIBRATOR:
+- If low_confidence_pct is high (>30%), be more tentative when referencing value categories.
+- When you reference a specific transaction's value category, you can implicitly rely on this quality score.
+- If the user challenges a categorisation, acknowledge the uncertainty openly.`
   } catch {
     return ''
   }
