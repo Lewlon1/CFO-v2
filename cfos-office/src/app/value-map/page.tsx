@@ -31,9 +31,12 @@ export default async function ValueMapPage({
     .single()
   const currency = profile?.primary_currency ?? 'EUR'
 
+  const rawReturn = typeof params.return === 'string' ? params.return : null
+  const returnTo: 'archetype' | null = rawReturn === 'archetype' ? 'archetype' : null
+
   return (
     <div className="h-dvh w-full overflow-hidden bg-background">
-      <ValueMapFlow mode={mode} currency={currency} />
+      <ValueMapFlow mode={mode} currency={currency} returnTo={returnTo} />
     </div>
   )
 }

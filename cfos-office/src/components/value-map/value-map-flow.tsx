@@ -39,13 +39,14 @@ type FlowStep =
 interface ValueMapFlowProps {
   currency: string
   mode?: 'onboarding' | 'checkin' | 'personal'
+  returnTo?: 'archetype' | null
   onComplete?: (personalityType: string, dominantQuadrant: string, breakdown: Record<string, { total: number; percentage: number; count: number }>, results?: ValueMapResult[]) => void
   onTransactionResult?: (result: ValueMapResult, index: number, total: number) => void
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ValueMapFlow({ currency, mode = 'onboarding', onComplete, onTransactionResult }: ValueMapFlowProps) {
+export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, onComplete, onTransactionResult }: ValueMapFlowProps) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
   const [step, setStep] = useState<FlowStep>(
@@ -735,7 +736,11 @@ export function ValueMapFlow({ currency, mode = 'onboarding', onComplete, onTran
         retakeId={retakeId}
         onContinue={() => {
           const n = results.filter((r) => r.quadrant !== null).length
-          router.push(`/chat?retake_done=${encodeURIComponent(String(n))}`)
+          if (returnTo === 'archetype') {
+            router.push(`/office/values/archetype?retake_done=${encodeURIComponent(String(n))}`)
+          } else {
+            router.push(`/chat?retake_done=${encodeURIComponent(String(n))}`)
+          }
         }}
       />
     )
