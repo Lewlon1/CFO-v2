@@ -6,7 +6,10 @@ import type { Database } from '@/lib/supabase/types';
 export type Transaction = Database['public']['Tables']['transactions']['Row'];
 export type MonthlySnapshot = Database['public']['Tables']['monthly_snapshots']['Row'];
 export type RecurringExpense = Database['public']['Tables']['recurring_expenses']['Row'];
-export type ValueMapResult = Database['public']['Tables']['value_map_results']['Row'];
+export type ValueMapSession = Database['public']['Tables']['value_map_sessions']['Row'];
+
+/** @deprecated alias kept for call-site compatibility — points at value_map_sessions (archetype lives there) */
+export type ValueMapResult = ValueMapSession;
 
 export type InsightLayer =
   | 'headline'
