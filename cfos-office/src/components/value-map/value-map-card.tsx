@@ -398,6 +398,11 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
             <p className="text-lg font-semibold text-foreground">
               {tx.description ?? tx.merchant ?? 'Transaction'}
             </p>
+            {tx.context && (
+              <p className="text-sm italic text-muted-foreground">
+                {tx.context}
+              </p>
+            )}
             <p className="font-mono text-2xl font-bold text-foreground">
               {formatAmount(tx.amount, currency)}
             </p>

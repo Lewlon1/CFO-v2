@@ -94,24 +94,124 @@ export const PERSONALITIES: Record<string, PersonalityDef> = {
 } as const
 
 // ── Sample transactions (for "Try with example data") ────────────────────────
+//
+// Ten scenario-based transactions, engineered to probe six personality
+// dimensions: necessity boundary, future orientation, guilt pattern, social
+// spending identity, control vs chaos, and self-worth. Order matters — the
+// set escalates from easy calibration (rent, groceries) through
+// high-tension cards (takeaway alone on a Tuesday) to a warm close (gift).
+// Selection is bypassed for sample mode in value-map-flow.tsx so this
+// order is preserved at the card.
 
 export const SAMPLE_TRANSACTIONS: ValueMapTransaction[] = [
-  { id: 'sample-1', merchant: "Sainsbury's", amount: 62.30, currency: 'GBP', transaction_date: '2025-03-15', is_recurring: false, description: 'Weekly shop', category_name: 'Groceries' },
-  { id: 'sample-2', merchant: 'Deliveroo', amount: 18.50, currency: 'GBP', transaction_date: '2025-03-14', is_recurring: false, description: 'Late night order', category_name: 'Dining' },
-  { id: 'sample-3', merchant: 'PureGym', amount: 45.00, currency: 'GBP', transaction_date: '2025-03-01', is_recurring: true, description: 'Monthly membership', category_name: 'Health & Fitness' },
-  { id: 'sample-4', merchant: 'The Ivy', amount: 65.00, currency: 'GBP', transaction_date: '2025-03-12', is_recurring: false, description: 'Birthday dinner', category_name: 'Dining' },
-  { id: 'sample-5', merchant: 'Udemy', amount: 14.99, currency: 'GBP', transaction_date: '2025-03-10', is_recurring: false, description: 'Python course', category_name: 'Education' },
-  { id: 'sample-6', merchant: 'HSBC', amount: 7.00, currency: 'GBP', transaction_date: '2025-03-08', is_recurring: false, description: 'Overdraft fee', category_name: 'Bank Fees' },
-  { id: 'sample-7', merchant: 'Spotify', amount: 9.99, currency: 'GBP', transaction_date: '2025-03-01', is_recurring: true, description: 'Premium subscription', category_name: 'Subscriptions' },
-  { id: 'sample-8', merchant: 'BetterHelp', amount: 55.00, currency: 'GBP', transaction_date: '2025-03-01', is_recurring: true, description: 'Therapy session', category_name: 'Health & Fitness' },
-  { id: 'sample-9', merchant: 'Zara', amount: 42.00, currency: 'GBP', transaction_date: '2025-03-09', is_recurring: false, description: 'Impulse purchase', category_name: 'Shopping' },
-  { id: 'sample-10', merchant: 'The Crown', amount: 38.00, currency: 'GBP', transaction_date: '2025-03-07', is_recurring: false, description: 'Pub - Friday night', category_name: 'Dining' },
-  { id: 'sample-11', merchant: 'Ryanair', amount: 180.00, currency: 'GBP', transaction_date: '2025-03-05', is_recurring: false, description: 'Weekend trip to Lisbon', category_name: 'Travel' },
-  { id: 'sample-12', merchant: 'Rent', amount: 1200.00, currency: 'GBP', transaction_date: '2025-03-01', is_recurring: true, description: 'Monthly rent', category_name: 'Housing' },
-  { id: 'sample-13', merchant: 'Amazon', amount: 23.99, currency: 'GBP', transaction_date: '2025-03-11', is_recurring: false, description: 'Phone case + screen protector', category_name: 'Shopping' },
-  { id: 'sample-14', merchant: 'Tesco', amount: 8.40, currency: 'GBP', transaction_date: '2025-03-13', is_recurring: false, description: 'Meal deal', category_name: 'Groceries' },
-  { id: 'sample-15', merchant: 'Netflix', amount: 15.99, currency: 'GBP', transaction_date: '2025-03-01', is_recurring: true, description: 'Standard subscription', category_name: 'Subscriptions' },
-  { id: 'sample-16', merchant: 'EE', amount: 35.00, currency: 'GBP', transaction_date: '2025-03-01', is_recurring: true, description: 'Phone contract', category_name: 'Bills' },
-  { id: 'sample-17', merchant: 'Coursera', amount: 39.00, currency: 'GBP', transaction_date: '2025-03-06', is_recurring: false, description: 'Data science certificate', category_name: 'Education' },
-  { id: 'sample-18', merchant: 'Costa', amount: 4.50, currency: 'GBP', transaction_date: '2025-03-14', is_recurring: false, description: 'Morning coffee', category_name: 'Dining' },
+  // 1 — Necessity boundary, control vs chaos. Burden-heavy = resents fixed costs.
+  {
+    id: 'vm-rent',
+    merchant: null,
+    amount: 950,
+    currency: 'GBP',
+    transaction_date: '2026-04-01',
+    is_recurring: true,
+    description: 'Monthly rent / mortgage payment',
+    context: 'Your biggest monthly outgoing, paid by standing order on the 1st',
+  },
+  // 2 — Calibration baseline. Signal is decision SPEED, not category.
+  {
+    id: 'vm-groceries',
+    merchant: null,
+    amount: 62,
+    currency: 'GBP',
+    transaction_date: '2026-04-11',
+    is_recurring: false,
+    description: 'Weekly supermarket shop',
+    context: 'Your regular weekly grocery run — nothing special, just restocking the basics',
+  },
+  // 3 — Future orientation, guilt. Classic splitter.
+  {
+    id: 'vm-gym',
+    merchant: null,
+    amount: 45,
+    currency: 'GBP',
+    transaction_date: '2026-04-01',
+    is_recurring: true,
+    description: 'Gym membership',
+    context: 'You go about twice a week — sometimes three, sometimes you skip a week',
+  },
+  // 4 — High-signal guilt card. "Alone, Tuesday" removes the social excuse.
+  {
+    id: 'vm-takeaway',
+    merchant: null,
+    amount: 18.50,
+    currency: 'GBP',
+    transaction_date: '2026-04-07',
+    is_recurring: false,
+    description: 'Takeaway delivery on a quiet evening',
+    context: "Tuesday night, home alone, didn't feel like cooking",
+  },
+  // 5 — Social spending identity.
+  {
+    id: 'vm-dinner-friends',
+    merchant: null,
+    amount: 42,
+    currency: 'GBP',
+    transaction_date: '2026-04-04',
+    is_recurring: false,
+    description: 'Dinner out with friends',
+    context: 'A weekend catch-up at a restaurant — you split the bill equally',
+  },
+  // 6 — Subscription inertia, guilt awareness.
+  {
+    id: 'vm-streaming',
+    merchant: null,
+    amount: 11,
+    currency: 'GBP',
+    transaction_date: '2026-04-01',
+    is_recurring: true,
+    description: 'Streaming service subscription',
+    context: "You use it a few times a week — it's been running for over a year",
+  },
+  // 7 — Future orientation, follow-through.
+  {
+    id: 'vm-learning',
+    merchant: null,
+    amount: 29,
+    currency: 'GBP',
+    transaction_date: '2026-03-20',
+    is_recurring: false,
+    description: 'Online course or book',
+    context: "Something you bought to learn a new skill — you've done about half of it",
+  },
+  // 8 — Purest control signal. Bills are unavoidable.
+  {
+    id: 'vm-electricity',
+    merchant: null,
+    amount: 67,
+    currency: 'GBP',
+    transaction_date: '2026-04-03',
+    is_recurring: true,
+    description: 'Electricity bill',
+    context: 'Direct debit, same rough amount each month',
+  },
+  // 9 — Self-worth, impulse vs deliberate.
+  {
+    id: 'vm-clothes',
+    merchant: null,
+    amount: 85,
+    currency: 'GBP',
+    transaction_date: '2026-04-05',
+    is_recurring: false,
+    description: 'New clothes or shoes',
+    context: "Something you wanted but didn't strictly need — you'd been eyeing it for a while",
+  },
+  // 10 — Generosity as identity. Warm close.
+  {
+    id: 'vm-gift',
+    merchant: null,
+    amount: 35,
+    currency: 'GBP',
+    transaction_date: '2026-04-10',
+    is_recurring: false,
+    description: 'Birthday gift for someone close',
+    context: 'For a good friend or family member — you chose it yourself',
+  },
 ]

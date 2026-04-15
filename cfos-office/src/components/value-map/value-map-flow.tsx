@@ -12,7 +12,6 @@ import { CutOrKeep } from './cut-or-keep'
 import { OneThing } from './one-thing'
 import { RetakeImpact } from './retake-impact'
 import { calculatePersonality } from '@/lib/value-map/personalities'
-import { selectTransactions } from '@/lib/value-map/selection'
 import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
@@ -252,8 +251,10 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
     trackEvent('value_map_started', { mode })
     // Onboarding is the only mode that reaches the intro step; checkin and
     // personal skip it via the initial step state. Always use sample data.
-    const selected = selectTransactions(SAMPLE_TRANSACTIONS)
-    setTransactions(selected)
+    // Pass SAMPLE_TRANSACTIONS directly — selectTransactions() sorts by
+    // amount descending, which would destroy the curated narrative arc of
+    // the 10 scenario cards (rent → groceries → … → gift).
+    setTransactions([...SAMPLE_TRANSACTIONS])
     setIsRealData(false)
     setStep('exercise')
   }, [mode, trackEvent])
@@ -268,7 +269,7 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
       const personality = calculatePersonality(exerciseResults)
       trackEvent('value_map_reading_shown', { archetype: personality.personality })
       setResults(exerciseResults)
-      setStep('summary')
+      setReadyToFinish(true)
     },
     [trackEvent, mode, isRealData],
   )
