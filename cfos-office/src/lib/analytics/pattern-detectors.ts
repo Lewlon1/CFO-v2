@@ -355,6 +355,77 @@ export const dayOfWeekSkew: PatternDetector = {
   },
 };
 
+// C7: Convenience vs planned trips at the same chain.
+export const convenienceVsPlanned: PatternDetector = {
+  id: 'convenience_vs_planned',
+  layer: 'hidden_pattern',
+  requires: ['transactions'],
+  detect: (ctx) => {
+    const FOOD_CATEGORIES = new Set(['groceries', 'convenience', 'dining_out']);
+    const CONVENIENCE_RE = /\b(express|metro|city|local|mini|stop|corner|24h)\b/i;
+
+    type Bucket = { trips: number; total: number };
+    const convenience = new Map<string, Bucket>();
+    const planned = new Map<string, Bucket>();
+
+    for (const t of ctx.transactions) {
+      if (!isExpense(Number(t.amount))) continue;
+      if (!t.category_id || !FOOD_CATEGORIES.has(t.category_id)) continue;
+      const desc = t.description ?? '';
+      const normalised = normaliseMerchant(desc);
+      if (!normalised) continue;
+      const prefix = normalised.split(' ')[0];
+      if (!prefix) continue;
+      const abs = absExpense(Number(t.amount));
+      const target = CONVENIENCE_RE.test(desc) ? convenience : planned;
+      const existing = target.get(prefix) ?? { trips: 0, total: 0 };
+      existing.trips += 1;
+      existing.total += abs;
+      target.set(prefix, existing);
+    }
+
+    // Find chains present in both buckets with the highest convenience:planned ratio.
+    let bestChain: string | null = null;
+    let bestRatio = 0;
+    let bestConvenience: Bucket | null = null;
+    let bestPlanned: Bucket | null = null;
+    for (const [chain, convBucket] of convenience) {
+      const planBucket = planned.get(chain);
+      if (!planBucket || planBucket.trips === 0) continue;
+      const ratio = convBucket.trips / planBucket.trips;
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        bestChain = chain;
+        bestConvenience = convBucket;
+        bestPlanned = planBucket;
+      }
+    }
+    if (!bestChain || !bestConvenience || !bestPlanned) return null;
+
+    let score = 0;
+    if (bestRatio > 2) score += 35;
+    if (score === 0) return null;
+
+    const ratioRounded = Math.round(bestRatio * 100) / 100;
+
+    return {
+      id: 'convenience_vs_planned',
+      score,
+      layer: 'hidden_pattern',
+      requires: ['transactions'],
+      data: {
+        chain: bestChain,
+        convenienceTrips: bestConvenience.trips,
+        plannedTrips: bestPlanned.trips,
+        ratio: ratioRounded,
+        convenienceTotal: Math.round(bestConvenience.total),
+        plannedTotal: Math.round(bestPlanned.total),
+      },
+      narrative_prompt: `For ${bestChain}: ${bestConvenience.trips} convenience-store trips vs ${bestPlanned.trips} main-shop trips (${ratioRounded}x). ${formatCurrency(bestConvenience.total, ctx.currency)} at convenience vs ${formatCurrency(bestPlanned.total, ctx.currency)} at main. Name this behaviour pattern without moralising.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -365,4 +436,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   spendingVelocity,
   recurringExpenseTotal,
   dayOfWeekSkew,
+  convenienceVsPlanned,
 ];
