@@ -246,6 +246,8 @@ export async function runImportPipeline(
       source: txn.source,
       import_batch_id: opts.importBatchId,
       user_confirmed: false,
+      // Optional fields only set when parser provides them
+      balance: txn.balance ?? null,
     })
     if (error) {
       console.error('[pipeline] insert error:', error.message, error.details, error.code)

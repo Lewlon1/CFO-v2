@@ -16,6 +16,10 @@ export type ParsedTransaction = {
   currency: string        // ISO 4217 e.g. 'EUR', 'GBP'
   source: ParsedTransactionSource
   raw_description: string // original text before cleaning
+  // Running balance after this transaction, when the source export provides it
+  // (Revolut: `Balance`, Santander: `Saldo`). Null when missing or unparseable.
+  // Consumed by the balance_trajectory detector.
+  balance?: number | null
 }
 
 export type ParseResult =
