@@ -1204,8 +1204,38 @@ Available scenario types:
 
 Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. Always mention the impact on their active goals if any exist.`;
 
-    case 'post_upload':
-      return buildPostUploadPrompt(metadata, snapshots, profile);
+    case 'first_insight':
+    case 'post_upload': {
+      const payload = metadata?.first_insight_payload as InsightPayload | undefined;
+      if (!payload) {
+        // Legacy fallback: rows without a payload (pre-First-Insight-Engine
+        // conversations) still render using the original post-upload prompt.
+        return buildPostUploadPrompt(metadata, snapshots, profile);
+      }
+      return `## Conversation type: First insight
+
+This is your first real conversation with this user after they uploaded transactions.
+${payload.hasValueMap ? 'They have completed the Value Map.' : 'They have NOT done the Value Map.'}
+
+Your goals:
+1. Open with "Right." — you've done the reading, now you're giving your take.
+2. Narrate ONLY the patterns in the First Insight Data section above.
+3. Use actual numbers from the data. Never round aggressively (€1,935 not "about €2,000").
+4. Deliver each layer as a separate thought — the frontend renders these as separate chat bubbles.
+5. Emit the [STATS]...[/STATS] block exactly once, between the numbers layer and the hidden_pattern layer.
+6. End with the hook, then an [OPTIONS]...[/OPTIONS] block with the three suggested responses.
+
+Structure: headline → gap (or spending shape if no VM) → numbers + [STATS] → hidden pattern → one action → hook → [OPTIONS]
+
+Tone:
+- Direct, honest, not preachy.
+- Observe and interpret — don't lecture.
+- If discipline score > 70: lead with recognition; partner tone.
+- Name patterns without judgement ("you shop at 22 stores" not "too many stores").
+- The action must be specific and quantified where possible.
+
+CRITICAL: Do not mention, reference, imply, or compute anything involving income, savings rate, surplus, affordability, or sustainability. You do not have this data. The hook creates the desire to share income — but you must not pretend you already have it.`;
+    }
 
     case 'value_map_complete':
       return buildValueMapCompletePrompt(metadata, snapshots, profile);
