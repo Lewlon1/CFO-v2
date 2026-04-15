@@ -685,6 +685,115 @@ export const monthOverMonthTrend: PatternDetector = {
   },
 };
 
+// D4: Balance trajectory — sawtooth pay-cycle vs declining balance shape.
+export const balanceTrajectory: PatternDetector = {
+  id: 'balance_trajectory',
+  layer: 'headline',
+  requires: ['transactions', 'balance_data'],
+  detect: (ctx) => {
+    const withBalance = ctx.transactions
+      .filter((t) => t.balance !== null && t.balance !== undefined)
+      .slice()
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (withBalance.length < 30) return null;
+
+    interface MonthStats {
+      month: string;
+      minBalance: number;
+      maxBalance: number;
+      startBalance: number;
+      endBalance: number;
+    }
+    const byMonth = new Map<string, MonthStats>();
+    for (const t of withBalance) {
+      const d = new Date(t.date);
+      if (!Number.isFinite(d.getTime())) continue;
+      const monthKey = d.toISOString().slice(0, 7);
+      const bal = Number(t.balance);
+      const existing = byMonth.get(monthKey);
+      if (existing) {
+        if (bal < existing.minBalance) existing.minBalance = bal;
+        if (bal > existing.maxBalance) existing.maxBalance = bal;
+        // Transactions are date-ascending, so later wins for endBalance.
+        existing.endBalance = bal;
+      } else {
+        byMonth.set(monthKey, {
+          month: monthKey,
+          minBalance: bal,
+          maxBalance: bal,
+          startBalance: bal,
+          endBalance: bal,
+        });
+      }
+    }
+    const monthStats = [...byMonth.values()].sort((a, b) =>
+      a.month.localeCompare(b.month),
+    );
+    if (monthStats.length === 0) return null;
+
+    // Detect sawtooth: every month has minBalance < 0.3 * maxBalance.
+    const isSawtooth = monthStats.every(
+      (m) => m.maxBalance > 0 && m.minBalance < 0.3 * m.maxBalance,
+    );
+    // Detect decline: last month end < first month end by > 20% (only when positive baseline).
+    const firstEnd = monthStats[0].endBalance;
+    const lastEnd = monthStats[monthStats.length - 1].endBalance;
+    const isDecline =
+      firstEnd > 0 && lastEnd < firstEnd * 0.8;
+
+    let shape: 'sawtooth' | 'decline' | null = null;
+    let score = 0;
+    if (isSawtooth) {
+      shape = 'sawtooth';
+      score = 40;
+    } else if (isDecline) {
+      shape = 'decline';
+      score = 35;
+    }
+    if (!shape || score === 0) return null;
+
+    const peakBalance = monthStats.reduce(
+      (max, m) => (m.maxBalance > max ? m.maxBalance : max),
+      monthStats[0].maxBalance,
+    );
+    const troughBalance = monthStats.reduce(
+      (min, m) => (m.minBalance < min ? m.minBalance : min),
+      monthStats[0].minBalance,
+    );
+
+    const roundedMonths = monthStats.map((m) => ({
+      month: m.month,
+      minBalance: Math.round(m.minBalance),
+      maxBalance: Math.round(m.maxBalance),
+      startBalance: Math.round(m.startBalance),
+      endBalance: Math.round(m.endBalance),
+    }));
+
+    const narrative_prompt =
+      `Balance shape: ${shape}. ` +
+      (shape === 'sawtooth'
+        ? `Peaks of ${formatCurrency(peakBalance, ctx.currency)} cycling down to ` +
+          `${formatCurrency(troughBalance, ctx.currency)}. This reads as a consistent pay-cycle rhythm.`
+        : `Declining trajectory: ${formatCurrency(firstEnd, ctx.currency)} → ` +
+          `${formatCurrency(lastEnd, ctx.currency)}. Name the direction without projecting forward.`) +
+      ` Use as headline.`;
+
+    return {
+      id: 'balance_trajectory',
+      score,
+      layer: 'headline',
+      requires: ['transactions', 'balance_data'],
+      data: {
+        shape,
+        months: roundedMonths,
+        peakBalance: Math.round(peakBalance),
+        troughBalance: Math.round(troughBalance),
+      },
+      narrative_prompt,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -700,4 +809,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   valueMapGap,
   monthOverMonthTrend,
   geographicSpendingModes,
+  balanceTrajectory,
 ];
