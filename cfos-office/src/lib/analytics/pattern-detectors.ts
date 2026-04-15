@@ -173,6 +173,77 @@ export const categoryConcentration: PatternDetector = {
   },
 };
 
+// C4: Spending cadence — active-day density and quiet stretches.
+export const spendingVelocity: PatternDetector = {
+  id: 'spending_velocity',
+  layer: 'hidden_pattern',
+  requires: ['transactions'],
+  detect: (ctx) => {
+    const txns = ctx.transactions.filter((t) => isExpense(Number(t.amount)));
+    if (txns.length < 20) return null;
+
+    // Bucket by ISO date (YYYY-MM-DD) using UTC-slicing.
+    const dayCounts = new Map<string, number>();
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+    for (const t of txns) {
+      const d = new Date(t.date);
+      const time = d.getTime();
+      if (!Number.isFinite(time)) continue;
+      if (time < minTime) minTime = time;
+      if (time > maxTime) maxTime = time;
+      const key = d.toISOString().slice(0, 10);
+      dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1);
+    }
+    if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) return null;
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const totalDays = Math.floor((maxTime - minTime) / DAY_MS) + 1;
+    if (totalDays < 14) return null;
+
+    // Walk every day in the range to compute zero-spend days and the longest run.
+    let zeroSpendDays = 0;
+    let longestStreak = 0;
+    let currentStreak = 0;
+    const start = new Date(minTime);
+    start.setUTCHours(0, 0, 0, 0);
+    for (let i = 0; i < totalDays; i++) {
+      const day = new Date(start.getTime() + i * DAY_MS);
+      const key = day.toISOString().slice(0, 10);
+      if ((dayCounts.get(key) ?? 0) === 0) {
+        zeroSpendDays += 1;
+        currentStreak += 1;
+        if (currentStreak > longestStreak) longestStreak = currentStreak;
+      } else {
+        currentStreak = 0;
+      }
+    }
+    const activeDays = totalDays - zeroSpendDays;
+    const avgTxnsPerActiveDay =
+      activeDays > 0 ? Math.round((txns.length / activeDays) * 10) / 10 : 0;
+
+    let score = 0;
+    if (zeroSpendDays / totalDays < 0.10) score += 35;
+    if (longestStreak > 14) score += 25;
+    if (score === 0) return null;
+
+    return {
+      id: 'spending_velocity',
+      score,
+      layer: 'hidden_pattern',
+      requires: ['transactions'],
+      data: {
+        totalDays,
+        zeroSpendDays,
+        longestStreak,
+        activeDays,
+        avgTxnsPerActiveDay,
+      },
+      narrative_prompt: `Spending on ${activeDays} of ${totalDays} days — ${longestStreak > 0 ? 'longest quiet stretch: ' + longestStreak + ' days' : 'essentially every day'}. Name this as a rhythm observation.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -180,4 +251,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   merchantFragmentation,
   transactionSizeDistribution,
   categoryConcentration,
+  spendingVelocity,
 ];
