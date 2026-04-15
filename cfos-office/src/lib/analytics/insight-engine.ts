@@ -6,7 +6,13 @@ import type {
   DetectorContext, InsightLayer,
 } from './insight-types';
 import { BLOCKED_AT_FIRST_INSIGHT } from './insight-types';
-import { PATTERN_LIBRARY } from './pattern-detectors';
+import {
+  PATTERN_LIBRARY,
+  formatCurrency,
+  isExpense,
+  absExpense,
+  normaliseMerchant,
+} from './pattern-detectors';
 
 export async function computeFirstInsight(
   supabase: SupabaseClient,
@@ -98,11 +104,85 @@ export function assignToLayers(
 }
 
 export function computeStatCards(
-  _layers: InsightPayload['layers'],
-  _ctx: DetectorContext
+  layers: InsightPayload['layers'],
+  ctx: DetectorContext
 ): StatCard[] {
-  // Filled in Phase E (Task E2)
-  return [];
+  const cards: StatCard[] = [];
+  const totalSpend = ctx.transactions
+    .filter(t => isExpense(Number(t.amount)))
+    .reduce((s, t) => s + absExpense(Number(t.amount)), 0);
+
+  // Card 1: total tracked spend
+  cards.push({
+    label: ctx.snapshots.length > 1 ? 'Tracked spend' : 'This period',
+    value: formatCurrency(totalSpend, ctx.currency),
+    source_pattern_id: 'system',
+  });
+
+  // Card 2: derived from headline pattern if possible
+  const headline = layers.headline;
+  if (headline?.id === 'category_concentration') {
+    cards.push({
+      label: String(headline.data.topCategory),
+      value: `${headline.data.topPct}%`,
+      source_pattern_id: headline.id,
+    });
+  } else if (headline?.id === 'income_detected') {
+    cards.push({
+      label: 'Deposits seen',
+      value: String(headline.data.depositCount ?? 0),
+      source_pattern_id: headline.id,
+    });
+  } else if (headline?.id === 'geographic_spending_modes') {
+    const groups = headline.data.groups as Array<{ location: string }> | undefined;
+    cards.push({
+      label: 'Locations',
+      value: String(groups?.length ?? 0),
+      source_pattern_id: headline.id,
+    });
+  } else if (headline?.id === 'balance_trajectory') {
+    cards.push({
+      label: 'Balance shape',
+      value: String(headline.data.shape ?? '—'),
+      source_pattern_id: headline.id,
+    });
+  } else {
+    cards.push({
+      label: 'Transactions',
+      value: String(ctx.transactions.length),
+      source_pattern_id: 'system',
+    });
+  }
+
+  // Card 3: from hidden_pattern if present, else recurring total
+  const hidden = layers.hidden_pattern;
+  if (hidden?.id === 'merchant_fragmentation') {
+    cards.push({
+      label: 'Food stores',
+      value: String(hidden.data.storeCount),
+      source_pattern_id: hidden.id,
+    });
+  } else if (hidden?.id === 'transaction_size_distribution') {
+    cards.push({
+      label: `Sub-${ctx.currency === 'GBP' ? '£' : ctx.currency === 'USD' ? '$' : '€'}10 decisions`,
+      value: String(hidden.data.countUnder10),
+      source_pattern_id: hidden.id,
+    });
+  } else if (hidden?.id === 'day_of_week_skew') {
+    cards.push({
+      label: 'Peak day',
+      value: String(hidden.data.outlierName ?? '—'),
+      source_pattern_id: hidden.id,
+    });
+  } else {
+    cards.push({
+      label: 'Recurring bills',
+      value: String(ctx.recurring.length),
+      source_pattern_id: 'system',
+    });
+  }
+
+  return cards;
 }
 
 export function determineHook(
