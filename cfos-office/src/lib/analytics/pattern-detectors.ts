@@ -120,10 +120,64 @@ export const transactionSizeDistribution: PatternDetector = {
   },
 };
 
+// C3: One or two categories dominate discretionary spend.
+export const categoryConcentration: PatternDetector = {
+  id: 'category_concentration',
+  layer: 'headline',
+  requires: ['transactions'],
+  detect: (ctx) => {
+    const EXCLUDED = new Set(['rent', 'mortgage']);
+    const txns = ctx.transactions.filter(
+      (t) =>
+        isExpense(Number(t.amount)) &&
+        t.category_id !== null &&
+        !EXCLUDED.has(t.category_id)
+    );
+    if (txns.length < 15) return null;
+
+    const byCategory = new Map<string, number>();
+    let total = 0;
+    for (const t of txns) {
+      const cat = t.category_id as string;
+      const abs = absExpense(Number(t.amount));
+      byCategory.set(cat, (byCategory.get(cat) ?? 0) + abs);
+      total += abs;
+    }
+    if (total <= 0) return null;
+
+    const sorted = [...byCategory.entries()].sort((a, b) => b[1] - a[1]);
+    const top1 = sorted[0];
+    const top2 = sorted[1] ?? null;
+    const top1Pct = top1[1] / total;
+    const top2Pct = top2 ? (top1[1] + top2[1]) / total : top1Pct;
+
+    let score = 0;
+    if (top1Pct > 0.35) score += 50;
+    if (top2Pct > 0.55) score = Math.max(score, 40);
+    if (score === 0) return null;
+
+    return {
+      id: 'category_concentration',
+      score,
+      layer: 'headline',
+      requires: ['transactions'],
+      data: {
+        topCategory: top1[0],
+        topAmount: Math.round(top1[1]),
+        topPct: Math.round(top1Pct * 100),
+        top2Category: top2?.[0] ?? null,
+        top2Pct: Math.round(top2Pct * 100),
+      },
+      narrative_prompt: `${top1[0]} is ${Math.round(top1Pct * 100)}% of spending (${formatCurrency(top1[1], ctx.currency)}). Use this as the headline perspective shift.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
 export const PATTERN_LIBRARY: PatternDetector[] = [
   merchantFragmentation,
   transactionSizeDistribution,
+  categoryConcentration,
 ];
