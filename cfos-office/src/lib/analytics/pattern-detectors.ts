@@ -1,6 +1,7 @@
 // cfos-office/src/lib/analytics/pattern-detectors.ts
 
 import type { PatternDetector } from './insight-types';
+import { analyseGap, gapResultToPatternResult } from './gap-analyser';
 
 // --- Shared helpers (used by multiple detectors) ---
 
@@ -502,6 +503,18 @@ export const incomeDetected: PatternDetector = {
   },
 };
 
+// D1: Value Map gap — stated value category vs actual spending.
+export const valueMapGap: PatternDetector = {
+  id: 'value_map_gap',
+  layer: 'gap',
+  requires: ['transactions', 'value_map'],
+  detect: async ({ supabase, userId, valueMap }) => {
+    if (!valueMap) return null;
+    const gapResult = await analyseGap(supabase, userId, 3);
+    return gapResultToPatternResult(gapResult);
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -514,4 +527,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   dayOfWeekSkew,
   convenienceVsPlanned,
   incomeDetected,
+  valueMapGap,
 ];
