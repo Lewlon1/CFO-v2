@@ -44,6 +44,7 @@ const markdownComponents: Components = {
   ),
 };
 import { TappableOptions } from './TappableOptions';
+import { StatCardBlock } from './StatCardBlock';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 import { ScenarioResult } from './ScenarioResult';
@@ -77,6 +78,25 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 // ── Parsers ────────────────────────────────────────────────────────────────────
+
+const STATS_BLOCK = /\[STATS\]([\s\S]*?)\[\/STATS\]/g;
+
+function extractStats(text: string): {
+  text: string;
+  stats: Array<{ label: string; value: string }>;
+} {
+  const stats: Array<{ label: string; value: string }> = [];
+  const cleaned = text.replace(STATS_BLOCK, (_, body) => {
+    for (const line of String(body).split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const [label, value] = trimmed.split('|').map((s) => s.trim());
+      if (label && value) stats.push({ label, value });
+    }
+    return ''; // strip the block from rendered text
+  });
+  return { text: cleaned, stats };
+}
 
 function parseOptions(content: string): { text: string; options: string[] | null } {
   // Primary: explicit [OPTIONS] blocks. Accept both closed and unclosed forms
@@ -178,13 +198,18 @@ function parseMessageContent(rawContent: string): {
   text: string;
   options: string[] | null;
   cta: { type: string; label: string } | null;
+  stats: Array<{ label: string; value: string }>;
 } {
-  const withOptions = parseOptions(rawContent);
+  // Order matters: extract stats first so the [STATS] block is stripped
+  // before any downstream parsers (or markdown) see it.
+  const withStats = extractStats(rawContent);
+  const withOptions = parseOptions(withStats.text);
   const withCTA = parseCTA(withOptions.text);
   return {
     text: withCTA.text,
     options: withOptions.options,
     cta: withCTA.cta,
+    stats: withStats.stats,
   };
 }
 
@@ -348,9 +373,9 @@ export function MessageList({
           return acc + (needsSpace ? ' ' : '') + part;
         }, '');
 
-        const { text, options, cta } = message.role === 'assistant'
+        const { text, options, cta, stats } = message.role === 'assistant'
           ? parseMessageContent(rawText)
-          : { text: rawText, options: null, cta: null };
+          : { text: rawText, options: null, cta: null, stats: [] as Array<{ label: string; value: string }> };
 
         return (
           <div
@@ -387,6 +412,11 @@ export function MessageList({
                   <p className="whitespace-pre-wrap">{text}</p>
                 )}
               </div>
+
+              {/* Stat cards from [STATS] block (assistant only) */}
+              {message.role === 'assistant' && stats.length > 0 && (
+                <StatCardBlock cards={stats} />
+              )}
 
               {/* Tappable options */}
               {options && onOptionSelect && (
