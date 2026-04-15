@@ -8,7 +8,7 @@ export const bedrock = createAmazonBedrock({
 
 export const chatModelId = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6-20250514-v1:0'
 export const utilityModelId =
-  process.env.BEDROCK_CLAUDE_UTILITY_MODEL || 'eu.anthropic.claude-haiku-4-5-20251001:0'
+  process.env.BEDROCK_CLAUDE_UTILITY_MODEL || 'eu.anthropic.claude-haiku-4-5-20251001-v1:0'
 // Log the resolved model IDs once at module load so cold-start logs always
 // record exactly which Bedrock inference profiles are in use. Misconfigured
 // BEDROCK_CLAUDE_MODEL env vars previously surfaced as an opaque
