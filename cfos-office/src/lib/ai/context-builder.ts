@@ -4,6 +4,90 @@ import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
 import { PERSONALITIES } from '@/lib/value-map/constants';
+import type { InsightPayload } from '@/lib/analytics/insight-types';
+
+/**
+ * Build the anti-hallucination context block for the First Insight conversation.
+ *
+ * The system has deterministically computed patterns, stat cards, and a hook
+ * from the user's transactions. This function assembles those into a prompt
+ * section that STRICTLY constrains Claude to narrate only what's in the
+ * payload — no inventing income, savings rate, surplus, goals, etc.
+ */
+export function buildFirstInsightContext(payload: InsightPayload): string {
+  const lines: string[] = [];
+  lines.push('## First insight — data from the system');
+  lines.push('The following patterns were computed deterministically. You MUST narrate ONLY these patterns.');
+  lines.push('');
+  lines.push('STRICT RULES:');
+  lines.push('- Every number you cite must appear in the data below. No estimating.');
+  lines.push("- You do NOT know the user's income, savings rate, or surplus. Do not mention these concepts.");
+  lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
+  lines.push('- You do NOT know whether their spending is "sustainable" or "affordable" — that requires income.');
+  lines.push('- If a field says "not_available", you must not reference it or imply it.');
+  lines.push("- Do not say \"you spend X% of your income\" — you don't know their income.");
+  lines.push("- Do not say \"you have £X left over\" — you don't know what comes in.");
+  lines.push('- Do not say "your savings rate is..." — you cannot compute this.');
+  lines.push('- You CAN say: "I can see regular deposits" if the income_detected pattern is present.');
+  lines.push("- You CAN say: \"I don't know your income yet\" as part of the hook.");
+  lines.push("- When in doubt: if it's not in the data below, don't say it.");
+  lines.push('');
+  lines.push('### Available data');
+  lines.push(`- Name: ${payload.userName ?? 'unknown'}`);
+  lines.push(`- Country: ${payload.country ?? 'unknown'}`);
+  lines.push(`- Currency: ${payload.currency}`);
+  lines.push(`- Months of data: ${payload.monthCount}`);
+  lines.push(`- Total transactions: ${payload.transactionCount}`);
+  lines.push(`- Value Map completed: ${payload.hasValueMap ? 'yes' : 'no'}`);
+  if (payload.hasValueMap) lines.push(`- Archetype: ${payload.archetype}`);
+  lines.push('');
+  lines.push(`### Discipline score: ${payload.disciplineScore}/100`);
+  if (payload.disciplineScore > 70) {
+    lines.push('This user is financially disciplined. Lead with recognition, not correction. Position yourself as a partner who can automate monitoring and help optimise, not as a teacher finding problems.');
+  } else if (payload.disciplineScore > 40) {
+    lines.push('This user has some financial structure but clear areas for improvement. Balance recognition with honest observations.');
+  } else {
+    lines.push('This user has limited financial structure. Focus on one clear, achievable pattern. Do not overwhelm.');
+  }
+  lines.push('');
+  lines.push('### Patterns to narrate (in this order)');
+  const layerOrder = ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const;
+  for (const layer of layerOrder) {
+    const pattern = payload.layers[layer];
+    if (!pattern) continue;
+    lines.push('');
+    lines.push(`#### ${layer.toUpperCase()}`);
+    lines.push(`Pattern: ${pattern.id}`);
+    lines.push(`Data: ${JSON.stringify(pattern.data)}`);
+    lines.push(`Instruction: ${pattern.narrative_prompt}`);
+  }
+  lines.push('');
+  lines.push('#### STAT CARDS');
+  lines.push('Emit exactly one [STATS]...[/STATS] block containing these three cards, in this order.');
+  lines.push('Use this literal format (one card per line, label pipe value):');
+  lines.push('[STATS]');
+  for (const card of payload.statCards) {
+    lines.push(`${card.label} | ${card.value}`);
+  }
+  lines.push('[/STATS]');
+  lines.push('');
+  lines.push('#### HOOK');
+  lines.push(payload.hook.prompt_for_claude);
+  lines.push('');
+  lines.push('#### SUGGESTED RESPONSES');
+  lines.push('End the message with an [OPTIONS]...[/OPTIONS] block containing exactly these three responses:');
+  for (const s of payload.suggestedResponses) lines.push(`- ${s}`);
+  lines.push('');
+  lines.push('#### NOT AVAILABLE — do not reference');
+  lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
+  lines.push('- Savings rate (requires income)');
+  lines.push('- Surplus/deficit (requires income)');
+  lines.push('- Any percentage "of income" (requires income)');
+  lines.push('- Goals (not collected yet)');
+  lines.push('- Age, employment status, housing type (not collected yet)');
+  lines.push('- Whether spending is "sustainable" (requires income)');
+  return lines.join('\n');
+}
 
 export async function buildSystemPrompt(
   userId: string,
