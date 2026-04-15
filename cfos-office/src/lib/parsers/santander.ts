@@ -32,6 +32,9 @@ export function parseSantanderXLSX(buffer: ArrayBuffer): ParseResult {
   const dateCol = headers.findIndex((h) => /fecha|date/i.test(h))
   const amountCol = headers.findIndex((h) => /importe|amount|cargo/i.test(h))
   const descCol = headers.findIndex((h) => /concepto|descripci|description|motivo/i.test(h))
+  // Optional running-balance column — "Saldo" in Spanish Santander exports.
+  // Missing column => -1, which we treat as "no balance available".
+  const balanceCol = headers.findIndex((h) => /saldo|balance/i.test(h))
 
   if (dateCol === -1 || amountCol === -1 || descCol === -1) {
     return {
@@ -58,6 +61,18 @@ export function parseSantanderXLSX(buffer: ArrayBuffer): ParseResult {
 
     const description = rawDesc || 'Unknown'
 
+    // Parse the Saldo column using the same Spanish decimal handling as
+    // amount. When the column is absent (balanceCol === -1) or the value is
+    // unparseable we store null so detectors can skip it.
+    let balance: number | null = null
+    if (balanceCol !== -1) {
+      const rawBalance = String(row[balanceCol] ?? '').trim()
+      if (rawBalance) {
+        const parsed = parseSantanderAmount(rawBalance)
+        balance = Number.isFinite(parsed) ? parsed : null
+      }
+    }
+
     transactions.push({
       date,
       description,
@@ -65,6 +80,7 @@ export function parseSantanderXLSX(buffer: ArrayBuffer): ParseResult {
       currency: 'EUR', // Santander ES is EUR
       source: 'csv_santander',
       raw_description: description,
+      balance,
     })
   }
 
