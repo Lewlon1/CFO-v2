@@ -307,6 +307,54 @@ export const recurringExpenseTotal: PatternDetector = {
   },
 };
 
+// C6: Day-of-week skew — one day carries an outsized share of spend.
+export const dayOfWeekSkew: PatternDetector = {
+  id: 'day_of_week_skew',
+  layer: 'hidden_pattern',
+  requires: ['transactions'],
+  detect: (ctx) => {
+    const txns = ctx.transactions.filter((t) => isExpense(Number(t.amount)));
+    if (txns.length < 20) return null;
+
+    const byDay = [0, 0, 0, 0, 0, 0, 0];
+    for (const t of txns) {
+      const d = new Date(t.date);
+      if (!Number.isFinite(d.getTime())) continue;
+      byDay[d.getDay()] += absExpense(Number(t.amount));
+    }
+
+    let maxIdx = 0;
+    for (let i = 1; i < 7; i++) if (byDay[i] > byDay[maxIdx]) maxIdx = i;
+    const max = byDay[maxIdx];
+    const otherSum = byDay.reduce((acc, v, i) => (i === maxIdx ? acc : acc + v), 0);
+    const mean = otherSum / 6;
+    const ratio = max / (mean || 1);
+
+    let score = 0;
+    if (ratio > 2) score += 35;
+    if (maxIdx === 0 || maxIdx === 5 || maxIdx === 6) score += 10;
+    if (score === 0) return null;
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const ratioRounded = Math.round(ratio * 100) / 100;
+
+    return {
+      id: 'day_of_week_skew',
+      score,
+      layer: 'hidden_pattern',
+      requires: ['transactions'],
+      data: {
+        outlierDay: maxIdx,
+        outlierName: dayNames[maxIdx],
+        outlierAmount: Math.round(max),
+        otherAvg: Math.round(mean),
+        ratio: ratioRounded,
+      },
+      narrative_prompt: `${dayNames[maxIdx]}s carry ${ratioRounded}x the average of other days (${formatCurrency(max, ctx.currency)} vs ${formatCurrency(mean, ctx.currency)}). Name the day pattern.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -316,4 +364,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   categoryConcentration,
   spendingVelocity,
   recurringExpenseTotal,
+  dayOfWeekSkew,
 ];
