@@ -31,11 +31,9 @@ export async function POST(req: NextRequest) {
   const {
     bill_id,
     extraction,
-    file_path,
   } = body as {
     bill_id: string | null
     extraction: Record<string, unknown>
-    file_path: string | null
   }
 
   if (!extraction || typeof extraction.total_amount !== 'number') {
@@ -61,7 +59,6 @@ export async function POST(req: NextRequest) {
   // Build upload history entry
   const uploadEntry = {
     uploaded_at: new Date().toISOString(),
-    file_path: file_path || null,
     period: extraction.billing_period || null,
     amount: extraction.total_amount,
     extraction_confidence: extraction.confidence || 'medium',
@@ -134,10 +131,58 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ bill: data })
   } else {
-    // Create new recurring_expense
+    const billName = providerName || 'Unknown Bill'
+
+    // If a bill with the same name already exists for this user, update it
+    // instead of inserting — re-uploading the same provider's bill refreshes
+    // the plan details and appends to the upload history.
+    const { data: existingByName } = await supabase
+      .from('recurring_expenses')
+      .select('id, current_plan_details, bill_uploads')
+      .eq('user_id', user.id)
+      .eq('name', billName)
+      .maybeSingle()
+
+    if (existingByName) {
+      const existingUploads = Array.isArray(existingByName.bill_uploads) ? existingByName.bill_uploads : []
+      const mergedPlanDetails = { ...(existingByName.current_plan_details || {}), ...planDetails }
+
+      const updateData: Record<string, unknown> = {
+        provider: providerName || undefined,
+        amount: extraction.total_amount,
+        currency: String(extraction.currency || 'EUR'),
+        current_plan_details: mergedPlanDetails,
+        bill_uploads: [...existingUploads, uploadEntry],
+        contract_end_date: extraction.contract_end_date || undefined,
+        has_permanencia: extraction.has_permanencia ?? undefined,
+        status: 'tracked',
+        updated_at: new Date().toISOString(),
+      }
+      if (inferredFrequency) updateData.frequency = inferredFrequency
+      const catId = billTypeToCategoryId(String(extraction.bill_type || ''))
+      if (catId) updateData.category_id = catId
+      for (const key of Object.keys(updateData)) {
+        if (updateData[key] === undefined) delete updateData[key]
+      }
+
+      const { data, error } = await supabase
+        .from('recurring_expenses')
+        .update(updateData)
+        .eq('id', existingByName.id)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[bill-confirm] Update-by-name error:', error)
+        return NextResponse.json({ error: 'Failed to save bill data' }, { status: 500 })
+      }
+      return NextResponse.json({ bill: data })
+    }
+
     const newBill = {
       user_id: user.id,
-      name: providerName || 'Unknown Bill',
+      name: billName,
       provider: providerName || null,
       amount: extraction.total_amount as number,
       currency: String(extraction.currency || 'EUR'),

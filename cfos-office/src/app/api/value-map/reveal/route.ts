@@ -21,18 +21,37 @@ async function getAgentId(): Promise<string> {
   return cachedAgentId as string
 }
 
-function buildRevealSystemPrompt(currency: string, userName: string): string {
+function buildRevealSystemPrompt(
+  currency: string,
+  personalityName: string,
+  dominantQuadrant: string,
+  breakdown: Record<string, number>,
+  avgConfidence: number,
+): string {
   const sym = { GBP: '\u00A3', USD: '$', EUR: '\u20AC' }[currency] ?? currency
+  const dominantPct = breakdown[dominantQuadrant] ?? 0
 
   return `You are the CFO in a personal finance app. A user just completed a Value Map exercise where they categorised transactions into four quadrants: Foundation (needed it, served me), Investment (chose it, grew me), Burden (had to, it hurt), Leak (didn't need, didn't help).
 
-You have their complete results including which quadrant they chose for each transaction, how confident they were (1-5), how long they hesitated before their first tap (first_tap_ms), and how long they deliberated after tapping before confirming (deliberation_ms).
+You have their complete results: merchant name, quadrant, confidence (1–5), first_tap_ms (hesitation before first tap), and deliberation_ms (time deliberating after tapping).
 
-Write 2-3 sharp, specific observations about this person's relationship with money. Reference specific merchants by name. Use the timing data — hesitation reveals uncertainty, speed reveals conviction. Use contradictions between similar transactions — these are the most revealing signals.
+The system has classified this user as "${personalityName}" — ${dominantQuadrant}-dominant at ${dominantPct}%, average confidence ${avgConfidence}/5.
 
-Be warm but direct. No filler. No generic advice. No "you're a mindful spender" platitudes. Each observation should make them think "how does it know that?"
+Write a psychological profile in three short paragraphs (separated by a single blank line). No bullet points. No headers.
 
-The user's name is ${userName}. Use the currency symbol ${sym} when referencing amounts.`
+Paragraph 1 — The headline: Start with "${personalityName}." then one or two sentences capturing the dominant pattern and the underlying psychological worldview it reveals — not just habits, but how this person *relates* to spending itself. Mention the dominant quadrant percentage and average confidence naturally.
+
+Paragraph 2 — The evidence: Work through the 3–4 most revealing individual decisions. Cover the most interesting of: contradictions (same category, different quadrant for two merchants), highest-confidence calls (5/5), notable hesitation spikes (unusually high first_tap_ms), and any outliers that cut against the dominant pattern. Name every merchant specifically. Say what each decision reveals about values or psychology — not just "you called X a Y" but what the choice *means*.
+
+Paragraph 3 — The synthesis: One sentence. A character sketch that captures who this person is with money. Something that makes them think "that's exactly right."
+
+Style rules:
+- Second person ("you", "your")
+- Use *italics* (asterisks) sparingly for a single revealing word or phrase
+- Warm but direct — no filler, no platitudes, no generic financial advice
+- Every sentence must earn its place
+- Total length: 150–220 words
+- Only use the currency symbol ${sym} when referencing a specific amount`
 }
 
 export async function POST(req: Request) {
@@ -62,9 +81,15 @@ export async function POST(req: Request) {
     )
   }
 
-  const { results, currency, userName } = await req.json()
+  const { results, currency, personalityName, dominantQuadrant, breakdown, avgConfidence } = await req.json()
 
-  const systemPrompt = buildRevealSystemPrompt(currency ?? 'GBP', userName ?? 'there')
+  const systemPrompt = buildRevealSystemPrompt(
+    currency ?? 'GBP',
+    personalityName ?? 'Your result',
+    dominantQuadrant ?? 'foundation',
+    breakdown ?? {},
+    avgConfidence ?? 3,
+  )
 
   const result = await generateText({
     model: bedrock(OPUS_MODEL),

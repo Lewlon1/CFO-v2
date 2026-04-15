@@ -83,6 +83,18 @@ export const bedrock = createAmazonBedrock({
 export const chatModel = bedrock('anthropic.claude-sonnet-4-6-20250514-v1:0');
 ```
 
+### Model Routing
+
+- `chatModel` (Sonnet) — CFO chat, scenario planning, monthly reviews, all user-facing conversation.
+- `analysisModel` (Sonnet) — retained for any analysis calls that need Sonnet quality.
+- `utilityModel` (Haiku) — structured extraction where personality/nuance doesn't matter: transaction categorisation fallback (`lib/categorisation/llm-categoriser.ts`) and post-conversation portrait analysis (`app/api/analyze-conversation/route.ts`). ~¼ the cost of Sonnet at equivalent quality for classification tasks.
+
+Model IDs resolve from `BEDROCK_CLAUDE_MODEL` / `BEDROCK_CLAUDE_UTILITY_MODEL` env vars, falling back to `eu.anthropic.claude-sonnet-4-6` and `eu.anthropic.claude-haiku-4-5` respectively. EU inference profiles only — no data leaves EU.
+
+### Prompt Caching
+
+The chat route system prompt is sent as a system-role message with `providerOptions.bedrock.cachePoint: { type: 'default' }` so it is cached across turns within a 5-minute TTL. First turn writes the cache (~1.25x cost on that segment); subsequent turns read it (~0.1x). Cache hit/write metrics land in `[bedrock-usage]` console logs via `lib/ai/usage-logger.ts`.
+
 ### Environment Variables Required
 
 ```

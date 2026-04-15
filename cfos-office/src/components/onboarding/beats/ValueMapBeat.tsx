@@ -27,17 +27,19 @@ export function ValueMapBeat({ currency, onComplete, onSkip, onTransactionResult
   }, [onComplete])
 
   return (
-    <div className="px-4 py-2 animate-[fade-in_0.3s_ease-out]">
-      <div className="relative rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
+    <div className="px-4 py-2 animate-[fade-in_0.3s_ease-out] flex flex-col gap-2">
+      <div className="relative rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden flex-1">
         <ValueMapFlow
           currency={currency}
           mode="onboarding"
           onComplete={handleComplete}
           onTransactionResult={onTransactionResult}
         />
+      </div>
+      <div className="flex justify-end px-2">
         <button
           onClick={onSkip}
-          className="absolute bottom-3 right-4 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors min-h-[44px]"
+          className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors min-h-[44px] px-2"
         >
           Skip for now
         </button>

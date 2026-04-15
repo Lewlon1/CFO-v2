@@ -19,6 +19,7 @@ export function BillsClient({ bills: initialBills }: Props) {
   const [selectedBill, setSelectedBill] = useState<BillRecord | null>(null)
   const [showUpload, setShowUpload] = useState(false)
   const [uploadBill, setUploadBill] = useState<BillRecord | null>(null) // bill to attach upload to
+  const [initialFiles, setInitialFiles] = useState<File[] | undefined>(undefined)
 
   const trackedBills = bills.filter((b) => b.status === 'tracked')
   const detectedBills = bills.filter((b) => b.status !== 'tracked')
@@ -31,14 +32,6 @@ export function BillsClient({ bills: initialBills }: Props) {
     (sum, b) => sum + (Number(b.potential_saving_monthly) || 0),
     0
   )
-
-  if (bills.length === 0) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <EmptyBillsState />
-      </div>
-    )
-  }
 
   async function handlePromote(billId: string) {
     try {
@@ -89,17 +82,41 @@ export function BillsClient({ bills: initialBills }: Props) {
   function handleUploadComplete() {
     setShowUpload(false)
     setUploadBill(null)
+    setInitialFiles(undefined)
     router.refresh()
   }
 
   function handleOpenUpload(bill?: BillRecord) {
     setUploadBill(bill || null)
+    setInitialFiles(undefined)
     setShowUpload(true)
-    setSelectedBill(null) // close detail panel if open
+    setSelectedBill(null)
+  }
+
+  function handleFilesFromEmptyState(files: File[]) {
+    setUploadBill(null)
+    setInitialFiles(files)
+    setShowUpload(true)
   }
 
   // Group tracked bills by type
   const groupedTracked = groupBills(trackedBills)
+
+  if (bills.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <EmptyBillsState onFiles={handleFilesFromEmptyState} />
+        {showUpload && (
+          <BillUploadModal
+            bill={null}
+            onClose={() => { setShowUpload(false); setInitialFiles(undefined) }}
+            onConfirmed={handleUploadComplete}
+            initialFiles={initialFiles}
+          />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
@@ -200,8 +217,10 @@ export function BillsClient({ bills: initialBills }: Props) {
           onClose={() => {
             setShowUpload(false)
             setUploadBill(null)
+            setInitialFiles(undefined)
           }}
           onConfirmed={handleUploadComplete}
+          initialFiles={initialFiles}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { categoriseByRules } from '@/lib/categorisation/rules-engine'
-import { llmCategorise } from '@/lib/categorisation/llm-categoriser'
+import { llmCategorise, saveLearnedMerchantRules } from '@/lib/categorisation/llm-categoriser'
 import { assignValueCategory } from '@/lib/categorisation/value-categoriser'
 import { extractSignals, CATEGORY_AMBIGUITY, type MerchantHistory } from '@/lib/categorisation/context-signals'
 import { resolveValueCategory, loadUserRules } from '@/lib/prediction/predictor'
@@ -192,10 +192,17 @@ export async function runImportPipeline(
   // Pass 2: batch LLM for unmatched
   const unmatched = toInsert.filter((t) => t.needsLLM)
   if (unmatched.length > 0) {
+    const unmatchedDescriptions = unmatched.map((t) => t.description)
     const llmResults = await llmCategorise(
-      unmatched.map((t) => t.description),
+      unmatchedDescriptions,
       categories,
       opts.userId
+    )
+    await saveLearnedMerchantRules(
+      supabase,
+      opts.userId,
+      unmatchedDescriptions,
+      llmResults
     )
     for (const result of llmResults) {
       const txn = unmatched[result.index - 1]

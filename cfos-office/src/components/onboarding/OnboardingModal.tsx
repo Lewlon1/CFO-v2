@@ -163,7 +163,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
       currentBeat === 'first_insight' &&
       embedRevealed &&
       state.data.importBatchId &&
-      !state.data.insightNarrative &&
+      !state.data.insightData &&
       !insightLoading &&
       !insightRequested.current
     ) {
@@ -206,16 +206,11 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
           const res = await fetch('/api/onboarding/generate-insight', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              import_batch_id: state.data.importBatchId,
-            }),
+            body: JSON.stringify({}),
           })
           const data = await res.json()
-          if (data.narrative) {
-            setData({
-              insightNarrative: data.narrative,
-              insightType: data.type ?? 'summary',
-            })
+          if (data.insightData) {
+            setData({ insightData: data.insightData })
           }
         } catch (err) {
           console.error('[onboarding] Insight generation failed:', err)
@@ -362,6 +357,24 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
           data={state.data}
           onMessageRevealed={handleMessageRevealed}
           onAction={handleAction}
+          archetypeSlot={
+            currentBeat === 'archetype' && state.data.personalityType ? (
+              <ArchetypeBeat
+                data={state.data}
+                archetypeData={state.data.archetypeData}
+                loading={archetypeLoading}
+              />
+            ) : undefined
+          }
+          insightSlot={
+            currentBeat === 'first_insight' ? (
+              <InsightBeat
+                data={state.data}
+                insightData={state.data.insightData}
+                loading={insightLoading}
+              />
+            ) : undefined
+          }
         />
 
         {/* Dynamic reaction messages during Value Map */}
@@ -382,14 +395,6 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
           />
         )}
 
-        {currentBeat === 'archetype' && embedRevealed && state.data.personalityType && (
-          <ArchetypeBeat
-            data={state.data}
-            archetypeData={state.data.archetypeData}
-            loading={archetypeLoading}
-          />
-        )}
-
         {currentBeat === 'csv_upload' && embedRevealed && (
           <UploadBeat
             onComplete={handleUploadComplete}
@@ -399,14 +404,6 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
         {currentBeat === 'capabilities' && embedRevealed && (
           <CapabilitySelector onComplete={handleCapabilityComplete} />
-        )}
-
-        {currentBeat === 'first_insight' && embedRevealed && (
-          <InsightBeat
-            data={state.data}
-            narrative={state.data.insightNarrative}
-            loading={insightLoading}
-          />
         )}
 
       </div>

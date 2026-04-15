@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 // Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
 import { chatModel } from '@/lib/ai/provider';
+import { logBedrockUsage } from '@/lib/ai/usage-logger';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
@@ -175,10 +176,24 @@ export async function POST(req: Request) {
   const assistantMessageDbId = crypto.randomUUID();
 
   // Stream response
+  //
+  // The system prompt is passed as a system-role message (rather than the
+  // top-level `system:` param) so we can attach a Bedrock cache point to it
+  // via providerOptions. First turn of a conversation writes the cache
+  // (~1.25x input cost for the cached segment); subsequent turns within the
+  // 5-minute TTL read from cache (~0.1x).
   const result = streamText({
     model: chatModel,
-    system: systemPrompt,
-    messages: modelMessages,
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
+        providerOptions: {
+          bedrock: { cachePoint: { type: 'default' } },
+        },
+      },
+      ...modelMessages,
+    ],
     tools: {
       get_current_date: {
         description:
@@ -465,8 +480,27 @@ export async function POST(req: Request) {
       return undefined;
     },
     onFinish: async ({ messages: responseMessages }) => {
-      // Get token usage from the stream result
+      // Get token usage + provider metadata from the stream result
       const usage = await result.usage;
+      const providerMetadata = await result.providerMetadata;
+      const bedrockMeta = (providerMetadata?.bedrock ?? {}) as {
+        usage?: { cacheWriteInputTokens?: number };
+      };
+      const cacheReadTokens = usage?.inputTokenDetails?.cacheReadTokens;
+      const cacheWriteTokens =
+        usage?.inputTokenDetails?.cacheWriteTokens ?? bedrockMeta.usage?.cacheWriteInputTokens;
+
+      logBedrockUsage({
+        callSite: 'chat',
+        model: 'sonnet',
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        cacheCreationTokens: cacheWriteTokens,
+        cacheReadTokens,
+        userId: user.id,
+        conversationId: activeConversationId ?? undefined,
+        timestamp: new Date().toISOString(),
+      });
       // Save assistant response — get the last assistant message for text
       const assistantMsg = responseMessages
         .filter((m) => m.role === 'assistant')

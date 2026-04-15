@@ -501,7 +501,7 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
           const { error: rulesError } = await supabase2
             .from('value_category_rules')
             .upsert(rules, {
-              onConflict: "user_id,match_type,match_value,coalesce(time_context,'__none__')",
+              onConflict: 'user_id,match_type,match_value',
             })
           if (rulesError) {
             console.error('[value-map] value_category_rules upsert error:', rulesError)

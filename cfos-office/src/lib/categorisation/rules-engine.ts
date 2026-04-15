@@ -15,13 +15,24 @@ export type RulesContext = {
 }
 
 // Keyword heuristics mapped to DB category slugs.
-// ORDER MATTERS: housing before transport to prevent "alquiler" (rent) mismatching.
+// ORDER MATTERS:
+//   - Transfers first: "deposit", "withdrawal" shouldn't get mis-classified as spending/income.
+//   - Housing before transport to prevent "alquiler" (rent) mismatching.
 const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
+  {
+    keywords: [
+      'transfer to pot', 'transfer from pot', 'pot transfer',
+      'to eur', 'to gbp', 'to usd', 'exchanged to',
+      'withdrawal', 'deposit ', 'internet transfer',
+      'p2p payment', 'bank transfer',
+    ],
+    categoryId: 'transfers',
+  },
   {
     keywords: [
       'rent ', 'alquiler', 'miete ', 'mortgage', 'hipoteca', 'ibi ', 'grundsteuer',
       'home insurance', 'seguro hogar', 'maintenance', 'mantenimiento',
-      'community fees', 'comunidad', 'homeowner',
+      'community fees', 'comunidad', 'homeowner', 'scanlans',
     ],
     categoryId: 'housing',
   },
@@ -29,7 +40,9 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
     keywords: [
       'supermarket', 'supermercado', 'mercadona', 'lidl', 'aldi', 'eroski', 'consum',
       'carrefour', 'waitrose', 'tesco', 'sainsbury', 'morrisons', 'asda', 'coop ',
+      'co-op', 'co-operative', 'iceland ', 'ocado', 'marks & spencer', 'm&s food',
       'primaprix', ' dia ', 'bon preu', 'condis', 'simply', 'ahorramas',
+      'caprabo', 'supermercat', 'mercalatina',
       'rewe', 'edeka', 'netto ', 'penny ', 'kaufland', 'spar ',
       'verdura', 'fruta', 'grocer', 'alimentaci', 'minimarket',
     ],
@@ -40,9 +53,11 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'restaurant', 'restaurante', 'cafe ', 'café', 'cafeteria', 'cafetería', 'coffee',
       'coffee shop', 'bistro', 'brasserie', 'sushi', 'pizza', 'burger', 'grill', 'tapas',
       'mcdonald', 'kfc ', 'subway ', 'starbucks', 'costa ', 'nando', 'wagamama',
+      'popeyes', 'greggs', 'pret', 'pret a manger',
       'chipotle', 'domino', 'kebab', 'pizzeria', 'taberna', 'bodega', 'cerveceria',
       'boulangerie', 'patisserie', 'trattoria', 'ristorante', 'ramen', 'glovo',
-      'deliveroo', 'ubereats', 'just eat', 'pub ', 'bar ', 'wetherspoon',
+      'deliveroo', 'ubereats', 'uber eats', 'just eat', 'pub ', 'bar ', 'wetherspoon',
+      'pan laude', 'red lion', 'mollys',
     ],
     categoryId: 'eat_drinking_out',
   },
@@ -50,7 +65,8 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
     keywords: [
       'petrol', 'gasolina', 'fuel', 'bp ', 'shell ', 'texaco', 'esso ', 'repsol',
       'parking', 'aparcamiento', 'autobus', 'metro ', 'renfe', 'cercanias',
-      'trainline', 'national rail', 'taxi ', 'uber ', 'bolt ', 'free now', 'cabify',
+      'trainline', 'national rail', 'tfl', 'transport for london',
+      'taxi ', 'uber ', 'bolt ', 'free now', 'cabify',
       'bus ', 'bvg ', 'flixbus', 'deutsche bahn',
       'car insurance', 'seguro coche', 'toll ', 'peaje',
     ],
@@ -66,10 +82,11 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
   },
   {
     keywords: [
-      'netflix', 'spotify', 'apple.com', 'google play', 'steam ',
-      'playstation', 'xbox ', 'disney', 'amazon prime', 'prime video',
+      'netflix', 'spotify', 'apple.com', 'google play', 'google storage', 'steam ',
+      'playstation', 'xbox ', 'disney', 'disney+', 'disney plus', 'amazon prime', 'prime video',
       'hbo ', 'dazn', 'twitch', 'adobe ', 'dropbox', 'notion ', '1password',
       'icloud', 'youtube premium', 'chatgpt', 'openai', 'github',
+      'claude.ai', 'anthropic', 'supabase', 'perplexity',
     ],
     categoryId: 'subscriptions',
   },
@@ -78,16 +95,17 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'amazon', 'ebay ', 'zara ', 'h&m ', 'mango ', 'uniqlo', 'ikea ',
       'el corte ingles', 'corte ingles', 'asos', 'zalando', 'decathlon',
       'leroy merlin', 'fnac', 'primark', 'media markt',
-      'aliexpress', 'shein', 'temu',
+      'john lewis', 'argos', 'tk maxx', 'tkmaxx',
+      'aliexpress', 'shein', 'temu', 'arbitrade', 'humana',
     ],
     categoryId: 'shopping',
   },
   {
     keywords: [
-      'gym ', 'fitness', 'crossfit', 'yoga ', 'pilates',
+      'gym ', 'puregym', 'the gym', 'fitness', 'crossfit', 'yoga ', 'pilates',
       'pharmacy', 'farmacia', 'chemist', 'boots ', 'dentist', 'dental',
       'optician', 'hospital', 'clinic', 'clinica', 'physio', 'medic',
-      'doctor', 'supplement', 'vitamins',
+      'doctor', 'supplement', 'vitamins', 'nhs ',
       'peluquer', 'haircut', 'barber', 'nail ', 'beauty', 'spa ', 'massage',
       'skincare', 'cosmetic',
     ],
@@ -97,14 +115,19 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
     keywords: [
       'electricity', 'electric', 'electricidad', 'gas ', 'natural gas',
       'water ', 'agua ', 'energia', 'energy', 'broadband', 'internet ',
-      'movistar', 'vodafone', 'orange ', 'o2 ', 'endesa', 'iberdrola',
+      'movistar', 'vodafone', 'orange ', 'o2 ', ' ee ', 'three ', 'giffgaff',
+      'bt ', 'sky ', 'virgin media',
+      'british gas', 'octopus energy', 'bulb ', 'ovo energy', 'ovo ',
+      'hyperoptic', 'zurich',
+      'council tax', 'manchester city council',
+      'endesa', 'iberdrola',
       'mobile plan', 'telefonica', 'jazztel', 'masmovil', 'digi ',
     ],
     categoryId: 'utilities_bills',
   },
   {
     keywords: [
-      'golf', 'tennis', 'padel', 'squash', 'bowling', 'cinema', 'cine ',
+      'golf', 'tennis', 'padel', 'playtomic', 'squash', 'bowling', 'cinema', 'cine ',
       'theatre', 'teatro', 'museum', 'museo', 'zoo ', 'aquarium', 'escape room',
       'ski ', 'concert', 'event', 'ticket',
     ],
@@ -127,13 +150,14 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
   {
     keywords: [
       'loan repayment', 'credit card', 'student loan', 'prestamo',
+      'natwest loan', 'natwest credit',
     ],
     categoryId: 'debt_repayments',
   },
   {
     keywords: [
       'salary', 'salario', 'nomina', 'nómina', 'payroll', 'dividends', 'freelance',
-      'side income', 'rental income', 'refund',
+      'side income', 'rental income', 'refund', 'interest for',
     ],
     categoryId: 'income',
   },

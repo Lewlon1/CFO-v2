@@ -1,5 +1,7 @@
 // ── Onboarding types ────────────────────────────────────────────────────────
 
+import type { FirstInsightCards } from '@/lib/analytics/first-insight'
+
 export const ONBOARDING_BEATS = [
   'welcome',
   'framework',
@@ -52,9 +54,8 @@ export interface OnboardingData {
     deliberation_ms: number
     hard_to_decide?: boolean
   }>
-  // LLM-generated first insight narrative (Phase 3)
-  insightNarrative?: string
-  insightType?: 'gap' | 'confirmation' | 'discovery' | 'summary'
+  // Structured first-insight data (3-card mini-dashboard)
+  insightData?: FirstInsightCards
 }
 
 export interface OnboardingState {
