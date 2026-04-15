@@ -244,6 +244,69 @@ export const spendingVelocity: PatternDetector = {
   },
 };
 
+// C5: Total recurring load and overlapping-subscription groups.
+export const recurringExpenseTotal: PatternDetector = {
+  id: 'recurring_expense_total',
+  layer: 'hidden_pattern',
+  requires: ['transactions'],
+  detect: (ctx) => {
+    const recurring = ctx.recurring;
+    if (recurring.length < 3) return null;
+
+    // Normalise each entry to a monthly-equivalent cost.
+    let total = 0;
+    for (const r of recurring) {
+      const amount = Math.abs(Number(r.amount));
+      const freq = (r.frequency ?? '').toLowerCase();
+      let monthlyEquivalent: number;
+      if (freq === 'monthly') monthlyEquivalent = amount * 1;
+      else if (freq === 'bi-monthly') monthlyEquivalent = amount / 2;
+      else if (freq === 'annual') monthlyEquivalent = amount / 12;
+      else monthlyEquivalent = amount; // irregular / unknown → treat as monthly
+      total += monthlyEquivalent;
+    }
+
+    // Flag overlap groups where ≥2 entries share a category we care about.
+    const OVERLAP_GROUPS: Array<{ name: string; categoryId: string }> = [
+      { name: 'streaming', categoryId: 'entertainment' },
+      { name: 'transport', categoryId: 'transport' },
+      { name: 'gym', categoryId: 'health_fitness' },
+    ];
+    const overlaps: string[] = [];
+    for (const group of OVERLAP_GROUPS) {
+      const count = recurring.filter((r) => r.category_id === group.categoryId).length;
+      if (count >= 2) overlaps.push(group.name);
+    }
+
+    // Compare against the most recent monthly snapshot if available.
+    const avgMonthly = ctx.snapshots[0]?.total_spending ?? null;
+    const recurringPct =
+      avgMonthly && avgMonthly > 0 ? total / avgMonthly : null;
+
+    let score = 0;
+    if (overlaps.length > 0) score += 45;
+    if (recurringPct !== null && recurringPct > 0.40) score += 30;
+    if (score === 0) return null;
+
+    const recurringPctRounded =
+      recurringPct !== null ? Math.round(recurringPct * 100) : null;
+
+    return {
+      id: 'recurring_expense_total',
+      score,
+      layer: 'hidden_pattern',
+      requires: ['transactions'],
+      data: {
+        totalMonthly: Math.round(total),
+        count: recurring.length,
+        overlaps,
+        recurringPct: recurringPctRounded,
+      },
+      narrative_prompt: `${recurring.length} recurring bills totalling ${formatCurrency(total, ctx.currency)} per month${overlaps.length ? '. Overlap detected in: ' + overlaps.join(', ') : ''}. ${recurringPctRounded !== null ? recurringPctRounded.toString() + '% of average monthly spend. ' : ''}Name the overlap specifically if present.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -252,4 +315,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   transactionSizeDistribution,
   categoryConcentration,
   spendingVelocity,
+  recurringExpenseTotal,
 ];
