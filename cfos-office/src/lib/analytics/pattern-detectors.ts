@@ -515,6 +515,88 @@ export const valueMapGap: PatternDetector = {
   },
 };
 
+// D2: Month-over-month headline trend from monthly_snapshots.
+export const monthOverMonthTrend: PatternDetector = {
+  id: 'month_over_month_trend',
+  layer: 'numbers',
+  requires: ['transactions', 'multi_month'],
+  detect: (ctx) => {
+    const snapshots = ctx.snapshots;
+    if (snapshots.length < 2) return null;
+    const current = snapshots[0];
+    const prior = snapshots[1];
+    const currentTotal = Number(current.total_spending ?? 0);
+    const priorTotal = Number(prior.total_spending ?? 0);
+    if (priorTotal <= 0) return null;
+
+    const delta = currentTotal - priorTotal;
+    const pctChange = delta / priorTotal;
+
+    // Biggest single-category shift (absolute delta), only for categories present in both.
+    const currentCat =
+      typeof current.spending_by_category === 'object' &&
+      current.spending_by_category !== null
+        ? (current.spending_by_category as Record<string, number>)
+        : {};
+    const priorCat =
+      typeof prior.spending_by_category === 'object' &&
+      prior.spending_by_category !== null
+        ? (prior.spending_by_category as Record<string, number>)
+        : {};
+
+    let biggestShiftCategory: string | null = null;
+    let biggestShiftDelta: number | null = null;
+    let biggestShiftAbs = 0;
+    for (const key of Object.keys(currentCat)) {
+      if (!(key in priorCat)) continue;
+      const cur = Number(currentCat[key] ?? 0);
+      const pri = Number(priorCat[key] ?? 0);
+      const d = cur - pri;
+      if (Math.abs(d) > biggestShiftAbs) {
+        biggestShiftAbs = Math.abs(d);
+        biggestShiftCategory = key;
+        biggestShiftDelta = d;
+      }
+    }
+
+    let score = 0;
+    if (Math.abs(pctChange) >= 0.15) score += 35;
+    if (
+      biggestShiftCategory !== null &&
+      Math.abs(delta) > 0 &&
+      biggestShiftAbs / Math.abs(delta) > 0.25
+    ) {
+      score += 25;
+    }
+    if (score === 0) return null;
+    score = Math.min(score, 60);
+
+    const pctChangeRounded = Math.round(pctChange * 100);
+
+    return {
+      id: 'month_over_month_trend',
+      score,
+      layer: 'numbers',
+      requires: ['transactions', 'multi_month'],
+      data: {
+        currentMonth: current.month,
+        priorMonth: prior.month,
+        currentTotal: Math.round(currentTotal),
+        priorTotal: Math.round(priorTotal),
+        pctChange: pctChangeRounded,
+        biggestShiftCategory,
+        biggestShiftDelta:
+          biggestShiftDelta !== null ? Math.round(biggestShiftDelta) : null,
+      },
+      narrative_prompt:
+        `Spending ${pctChange > 0 ? 'up' : 'down'} ${Math.abs(pctChangeRounded)}% month-over-month: ` +
+        `${formatCurrency(currentTotal, ctx.currency)} vs ${formatCurrency(priorTotal, ctx.currency)}` +
+        `${biggestShiftCategory ? '. Biggest single-category shift: ' + biggestShiftCategory : ''}. ` +
+        `Use as the numbers-layer hit.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -528,4 +610,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   convenienceVsPlanned,
   incomeDetected,
   valueMapGap,
+  monthOverMonthTrend,
 ];
