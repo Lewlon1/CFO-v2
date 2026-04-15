@@ -186,14 +186,35 @@ export function computeStatCards(
 }
 
 export function determineHook(
-  _available: DataDependency[],
-  _valueMap: unknown | null
+  available: DataDependency[],
+  valueMap: unknown | null
 ): Hook {
-  // Filled in Phase E (Task E3)
-  return {
+  if (!valueMap) return {
+    type: 'ask_value_map',
+    prompt_for_claude:
+      `End the insight by noting you haven't seen the user's Value Map yet. ` +
+      `Say the Value Map sharpens your read on what they consider worth the money vs. a leak. ` +
+      `Do not say the words "affordable" or "sustainable".`,
+    suggested_response: 'Show me the Value Map',
+  };
+  if (!available.includes('income_signal')) return {
     type: 'ask_income',
-    prompt_for_claude: '',
-    suggested_response: '',
+    prompt_for_claude:
+      `End by asking what the user earns. Frame: "I can see what goes out — I haven't seen what comes in yet." ` +
+      `Do NOT compute or imply any ratio. Do NOT say "so you can save X" — you don't know what comes in.`,
+    suggested_response: 'Tell them my income',
+  };
+  if (!available.includes('multi_month')) return {
+    type: 'ask_second_month',
+    prompt_for_claude:
+      `Note that one month is a snapshot. A second statement would let you see what's consistent vs one-off.`,
+    suggested_response: 'Upload another statement',
+  };
+  return {
+    type: 'ask_goals',
+    prompt_for_claude:
+      `Ask what the user is trying to do with their money — the point of all this. Keep it open.`,
+    suggested_response: 'Tell them my goals',
   };
 }
 
