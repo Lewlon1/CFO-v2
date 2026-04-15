@@ -28,6 +28,7 @@ import { runImportPipeline, type ImportableTransaction } from '@/lib/upload/pipe
 import { refreshMonthlySnapshots, extractAffectedMonths } from '@/lib/analytics/monthly-snapshot'
 import { detectAndFlagRecurring } from '@/lib/analytics/recurring-detector'
 import { detectAndFlagHolidaySpend } from '@/lib/analytics/holiday-detector'
+import { enrichLocation } from '@/lib/analytics/location-enricher'
 import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings'
 import { evaluateValueMapRetake } from '@/lib/nudges/evaluators/value-map-retake'
 import type {
@@ -73,6 +74,9 @@ export async function POST(req: NextRequest) {
 
       // Post-import analytics
       const months = extractAffectedMonths(importTxns.map((t) => t.date))
+      // Enrich location before snapshots so future aggregations can read
+      // location data off the same batch without a second pass.
+      await enrichLocation(supabase, user.id, importBatchId)
       await refreshMonthlySnapshots(supabase, user.id, months)
       await detectAndFlagRecurring(supabase, user.id)
 
