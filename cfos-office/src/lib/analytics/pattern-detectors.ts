@@ -426,6 +426,82 @@ export const convenienceVsPlanned: PatternDetector = {
   },
 };
 
+// C8: Income presence/cadence — NEVER exposes the amount (anti-hallucination).
+export const incomeDetected: PatternDetector = {
+  id: 'income_detected',
+  layer: 'headline',
+  requires: ['transactions', 'income_signal'],
+  detect: (ctx) => {
+    const deposits = ctx.transactions
+      .filter((t) => Number(t.amount) > 0)
+      .slice()
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (deposits.length < 2) return null;
+
+    // Group deposits by the first 3 significant words of the normalised description.
+    type Group = {
+      label: string;
+      entries: typeof deposits;
+    };
+    const groups = new Map<string, Group>();
+    for (const d of deposits) {
+      const normalised = normaliseMerchant(d.description ?? '');
+      if (!normalised) continue;
+      const words = normalised.split(' ').filter((w) => w.length > 0);
+      const key = words.slice(0, 3).join(' ');
+      if (!key) continue;
+      const existing = groups.get(key);
+      if (existing) existing.entries.push(d);
+      else groups.set(key, { label: key, entries: [d] });
+    }
+    if (groups.size === 0) return null;
+
+    // For each group, count pairs of consecutive entries whose gap falls in [25, 35] days.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    let bestGroup: Group | null = null;
+    let bestCadenceCount = 0;
+    for (const group of groups.values()) {
+      if (group.entries.length < 2) continue;
+      let cadenceCount = 0;
+      for (let i = 1; i < group.entries.length; i++) {
+        const prev = new Date(group.entries[i - 1].date).getTime();
+        const curr = new Date(group.entries[i].date).getTime();
+        if (!Number.isFinite(prev) || !Number.isFinite(curr)) continue;
+        const gap = Math.round((curr - prev) / DAY_MS);
+        if (gap >= 25 && gap <= 35) cadenceCount += 1;
+      }
+      if (cadenceCount > bestCadenceCount) {
+        bestCadenceCount = cadenceCount;
+        bestGroup = group;
+      }
+    }
+    if (!bestGroup) return null;
+
+    let score = 0;
+    if (bestCadenceCount >= 1) score += 25;
+    if (score === 0) return null;
+
+    const cadence: 'monthly' | 'irregular' =
+      bestCadenceCount >= 1 ? 'monthly' : 'irregular';
+    const latest = bestGroup.entries[bestGroup.entries.length - 1];
+
+    // CRITICAL: no amount is emitted. Claude must not be able to divide by income.
+    return {
+      id: 'income_detected',
+      score,
+      layer: 'headline',
+      requires: ['transactions', 'income_signal'],
+      data: {
+        cadence,
+        depositCount: bestGroup.entries.length,
+        latestDate: latest.date,
+        groupLabel: bestGroup.label,
+      },
+      narrative_prompt: `If this wins the headline, acknowledge you can see regular deposits without stating the amount. Never divide anything by this. Do not say 'your income' — say 'I can see regular deposits'. Cadence: ${cadence}. Latest: ${latest.date}.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
@@ -437,4 +513,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   recurringExpenseTotal,
   dayOfWeekSkew,
   convenienceVsPlanned,
+  incomeDetected,
 ];
