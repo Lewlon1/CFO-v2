@@ -161,10 +161,13 @@ async function loadRecurring(s: SupabaseClient, userId: string) {
 }
 
 async function loadValueMap(s: SupabaseClient, userId: string) {
+  // The archetype + session metadata lives on value_map_sessions (keyed by profile_id,
+  // which equals the auth user id). value_map_results stores per-transaction
+  // categorisations, not the session summary.
   const { data } = await s
-    .from('value_map_results').select('*')
-    .eq('user_id', userId)
-    .order('completed_at', { ascending: false })
+    .from('value_map_sessions').select('*')
+    .eq('profile_id', userId)
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   return data;
