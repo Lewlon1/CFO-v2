@@ -12,10 +12,19 @@ export interface ArchetypeResult {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatMs(ms: number): string {
-  if (ms < 1000) return 'under a second'
-  const secs = Math.round(ms / 1000)
-  return secs === 1 ? '1 second' : `${secs} seconds`
+function qualifySpeed(ms: number): string {
+  if (ms < 2500) return 'instant'
+  if (ms < 6000) return 'quick'
+  if (ms < 15000) return 'considered'
+  if (ms < 30000) return 'slow'
+  return 'very slow'
+}
+
+function qualifyDeliberation(ms: number): string {
+  if (ms < 1000) return 'no hesitation'
+  if (ms < 4000) return 'brief pause'
+  if (ms < 12000) return 'noticeable deliberation'
+  return 'significant deliberation'
 }
 
 function summariseResponses(responses: ValueMapResult[]) {
@@ -74,9 +83,9 @@ export function buildArchetypePrompt(
     .map((r, i) => {
       const quadrant = r.quadrant ?? 'hard_to_decide'
       const conf = r.hard_to_decide ? 'skipped (hard to decide)' : `${r.confidence}/5`
-      const time = formatMs(r.card_time_ms)
-      const deliberation = r.deliberation_ms > 0 ? `, deliberated ${formatMs(r.deliberation_ms)}` : ''
-      return `${i + 1}. ${r.merchant} (${r.amount > 0 ? '+' : ''}${r.amount.toFixed(2)}) → ${quadrant} | confidence: ${conf} | decided in ${time}${deliberation}`
+      const speed = qualifySpeed(r.card_time_ms)
+      const deliberation = r.deliberation_ms > 1000 ? `, with ${qualifyDeliberation(r.deliberation_ms)} after first tap` : ''
+      return `${i + 1}. ${r.merchant} → ${quadrant} | confidence: ${conf} | speed: ${speed}${deliberation}`
     })
     .join('\n')
 
@@ -95,34 +104,34 @@ export function buildArchetypePrompt(
   const signals: string[] = []
 
   if (stats.avgCardTime < 2500) {
-    signals.push(`Fast decision-maker: average ${formatMs(stats.avgCardTime)} per card.`)
+    signals.push(`Overall pace: fast — most decisions came quickly.`)
   } else if (stats.avgCardTime > 6000) {
-    signals.push(`Deliberate decision-maker: average ${formatMs(stats.avgCardTime)} per card.`)
+    signals.push(`Overall pace: deliberate — they took time with most decisions.`)
   }
 
   if (stats.hardToDecide.length > 0) {
     const merchants = stats.hardToDecide.map((r) => r.merchant).join(', ')
-    signals.push(`Marked ${stats.hardToDecide.length} as "hard to decide": ${merchants}.`)
+    signals.push(`Couldn't decide on: ${merchants} — skipped as hard to decide.`)
   }
 
   if (stats.highConfidence.length > 0) {
     const merchants = stats.highConfidence.map((r) => `${r.merchant} (${r.quadrant})`).join(', ')
-    signals.push(`High certainty (4-5/5) on: ${merchants}.`)
+    signals.push(`Very clear and certain about: ${merchants}.`)
   }
 
   if (stats.lowConfidence.length > 0) {
     const merchants = stats.lowConfidence.map((r) => `${r.merchant} (${r.quadrant})`).join(', ')
-    signals.push(`Low certainty (1-2/5) on: ${merchants}.`)
+    signals.push(`Uncertain, not fully convinced about: ${merchants}.`)
   }
 
   if (stats.fastest.length > 0) {
-    const fast = stats.fastest.map((r) => `${r.merchant} (${formatMs(r.card_time_ms)})`).join(', ')
-    signals.push(`Fastest decisions: ${fast}.`)
+    const fast = stats.fastest.map((r) => r.merchant).join(', ')
+    signals.push(`Clearest, most instinctive decisions: ${fast}.`)
   }
 
   if (stats.slowest.length > 0) {
-    const slow = stats.slowest.map((r) => `${r.merchant} (${formatMs(r.card_time_ms)})`).join(', ')
-    signals.push(`Slowest decisions: ${slow}.`)
+    const slow = stats.slowest.map((r) => r.merchant).join(', ')
+    signals.push(`Required the most thought: ${slow}.`)
   }
 
   return `You are a personal CFO delivering a money personality reading to ${userName}.
@@ -164,8 +173,9 @@ Generate a JSON object with this exact structure:
 ## Rules
 
 - Write as the CFO speaking directly to ${userName} — "you" not "they"
-- Every trait MUST reference a specific merchant name, specific timing, or specific confidence rating from the data above
-- Name TENSIONS, not summaries. "You called Netflix Foundation with 5/5 confidence but took 8 seconds on your gym membership" is better than "You value entertainment"
+- Every trait MUST reference a specific merchant name or confidence pattern from the data above
+- When referencing timing, ALWAYS use qualitative language only — never mention seconds, milliseconds, or any specific numbers. Use phrases like "that one took some thought", "you were very clear on that", "I noticed you hesitated", "that came to you instantly", "that one required a lot of consideration"
+- Name TENSIONS, not summaries. "You called Netflix Foundation with 5/5 confidence but clearly had to think about your gym membership" is better than "You value entertainment"
 - The archetype name should be evocative and unique (not "The Spender" or "The Saver" — think "The Reluctant Architect" or "The Comfortable Drifter")
 - The subtitle should reveal something non-obvious — a contradiction, a blind spot, or an unconscious pattern
 - Keep each trait to 1-2 sentences maximum

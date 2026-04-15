@@ -96,9 +96,7 @@ export async function extractBillData(
 
     content.push({
       type: 'text',
-      text: files.length > 1
-        ? `These ${files.length} images are pages of a SINGLE bill. Extract data from ALL pages combined.\n\n${BILL_EXTRACTION_PROMPT}`
-        : BILL_EXTRACTION_PROMPT,
+      text: BILL_EXTRACTION_PROMPT,
     })
 
     const { object } = await generateObject({

@@ -31,6 +31,17 @@ export function parseRevolutCSV(text: string): ParseResult {
     const description = (row['Description'] || '').trim()
     const currency = (row['Currency'] || 'EUR').trim()
 
+    // Revolut exports include a running-balance column (`Balance`) using `.`
+    // as decimal separator. Older/variant exports may omit it, in which case
+    // we leave the field null so downstream detectors (balance_trajectory)
+    // skip these rows cleanly.
+    const rawBalance = row['Balance']
+    let balance: number | null = null
+    if (rawBalance !== undefined && rawBalance !== '') {
+      const parsed = parseFloat(rawBalance.replace(',', '.'))
+      balance = Number.isFinite(parsed) ? parsed : null
+    }
+
     transactions.push({
       date,
       description,
@@ -38,6 +49,7 @@ export function parseRevolutCSV(text: string): ParseResult {
       currency,
       source: 'csv_revolut',
       raw_description: description,
+      balance,
     })
   }
 

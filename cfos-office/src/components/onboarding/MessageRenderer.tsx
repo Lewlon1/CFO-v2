@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { TypingIndicator } from './TypingIndicator'
 import { CategoryDisplay } from './CategoryDisplay'
@@ -12,6 +12,8 @@ interface MessageRendererProps {
   data: OnboardingData
   onMessageRevealed: () => void
   onAction: (action: string) => void
+  archetypeSlot?: React.ReactNode
+  insightSlot?: React.ReactNode
 }
 
 function interpolate(text: string, data: OnboardingData): string {
@@ -63,6 +65,8 @@ export function MessageRenderer({
   data,
   onMessageRevealed,
   onAction,
+  archetypeSlot,
+  insightSlot,
 }: MessageRendererProps) {
   const [revealedUpTo, setRevealedUpTo] = useState(-1)
   const [isTyping, setIsTyping] = useState(false)
@@ -131,9 +135,11 @@ export function MessageRenderer({
             </div>
           )
         }
-        if (token === 'archetype' || token === 'insight') {
-          // These are rendered by the parent beat component
-          return <div key={msg.id} data-token={token} />
+        if (token === 'archetype') {
+          return <React.Fragment key={msg.id}>{archetypeSlot ?? null}</React.Fragment>
+        }
+        if (token === 'insight') {
+          return <React.Fragment key={msg.id}>{insightSlot ?? null}</React.Fragment>
         }
 
         // Regular text message

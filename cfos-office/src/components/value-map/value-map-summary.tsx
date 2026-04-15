@@ -48,6 +48,12 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
 
+    const dominantQuadrant = (Object.entries(breakdown) as [string, { percentage: number }][])
+      .sort((a, b) => b[1].percentage - a[1].percentage)[0][0]
+    const avgConfidence = decidedResults.length > 0
+      ? Math.round((decidedResults.reduce((sum, r) => sum + r.confidence, 0) / decidedResults.length) * 10) / 10
+      : 3
+
     fetch('/api/value-map/reveal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,7 +67,12 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
           deliberation_ms: r.deliberation_ms,
         })),
         currency,
-        userName: 'there', // Profile name not available here; CFO uses neutral address
+        personalityName: personalityResult.name,
+        dominantQuadrant,
+        breakdown: Object.fromEntries(
+          (Object.entries(breakdown) as [string, { percentage: number }][]).map(([k, v]) => [k, v.percentage]),
+        ),
+        avgConfidence,
       }),
       signal: controller.signal,
     })

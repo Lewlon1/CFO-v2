@@ -1,8 +1,9 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { analysisModel } from '@/lib/ai/provider';
+import { utilityModel, utilityModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
+import { logBedrockUsage } from '@/lib/ai/usage-logger';
 
 const traitSchema = z.object({
   new_traits: z.array(
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
   try {
     const startTime = Date.now()
     const { object, usage } = await generateObject({
-      model: analysisModel,
+      model: utilityModel,
       schema: traitSchema,
       prompt: `You are analysing a conversation between a user and their personal CFO.
 Extract any NEW behavioral traits, patterns, or profile-relevant information
@@ -88,11 +89,21 @@ Rules:
     void trackLLMUsage({
       userId: user_id,
       callType: 'post_conversation_analysis',
-      model: 'eu.anthropic.claude-sonnet-4-6',
+      model: utilityModelId,
       inputTokens: usage?.inputTokens,
       outputTokens: usage?.outputTokens,
       durationMs,
       metadata: { conversation_id, message_count: messages.length },
+    })
+
+    logBedrockUsage({
+      callSite: 'portrait',
+      model: 'haiku',
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      userId: user_id,
+      conversationId: conversation_id,
+      timestamp: new Date().toISOString(),
     })
 
     // Write new traits

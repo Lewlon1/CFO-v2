@@ -363,3 +363,36 @@ function buildNarrative(
       return `Your ${category} spending aligns with how you see it.`
   }
 }
+
+// ── Pattern-detector adapter ─────────────────────────────────────────────────
+
+import type { PatternResult } from './insight-types'
+
+export function gapResultToPatternResult(
+  gapResult: Awaited<ReturnType<typeof analyseGap>>
+): PatternResult | null {
+  if (!gapResult.has_value_map) return null
+  const material = gapResult.gaps.filter(
+    (g) => g.gap_severity !== 'low' && g.actual_monthly_spend > 0
+  )
+  if (material.length === 0) return null
+  const biggest = material[0]
+  return {
+    id: 'value_map_gap',
+    score: biggest.gap_severity === 'high' ? 85 : 60,
+    layer: 'gap',
+    requires: ['transactions', 'value_map'],
+    data: {
+      category: biggest.category,
+      stated: biggest.stated_value_category,
+      stated_confidence: biggest.stated_confidence,
+      actual_monthly_spend: Math.round(biggest.actual_monthly_spend),
+      gap_type: biggest.gap_type,
+      narrative: biggest.narrative,
+    },
+    narrative_prompt:
+      `The user labelled ${biggest.category} as ${biggest.stated_value_category} ` +
+      `(confidence ${biggest.stated_confidence}/5). Actual pattern: ${biggest.narrative}. ` +
+      `Name the gap without judgement. Do not moralise.`,
+  }
+}

@@ -230,6 +230,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
 
       // If this is a typed conversation that needs auto-trigger, queue it
       const autoTriggerTypes = [
+        'first_insight',
         'post_upload',
         'value_map_complete',
         'monthly_review',

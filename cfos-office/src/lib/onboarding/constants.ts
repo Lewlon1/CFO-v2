@@ -120,7 +120,7 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
   first_insight: [
     {
       id: 'insight-intro',
-      text: "I've finished going through your statement. {tx_count} transactions — and one thing jumped out immediately.",
+      text: "I've had a proper look through your statements — {tx_count} transactions in total. Here's what stands out:",
       delayMs: 1800,
     },
     {
@@ -130,7 +130,7 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
     },
     {
       id: 'insight-followup',
-      text: 'That\'s just the first one. Your full spending breakdown is building out in <span class="text-[#22C55E]">Cash Flow</span> and your value analysis is in <span class="text-[#E8A84C]">Values & You</span>.',
+      text: 'That\'s the shape of it. Your full spending breakdown is building out in <span class="text-[#22C55E]">Cash Flow</span> and your value analysis is in <span class="text-[#E8A84C]">Values & You</span>.',
       delayMs: 1800,
     },
     {
@@ -174,16 +174,6 @@ export const CAPABILITY_OPTIONS = [
   { id: 'networth', label: 'Tracking what I own & owe', icon: '≡', color: '#06B6D4', folder: 'Net Worth' },
   { id: 'scenarios', label: 'Planning big financial decisions', icon: '⊕', color: '#F43F5E', folder: 'Scenario Planning' },
 ] as const
-
-// ── Placeholder archetype insights (O1 only — Bedrock in O2) ────────────────
-
-export const PLACEHOLDER_INSIGHTS: Record<string, string> = {
-  builder: "Your Investment spending is high relative to Foundation — you're building, but your safety net might be thinner than you realise. Worth checking.",
-  fortress: "Your Foundation spending dominates. That's disciplined, but I noticed several subscriptions categorised as Foundation that might actually be Leaks in disguise.",
-  truth_teller: "Balanced across all four quadrants — but 'balanced' can mean nothing stands out. Your biggest opportunity is consolidating those small Leak transactions.",
-  drifter: "Your Leak category is where the action is. Small, frequent purchases adding up to a meaningful monthly total. The pattern suggests impulse rather than intention.",
-  anchor: "Burden spending is heavy. Some of this is genuinely unavoidable — but I want to look at whether any recurring Burdens can be renegotiated or eliminated.",
-}
 
 // ── CSV polling ──────────────────────────────────────────────────────────────
 

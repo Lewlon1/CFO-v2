@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
     .order('month', { ascending: false })
 
   if (!snapshots || snapshots.length === 0) {
-    return NextResponse.json({ error: 'no_data' }, { status: 404 })
+    return NextResponse.json({ hasData: false })
   }
 
   const availableMonths = snapshots.map(s => s.month)

@@ -50,6 +50,11 @@ export function assignValueCategory(
   signals?: ContextualSignals,
   amount?: number
 ): ValueCatResult {
+  // Transfers are internal money movement — not spending. Skip value assignment.
+  if (categoryId === 'transfers') {
+    return { valueCategory: 'no_idea', confidence: 0, source: 'none' }
+  }
+
   const normalised = normaliseMerchant(description)
   const category = categoryId
     ? categories.find((c) => c.id === categoryId)
