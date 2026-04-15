@@ -190,6 +190,26 @@ export async function buildSystemPrompt(
     styleModifier = '\nThe user prefers directness. Be clear and honest, but not harsh.';
   }
 
+  // First Insight mode: when a first_insight_payload is attached, the system
+  // has deterministically computed everything Claude is allowed to say. We
+  // suppress any section that would leak income, surplus, goals, portrait
+  // traits, benchmarks, etc. — the payload is the sole source of truth.
+  const firstInsightPayload = conversationMetadata?.first_insight_payload as InsightPayload | undefined;
+  const isFirstInsight =
+    (conversationType === 'first_insight' || conversationType === 'post_upload') &&
+    !!firstInsightPayload;
+
+  if (isFirstInsight) {
+    const sections = [
+      BASE_PERSONA + styleModifier,
+      buildFirstInsightContext(firstInsightPayload),
+      await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+      buildToolUsageInstructions(),
+    ].filter(Boolean);
+
+    return sections.join('\n\n---\n\n');
+  }
+
   const sections = [
     BASE_PERSONA + styleModifier,
     buildProfileContext(profile),
