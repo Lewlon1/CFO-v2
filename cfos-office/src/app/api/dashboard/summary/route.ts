@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import {
+  affectsSpendingBreakdown,
+  isNeutralCategory,
+  INCOME_CATEGORY_ID,
+} from '@/lib/analytics/categories'
 
 type FrequencyResult = { frequency: string; estimated: boolean; monthly_equivalent: number }
 
@@ -103,11 +108,13 @@ export async function GET(req: NextRequest) {
 
   const availableMonths = snapshots.map(s => s.month)
 
-  // Find the requested month's snapshot
+  // Find the requested month's snapshot. Accept either 'YYYY-MM' (the documented
+  // format) or 'YYYY-MM-DD' (what the client historically sent back from
+  // available_months, which are raw date strings).
   let snapshot
   if (monthParam) {
-    const monthDate = `${monthParam}-01`
-    snapshot = snapshots.find(s => s.month === monthDate)
+    const monthKey = monthParam.slice(0, 7)
+    snapshot = snapshots.find(s => String(s.month).startsWith(monthKey))
     if (!snapshot) {
       return NextResponse.json({ error: 'Month not found' }, { status: 404 })
     }
@@ -130,28 +137,31 @@ export async function GET(req: NextRequest) {
     ? `${yearNum + 1}-01-01`
     : `${yearNum}-${String(monthNum + 1).padStart(2, '0')}-01`
 
+  // Pull both spend rows AND positive non-income rows so refunds can net against
+  // their category in the breakdown. Neutral / income categories are excluded server-side.
   const { data: txns } = await supabase
     .from('transactions')
     .select('category_id, value_category, amount, description')
     .eq('user_id', user.id)
     .gte('date', monthStart)
     .lt('date', nextMonth)
-    .lt('amount', 0)
 
-  // Count per category
+  // Count per category. Only count rows that contribute to the spending breakdown
+  // (non-neutral, non-income); refunds count as one transaction, same as outflows.
   const catCounts: Record<string, number> = {}
   const vcCounts: Record<string, number> = {}
-  // Top categories per value category
   const vcCatBreakdown: Record<string, Record<string, number>> = {}
   for (const txn of txns ?? []) {
-    const cid = txn.category_id ?? 'uncategorised'
+    if (!affectsSpendingBreakdown(txn.category_id)) continue
+    const cid = txn.category_id as string
     catCounts[cid] = (catCounts[cid] ?? 0) + 1
 
     const vc = txn.value_category ?? 'no_idea'
     vcCounts[vc] = (vcCounts[vc] ?? 0) + 1
 
     if (!vcCatBreakdown[vc]) vcCatBreakdown[vc] = {}
-    vcCatBreakdown[vc][cid] = (vcCatBreakdown[vc][cid] ?? 0) + Math.abs(txn.amount)
+    // Net amount: outflows positive, refunds negative.
+    vcCatBreakdown[vc][cid] = (vcCatBreakdown[vc][cid] ?? 0) + -Number(txn.amount)
   }
 
   // Enrich spending_by_category with metadata + percentages
@@ -203,6 +213,9 @@ export async function GET(req: NextRequest) {
 
     const descMap = new Map<string, { amounts: number[]; dates: string[]; months: Set<string>; category_id: string | null }>()
     for (const r of recRows ?? []) {
+      // Exclude neutral movements (transfers, debt repayments, savings) so things
+      // like "Credit card repayment" never surface as recurring spend.
+      if (isNeutralCategory(r.category_id) || r.category_id === INCOME_CATEGORY_ID) continue
       const key = r.description
       if (!descMap.has(key)) descMap.set(key, { amounts: [], dates: [], months: new Set(), category_id: r.category_id })
       const entry = descMap.get(key)!

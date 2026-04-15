@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
+import { EXCLUDED_FROM_PL_PG_LIST, affectsSpendingBreakdown } from '@/lib/analytics/categories';
 
 export function createGetSpendingSummaryTool(ctx: ToolContext) {
   return {
@@ -26,18 +27,22 @@ export function createGetSpendingSummaryTool(ctx: ToolContext) {
       value_category?: string;
     }) => {
       try {
+        // Pull both outflows and refunds on real categories so totals net properly.
+        // Neutral / income categories are excluded server-side.
         let query = ctx.supabase
           .from('transactions')
           .select('amount, category_id, value_category, description, date')
           .eq('user_id', ctx.userId)
-          .lt('amount', 0)
           .gte('date', date_from)
-          .lte('date', date_to);
+          .lte('date', date_to)
+          .not('category_id', 'in', EXCLUDED_FROM_PL_PG_LIST);
 
         if (category) query = query.eq('category_id', category);
         if (value_category) query = query.eq('value_category', value_category);
 
-        const { data: transactions, error } = await query;
+        const { data: rawTxns, error } = await query;
+        // Belt-and-braces: drop any rows the server filter missed (e.g. category_id null).
+        const transactions = (rawTxns ?? []).filter((t) => affectsSpendingBreakdown(t.category_id));
 
         if (error) {
           console.error('[tool:get_spending_summary] DB error:', error);
@@ -50,17 +55,21 @@ export function createGetSpendingSummaryTool(ctx: ToolContext) {
           };
         }
 
-        // Aggregate totals
-        const total = transactions.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
-        const count = transactions.length;
-        const avg = total / count;
+        // Net amount per row: outflow → +ve, refund → -ve.
+        const net = (amount: number | string) => -Number(amount);
 
-        // Top merchants (by description, top 5)
+        // Aggregate totals (refunds reduce the headline).
+        const total = transactions.reduce((sum, t) => sum + net(t.amount), 0);
+        const spendCount = transactions.filter((t) => Number(t.amount) < 0).length;
+        const count = spendCount;
+        const avg = count > 0 ? total / count : 0;
+
+        // Top merchants (by description, top 5) — net per merchant.
         const merchantMap = new Map<string, { total: number; count: number }>();
         for (const t of transactions) {
           const desc = t.description || 'Unknown';
           const existing = merchantMap.get(desc) || { total: 0, count: 0 };
-          existing.total += Math.abs(Number(t.amount));
+          existing.total += net(t.amount);
           existing.count += 1;
           merchantMap.set(desc, existing);
         }
@@ -73,26 +82,27 @@ export function createGetSpendingSummaryTool(ctx: ToolContext) {
             count: data.count,
           }));
 
-        // Category breakdown (top 8)
+        // Category breakdown (top 8) — net per category, refunds clamp to 0.
         const categoryMap = new Map<string, number>();
         for (const t of transactions) {
           const cat = t.category_id || 'uncategorised';
-          categoryMap.set(cat, (categoryMap.get(cat) || 0) + Math.abs(Number(t.amount)));
+          categoryMap.set(cat, (categoryMap.get(cat) || 0) + net(t.amount));
         }
         const categoryBreakdown = Array.from(categoryMap.entries())
+          .map(([cat, amount]) => [cat, Math.max(amount, 0)] as const)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 8)
           .map(([cat, amount]) => ({
             category: cat,
             total: Math.round(amount * 100) / 100,
-            percentage: Math.round((amount / total) * 1000) / 10,
+            percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
           }));
 
-        // Value breakdown
+        // Value breakdown — net per value category.
         const valueMap = new Map<string, number>();
         for (const t of transactions) {
           const vc = t.value_category || 'no_idea';
-          valueMap.set(vc, (valueMap.get(vc) || 0) + Math.abs(Number(t.amount)));
+          valueMap.set(vc, (valueMap.get(vc) || 0) + net(t.amount));
         }
         const valueBreakdown: Record<string, number> = {};
         for (const [vc, amount] of valueMap.entries()) {

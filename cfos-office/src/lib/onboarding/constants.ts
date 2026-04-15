@@ -94,7 +94,7 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
   csv_upload: [
     {
       id: 'csv-prompt',
-      text: "Drop it in here. I'll start reading through it while we keep talking.",
+      text: "Share the last 3 months if you can — the more data I have, the more useful I'll be from day one.",
       delayMs: 1200,
     },
     {
@@ -120,18 +120,13 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
   first_insight: [
     {
       id: 'insight-intro',
-      text: "I've had a proper look through your statements — {tx_count} transactions in total. Here's what stands out:",
+      text: "Right — I've had a look through your statements. {tx_count} transactions. Here's what stands out:",
       delayMs: 1800,
     },
     {
       id: 'insight-content',
       text: 'INSIGHT_DISPLAY',
       delayMs: 0,
-    },
-    {
-      id: 'insight-followup',
-      text: 'That\'s the shape of it. Your full spending breakdown is building out in <span class="text-[#22C55E]">Cash Flow</span> and your value analysis is in <span class="text-[#E8A84C]">Values & You</span>.',
-      delayMs: 1800,
     },
     {
       id: 'insight-continue',

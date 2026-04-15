@@ -103,7 +103,13 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
   const [state, setState] = useState<WizardState>({ step: 'idle' })
   const autoImportFiredRef = useRef(false)
 
-  // Batch coordination state
+  // Batch coordination — use refs for the source of truth so closures across
+  // async `await` boundaries always see the latest values. Mirror to state only
+  // for UI rendering (file counter, batch summary).
+  const queueRef = useRef<File[]>([])
+  const currentFileRef = useRef<File | null>(null)
+  const totalFilesRef = useRef(0)
+  const completedFilesRef = useRef(0)
   const [queue, setQueue] = useState<File[]>([])
   const [currentFile, setCurrentFile] = useState<File | null>(null)
   const [totalFiles, setTotalFiles] = useState(0)
@@ -111,12 +117,30 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
   const [batchResults, setBatchResults] = useState<BatchResult[]>([])
   const cachedMappingRef = useRef<{ key: string; mapping: Record<string, string> } | null>(null)
 
+  function updateQueue(next: File[]) {
+    queueRef.current = next
+    setQueue(next)
+  }
+  function updateCurrentFile(next: File | null) {
+    currentFileRef.current = next
+    setCurrentFile(next)
+  }
+  function updateTotalFiles(next: number) {
+    totalFilesRef.current = next
+    setTotalFiles(next)
+  }
+  function incrementCompletedFiles() {
+    completedFilesRef.current += 1
+    setCompletedFiles(completedFilesRef.current)
+  }
+
   function resetBatch() {
     autoImportFiredRef.current = false
     cachedMappingRef.current = null
-    setQueue([])
-    setCurrentFile(null)
-    setTotalFiles(0)
+    completedFilesRef.current = 0
+    updateQueue([])
+    updateCurrentFile(null)
+    updateTotalFiles(0)
     setCompletedFiles(0)
     setBatchResults([])
     setState({ step: 'idle' })
@@ -127,25 +151,29 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
     // Begin a fresh batch
     autoImportFiredRef.current = false
     cachedMappingRef.current = null
+    completedFilesRef.current = 0
     setBatchResults([])
     setCompletedFiles(0)
-    setTotalFiles(files.length)
+    updateTotalFiles(files.length)
     const [first, ...rest] = files
-    setQueue(rest)
-    setCurrentFile(first)
+    updateQueue(rest)
+    updateCurrentFile(first)
     await processFile(first)
   }
 
   function recordResult(partial: BatchResult) {
     setBatchResults((prev) => [...prev, partial])
+    if (!partial.ok) {
+      console.warn('[upload-wizard] file failed:', partial.fileName, partial.error)
+    }
   }
 
   async function advanceOrFinish() {
-    setCompletedFiles((n) => n + 1)
-    if (queue.length === 0) {
+    incrementCompletedFiles()
+    if (queueRef.current.length === 0) {
       // Final file done. For a single-file batch, don't show the batch summary —
       // the existing per-file 'done' UI is already rendered by the render function.
-      if (totalFiles <= 1) return
+      if (totalFilesRef.current <= 1) return
       // Multi-file autoImport: skip the batch summary and signal completion immediately
       if (autoImport && onDone) {
         onDone()
@@ -154,9 +182,9 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       setState({ step: 'batch_done' })
       return
     }
-    const [next, ...rest] = queue
-    setQueue(rest)
-    setCurrentFile(next)
+    const [next, ...rest] = queueRef.current
+    updateQueue(rest)
+    updateCurrentFile(next)
     autoImportFiredRef.current = false
     await processFile(next)
   }
@@ -191,7 +219,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
         trackEvent('upload_failed', { file_type: fileType, error: data.error ?? 'Upload failed' })
         recordResult({ fileName: file.name, ok: false, kind: 'error', error: data.error ?? 'Upload failed' })
         // In a batch, keep going; otherwise show the error UI
-        if (totalFiles > 1) {
+        if (totalFilesRef.current > 1) {
           await advanceOrFinish()
         } else {
           setState({ step: 'error', message: data.error ?? 'Upload failed' })
@@ -248,7 +276,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
     } catch {
       trackEvent('upload_failed', { file_type: fileType, error: 'Network error' })
       recordResult({ fileName: file.name, ok: false, kind: 'error', error: 'Network error' })
-      if (totalFiles > 1) {
+      if (totalFilesRef.current > 1) {
         await advanceOrFinish()
       } else {
         setState({ step: 'error', message: 'Network error. Please try again.' })
@@ -268,7 +296,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       if (!res.ok) {
         const msg = data.error ?? 'Mapping failed'
         recordResult({ fileName: currentFile?.name ?? 'file', ok: false, kind: 'error', error: msg })
-        if (totalFiles > 1) {
+        if (totalFilesRef.current > 1) {
           await advanceOrFinish()
         } else {
           setState({ step: 'error', message: msg })
@@ -278,7 +306,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       setState({ step: 'preview', preview: data.preview, importBatchId: data.importBatchId })
     } catch {
       recordResult({ fileName: currentFile?.name ?? 'file', ok: false, kind: 'error', error: 'Network error' })
-      if (totalFiles > 1) {
+      if (totalFilesRef.current > 1) {
         await advanceOrFinish()
       } else {
         setState({ step: 'error', message: 'Network error. Please try again.' })
@@ -309,7 +337,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       if (!res.ok) {
         const msg = data.error ?? 'Import failed'
         recordResult({ fileName: currentFile?.name ?? 'file', ok: false, kind: 'error', error: msg })
-        if (totalFiles > 1) {
+        if (totalFilesRef.current > 1) {
           await advanceOrFinish()
         } else {
           setState({ step: 'error', message: msg })
@@ -327,7 +355,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       })
       onImported(importBatchId, data.imported)
 
-      if (totalFiles > 1) {
+      if (totalFilesRef.current > 1) {
         await advanceOrFinish()
       } else if (autoImport && onDone) {
         // Single-file autoImport: skip the done screen and signal completion immediately
@@ -337,7 +365,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       }
     } catch {
       recordResult({ fileName: currentFile?.name ?? 'file', ok: false, kind: 'error', error: 'Network error' })
-      if (totalFiles > 1) {
+      if (totalFilesRef.current > 1) {
         await advanceOrFinish()
       } else {
         setState({ step: 'error', message: 'Network error. Please try again.' })
@@ -357,7 +385,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       if (!res.ok) {
         const msg = data.error ?? 'Balance sheet import failed'
         recordResult({ fileName: currentFile?.name ?? 'file', ok: false, kind: 'error', error: msg })
-        if (totalFiles > 1) {
+        if (totalFilesRef.current > 1) {
           await advanceOrFinish()
         } else {
           setState({ step: 'error', message: msg })
@@ -384,14 +412,14 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       })
       onImported()
 
-      if (totalFiles > 1) {
+      if (totalFilesRef.current > 1) {
         await advanceOrFinish()
       } else {
         setState({ step: 'balance_sheet_done', summary })
       }
     } catch {
       recordResult({ fileName: currentFile?.name ?? 'file', ok: false, kind: 'error', error: 'Network error' })
-      if (totalFiles > 1) {
+      if (totalFilesRef.current > 1) {
         await advanceOrFinish()
       } else {
         setState({ step: 'error', message: 'Network error. Please try again.' })
@@ -500,13 +528,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
       return (
         <div>
           {batchBanner}
-          <TransactionPreview
-            transactions={[]}
-            categories={[]}
-            onConfirm={() => {}}
-            onCancel={() => {}}
-            isImporting
-          />
+          <UploadZone onFiles={handleFiles} isLoading context={context} />
         </div>
       )
     }
@@ -527,13 +549,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
     return (
       <div>
         {batchBanner}
-        <TransactionPreview
-          transactions={[]}
-          categories={[]}
-          onConfirm={() => {}}
-          onCancel={() => {}}
-          isImporting
-        />
+        <UploadZone onFiles={handleFiles} isLoading context={context} />
       </div>
     )
   }

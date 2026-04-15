@@ -9,7 +9,7 @@ import { BLOCKED_AT_FIRST_INSIGHT } from './insight-types';
 import {
   PATTERN_LIBRARY,
   formatCurrency,
-  isExpense,
+  isPlSpend,
   absExpense,
   normaliseMerchant,
 } from './pattern-detectors';
@@ -109,7 +109,7 @@ export function computeStatCards(
 ): StatCard[] {
   const cards: StatCard[] = [];
   const totalSpend = ctx.transactions
-    .filter(t => isExpense(Number(t.amount)))
+    .filter(t => isPlSpend(t))
     .reduce((s, t) => s + absExpense(Number(t.amount)), 0);
 
   // Card 1: total tracked spend
@@ -239,7 +239,7 @@ export function computeDisciplineScore(ctx: DetectorContext): number {
   }
 
   // merchant concentration
-  const expenses = ctx.transactions.filter(t => isExpense(Number(t.amount)));
+  const expenses = ctx.transactions.filter(t => isPlSpend(t));
   if (expenses.length > 0) {
     const byMerchant = new Map<string, number>();
     for (const t of expenses) {

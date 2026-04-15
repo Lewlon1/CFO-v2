@@ -6,15 +6,15 @@ import { MessageRenderer } from './MessageRenderer'
 import { ValueMapBeat } from './beats/ValueMapBeat'
 import { UploadBeat } from './beats/UploadBeat'
 import { ArchetypeBeat } from './beats/ArchetypeBeat'
-import { InsightBeat } from './beats/InsightBeat'
 import { CapabilitySelector } from './beats/CapabilitySelector'
 import { TypingIndicator } from './TypingIndicator'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { ONBOARDING_BEATS } from '@/lib/onboarding/types'
-import type { OnboardingState, ArchetypeData } from '@/lib/onboarding/types'
+import type { OnboardingState, ArchetypeData, FirstInsightResult } from '@/lib/onboarding/types'
 import type { ValueMapResult } from '@/lib/value-map/types'
 import { shouldReact, getReactionMessage, type ReactionContext } from '@/lib/onboarding/value-map-reactions'
 import { CSV_POLL_INTERVAL_MS, CSV_POLL_TIMEOUT_MS } from '@/lib/onboarding/constants'
+import { InsightBeat } from './beats/InsightBeat'
 
 interface OnboardingModalProps {
   initialProgress: OnboardingState | null
@@ -67,7 +67,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
   const [archetypeLoading, setArchetypeLoading] = useState(false)
   const archetypeRequested = useRef(false)
 
-  // ── Insight generation state ────────────────────────────────────────────
+  // ── First insight generation (uses PR #31 pattern-detection engine) ─────
 
   const [insightLoading, setInsightLoading] = useState(false)
   const insightRequested = useRef(false)
@@ -81,15 +81,42 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
   // ── Auto-advance messages ───────────────────────────────────────────────
 
+  // After the archetype card renders, hold the conversation for at least
+  // MIN_ARCHETYPE_DWELL_MS before showing the "upload a statement" bridge,
+  // and never advance while the personality is still loading.
+  const MIN_ARCHETYPE_DWELL_MS = 20000
+  const [archetypeRevealedAt, setArchetypeRevealedAt] = useState<number | null>(null)
+
   const handleMessageRevealed = useCallback(() => {
+    const currentMsg = messages[messageIndex]
     const nextIdx = messageIndex + 1
     const nextMsg = messages[nextIdx]
-    if (nextMsg) {
-      autoAdvanceTimer.current = setTimeout(() => {
-        advanceMessage()
-      }, 300)
+    if (!nextMsg) return
+
+    if (currentMsg?.id === 'archetype-result') {
+      setArchetypeRevealedAt(Date.now())
+      return
     }
+
+    autoAdvanceTimer.current = setTimeout(() => {
+      advanceMessage()
+    }, 300)
   }, [messageIndex, messages, advanceMessage])
+
+  useEffect(() => {
+    if (archetypeRevealedAt === null) return
+    if (archetypeLoading || !state.data.archetypeData) return
+
+    const elapsed = Date.now() - archetypeRevealedAt
+    const remaining = Math.max(0, MIN_ARCHETYPE_DWELL_MS - elapsed)
+
+    const t = setTimeout(() => {
+      setArchetypeRevealedAt(null)
+      advanceMessage()
+    }, remaining)
+
+    return () => clearTimeout(t)
+  }, [archetypeRevealedAt, archetypeLoading, state.data.archetypeData, advanceMessage])
 
   // Start first message when entering a new beat
   useEffect(() => {
@@ -156,71 +183,69 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBeat, embedRevealed, state.data.personalityType])
 
-  // ── Insight generation trigger ──────────────────────────────────────────
+  // ── Insight generation (PR #31 pattern engine + Claude narration) ───────
 
   useEffect(() => {
     if (
-      currentBeat === 'first_insight' &&
-      embedRevealed &&
-      state.data.importBatchId &&
-      !state.data.insightData &&
-      !insightLoading &&
-      !insightRequested.current
+      currentBeat !== 'first_insight' ||
+      !embedRevealed ||
+      !state.data.importBatchId ||
+      state.data.insightData ||
+      insightLoading ||
+      insightRequested.current
     ) {
-      insightRequested.current = true
-      setInsightLoading(true)
+      return
+    }
+    insightRequested.current = true
+    setInsightLoading(true)
 
-      // Poll for CSV completion first, then generate insight
-      const pollAndGenerate = async () => {
-        const startedAt = Date.now()
-
-        // Poll until CSV is ready or timeout
-        let csvReady = false
-        while (!csvReady && Date.now() - startedAt < CSV_POLL_TIMEOUT_MS) {
-          try {
-            const statusRes = await fetch(
-              `/api/onboarding/csv-status?batch_id=${state.data.importBatchId}`,
-            )
-            const statusData = await statusRes.json()
-            if (statusData.status === 'completed') {
-              csvReady = true
-              if (statusData.transaction_count) {
-                setData({ transactionCount: statusData.transaction_count })
-              }
-            } else {
-              await new Promise((r) => setTimeout(r, CSV_POLL_INTERVAL_MS))
+    const run = async () => {
+      // Wait for CSV processing so the engine has data to pattern against.
+      const startedAt = Date.now()
+      let csvReady = false
+      while (!csvReady && Date.now() - startedAt < CSV_POLL_TIMEOUT_MS) {
+        try {
+          const statusRes = await fetch(
+            `/api/onboarding/csv-status?batch_id=${state.data.importBatchId}`,
+          )
+          const statusData = await statusRes.json()
+          if (statusData.status === 'completed') {
+            csvReady = true
+            if (statusData.transaction_count) {
+              setData({ transactionCount: statusData.transaction_count })
             }
-          } catch {
+          } else {
             await new Promise((r) => setTimeout(r, CSV_POLL_INTERVAL_MS))
           }
-        }
-
-        if (!csvReady) {
-          console.warn('[onboarding] CSV processing timed out, skipping insight')
-          setInsightLoading(false)
-          return
-        }
-
-        // Generate insight
-        try {
-          const res = await fetch('/api/onboarding/generate-insight', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
-          })
-          const data = await res.json()
-          if (data.insightData) {
-            setData({ insightData: data.insightData })
-          }
-        } catch (err) {
-          console.error('[onboarding] Insight generation failed:', err)
-        } finally {
-          setInsightLoading(false)
+        } catch {
+          await new Promise((r) => setTimeout(r, CSV_POLL_INTERVAL_MS))
         }
       }
 
-      pollAndGenerate()
+      if (!csvReady) {
+        console.warn('[onboarding] CSV processing timed out')
+        setInsightLoading(false)
+        return
+      }
+
+      try {
+        const res = await fetch('/api/onboarding/generate-insight', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+        const data = (await res.json()) as { insight?: FirstInsightResult }
+        if (data.insight) {
+          setData({ insightData: data.insight })
+        }
+      } catch (err) {
+        console.error('[onboarding] Insight generation failed:', err)
+      } finally {
+        setInsightLoading(false)
+      }
     }
+
+    run()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBeat, embedRevealed, state.data.importBatchId])
 
@@ -293,11 +318,21 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
     }
   }, [])
 
+  // Once the first file imports, advance to capabilities while the wizard
+  // keeps running in the background (mounted but hidden) for remaining files.
+  const [uploadInFlight, setUploadInFlight] = useState(false)
+
   const handleUploadComplete = useCallback((importBatchId: string | null, transactionCount: number) => {
+    if (importBatchId) setUploadInFlight(true)
     completeBeat('csv_upload', { importBatchId, transactionCount })
   }, [completeBeat])
 
+  const handleUploadBackgroundDone = useCallback(() => {
+    setUploadInFlight(false)
+  }, [])
+
   const handleUploadSkip = useCallback(() => {
+    setUploadInFlight(false)
     completeBeat('csv_upload')
   }, [completeBeat])
 
@@ -369,21 +404,12 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
           insightSlot={
             currentBeat === 'first_insight' ? (
               <InsightBeat
-                data={state.data}
-                insightData={state.data.insightData}
+                insight={state.data.insightData}
                 loading={insightLoading}
               />
             ) : undefined
           }
         />
-
-        {/* Dynamic reaction messages during Value Map */}
-        {currentBeat === 'value_map' && dynamicMessages.map((msg) => (
-          <ReactionBubble key={msg.id} text={msg.text} />
-        ))}
-        {currentBeat === 'value_map' && typingReaction && (
-          <TypingIndicator />
-        )}
 
         {/* Beat-specific embedded components */}
         {currentBeat === 'value_map' && embedRevealed && (
@@ -391,14 +417,15 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
             currency={state.data.currency ?? 'GBP'}
             onComplete={handleValueMapComplete}
             onSkip={handleValueMapSkip}
-            onTransactionResult={handleTransactionResult}
           />
         )}
 
-        {currentBeat === 'csv_upload' && embedRevealed && (
+        {((currentBeat === 'csv_upload' && embedRevealed) || uploadInFlight) && (
           <UploadBeat
             onComplete={handleUploadComplete}
             onSkip={handleUploadSkip}
+            onBackgroundDone={handleUploadBackgroundDone}
+            hidden={currentBeat !== 'csv_upload'}
           />
         )}
 

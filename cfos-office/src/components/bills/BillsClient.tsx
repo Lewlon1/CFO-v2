@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { normaliseToMonthly } from '@/lib/bills/normalise'
 import { billTypeGroup, BILL_TYPE_GROUPS, matchProvider } from '@/lib/bills/provider-registry'
@@ -16,6 +16,13 @@ interface Props {
 export function BillsClient({ bills: initialBills }: Props) {
   const router = useRouter()
   const [bills, setBills] = useState(initialBills)
+  // Sync local state when the server component re-renders (e.g. after
+  // router.refresh() following an upload). Without this, useState's
+  // snapshot from first mount sticks and new bills never appear until the
+  // user navigates away and back.
+  useEffect(() => {
+    setBills(initialBills)
+  }, [initialBills])
   const [selectedBill, setSelectedBill] = useState<BillRecord | null>(null)
   const [showUpload, setShowUpload] = useState(false)
   const [uploadBill, setUploadBill] = useState<BillRecord | null>(null) // bill to attach upload to

@@ -6,7 +6,7 @@ import { extractSignals, CATEGORY_AMBIGUITY, type MerchantHistory } from '@/lib/
 import { resolveValueCategory, loadUserRules } from '@/lib/prediction/predictor'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { computeCategorizationStats, type CategorizationStats } from '@/lib/categorisation/categorisation-stats'
-import { loadExistingKeys, isDuplicate } from './duplicate-detector'
+import { loadExistingKeys, isDuplicate, computeDedupeHash } from './duplicate-detector'
 import type { ParsedTransaction, Category, ValueCategoryRule, UserMerchantRule, RecurringMatch } from '@/lib/parsers/types'
 import type { CatResult } from '@/lib/categorisation/rules-engine'
 
@@ -228,8 +228,13 @@ export async function runImportPipeline(
   // Compute categorisation stats
   stats.categorisation = computeCategorizationStats(toInsert)
 
-  // Pass 3: insert
+  // Pass 3: insert. The DB unique index on (user_id, dedupe_hash) is partial
+  // (WHERE deleted_at IS NULL AND dedupe_hash IS NOT NULL), which Supabase's
+  // upsert/onConflict can't target — so we INSERT and treat Postgres error
+  // code 23505 (unique_violation) as a duplicate signal. The in-memory pre-check
+  // above is a perf optimisation; this is the dedupe source of truth.
   for (const txn of toInsert) {
+    const dedupeHash = computeDedupeHash(txn.date, txn.amount, txn.description)
     const { error } = await supabase.from('transactions').insert({
       user_id: opts.userId,
       date: txn.date,
@@ -246,12 +251,16 @@ export async function runImportPipeline(
       source: txn.source,
       import_batch_id: opts.importBatchId,
       user_confirmed: false,
-      // Optional fields only set when parser provides them
       balance: txn.balance ?? null,
+      dedupe_hash: dedupeHash,
     })
     if (error) {
-      console.error('[pipeline] insert error:', error.message, error.details, error.code)
-      stats.errors++
+      if (error.code === '23505') {
+        stats.duplicates++
+      } else {
+        console.error('[pipeline] insert error:', error.message, error.details, error.code)
+        stats.errors++
+      }
     } else {
       stats.imported++
     }

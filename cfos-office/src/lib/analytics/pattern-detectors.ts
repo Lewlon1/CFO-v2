@@ -2,6 +2,7 @@
 
 import type { PatternDetector } from './insight-types';
 import { analyseGap, gapResultToPatternResult } from './gap-analyser';
+import { isSpendRow } from './categories';
 
 // --- Shared helpers (used by multiple detectors) ---
 
@@ -25,6 +26,13 @@ export function isExpense(amount: number): boolean { return amount < 0; }
 
 export function absExpense(amount: number): number { return amount < 0 ? -amount : 0; }
 
+// Real P&L spend: outflow on a non-neutral, non-income category. Use this in
+// detectors instead of `isExpense(t.amount)` so transfers and debt repayments
+// don't appear as "spending patterns".
+export function isPlSpend(t: { amount: number | string; category_id?: string | null }): boolean {
+  return isSpendRow(t.amount, t.category_id);
+}
+
 // --- Detectors ---
 
 // C1: Shopping footprint across many food stores, many small trips.
@@ -36,7 +44,7 @@ export const merchantFragmentation: PatternDetector = {
     const FOOD_CATEGORIES = ['groceries', 'dining_out', 'convenience'];
     const txns = ctx.transactions.filter(
       (t) =>
-        isExpense(Number(t.amount)) &&
+        isPlSpend(t) &&
         t.category_id !== null &&
         FOOD_CATEGORIES.includes(t.category_id)
     );
@@ -84,7 +92,7 @@ export const transactionSizeDistribution: PatternDetector = {
   layer: 'hidden_pattern',
   requires: ['transactions'],
   detect: (ctx) => {
-    const txns = ctx.transactions.filter((t) => isExpense(Number(t.amount)));
+    const txns = ctx.transactions.filter((t) => isPlSpend(t));
     if (txns.length < 30) return null;
 
     let totalSpend = 0;
@@ -130,7 +138,7 @@ export const categoryConcentration: PatternDetector = {
     const EXCLUDED = new Set(['rent', 'mortgage']);
     const txns = ctx.transactions.filter(
       (t) =>
-        isExpense(Number(t.amount)) &&
+        isPlSpend(t) &&
         t.category_id !== null &&
         !EXCLUDED.has(t.category_id)
     );
@@ -180,7 +188,7 @@ export const spendingVelocity: PatternDetector = {
   layer: 'hidden_pattern',
   requires: ['transactions'],
   detect: (ctx) => {
-    const txns = ctx.transactions.filter((t) => isExpense(Number(t.amount)));
+    const txns = ctx.transactions.filter((t) => isPlSpend(t));
     if (txns.length < 20) return null;
 
     // Bucket by ISO date (YYYY-MM-DD) using UTC-slicing.
@@ -314,7 +322,7 @@ export const dayOfWeekSkew: PatternDetector = {
   layer: 'hidden_pattern',
   requires: ['transactions'],
   detect: (ctx) => {
-    const txns = ctx.transactions.filter((t) => isExpense(Number(t.amount)));
+    const txns = ctx.transactions.filter((t) => isPlSpend(t));
     if (txns.length < 20) return null;
 
     const byDay = [0, 0, 0, 0, 0, 0, 0];
@@ -370,7 +378,7 @@ export const convenienceVsPlanned: PatternDetector = {
     const planned = new Map<string, Bucket>();
 
     for (const t of ctx.transactions) {
-      if (!isExpense(Number(t.amount))) continue;
+      if (!isPlSpend(t)) continue;
       if (!t.category_id || !FOOD_CATEGORIES.has(t.category_id)) continue;
       const desc = t.description ?? '';
       const normalised = normaliseMerchant(desc);
@@ -530,7 +538,7 @@ export const geographicSpendingModes: PatternDetector = {
     }
     const groups = new Map<string, Group>();
     for (const t of ctx.transactions) {
-      if (!isExpense(Number(t.amount))) continue;
+      if (!isPlSpend(t)) continue;
       const city = t.location_city;
       const country = t.location_country;
       const location = city ?? country ?? null;

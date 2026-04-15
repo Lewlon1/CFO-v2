@@ -1,4 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  affectsSpendingBreakdown,
+  isIncomeRow,
+  isSpendRow,
+} from './categories'
 
 export async function refreshMonthlySnapshots(
   supabase: SupabaseClient,
@@ -31,30 +36,41 @@ async function refreshOneMonth(
 
   if (!txns || txns.length === 0) return
 
-  const totalIncome = txns.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
-  const totalSpending = Math.abs(txns.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0))
+  // Income: positive amounts on the dedicated 'income' category only.
+  // Refunds (positive amounts on a spending category) net against that category, not income.
+  const totalIncome = txns
+    .filter((t) => isIncomeRow(t.amount, t.category_id))
+    .reduce((s, t) => s + Number(t.amount), 0)
 
+  // Net spend per category: outflow contributes positive, refund contributes negative.
   const spendingByCategory: Record<string, number> = {}
   const spendingByValueCategory: Record<string, number> = {}
   let largestTxn = 0
   let largestTxnDesc = ''
+  let spendingRowCount = 0
 
   for (const txn of txns) {
-    if (txn.amount >= 0) continue
-    const abs = Math.abs(txn.amount)
-    if (txn.category_id) {
-      spendingByCategory[txn.category_id] = (spendingByCategory[txn.category_id] ?? 0) + abs
-    }
+    if (!affectsSpendingBreakdown(txn.category_id)) continue
+    const cid = txn.category_id as string
+    const delta = -Number(txn.amount) // outflow → +ve, refund → -ve
+    spendingByCategory[cid] = (spendingByCategory[cid] ?? 0) + delta
     const vc = txn.value_category ?? 'no_idea'
-    spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + abs
-    if (abs > largestTxn) {
-      largestTxn = abs
-      largestTxnDesc = txn.description
+    spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + delta
+
+    if (isSpendRow(txn.amount, txn.category_id)) {
+      spendingRowCount += 1
+      const abs = -Number(txn.amount)
+      if (abs > largestTxn) {
+        largestTxn = abs
+        largestTxnDesc = txn.description
+      }
     }
   }
 
-  const spendingTxns = txns.filter((t) => t.amount < 0)
-  const avgTxnSize = spendingTxns.length > 0 ? totalSpending / spendingTxns.length : 0
+  // Total spending = sum of net category spends; clamp categories that net negative (refund-heavy) to 0
+  // so a single large refund can't make the headline total negative.
+  const totalSpending = Object.values(spendingByCategory).reduce((s, v) => s + Math.max(v, 0), 0)
+  const avgTxnSize = spendingRowCount > 0 ? totalSpending / spendingRowCount : 0
 
   // Previous month comparison
   const prevMonthStr =

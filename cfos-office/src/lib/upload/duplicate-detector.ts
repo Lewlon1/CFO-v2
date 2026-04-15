@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import type { ParsedTransaction } from '@/lib/parsers/types'
@@ -28,9 +29,13 @@ export async function loadExistingKeys(
   return keys
 }
 
-export function makeKey(date: string, amount: number, description: string): string {
+export function makeKey(date: string, amount: number | string, description: string): string {
   const normDesc = normaliseMerchant(description)
-  return `${date}|${amount}|${normDesc}`
+  // Day granularity + fixed 2dp amount → identical key regardless of
+  // export source (Santander date-only vs Revolut timestamped).
+  const day = String(date).slice(0, 10)
+  const amt = Number(amount).toFixed(2)
+  return `${day}|${amt}|${normDesc}`
 }
 
 export function isDuplicate(
@@ -39,4 +44,10 @@ export function isDuplicate(
 ): boolean {
   const key = makeKey(txn.date, txn.amount, txn.description)
   return existingKeys.has(key)
+}
+
+// Stable, persisted hash for the DB unique constraint. Mirrors makeKey() so
+// in-memory and DB-level dedupe agree on what counts as "the same transaction".
+export function computeDedupeHash(date: string, amount: number | string, description: string): string {
+  return createHash('sha256').update(makeKey(date, amount, description)).digest('hex')
 }
