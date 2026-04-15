@@ -77,9 +77,53 @@ export const merchantFragmentation: PatternDetector = {
   },
 };
 
+// C2: Many small transactions forming a modest share of total spend.
+export const transactionSizeDistribution: PatternDetector = {
+  id: 'transaction_size_distribution',
+  layer: 'hidden_pattern',
+  requires: ['transactions'],
+  detect: (ctx) => {
+    const txns = ctx.transactions.filter((t) => isExpense(Number(t.amount)));
+    if (txns.length < 30) return null;
+
+    let totalSpend = 0;
+    let under10Count = 0;
+    let under10Total = 0;
+    for (const t of txns) {
+      const abs = absExpense(Number(t.amount));
+      totalSpend += abs;
+      if (abs < 10) {
+        under10Count += 1;
+        under10Total += abs;
+      }
+    }
+    const countPct = under10Count / txns.length;
+    const amountPct = totalSpend > 0 ? under10Total / totalSpend : 0;
+
+    let score = 0;
+    if (countPct > 0.40 && amountPct < 0.15) score += 40;
+    else if (countPct > 0.30) score += 20;
+    if (score === 0) return null;
+
+    return {
+      id: 'transaction_size_distribution',
+      score,
+      layer: 'hidden_pattern',
+      requires: ['transactions'],
+      data: {
+        countUnder10: under10Count,
+        pctCountUnder10: Math.round(countPct * 100),
+        pctSpendUnder10: Math.round(amountPct * 100),
+      },
+      narrative_prompt: `${Math.round(countPct * 100)}% of transactions are under ${formatCurrency(10, ctx.currency)} (${under10Count} decisions for ${Math.round(amountPct * 100)}% of total spend). Many small decisions, modest share of the money — useful to name.`,
+    };
+  },
+};
+
 // --- Library registration ---
 
 // Detectors registered in Phase C/D.
 export const PATTERN_LIBRARY: PatternDetector[] = [
   merchantFragmentation,
+  transactionSizeDistribution,
 ];
