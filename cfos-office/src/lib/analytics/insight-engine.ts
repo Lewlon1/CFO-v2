@@ -218,17 +218,62 @@ export function determineHook(
   };
 }
 
-export function computeDisciplineScore(_ctx: DetectorContext): number {
-  // Filled in Phase E (Task E4)
-  return 50;
+export function computeDisciplineScore(ctx: DetectorContext): number {
+  let s = 0;
+  if (ctx.recurring.length > 0) s += 25;
+  if (ctx.transactions.some(t => t.is_holiday_spend)) s += 20;
+  if (ctx.valueMap) s += 15;
+
+  // monthly deposit cadence
+  const positives = ctx.transactions.filter(t => Number(t.amount) > 0);
+  if (positives.length >= 2) {
+    const sorted = [...positives].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+    let monthlyGaps = 0;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i - 1].date as string).getTime();
+      const curr = new Date(sorted[i].date as string).getTime();
+      const gapDays = Math.abs(curr - prev) / (1000 * 60 * 60 * 24);
+      if (gapDays >= 25 && gapDays <= 35) monthlyGaps++;
+    }
+    if (monthlyGaps >= 1) s += 20;
+  }
+
+  // merchant concentration
+  const expenses = ctx.transactions.filter(t => isExpense(Number(t.amount)));
+  if (expenses.length > 0) {
+    const byMerchant = new Map<string, number>();
+    for (const t of expenses) {
+      const k = normaliseMerchant(t.description ?? '');
+      byMerchant.set(k, (byMerchant.get(k) ?? 0) + absExpense(Number(t.amount)));
+    }
+    const total = expenses.reduce((a, t) => a + absExpense(Number(t.amount)), 0);
+    const top5 = Array.from(byMerchant.values())
+      .sort((a, b) => b - a)
+      .slice(0, 5)
+      .reduce((a, v) => a + v, 0);
+    if (total > 0 && top5 / total > 0.5) s += 20;
+  }
+
+  return Math.min(100, s);
 }
 
 function buildSuggestedResponses(
-  _layers: InsightPayload['layers'],
-  _hook: Hook
+  layers: InsightPayload['layers'],
+  hook: Hook
 ): string[] {
-  // Filled in Phase E (Task E4)
-  return [];
+  const out: string[] = [];
+  const headline = layers.headline;
+  if (headline?.id === 'category_concentration') {
+    out.push(`Break down ${headline.data.topCategory}`);
+  } else if (headline) {
+    out.push('Tell me more about that');
+  }
+  out.push(hook.suggested_response);
+  const hidden = layers.hidden_pattern;
+  if (hidden?.id === 'merchant_fragmentation') out.push('Why does that matter?');
+  else if (hidden) out.push('What should I do about it?');
+  else out.push('Show me my full breakdown');
+  return out.slice(0, 3);
 }
 
 // --- Loaders ---
