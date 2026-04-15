@@ -515,6 +515,94 @@ export const valueMapGap: PatternDetector = {
   },
 };
 
+// D3: Geographic spending modes — different daily rates by location.
+export const geographicSpendingModes: PatternDetector = {
+  id: 'geographic_spending_modes',
+  layer: 'headline',
+  requires: ['transactions', 'location_data'],
+  detect: (ctx) => {
+    interface Group {
+      location: string;
+      total: number;
+      count: number;
+      minDate: number;
+      maxDate: number;
+    }
+    const groups = new Map<string, Group>();
+    for (const t of ctx.transactions) {
+      if (!isExpense(Number(t.amount))) continue;
+      const city = t.location_city;
+      const country = t.location_country;
+      const location = city ?? country ?? null;
+      if (!location) continue;
+      const time = new Date(t.date).getTime();
+      if (!Number.isFinite(time)) continue;
+      const abs = absExpense(Number(t.amount));
+      const existing = groups.get(location);
+      if (existing) {
+        existing.total += abs;
+        existing.count += 1;
+        if (time < existing.minDate) existing.minDate = time;
+        if (time > existing.maxDate) existing.maxDate = time;
+      } else {
+        groups.set(location, {
+          location,
+          total: abs,
+          count: 1,
+          minDate: time,
+          maxDate: time,
+        });
+      }
+    }
+
+    // Retain groups with ≥ 3 transactions and compute daily rate.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const eligible = [...groups.values()]
+      .filter((g) => g.count >= 3)
+      .map((g) => {
+        const daysSpanned = Math.max(
+          1,
+          Math.floor((g.maxDate - g.minDate) / DAY_MS) + 1,
+        );
+        const dailyRate = g.total / daysSpanned;
+        return { ...g, daysSpanned, dailyRate };
+      });
+    if (eligible.length < 2) return null;
+
+    const sorted = [...eligible].sort((a, b) => b.dailyRate - a.dailyRate);
+    const top1 = sorted[0];
+    const top2 = sorted[1];
+    const higher = Math.max(top1.dailyRate, top2.dailyRate);
+    if (higher <= 0) return null;
+    const delta = Math.abs(top1.dailyRate - top2.dailyRate) / higher;
+
+    let score = 0;
+    if (delta > 0.30) score += 40;
+    if (score === 0) return null;
+
+    const topGroups = sorted.slice(0, 3).map((g) => ({
+      location: g.location,
+      total: Math.round(g.total),
+      count: g.count,
+      dailyRate: Math.round(g.dailyRate),
+      daysSpanned: g.daysSpanned,
+    }));
+
+    return {
+      id: 'geographic_spending_modes',
+      score,
+      layer: 'headline',
+      requires: ['transactions', 'location_data'],
+      data: { groups: topGroups },
+      narrative_prompt:
+        `Two distinct spending modes by location. ${topGroups[0].location}: ` +
+        `${formatCurrency(topGroups[0].dailyRate, ctx.currency)}/day over ${topGroups[0].daysSpanned} days. ` +
+        `${topGroups[1].location}: ${formatCurrency(topGroups[1].dailyRate, ctx.currency)}/day over ` +
+        `${topGroups[1].daysSpanned} days. Name this as a perspective shift — same person, different modes.`,
+    };
+  },
+};
+
 // D2: Month-over-month headline trend from monthly_snapshots.
 export const monthOverMonthTrend: PatternDetector = {
   id: 'month_over_month_trend',
@@ -611,4 +699,5 @@ export const PATTERN_LIBRARY: PatternDetector[] = [
   incomeDetected,
   valueMapGap,
   monthOverMonthTrend,
+  geographicSpendingModes,
 ];
