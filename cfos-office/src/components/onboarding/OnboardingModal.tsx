@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { MessageRenderer } from './MessageRenderer'
 import { ValueMapBeat } from './beats/ValueMapBeat'
@@ -13,8 +13,10 @@ import { ONBOARDING_BEATS } from '@/lib/onboarding/types'
 import type { OnboardingState, ArchetypeData, FirstInsightResult } from '@/lib/onboarding/types'
 import type { ValueMapResult } from '@/lib/value-map/types'
 import { shouldReact, getReactionMessage, type ReactionContext } from '@/lib/onboarding/value-map-reactions'
-import { CSV_POLL_INTERVAL_MS, CSV_POLL_TIMEOUT_MS } from '@/lib/onboarding/constants'
 import { InsightBeat } from './beats/InsightBeat'
+import { WelcomeBeat } from './beats/WelcomeBeat'
+import { ChatContext } from '@/components/chat/ChatProvider'
+import type { WelcomeChip } from '@/lib/onboarding/welcome-copy'
 
 interface OnboardingModalProps {
   initialProgress: OnboardingState | null
@@ -71,6 +73,10 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
   const [insightLoading, setInsightLoading] = useState(false)
   const insightRequested = useRef(false)
+
+  // ── Upload background tracking ─────────────────────────────────────────
+  // Declared here (before the insight effect) so the effect can gate on it.
+  const [uploadInFlight, setUploadInFlight] = useState(false)
 
   // ── Dynamic reaction messages (Value Map) ───────────────────────────────
 
@@ -186,13 +192,15 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
   // ── Insight generation (PR #31 pattern engine + Claude narration) ───────
 
   useEffect(() => {
+    // Pre-fetch: starts once all files are uploaded (uploadInFlight false) so
+    // the engine sees all transactions. Runs during capabilities beat so the
+    // insight is likely ready by first_insight.
     if (
-      currentBeat !== 'first_insight' ||
-      !embedRevealed ||
       !state.data.importBatchId ||
       state.data.insightData ||
       insightLoading ||
-      insightRequested.current
+      insightRequested.current ||
+      uploadInFlight
     ) {
       return
     }
@@ -200,34 +208,9 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
     setInsightLoading(true)
 
     const run = async () => {
-      // Wait for CSV processing so the engine has data to pattern against.
-      const startedAt = Date.now()
-      let csvReady = false
-      while (!csvReady && Date.now() - startedAt < CSV_POLL_TIMEOUT_MS) {
-        try {
-          const statusRes = await fetch(
-            `/api/onboarding/csv-status?batch_id=${state.data.importBatchId}`,
-          )
-          const statusData = await statusRes.json()
-          if (statusData.status === 'completed') {
-            csvReady = true
-            if (statusData.transaction_count) {
-              setData({ transactionCount: statusData.transaction_count })
-            }
-          } else {
-            await new Promise((r) => setTimeout(r, CSV_POLL_INTERVAL_MS))
-          }
-        } catch {
-          await new Promise((r) => setTimeout(r, CSV_POLL_INTERVAL_MS))
-        }
-      }
-
-      if (!csvReady) {
-        console.warn('[onboarding] CSV processing timed out')
-        setInsightLoading(false)
-        return
-      }
-
+      // uploadInFlight gate above ensures all files are committed before we
+      // reach here, so we can skip csv-status polling and call generate-insight
+      // directly — the data is already in the DB.
       try {
         const res = await fetch('/api/onboarding/generate-insight', {
           method: 'POST',
@@ -240,6 +223,14 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
         }
       } catch (err) {
         console.error('[onboarding] Insight generation failed:', err)
+        // Fallback so InsightBeat renders something instead of permanent skeleton
+        setData({
+          insightData: {
+            narrative: "I've started looking through your numbers. Let's dig in together.",
+            statCards: [],
+            suggestedResponses: [],
+          },
+        })
       } finally {
         setInsightLoading(false)
       }
@@ -247,9 +238,22 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
     run()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentBeat, embedRevealed, state.data.importBatchId])
+  }, [state.data.importBatchId, uploadInFlight])
 
   // ── Action handlers ─────────────────────────────────────────────────────
+
+  const chatCtx = useContext(ChatContext)
+
+  const handleChipTap = useCallback(async (chip: WelcomeChip) => {
+    await dismiss()
+    chatCtx?.startConversation('chip_opener', { prompt: chip.prompt })
+  }, [dismiss, chatCtx])
+
+  const handleInsightRate = useCallback((rating: number) => {
+    setTimeout(() => {
+      completeBeat('first_insight', { insightRating: rating })
+    }, 600)
+  }, [completeBeat])
 
   const handleAction = useCallback((action: string) => {
     switch (action) {
@@ -320,16 +324,15 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
   // Once the first file imports, advance to capabilities while the wizard
   // keeps running in the background (mounted but hidden) for remaining files.
-  const [uploadInFlight, setUploadInFlight] = useState(false)
-
   const handleUploadComplete = useCallback((importBatchId: string | null, transactionCount: number) => {
     if (importBatchId) setUploadInFlight(true)
     completeBeat('csv_upload', { importBatchId, transactionCount })
   }, [completeBeat])
 
-  const handleUploadBackgroundDone = useCallback(() => {
+  const handleUploadBackgroundDone = useCallback((totalCount: number) => {
     setUploadInFlight(false)
-  }, [])
+    setData({ transactionCount: totalCount })
+  }, [setData])
 
   const handleUploadSkip = useCallback(() => {
     setUploadInFlight(false)
@@ -406,6 +409,16 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
               <InsightBeat
                 insight={state.data.insightData}
                 loading={insightLoading}
+                onRate={handleInsightRate}
+              />
+            ) : undefined
+          }
+          welcomeSlot={
+            currentBeat === 'handoff' ? (
+              <WelcomeBeat
+                archetypeData={state.data.archetypeData}
+                monthsOfData={Math.max(1, Math.ceil((state.data.transactionCount ?? 0) / 30))}
+                onChipTap={handleChipTap}
               />
             ) : undefined
           }

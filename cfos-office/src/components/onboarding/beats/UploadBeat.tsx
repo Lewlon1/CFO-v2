@@ -8,7 +8,7 @@ import type { Category } from '@/lib/parsers/types'
 interface UploadBeatProps {
   onComplete: (importBatchId: string | null, transactionCount: number) => void
   onSkip: () => void
-  onBackgroundDone?: () => void
+  onBackgroundDone?: (totalTransactionCount: number) => void
   hidden?: boolean
 }
 
@@ -53,7 +53,7 @@ export function UploadBeat({ onComplete, onSkip, onBackgroundDone, hidden }: Upl
       onComplete(lastBatchIdRef.current, totalImportedRef.current)
       return
     }
-    onBackgroundDone?.()
+    onBackgroundDone?.(totalImportedRef.current)
   }, [onComplete, onBackgroundDone])
 
   return (

@@ -123,15 +123,15 @@ export default async function OfficeLayout({ children }: { children: React.React
 
         {/* Chat sheet overlay */}
         <ChatSheet />
-      </ChatProvider>
 
-      {!profile?.onboarding_completed_at && (
-        <OnboardingModal
-          initialProgress={profile?.onboarding_progress as OnboardingState | null}
-          userName={displayName ?? undefined}
-          currency={currency}
-        />
-      )}
+        {!profile?.onboarding_completed_at && (
+          <OnboardingModal
+            initialProgress={profile?.onboarding_progress as OnboardingState | null}
+            userName={displayName ?? undefined}
+            currency={currency}
+          />
+        )}
+      </ChatProvider>
     </div>
   )
 }

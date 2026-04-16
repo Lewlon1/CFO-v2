@@ -65,6 +65,8 @@ export interface OnboardingData {
   }>
   // First-insight narration + stat cards from the PR #31 pattern engine
   insightData?: FirstInsightResult
+  // User's emoji rating of the first insight (1-5)
+  insightRating?: number
 }
 
 export interface OnboardingState {

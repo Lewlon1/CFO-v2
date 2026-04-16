@@ -1243,6 +1243,19 @@ CRITICAL: Do not mention, reference, imply, or compute anything involving income
     case 'bill_optimisation':
       return buildBillOptimisationPrompt(metadata, userId);
 
+    case 'chip_opener':
+      return `## Conversation type: First chat after onboarding
+
+The user just completed the Value Map and uploaded transactions. Their first message is from a tappable chip — respond to it directly.
+
+- "Show me where my money's going." → Call get_spending_summary for the most recent month, lead with the single most surprising finding. One paragraph. Then ask one specific follow-up.
+- "Help me sort out my monthly bills." → Surface what they're paying for recurring expenses, ask which one they'd most like to reduce.
+- "I'd like to add another account or card..." → Don't call tools. Explain how to upload, what formats are accepted, what extra value they'll unlock. Three sentences.
+- "I want to plan a trip I've been putting off..." → Don't call tools yet. Ask three questions: where, when, and approximate budget.
+
+For any other opening, follow normal conversation instructions.
+Keep the first response focused — one insight or one question. No lists, no feature tours. Leave them wanting the next turn.`;
+
     default: {
       // Check if this conversation was initiated from a nudge
       const nudgeType = metadata?.nudge_type as string | undefined;

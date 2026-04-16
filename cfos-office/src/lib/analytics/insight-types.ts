@@ -65,7 +65,7 @@ export interface StatCard {
 }
 
 export interface Hook {
-  type: 'ask_income' | 'ask_goals' | 'ask_value_map' | 'ask_second_month' | 'ask_housing';
+  type: 'ask_income' | 'ask_goals' | 'ask_value_map' | 'ask_second_month' | 'ask_housing' | 'conclude';
   prompt_for_claude: string;
   suggested_response: string;
 }

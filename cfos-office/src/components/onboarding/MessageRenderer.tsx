@@ -14,6 +14,7 @@ interface MessageRendererProps {
   onAction: (action: string) => void
   archetypeSlot?: React.ReactNode
   insightSlot?: React.ReactNode
+  welcomeSlot?: React.ReactNode
 }
 
 function interpolate(text: string, data: OnboardingData): string {
@@ -27,6 +28,7 @@ function isSpecialToken(text: string | undefined): string | null {
   if (text === 'CATEGORY_DISPLAY') return 'category'
   if (text === 'ARCHETYPE_DISPLAY') return 'archetype'
   if (text === 'INSIGHT_DISPLAY') return 'insight'
+  if (text === 'WELCOME_DISPLAY') return 'welcome'
   return null
 }
 
@@ -67,6 +69,7 @@ export function MessageRenderer({
   onAction,
   archetypeSlot,
   insightSlot,
+  welcomeSlot,
 }: MessageRendererProps) {
   const [revealedUpTo, setRevealedUpTo] = useState(-1)
   const [isTyping, setIsTyping] = useState(false)
@@ -140,6 +143,9 @@ export function MessageRenderer({
         }
         if (token === 'insight') {
           return <React.Fragment key={msg.id}>{insightSlot ?? null}</React.Fragment>
+        }
+        if (token === 'welcome') {
+          return <React.Fragment key={msg.id}>{welcomeSlot ?? null}</React.Fragment>
         }
 
         // Regular text message

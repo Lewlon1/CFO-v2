@@ -211,10 +211,11 @@ export function determineHook(
     suggested_response: 'Upload another statement',
   };
   return {
-    type: 'ask_goals',
+    type: 'conclude',
     prompt_for_claude:
-      `Ask what the user is trying to do with their money — the point of all this. Keep it open.`,
-    suggested_response: 'Tell them my goals',
+      `End with a confident forward-looking statement. You've seen a lot — signal that this is just the beginning. ` +
+      `Do NOT ask the user a question. End the narrative decisively.`,
+    suggested_response: "Let's get started",
   };
 }
 

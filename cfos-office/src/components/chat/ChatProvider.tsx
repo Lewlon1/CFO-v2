@@ -40,7 +40,7 @@ interface ChatContextValue {
   userCurrency?: string
 }
 
-const ChatContext = createContext<ChatContextValue | null>(null)
+export const ChatContext = createContext<ChatContextValue | null>(null)
 
 export function useChatContext() {
   const ctx = useContext(ChatContext)
@@ -197,6 +197,11 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     } else if (type === 'value_checkin_done') {
       const count = pending.metadata?.checkin_count ?? 'several'
       trigger = `[System: User just finished a value check-in — they classified ${count} transactions. Acknowledge what you learned in 2 sentences. Reference one specific insight if visible in your review context (e.g. "so your Friday night takeaways are Leaks, not Foundation"). Do NOT list everything they classified. Keep it warm and brief, then offer to discuss anything on their mind.]`
+    } else if (type === 'chip_opener') {
+      const prompt = pending.metadata?.prompt
+      trigger = prompt
+        ? `[System: User just completed onboarding and tapped "${prompt}" as their first action. Respond to this directly — treat it as their opening message. Follow the first-post-onboarding instructions.]`
+        : '[System: User completed onboarding. Welcome them briefly and ask what they want to work on.]'
     } else {
       trigger =
         '[System: Post-upload analysis triggered. Deliver your first insight.]'
@@ -239,6 +244,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
         'onboarding',
         'onboarding_no_vm',
         'value_checkin_done',
+        'chip_opener',
       ]
       if (type && autoTriggerTypes.includes(type)) {
         pendingTriggerRef.current = { type, metadata }

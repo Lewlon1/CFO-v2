@@ -120,7 +120,7 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
   first_insight: [
     {
       id: 'insight-intro',
-      text: "Right — I've had a look through your statements. {tx_count} transactions. Here's what stands out:",
+      text: "Right — I've had a look through your statements. Here's what jumped out:",
       delayMs: 1800,
     },
     {
@@ -128,23 +128,22 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
       text: 'INSIGHT_DISPLAY',
       delayMs: 0,
     },
-    {
-      id: 'insight-continue',
-      delayMs: 400,
-      action: 'continue',
-      buttonText: 'Got it',
-    },
   ],
 
   handoff: [
     {
-      id: 'handoff-message',
-      text: 'Your office is set up. Explore at your own pace, or ask me anything right here.',
+      id: 'handoff-welcome',
+      text: 'Welcome to the office.',
       delayMs: 1400,
     },
     {
+      id: 'handoff-body',
+      text: 'WELCOME_DISPLAY',
+      delayMs: 0,
+    },
+    {
       id: 'handoff-cta',
-      delayMs: 400,
+      delayMs: 600,
       action: 'handoff',
       buttonText: 'Enter the Office',
     },
