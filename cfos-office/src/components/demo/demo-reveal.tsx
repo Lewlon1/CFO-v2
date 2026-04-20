@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import { CfoAvatar } from '@/components/chat/cfo-avatar'
 import { DemoEmailCapture } from '@/components/demo/demo-email-capture'
 import { DemoResonanceFeedback } from '@/components/demo/demo-resonance-feedback'
+import { PayoffPanel } from '@/components/demo/payoff-panel'
 import { QUADRANT_ORDER, QUADRANTS } from '@/lib/value-map/constants'
+import { buildDemoRevealHook } from '@/lib/value-map/copy'
 import type { ValueQuadrant, ValueMapResult } from '@/lib/value-map/types'
 import { demoAnalytics } from '@/lib/demo/analytics'
 import { useTrackEvent } from '@/lib/events/use-track-event'
@@ -148,7 +150,7 @@ export function DemoReveal({ reading, personality, userName, country, results, f
   const trackEvent = useTrackEvent()
   const [navigating, setNavigating] = useState(false)
   const displayName = userName === 'You' || userName === 'Anonymous' ? '' : userName
-  const hookMessage = `${displayName ? displayName + ', have' : 'Have'} you ever thought about your spending like this before? These were sample transactions — imagine what your CFO could tell you from your real ones. The patterns in how fast you decide, where you hesitate, what you call a "leak" versus a "foundation" — that's your actual relationship with money. And this is just the surface.`
+  const hookMessage = buildDemoRevealHook(displayName)
 
   const { displayed, done, skip } = useTypingAnimation(hookMessage, 15)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -318,25 +320,18 @@ export function DemoReveal({ reading, personality, userName, country, results, f
       )}
 
       {done && !isAuthenticated && (
-        <div className="w-full max-w-sm">
-          <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-5">
-            <p className="text-sm font-semibold text-foreground mb-1">
-              Want to see what your real spending says?
-            </p>
-            <p className="text-xs text-muted-foreground mb-4">
-              Upload a bank statement and find out how this compares to your actual patterns. Free to try.
-            </p>
-            <a
-              href={sessionId ? `/signup?session_token=${sessionId}` : '/signup'}
-              onClick={() => {
-                demoAnalytics('demo_finished')
-                trackEvent('value_map_cta_clicked', { cta_type: 'signup' })
-              }}
-              className="flex items-center justify-center w-full px-4 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors"
-            >
-              Sign up free — it&apos;s just an email
-            </a>
-          </div>
+        <div className="w-full max-w-sm flex flex-col items-stretch gap-5">
+          <PayoffPanel country={country} />
+          <a
+            href={sessionId ? `/signup?session_token=${sessionId}` : '/signup'}
+            onClick={() => {
+              demoAnalytics('demo_finished')
+              trackEvent('value_map_cta_clicked', { cta_type: 'signup' })
+            }}
+            className="flex items-center justify-center w-full px-4 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors"
+          >
+            Sign up free — it&apos;s just an email
+          </a>
         </div>
       )}
 

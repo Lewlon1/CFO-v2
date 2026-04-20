@@ -106,6 +106,7 @@ export async function POST() {
             : payload.statCards.map((c) => ({ ...c })),
         suggestedResponses:
           suggestedResponses.length > 0 ? suggestedResponses : payload.suggestedResponses,
+        experiment: payload.layers.action?.experiment,
       },
     })
   } catch (err) {
@@ -116,6 +117,7 @@ export async function POST() {
         narrative: '',
         statCards: payload.statCards,
         suggestedResponses: payload.suggestedResponses,
+        experiment: payload.layers.action?.experiment,
       },
     })
   }

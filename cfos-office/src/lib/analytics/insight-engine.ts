@@ -100,6 +100,16 @@ export function assignToLayers(
       if (shape) { layers[layer] = shape; used.add(shape.id); }
     }
   }
+
+  // Promote any experiment-bearing pattern into the action slot if it's empty.
+  // The pattern is still referenced from its primary layer (e.g. hidden_pattern)
+  // — this duplication is intentional: the narrative describes the observation,
+  // the action slot drives the experiment card in the UI.
+  if (!layers.action) {
+    const bestWithExperiment = sorted.find(r => r.experiment);
+    if (bestWithExperiment) layers.action = bestWithExperiment;
+  }
+
   return layers;
 }
 

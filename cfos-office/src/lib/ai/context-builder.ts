@@ -52,14 +52,44 @@ export function buildFirstInsightContext(payload: InsightPayload): string {
   lines.push('');
   lines.push('### Patterns to narrate (in this order)');
   const layerOrder = ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const;
+  const seenPatternIds = new Set<string>();
   for (const layer of layerOrder) {
     const pattern = payload.layers[layer];
     if (!pattern) continue;
+    // A pattern can appear in both hidden_pattern and action (for the experiment
+    // frame). Narrate each pattern's observation only once.
+    if (seenPatternIds.has(pattern.id) && layer === 'action') continue;
+    seenPatternIds.add(pattern.id);
     lines.push('');
     lines.push(`#### ${layer.toUpperCase()}`);
     lines.push(`Pattern: ${pattern.id}`);
     lines.push(`Data: ${JSON.stringify(pattern.data)}`);
     lines.push(`Instruction: ${pattern.narrative_prompt}`);
+  }
+
+  // Experiment block — only present when a pattern has opted in. Claude must
+  // quote the savings bands verbatim; the UI renders the ExperimentCard
+  // alongside the narrative.
+  const experiment = payload.layers.action?.experiment;
+  if (experiment) {
+    lines.push('');
+    lines.push('#### EXPERIMENT (fold into the hidden_pattern / action paragraph)');
+    lines.push(`- Title: ${experiment.title}`);
+    lines.push(`- Hypothesis: ${experiment.hypothesis}`);
+    lines.push(`- Time investment: ${experiment.time_investment}`);
+    lines.push(`- Monthly saving band: ${experiment.monthly_saving_low}–${experiment.monthly_saving_high} ${experiment.currency}`);
+    lines.push(`- Annual saving band: ${experiment.annual_saving_low}–${experiment.annual_saving_high} ${experiment.currency}`);
+    if (experiment.annual_minutes_saved !== null) {
+      lines.push(`- Annual time saved: ~${Math.round(experiment.annual_minutes_saved / 60)} hours`);
+    }
+    lines.push(`- Template kind: ${experiment.template_kind}`);
+    lines.push(`- Instruction: ${experiment.experiment_prompt}`);
+    lines.push('');
+    lines.push('EXPERIMENT RULES:');
+    lines.push('- Quote the saving band verbatim. Do not pick a single number. Do not invent precision.');
+    lines.push('- Label the figure as an estimate: "roughly", "around", "based on your pattern".');
+    lines.push('- End the paragraph by offering to draft the template ("want me to draft one for you?").');
+    lines.push('- Never use the words "advice" or "advise" — say "suggestion", "nudge", or just what you\'d do.');
   }
   lines.push('');
   lines.push('#### STAT CARDS');
@@ -1242,6 +1272,73 @@ CRITICAL: Do not mention, reference, imply, or compute anything involving income
 
     case 'bill_optimisation':
       return buildBillOptimisationPrompt(metadata, userId);
+
+    case 'experiment_template': {
+      const kind = (metadata?.template_kind as string | undefined) ?? 'grocery_plan';
+      const title = (metadata?.title as string | undefined) ?? 'your experiment';
+      const hypothesis = (metadata?.hypothesis as string | undefined) ?? '';
+      const timeInvestment = (metadata?.time_investment as string | undefined) ?? '';
+      const monthlyLow = metadata?.monthly_saving_low;
+      const monthlyHigh = metadata?.monthly_saving_high;
+      const annualLow = metadata?.annual_saving_low;
+      const annualHigh = metadata?.annual_saving_high;
+      const annualMinutes = metadata?.annual_minutes_saved;
+      const currency = (metadata?.currency as string | undefined) ?? 'GBP';
+      const symbol = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency === 'USD' ? '$' : `${currency} `;
+      const savingBand = monthlyLow === monthlyHigh
+        ? `${symbol}${monthlyLow} a month (${symbol}${annualLow} a year)`
+        : `${symbol}${monthlyLow}–${symbol}${monthlyHigh} a month (roughly ${symbol}${annualLow}–${symbol}${annualHigh} a year)`;
+      const timeLine =
+        annualMinutes !== undefined && annualMinutes !== null && Number(annualMinutes) > 0
+          ? `\nTime saved: about ${Math.round(Number(annualMinutes) / 60)} hours over the year from fewer trips.`
+          : '';
+
+      const templateSkeletons: Record<string, string> = {
+        grocery_plan:
+          `Draft a 7-day grocery plan the user can paste into their phone's notes app. Include:\n` +
+          `  - A main-shop list grouped by store section (produce, dairy, pantry, frozen).\n` +
+          `  - Two backup meals for low-energy nights so they don't default to convenience runs.\n` +
+          `  - A rule for when it's OK to break the plan (e.g. "fresh fish once a week is fine").\n` +
+          `  - One line at the end: "Try this for one week — I'll ask how it went next time."`,
+        convenience_swap:
+          `Draft a swap plan the user can stick on the fridge. Include:\n` +
+          `  - Which two convenience trips a week to consolidate.\n` +
+          `  - A short "buy on Sunday" list that covers those convenience impulses (milk, snacks, lunch stuff).\n` +
+          `  - A reminder rule ("if I'm about to pop into the corner shop, check the Sunday list first").\n` +
+          `  - One line at the end: "Try this for a fortnight — let me know what tripped you up."`,
+        subscription_audit:
+          `Draft a 3-step cancellation script. Include:\n` +
+          `  - Which duplicate to cancel first (the smallest one is easiest).\n` +
+          `  - Where to go to cancel (account settings link if well-known, otherwise a short phone script).\n` +
+          `  - A one-line recap of what they keep — so they don't feel the loss.\n` +
+          `  - One line at the end: "Want me to track this as an action item?"`,
+      };
+      const skeleton = templateSkeletons[kind] ?? templateSkeletons.grocery_plan;
+
+      return `## Conversation type: Experiment template
+
+The user just tapped "Yes, draft it for me" on the experiment card in the onboarding insight. They want a concrete template for: **${title}**.
+
+Context from the experiment:
+- Hypothesis: ${hypothesis}
+- Time investment: ${timeInvestment}
+- Projected saving (band): ${savingBand}${timeLine}
+
+Your first message MUST:
+1. Open with a single sentence acknowledging the jump: "Right — here's a starting template. Tweak anything that doesn't fit."
+2. Deliver the template in a compact, scannable format (bullets or a short numbered list, not prose paragraphs).
+3. Quote the projected saving band verbatim somewhere in the message — do NOT change the numbers, do NOT pick a single figure. Label it an estimate.
+4. Close with a single offer: "Want me to track this as an action item so we can check in next month?" — if they agree, call the create_action_item tool.
+
+Template skeleton:
+${skeleton}
+
+HARD RULES:
+- Keep the whole response under ~200 words. This is a starter, not a manifesto.
+- Never use the words "advice" or "advise" — say "suggestion", "nudge", or just what you'd do.
+- Do NOT invent numbers beyond what's in the experiment context above.
+- Do NOT ask the user clarifying questions before drafting — draft first, let them tweak.`;
+    }
 
     case 'chip_opener':
       return `## Conversation type: First chat after onboarding

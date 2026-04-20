@@ -28,12 +28,12 @@ export function buildWelcomeCopy(input: WelcomeCopyInput): WelcomeParagraphs {
   const { archetypeName, archetypeSubtitle, monthsPhrase } = input
 
   const opening = monthsPhrase
-    ? `Your Value Map said you\u2019re **${archetypeName}** \u2014 ${archetypeSubtitle}. That\u2019s a starting point, not a label. With ${monthsPhrase} of your spending in front of me, I\u2019ve already got a foundation to work from.`
-    : `Your Value Map said you\u2019re **${archetypeName}** \u2014 ${archetypeSubtitle}. That\u2019s a starting point, not a label.`
+    ? `Your Value Map said you\u2019re **${archetypeName}** \u2014 ${archetypeSubtitle}. That\u2019s not a label, it\u2019s the lens I\u2019ll use from here. With ${monthsPhrase} of your spending in front of me, I already know what to protect and where to look for money you can free up.`
+    : `Your Value Map said you\u2019re **${archetypeName}** \u2014 ${archetypeSubtitle}. That\u2019s not a label, it\u2019s the lens I\u2019ll use from here. Every suggestion I make will pass through it.`
 
   const transition = monthsPhrase
-    ? `But a foundation isn\u2019t the full picture. The more I can see, the sharper my advice gets.`
-    : `The more I can see, the sharper my advice gets \u2014 and right now I\u2019m working blind on your actual spending.`
+    ? `That\u2019s the starting line, not the finish. The more of your life I can see, the sharper I get.`
+    : `Right now I\u2019m working from what you told me, not what your bank shows. The more I can see, the sharper I get \u2014 and the sooner I can turn this into real money saved without compromise.`
 
   const whatItIs = `Here\u2019s what this place is, and what it isn\u2019t. I\u2019m not a budgeting app. I won\u2019t ping you when you overspend on coffee, and I won\u2019t make you fill in spreadsheets. I\u2019m a CFO. My job is to look at your real numbers, spot the patterns you can\u2019t see from the inside, and help you make decisions that actually move you forward.`
 

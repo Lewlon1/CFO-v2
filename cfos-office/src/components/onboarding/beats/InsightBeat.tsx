@@ -3,12 +3,22 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { StatCardBlock } from '@/components/chat/StatCardBlock'
+import { CfoThinking } from '@/components/brand/CfoThinking'
+import { ExperimentCard } from './ExperimentCard'
+import type { Experiment } from '@/lib/analytics/insight-types'
 import type { FirstInsightResult } from '@/lib/onboarding/types'
+
+const INSIGHT_THINKING_LABELS = [
+  'Reading your statements\u2026',
+  'Spotting patterns\u2026',
+  'Pulling this together\u2026',
+] as const
 
 interface InsightBeatProps {
   insight?: FirstInsightResult
   loading?: boolean
   onRate?: (rating: number) => void
+  onAcceptExperiment?: (experiment: Experiment) => void
 }
 
 const EMOJI_SCALE = [
@@ -23,22 +33,28 @@ const EMOJI_SCALE = [
 
 function InsightSkeleton() {
   return (
-    <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.3s_ease-out] space-y-3">
-      <div className="space-y-2">
-        <div className="h-3 w-[90%] rounded bg-[var(--bg-inset)] animate-pulse" />
-        <div className="h-3 w-[75%] rounded bg-[var(--bg-inset)] animate-pulse" />
-        <div className="h-3 w-[82%] rounded bg-[var(--bg-inset)] animate-pulse" />
-      </div>
-      <div className="grid grid-cols-3 gap-2 mt-3">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 space-y-2"
-          >
-            <div className="h-2 w-[70%] rounded bg-[var(--bg-inset)] animate-pulse" />
-            <div className="h-4 w-[60%] rounded bg-[var(--bg-inset)] animate-pulse" />
-          </div>
-        ))}
+    <div className="animate-fade-in space-y-2">
+      <CfoThinking
+        labels={INSIGHT_THINKING_LABELS}
+        className="px-0 py-0"
+      />
+      <div className="px-4 py-2 ml-[40px] space-y-3">
+        <div className="space-y-2">
+          <div className="h-3 w-[90%] rounded bg-[var(--bg-inset)] animate-pulse" />
+          <div className="h-3 w-[75%] rounded bg-[var(--bg-inset)] animate-pulse" />
+          <div className="h-3 w-[82%] rounded bg-[var(--bg-inset)] animate-pulse" />
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 space-y-2"
+            >
+              <div className="h-2 w-[70%] rounded bg-[var(--bg-inset)] animate-pulse" />
+              <div className="h-4 w-[60%] rounded bg-[var(--bg-inset)] animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -85,10 +101,10 @@ function EmojiScale({ onRate }: { onRate?: (rating: number) => void }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function InsightBeat({ insight, loading, onRate }: InsightBeatProps) {
+export function InsightBeat({ insight, loading, onRate, onAcceptExperiment }: InsightBeatProps) {
   if (loading || !insight) return <InsightSkeleton />
 
-  const { narrative, statCards } = insight
+  const { narrative, statCards, experiment } = insight
 
   return (
     <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.4s_ease-out] space-y-3 max-w-[min(calc(100%-40px),420px)]">
@@ -116,6 +132,10 @@ export function InsightBeat({ insight, loading, onRate }: InsightBeatProps) {
 
       {statCards.length > 0 && (
         <StatCardBlock cards={statCards.map((c) => ({ label: c.label, value: c.value }))} />
+      )}
+
+      {experiment && onAcceptExperiment && (
+        <ExperimentCard experiment={experiment} onAccept={onAcceptExperiment} />
       )}
 
       <EmojiScale onRate={onRate} />

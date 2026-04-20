@@ -17,6 +17,7 @@ import { InsightBeat } from './beats/InsightBeat'
 import { WelcomeBeat } from './beats/WelcomeBeat'
 import { ChatContext } from '@/components/chat/ChatProvider'
 import type { WelcomeChip } from '@/lib/onboarding/welcome-copy'
+import type { Experiment } from '@/lib/analytics/insight-types'
 
 interface OnboardingModalProps {
   initialProgress: OnboardingState | null
@@ -249,6 +250,27 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
     chatCtx?.startConversation('chip_opener', { prompt: chip.prompt })
   }, [dismiss, chatCtx])
 
+  const handleAcceptExperiment = useCallback(async (experiment: Experiment) => {
+    await dismiss()
+    // startConversation accepts Record<string, string> — stringify numeric
+    // fields, parse them back in context-builder.ts.
+    chatCtx?.startConversation('experiment_template', {
+      template_kind: experiment.template_kind,
+      title: experiment.title,
+      hypothesis: experiment.hypothesis,
+      time_investment: experiment.time_investment,
+      monthly_saving_low: String(experiment.monthly_saving_low),
+      monthly_saving_high: String(experiment.monthly_saving_high),
+      annual_saving_low: String(experiment.annual_saving_low),
+      annual_saving_high: String(experiment.annual_saving_high),
+      annual_minutes_saved:
+        experiment.annual_minutes_saved === null
+          ? ''
+          : String(experiment.annual_minutes_saved),
+      currency: experiment.currency,
+    })
+  }, [dismiss, chatCtx])
+
   const handleInsightRate = useCallback((rating: number) => {
     setTimeout(() => {
       completeBeat('first_insight', { insightRating: rating })
@@ -410,6 +432,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
                 insight={state.data.insightData}
                 loading={insightLoading}
                 onRate={handleInsightRate}
+                onAcceptExperiment={handleAcceptExperiment}
               />
             ) : undefined
           }

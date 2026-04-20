@@ -31,6 +31,24 @@ export type DataDependency =
 
 export const BLOCKED_AT_FIRST_INSIGHT: DataDependency[] = ['income', 'goals'];
 
+// Deterministic experiment attached to a pattern — every number here is
+// computed in the detector. Claude quotes the bands verbatim; the UI renders
+// the card. See pattern-detectors.ts for the savings math.
+export interface Experiment {
+  title: string;
+  hypothesis: string;
+  time_investment: string;
+  monthly_saving_low: number;
+  monthly_saving_high: number;
+  annual_saving_low: number;
+  annual_saving_high: number;
+  annual_minutes_saved: number | null;
+  experiment_prompt: string;
+  cta_label: string;
+  template_kind: 'grocery_plan' | 'subscription_audit' | 'convenience_swap';
+  currency: string;
+}
+
 export interface PatternResult {
   id: string;
   score: number;
@@ -38,6 +56,7 @@ export interface PatternResult {
   data: Record<string, unknown>;
   narrative_prompt: string;
   requires: DataDependency[];
+  experiment?: Experiment;
 }
 
 export interface DetectorContext {

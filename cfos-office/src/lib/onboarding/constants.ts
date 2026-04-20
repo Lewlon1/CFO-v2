@@ -119,11 +119,6 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
 
   first_insight: [
     {
-      id: 'insight-intro',
-      text: "Right — I've had a look through your statements. Here's what jumped out:",
-      delayMs: 1800,
-    },
-    {
       id: 'insight-content',
       text: 'INSIGHT_DISPLAY',
       delayMs: 0,

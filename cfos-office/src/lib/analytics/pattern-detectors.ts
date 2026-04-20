@@ -1,8 +1,15 @@
 // cfos-office/src/lib/analytics/pattern-detectors.ts
 
-import type { PatternDetector } from './insight-types';
+import type { Experiment, PatternDetector } from './insight-types';
 import { analyseGap, gapResultToPatternResult } from './gap-analyser';
 import { isSpendRow } from './categories';
+
+// Savings-math constants for experiments. Conservative by design — we quote
+// a band in the UI so the estimate stays honest. Tune these when we have
+// better data on real user behaviour.
+const FRAGMENTATION_PREMIUM_LOW = 1;   // £/€/$ overhead per under-5 trip (floor)
+const FRAGMENTATION_PREMIUM_HIGH = 2;  // £/€/$ overhead per under-5 trip (typical)
+const MIN_PER_SMALL_TRIP = 15;         // door-to-door time per small trip
 
 // --- Shared helpers (used by multiple detectors) ---
 
@@ -70,6 +77,36 @@ export const merchantFragmentation: PatternDetector = {
     if (under5Pct > 0.35) score += 20;
     if (score === 0) return null;
 
+    // Deterministic savings projection. Normalise to "per month" so the
+    // annualised figure is defensible regardless of how many months are in
+    // the uploaded statement(s).
+    const monthsOfData = Math.max(1, ctx.snapshots.length || 1);
+    const under5PerMonth = under5Count / monthsOfData;
+    const monthlyLow = Math.round(under5PerMonth * FRAGMENTATION_PREMIUM_LOW);
+    const monthlyHigh = Math.round(under5PerMonth * FRAGMENTATION_PREMIUM_HIGH);
+    const annualMinutes = Math.round(under5PerMonth * 12 * MIN_PER_SMALL_TRIP);
+
+    const experiment: Experiment | undefined = monthlyHigh > 0
+      ? {
+          title: 'Plan one big shop, skip the small runs',
+          hypothesis: `Consolidate to two main shops a week instead of ${storeCount} scattered runs`,
+          time_investment: '5 min on Sunday',
+          monthly_saving_low: monthlyLow,
+          monthly_saving_high: monthlyHigh,
+          annual_saving_low: monthlyLow * 12,
+          annual_saving_high: monthlyHigh * 12,
+          annual_minutes_saved: annualMinutes,
+          experiment_prompt:
+            `Close the paragraph by offering this as an experiment for one week: plan a single main shop on Sunday instead of the scattered runs. ` +
+            `Quote the saving band verbatim: ${formatCurrency(monthlyLow, ctx.currency)}–${formatCurrency(monthlyHigh, ctx.currency)} a month, roughly ${formatCurrency(monthlyLow * 12, ctx.currency)}–${formatCurrency(monthlyHigh * 12, ctx.currency)} over a year. ` +
+            `Mention the time upside too: about ${Math.round(annualMinutes / 60)} hours saved over the year from fewer trips. ` +
+            `Offer to draft a grocery-plan template with "want me to draft one for you?"`,
+          cta_label: 'Yes, draft it for me',
+          template_kind: 'grocery_plan',
+          currency: ctx.currency,
+        }
+      : undefined;
+
     return {
       id: 'merchant_fragmentation',
       score,
@@ -82,6 +119,7 @@ export const merchantFragmentation: PatternDetector = {
         under5Pct: Math.round(under5Pct * 100),
       },
       narrative_prompt: `Name that the user shops at ${storeCount} different food stores with an average trip of ${formatCurrency(avgTrip, ctx.currency)}. Note that ${under5Count} trips were under ${formatCurrency(5, ctx.currency)}. Frame as a pattern observation, not a judgement.`,
+      experiment,
     };
   },
 };
@@ -282,9 +320,31 @@ export const recurringExpenseTotal: PatternDetector = {
       { name: 'gym', categoryId: 'health_fitness' },
     ];
     const overlaps: string[] = [];
+    // Track the smallest duplicate in each overlap category — this is what
+    // a "cancel one" experiment would realistically save per month.
+    let smallestDuplicateMonthly = 0;
+    let smallestDuplicateCategory: string | null = null;
     for (const group of OVERLAP_GROUPS) {
-      const count = recurring.filter((r) => r.category_id === group.categoryId).length;
-      if (count >= 2) overlaps.push(group.name);
+      const inGroup = recurring.filter((r) => r.category_id === group.categoryId);
+      if (inGroup.length >= 2) {
+        overlaps.push(group.name);
+        const monthlies = inGroup
+          .map((r) => {
+            const amount = Math.abs(Number(r.amount));
+            const freq = (r.frequency ?? '').toLowerCase();
+            if (freq === 'monthly') return amount;
+            if (freq === 'bi-monthly') return amount / 2;
+            if (freq === 'annual') return amount / 12;
+            return amount;
+          })
+          .sort((a, b) => a - b);
+        // The cheapest duplicate is the realistic first cancellation.
+        const cheapest = monthlies[0] ?? 0;
+        if (cheapest > smallestDuplicateMonthly) {
+          smallestDuplicateMonthly = cheapest;
+          smallestDuplicateCategory = group.name;
+        }
+      }
     }
 
     // Compare against the most recent monthly snapshot if available.
@@ -300,6 +360,27 @@ export const recurringExpenseTotal: PatternDetector = {
     const recurringPctRounded =
       recurringPct !== null ? Math.round(recurringPct * 100) : null;
 
+    const experiment: Experiment | undefined =
+      overlaps.length > 0 && smallestDuplicateMonthly > 0 && smallestDuplicateCategory
+        ? {
+            title: `Cancel one of the duplicate ${smallestDuplicateCategory} subscriptions`,
+            hypothesis: `You've got overlap in ${overlaps.join(' and ')} — the cheapest duplicate is the easiest win`,
+            time_investment: '10 minutes',
+            monthly_saving_low: Math.round(smallestDuplicateMonthly),
+            monthly_saving_high: Math.round(smallestDuplicateMonthly),
+            annual_saving_low: Math.round(smallestDuplicateMonthly * 12),
+            annual_saving_high: Math.round(smallestDuplicateMonthly * 12),
+            annual_minutes_saved: null,
+            experiment_prompt:
+              `Close by suggesting the user cancels the smallest duplicate ${smallestDuplicateCategory} subscription this week. ` +
+              `Quote the saving verbatim: ${formatCurrency(smallestDuplicateMonthly, ctx.currency)} a month, about ${formatCurrency(smallestDuplicateMonthly * 12, ctx.currency)} over a year. ` +
+              `Offer to draft a 3-step cancellation script with "want me to draft one for you?"`,
+            cta_label: 'Yes, draft it for me',
+            template_kind: 'subscription_audit',
+            currency: ctx.currency,
+          }
+        : undefined;
+
     return {
       id: 'recurring_expense_total',
       score,
@@ -312,6 +393,7 @@ export const recurringExpenseTotal: PatternDetector = {
         recurringPct: recurringPctRounded,
       },
       narrative_prompt: `${recurring.length} recurring bills totalling ${formatCurrency(total, ctx.currency)} per month${overlaps.length ? '. Overlap detected in: ' + overlaps.join(', ') : ''}. ${recurringPctRounded !== null ? recurringPctRounded.toString() + '% of average monthly spend. ' : ''}Name the overlap specifically if present.`,
+      experiment,
     };
   },
 };
@@ -417,6 +499,39 @@ export const convenienceVsPlanned: PatternDetector = {
 
     const ratioRounded = Math.round(bestRatio * 100) / 100;
 
+    // Per-trip premium at convenience vs main for the same chain.
+    const convenienceAvg = bestConvenience.total / bestConvenience.trips;
+    const plannedAvg = bestPlanned.total / bestPlanned.trips;
+    const perTripPremium = Math.max(0, convenienceAvg - plannedAvg);
+    // Estimate monthly swappable convenience trips: half of the convenience
+    // trips are realistically avoidable without disrupting the user's life.
+    const monthsOfData = Math.max(1, ctx.snapshots.length || 1);
+    const convenienceTripsPerMonth = bestConvenience.trips / monthsOfData;
+    const swappablePerMonth = convenienceTripsPerMonth * 0.5;
+    // Band: low = 50% of savings realised, high = 100%.
+    const monthlyHigh = Math.round(swappablePerMonth * perTripPremium);
+    const monthlyLow = Math.round(monthlyHigh * 0.5);
+
+    const experiment: Experiment | undefined = monthlyHigh > 0
+      ? {
+          title: `Swap convenience trips for one main shop`,
+          hypothesis: `Consolidate ${bestChain} convenience runs into one weekly main shop`,
+          time_investment: '5 min on Sunday',
+          monthly_saving_low: monthlyLow,
+          monthly_saving_high: monthlyHigh,
+          annual_saving_low: monthlyLow * 12,
+          annual_saving_high: monthlyHigh * 12,
+          annual_minutes_saved: null,
+          experiment_prompt:
+            `Close with a concrete swap experiment: pick two ${bestChain} convenience trips a week and fold them into the Sunday main shop. ` +
+            `Quote the saving band verbatim: ${formatCurrency(monthlyLow, ctx.currency)}–${formatCurrency(monthlyHigh, ctx.currency)} a month, roughly ${formatCurrency(monthlyLow * 12, ctx.currency)}–${formatCurrency(monthlyHigh * 12, ctx.currency)} over a year. ` +
+            `Offer to draft a swap plan with "want me to draft one for you?"`,
+          cta_label: 'Yes, draft it for me',
+          template_kind: 'convenience_swap',
+          currency: ctx.currency,
+        }
+      : undefined;
+
     return {
       id: 'convenience_vs_planned',
       score,
@@ -431,6 +546,7 @@ export const convenienceVsPlanned: PatternDetector = {
         plannedTotal: Math.round(bestPlanned.total),
       },
       narrative_prompt: `For ${bestChain}: ${bestConvenience.trips} convenience-store trips vs ${bestPlanned.trips} main-shop trips (${ratioRounded}x). ${formatCurrency(bestConvenience.total, ctx.currency)} at convenience vs ${formatCurrency(bestPlanned.total, ctx.currency)} at main. Name this behaviour pattern without moralising.`,
+      experiment,
     };
   },
 };

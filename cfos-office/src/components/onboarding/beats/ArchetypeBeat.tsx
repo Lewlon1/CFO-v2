@@ -1,8 +1,15 @@
 'use client'
 
 import { PERSONALITIES } from '@/lib/value-map/constants'
+import { CfoThinking } from '@/components/brand/CfoThinking'
 import type { OnboardingData } from '@/lib/onboarding/types'
 import type { ArchetypeResult } from '@/lib/onboarding/archetype-prompt'
+
+const ARCHETYPE_THINKING_LABELS = [
+  'Looking at how you answered\u2026',
+  'Sketching your archetype\u2026',
+  'Finalising your reading\u2026',
+] as const
 
 interface ArchetypeBeatProps {
   data: OnboardingData
@@ -22,22 +29,25 @@ function ShimmerLine({ width, height = 'h-4' }: { width: string; height?: string
 
 function ArchetypeSkeleton() {
   return (
-    <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.3s_ease-out]">
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-5 max-w-sm">
-        <ShimmerLine width="w-32" height="h-3" />
-        <div className="mt-4">
-          <ShimmerLine width="w-40" height="h-5" />
-        </div>
-        <div className="mt-3">
-          <ShimmerLine width="w-full" height="h-4" />
-        </div>
-        <div className="mt-4 space-y-2.5">
-          <ShimmerLine width="w-full" height="h-3" />
-          <ShimmerLine width="w-[90%]" height="h-3" />
-          <ShimmerLine width="w-full" height="h-3" />
-          <ShimmerLine width="w-[85%]" height="h-3" />
-          <ShimmerLine width="w-full" height="h-3" />
-          <ShimmerLine width="w-[70%]" height="h-3" />
+    <div className="animate-fade-in space-y-2">
+      <CfoThinking labels={ARCHETYPE_THINKING_LABELS} className="px-0 py-0" />
+      <div className="px-4 py-2 ml-[40px]">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-5 max-w-sm">
+          <ShimmerLine width="w-32" height="h-3" />
+          <div className="mt-4">
+            <ShimmerLine width="w-40" height="h-5" />
+          </div>
+          <div className="mt-3">
+            <ShimmerLine width="w-full" height="h-4" />
+          </div>
+          <div className="mt-4 space-y-2.5">
+            <ShimmerLine width="w-full" height="h-3" />
+            <ShimmerLine width="w-[90%]" height="h-3" />
+            <ShimmerLine width="w-full" height="h-3" />
+            <ShimmerLine width="w-[85%]" height="h-3" />
+            <ShimmerLine width="w-full" height="h-3" />
+            <ShimmerLine width="w-[70%]" height="h-3" />
+          </div>
         </div>
       </div>
     </div>

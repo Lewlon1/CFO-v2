@@ -1,10 +1,20 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CfoThinking } from '@/components/brand/CfoThinking'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
+import {
+  VALUE_MAP_INTRO_HERO,
+  VALUE_MAP_INTRO_SUBHEADS,
+  VALUE_MAP_INTRO_BULLETS,
+  VALUE_MAP_DEMO_FOOTNOTE,
+  EXPLAINER_HEADING,
+  EXPLAINER_SUBHEAD,
+  getQuadrantCfoTagline,
+} from '@/lib/value-map/copy'
 import { DEMO_COUNTRIES, getDemoTransactions } from '@/lib/demo/transactions'
 import { DemoCard } from '@/components/demo/demo-card'
 import { DemoReveal } from '@/components/demo/demo-reveal'
@@ -47,6 +57,14 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
   const [results, setResults] = useState<ValueMapResult[]>([])
   const [readingData, setReadingData] = useState<ReadingResponse | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
+
+  // Rotating hero subhead — stable server render (index 0), then randomise on
+  // mount so SSR + client match and returning visitors see a different angle.
+  const [introSubhead, setIntroSubhead] = useState<string>(VALUE_MAP_INTRO_SUBHEADS[0])
+  useEffect(() => {
+    const i = Math.floor(Math.random() * VALUE_MAP_INTRO_SUBHEADS.length)
+    setIntroSubhead(VALUE_MAP_INTRO_SUBHEADS[i])
+  }, [])
 
   const session = useDemoSession()
   const trackEvent = useTrackEvent()
@@ -156,14 +174,24 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
   // Welcome screen
   if (step === 'welcome') {
     return (
-      <div className="flex flex-col items-center justify-center gap-8 px-4 py-8 flex-1 overflow-y-auto">
+      <div className="flex flex-col items-center justify-center gap-6 px-4 py-8 flex-1 overflow-y-auto">
         <div className="flex flex-col items-center gap-3 text-center">
           <CfoAvatar size="lg" />
-          <h1 className="text-2xl font-semibold text-foreground">The Value Map</h1>
-          <p className="text-sm text-muted-foreground max-w-xs">
-            10 transactions. 2 minutes. A personality reading your bank app could never give you.
+          <h1 className="text-2xl font-semibold text-foreground">{VALUE_MAP_INTRO_HERO}</h1>
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+            {introSubhead}
           </p>
         </div>
+
+        {/* What this unlocks */}
+        <ul className="w-full max-w-xs rounded-xl border border-border bg-card px-4 py-3 space-y-2.5">
+          {VALUE_MAP_INTRO_BULLETS.map((b) => (
+            <li key={b.title} className="text-xs leading-relaxed">
+              <span className="font-semibold text-foreground">{b.title}</span>{' '}
+              <span className="text-muted-foreground">{b.body}</span>
+            </li>
+          ))}
+        </ul>
 
         {/* Name input */}
         <div className="w-full max-w-xs">
@@ -198,14 +226,19 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
         </div>
 
         {/* Start button */}
-        <Button
-          onClick={handleStart}
-          disabled={!country}
-          className="w-full max-w-xs bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base disabled:opacity-40"
-        >
-          Start
-          <ArrowRight className="ml-1.5 h-4 w-4" />
-        </Button>
+        <div className="w-full max-w-xs flex flex-col items-center gap-2">
+          <Button
+            onClick={handleStart}
+            disabled={!country}
+            className="w-full bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base disabled:opacity-40"
+          >
+            Start your Value Map
+            <ArrowRight className="ml-1.5 h-4 w-4" />
+          </Button>
+          <p className="text-[11px] text-muted-foreground text-center">
+            {VALUE_MAP_DEMO_FOOTNOTE}
+          </p>
+        </div>
       </div>
     )
   }
@@ -215,26 +248,30 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
     return (
       <div className="flex flex-col items-center gap-6 px-4 py-8 flex-1 overflow-y-auto">
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-foreground mb-2">How it works</h2>
-          <p className="text-sm text-muted-foreground max-w-xs">
-            For each transaction, decide which quadrant it belongs to. Trust your gut.
-          </p>
+          <h2 className="text-lg font-semibold text-foreground mb-2">{EXPLAINER_HEADING}</h2>
+          <p className="text-sm text-muted-foreground max-w-xs">{EXPLAINER_SUBHEAD}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 w-full max-w-sm">
           {QUADRANT_ORDER.map((qId) => {
             const q = QUADRANTS[qId]
+            const tagline = getQuadrantCfoTagline(qId)
             return (
               <div
                 key={qId}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3"
               >
-                <span className="text-2xl shrink-0">{q.emoji}</span>
-                <div>
+                <span className="text-2xl shrink-0 mt-0.5">{q.emoji}</span>
+                <div className="min-w-0 space-y-0.5">
                   <p className="text-sm font-semibold" style={{ color: q.colour }}>
                     {q.name}
                   </p>
                   <p className="text-xs text-muted-foreground">{q.description}</p>
+                  {tagline ? (
+                    <p className="text-[11px] font-medium" style={{ color: q.colour }}>
+                      {tagline}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             )
@@ -268,11 +305,15 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
   // Loading
   if (step === 'loading') {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 flex-1">
-        <CfoAvatar size="lg" status="thinking" />
-        <p className="text-sm text-muted-foreground animate-pulse">
-          Your CFO is reading your results...
-        </p>
+      <div className="flex flex-col items-center justify-center flex-1">
+        <CfoThinking
+          variant="block"
+          labels={[
+            'Reading your answers\u2026',
+            'Spotting the patterns\u2026',
+            'Writing your reading\u2026',
+          ]}
+        />
       </div>
     )
   }

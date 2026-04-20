@@ -51,6 +51,7 @@ import { ScenarioResult } from './ScenarioResult';
 import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
 import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
+import { CfoThinking } from '@/components/brand/CfoThinking';
 import {
   buildActionItemCard,
   buildProfileUpdateCard,
@@ -483,21 +484,14 @@ export function MessageList({
       {(status === 'submitted' || status === 'streaming') &&
         visibleMessages[visibleMessages.length - 1]?.role !== 'assistant' && (
           <div className="flex justify-start">
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-bold text-[10px] flex-shrink-0">
-                  £
-                </div>
-                <span className="text-xs text-muted-foreground font-medium">
-                  Your CFO
-                </span>
-              </div>
-              <div className="flex gap-1.5 px-3 py-1">
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:0ms]" />
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:150ms]" />
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:300ms]" />
-              </div>
-            </div>
+            <CfoThinking
+              className="px-1 py-1"
+              labels={[
+                'Your CFO is reading this\u2026',
+                'Pulling the right numbers\u2026',
+                'Writing you back\u2026',
+              ]}
+            />
           </div>
         )}
 

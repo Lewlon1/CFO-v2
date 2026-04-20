@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { Button } from '@/components/ui/button'
 import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CfoThinking } from '@/components/brand/CfoThinking'
 import { ValueMapCard } from './value-map-card'
 import { ValueMapSummary } from './value-map-summary'
 import { CutOrKeep } from './cut-or-keep'
@@ -13,6 +14,11 @@ import { OneThing } from './one-thing'
 import { RetakeImpact } from './retake-impact'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
+import {
+  VALUE_MAP_INTRO_HERO,
+  VALUE_MAP_INTRO_SUBHEADS,
+  VALUE_MAP_INTRO_BULLETS,
+} from '@/lib/value-map/copy'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
 import { categoriseTransaction, type MerchantMapping } from '@/lib/categorisation/categorise-transaction'
@@ -60,6 +66,13 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
 
   const [cutDecisions, setCutDecisions] = useState<Array<{ transaction_id: string; cut: boolean }>>([])
   const [oneThing, setOneThing] = useState('')
+
+  // Rotating hero subhead on the onboarding intro (mirrors demo-flow).
+  const [introSubhead, setIntroSubhead] = useState<string>(VALUE_MAP_INTRO_SUBHEADS[0])
+  useEffect(() => {
+    const i = Math.floor(Math.random() * VALUE_MAP_INTRO_SUBHEADS.length)
+    setIntroSubhead(VALUE_MAP_INTRO_SUBHEADS[i])
+  }, [])
 
 
   // Check-in mode: fetch uncertain transactions on mount (exactly once per mount)
@@ -552,18 +565,25 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
         <CfoAvatar size="lg" />
         <div className="space-y-2 max-w-sm">
           <h1 className="text-xl font-semibold text-foreground">
-            Your Value Map
+            {VALUE_MAP_INTRO_HERO}
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            In 90 seconds, you&apos;ll see what your money is actually doing for you.
-            No other app does this.
+            {introSubhead}
           </p>
         </div>
+        <ul className="w-full max-w-xs rounded-xl border border-border bg-card px-4 py-3 space-y-2.5 text-left">
+          {VALUE_MAP_INTRO_BULLETS.map((b) => (
+            <li key={b.title} className="text-xs leading-relaxed">
+              <span className="font-semibold text-foreground">{b.title}</span>{' '}
+              <span className="text-muted-foreground">{b.body}</span>
+            </li>
+          ))}
+        </ul>
         <Button
           onClick={handleStart}
           className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
         >
-          Let&apos;s go
+          Let&apos;s start
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
@@ -619,9 +639,14 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
 
   if (step === 'checkin_loading') {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
-        <CfoAvatar size="lg" />
-        <p className="text-sm text-muted-foreground">Picking the transactions I&apos;m least sure about…</p>
+      <div className="flex flex-col items-center justify-center h-full px-6">
+        <CfoThinking
+          variant="block"
+          labels={[
+            'Picking the transactions I\u2019m least sure about\u2026',
+            'Pulling the ones worth a second look\u2026',
+          ]}
+        />
       </div>
     )
   }
@@ -649,9 +674,14 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
 
   if (step === 'checkin_saving') {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
-        <CfoAvatar size="lg" />
-        <p className="text-sm text-muted-foreground">Learning from your answers…</p>
+      <div className="flex flex-col items-center justify-center h-full px-6">
+        <CfoThinking
+          variant="block"
+          labels={[
+            'Learning from your answers\u2026',
+            'Updating what I know about you\u2026',
+          ]}
+        />
       </div>
     )
   }
@@ -691,11 +721,14 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
 
   if (step === 'personal_loading') {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
-        <CfoAvatar size="lg" />
-        <p className="text-sm text-muted-foreground">
-          Pulling the transactions I&apos;m least sure about…
-        </p>
+      <div className="flex flex-col items-center justify-center h-full px-6">
+        <CfoThinking
+          variant="block"
+          labels={[
+            'Pulling the transactions I\u2019m least sure about\u2026',
+            'Gathering a fresh set for you\u2026',
+          ]}
+        />
       </div>
     )
   }
@@ -724,9 +757,14 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
 
   if (step === 'personal_saving') {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
-        <CfoAvatar size="lg" />
-        <p className="text-sm text-muted-foreground">Learning from your answers…</p>
+      <div className="flex flex-col items-center justify-center h-full px-6">
+        <CfoThinking
+          variant="block"
+          labels={[
+            'Learning from your answers\u2026',
+            'Rebuilding your reading\u2026',
+          ]}
+        />
       </div>
     )
   }
