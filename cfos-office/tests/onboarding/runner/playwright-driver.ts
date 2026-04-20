@@ -77,7 +77,7 @@ export async function runPersonaInBrowser(
       }
     })
 
-    await signIn(page, opts.baseUrl, user)
+    await signIn(page, opts.baseUrl, user, opts.outputDir)
     await runOnboarding(page, persona, opts, result)
 
     await context.close()
@@ -92,16 +92,23 @@ export async function runPersonaInBrowser(
 
 // ── Sign in ─────────────────────────────────────────────────────────────────
 
-async function signIn(page: Page, baseUrl: string, user: TestUser): Promise<void> {
+async function signIn(page: Page, baseUrl: string, user: TestUser, outputDir: string): Promise<void> {
   await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' })
   await page.fill('input[type="email"]', user.email)
   await page.fill('input[type="password"]', user.password)
 
-  // Submit and wait for a redirect away from /login
-  await Promise.all([
-    page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 20_000 }),
-    page.click('button[type="submit"]:has-text("Sign"), button[type="submit"]'),
-  ])
+  await page.click('button[type="submit"]:has-text("Sign in")')
+
+  try {
+    await page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 20_000 })
+  } catch (e) {
+    // Capture the login page state for diagnosis — likely an error banner
+    try {
+      await page.screenshot({ path: `${outputDir}/_error-at-signin.png`, fullPage: true })
+    } catch {}
+    const pageText = await page.textContent('body').catch(() => '')
+    throw new Error(`Sign-in redirect timed out. Page text snippet: ${(pageText ?? '').slice(0, 500)}`)
+  }
 
   // Navigate explicitly to /office to ensure the onboarding modal mounts
   if (!page.url().includes('/office')) {
@@ -222,11 +229,16 @@ async function driveBeat(
     }
 
     case 'csv_upload': {
+      // Wait for the upload UI to render — either a file input or the skip button
+      await page.waitForSelector('input[type="file"], button:has-text("do this later"), button:has-text("Skip")', { timeout: 30_000, state: 'attached' })
+      // Extra time for the embed reveal animation
+      await page.waitForTimeout(800)
+
       if (persona.skipBeats.includes('csv_upload') || !persona.csv) {
-        await page.waitForTimeout(1000) // give UI a moment to render
         await page.screenshot({ path: shot, fullPage: false })
         beatRecord.screenshotPath = shot
         await clickAnyOf(page, [
+          'button:has-text("do this later")',
           'button:has-text("Skip")',
           'button:has-text("Not now")',
           'button:has-text("Maybe later")',
@@ -235,7 +247,6 @@ async function driveBeat(
       }
 
       // Attach CSV via file input
-      await page.waitForSelector('input[type="file"]', { timeout: 20_000, state: 'attached' })
       const csvBuf = Buffer.from(persona.csv.contentBase64, 'base64')
       await page.setInputFiles('input[type="file"]', [{
         name: persona.csv.filename,
@@ -253,56 +264,65 @@ async function driveBeat(
     }
 
     case 'capabilities': {
-      await page.waitForSelector('text=/brought you to the office|focus on first/i', { timeout: 20_000 })
+      // Wait for the capability picker to render (not just the preceding text message)
+      await page.waitForSelector('button:has-text("Where my money")', { timeout: 30_000 })
+      await page.waitForTimeout(500)
       await page.screenshot({ path: shot, fullPage: false })
       beatRecord.screenshotPath = shot
 
-      // Try to pick the first 2 capability options
+      // Pick the first 2 capability options
       const capabilityLabels = ['Where my money', 'Understanding my', 'Tracking what', 'Planning big']
       let tappedCount = 0
       for (const label of capabilityLabels) {
         if (tappedCount >= 2) break
-        const locator = page.getByText(label, { exact: false }).first()
-        if (await locator.count() > 0) {
+        const btn = page.locator(`button:has-text("${label}")`).first()
+        if (await btn.count() > 0) {
           try {
-            await locator.click({ timeout: 3000 })
+            await btn.click({ timeout: 3000 })
             tappedCount++
+            await page.waitForTimeout(200)
           } catch {}
         }
       }
 
-      // Proceed
+      // Continue appears only after ≥1 selection
       await clickAnyOf(page, [
-        'button:has-text("Done")',
         'button:has-text("Continue")',
+        'button:has-text("Done")',
         'button:has-text("Next")',
-        'button:has-text("Submit")',
-        'button:has-text("Confirm")',
       ])
       break
     }
 
     case 'first_insight': {
-      // Wait for insight narration to render (can take up to 60s)
-      await page.waitForSelector('text=/I\'ve been|Looking|Here\'s what|First thing/i', { timeout: 70_000 })
+      // Insight narration can take up to 70s. If it never arrives (known bug
+      // when user skipped CSV upload but reducer still routes here), give up
+      // gracefully and attempt to advance via any available button.
+      await page.screenshot({ path: shot, fullPage: false })
+      beatRecord.screenshotPath = shot
+
+      try {
+        await page.waitForSelector('text=/I\'ve been|Looking|Here\'s what|First thing/i', { timeout: 70_000 })
+      } catch {
+        throw new Error('first_insight never rendered — likely no CSV data (product bug: reducer fails to skip first_insight when csv_upload is skipped mid-session)')
+      }
+
       await page.waitForTimeout(2000)
       await page.screenshot({ path: shot, fullPage: false })
       beatRecord.screenshotPath = shot
 
-      // Rate the insight: try buttons with star/rate labels, fall back to 4th button
       const rateButtons = page.locator('button[aria-label*="Rate" i], button[aria-label*="star" i]')
       const rateCount = await rateButtons.count()
       if (rateCount >= 4) {
         await rateButtons.nth(3).click()
       } else {
-        // No rating UI — try to click any forward button
         await clickAnyOf(page, ['button:has-text("Continue")', 'button:has-text("Next")', 'button:has-text("Skip")'])
       }
       break
     }
 
     case 'handoff': {
-      await page.waitForSelector('button:has-text("Enter the Office"), text=/Welcome to the office/i', { timeout: 30_000 })
+      await page.waitForSelector('button:has-text("Enter the Office")', { timeout: 30_000 })
       await page.screenshot({ path: shot, fullPage: false })
       beatRecord.screenshotPath = shot
       await clickAnyOf(page, ['button:has-text("Enter the Office")'])
