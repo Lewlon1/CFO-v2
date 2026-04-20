@@ -57,17 +57,21 @@ export function summariseCsv(content: string, currency: string): CsvSummary {
   let maxDate = ''
 
   for (const r of rows) {
-    if (r.amount > 0) income += r.amount
-    else spending += Math.abs(r.amount)
-
     numbers.add(Math.abs(Math.round(r.amount * 100) / 100))
 
-    const key = r.description.trim()
-    if (!key) continue
-    const current = byMerchant.get(key) ?? { total: 0, count: 0 }
-    current.total += Math.abs(r.amount)
-    current.count += 1
-    byMerchant.set(key, current)
+    if (r.amount > 0) {
+      income += r.amount
+    } else {
+      spending += Math.abs(r.amount)
+      // Only rank outflows as "top merchants"
+      const key = r.description.trim()
+      if (key) {
+        const current = byMerchant.get(key) ?? { total: 0, count: 0 }
+        current.total += Math.abs(r.amount)
+        current.count += 1
+        byMerchant.set(key, current)
+      }
+    }
 
     if (!minDate || r.date < minDate) minDate = r.date
     if (!maxDate || r.date > maxDate) maxDate = r.date
