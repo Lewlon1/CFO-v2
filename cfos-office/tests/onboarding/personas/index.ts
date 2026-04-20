@@ -4,6 +4,9 @@ import { fortressSaver } from './fortress-saver'
 import { truthTellerBalanced } from './truth-teller-balanced'
 import { drifterExpat } from './drifter-expat'
 import { anchorDebt } from './anchor-debt'
+import { skipValueMap } from './skip-value-map'
+import { skipCsvUpload } from './skip-csv-upload'
+import { timeSaverExpert } from './time-saver-expert'
 
 export const PERSONAS: readonly Persona[] = [
   builderClassic,
@@ -11,6 +14,9 @@ export const PERSONAS: readonly Persona[] = [
   truthTellerBalanced,
   drifterExpat,
   anchorDebt,
+  skipValueMap,
+  skipCsvUpload,
+  timeSaverExpert,
 ] as const
 
 export function getPersona(id: string): Persona | undefined {
