@@ -24,7 +24,7 @@ export const skipValueMap: Persona = {
     beatsCompleted: ['welcome', 'framework', 'value_map', 'csv_upload', 'capabilities', 'handoff'],
     beatsSkipped: ['archetype', 'first_insight'],
     dbAfterHandoff: {
-      user_profiles: { primary_currency: 'GBP' },
+      /* primary_currency collected post-onboarding in chat, not asserted here */
       transactions: { countBetween: [0, 0] },
     },
     likertDimensions: [],

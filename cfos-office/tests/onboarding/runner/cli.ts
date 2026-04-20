@@ -1,8 +1,12 @@
+// Side-effect import: loads .env.local BEFORE any other module so that
+// @/lib/ai/provider (imported transitively below) sees the AWS_REGION env var.
+import './_load-env'
+
 import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { parseArgs } from './args'
-import { checkStagingGuard, checkRequiredEnv, loadDotenvLocal } from './preflight'
+import { checkStagingGuard, checkRequiredEnv } from './preflight'
 import { ensureDevServer } from './dev-server'
 import { runPersona } from './persona-runner'
 import { writeReports, printCliSummary } from './reporter'
@@ -33,8 +37,6 @@ async function runInBatches<T, R>(items: T[], concurrency: number, fn: (t: T) =>
 }
 
 async function main(): Promise<void> {
-  await loadDotenvLocal(path.resolve(process.cwd(), '.env.local'))
-
   const args = parseArgs(process.argv.slice(2))
 
   // Preflight

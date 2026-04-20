@@ -87,7 +87,7 @@ export const anchorDebt: Persona = {
     beatsCompleted: ['welcome', 'framework', 'value_map', 'archetype', 'csv_upload', 'capabilities', 'first_insight', 'handoff'],
     beatsSkipped: [],
     dbAfterHandoff: {
-      user_profiles: { primary_currency: 'GBP' },
+      /* primary_currency collected post-onboarding in chat, not asserted here */
       financial_portrait: { archetype_name: 'exists' },
       transactions: { countBetween: [40, 70] },
     },

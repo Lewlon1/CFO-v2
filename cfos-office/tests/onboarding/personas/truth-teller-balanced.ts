@@ -75,7 +75,7 @@ export const truthTellerBalanced: Persona = {
     beatsCompleted: ['welcome', 'framework', 'value_map', 'archetype', 'csv_upload', 'capabilities', 'first_insight', 'handoff'],
     beatsSkipped: [],
     dbAfterHandoff: {
-      user_profiles: { primary_currency: 'GBP' },
+      /* primary_currency collected post-onboarding in chat, not asserted here */
       transactions: { countBetween: [30, 70] },
     },
     hardRules: {

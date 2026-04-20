@@ -199,17 +199,8 @@ async function driveBeat(
         await tapValueMapCard(page, response)
       }
 
-      // After 10 cards, summary shows — click through to archetype
-      await page.waitForSelector(
-        'button:has-text("See"), button:has-text("Continue"), button:has-text("Next"), button:has-text("archetype")',
-        { timeout: 20_000 },
-      )
-      await clickAnyOf(page, [
-        'button:has-text("See my")',
-        'button:has-text("See archetype")',
-        'button:has-text("Continue")',
-        'button:has-text("Next")',
-      ])
+      // After the 10th card, ValueMapFlow auto-fires onComplete → reducer
+      // advances to `archetype` beat. No button click needed.
       break
     }
 
@@ -295,29 +286,23 @@ async function driveBeat(
     }
 
     case 'first_insight': {
-      // Insight narration can take up to 70s. If it never arrives (known bug
-      // when user skipped CSV upload but reducer still routes here), give up
-      // gracefully and attempt to advance via any available button.
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-
+      // Insight narration can take up to 70s. We detect completion by the
+      // rating scale appearing ("Does it resonate?" + 5 emoji buttons).
       try {
-        await page.waitForSelector('text=/I\'ve been|Looking|Here\'s what|First thing/i', { timeout: 70_000 })
+        await page.waitForSelector('button[aria-label="Impressive"]', { timeout: 70_000 })
       } catch {
-        throw new Error('first_insight never rendered — likely no CSV data (product bug: reducer fails to skip first_insight when csv_upload is skipped mid-session)')
+        await page.screenshot({ path: shot, fullPage: false })
+        beatRecord.screenshotPath = shot
+        throw new Error('first_insight never rendered rating UI — likely no CSV data or insight generation stuck (possible product bug: reducer fails to skip first_insight when csv_upload is skipped mid-session)')
       }
 
-      await page.waitForTimeout(2000)
+      await page.waitForTimeout(1000)
       await page.screenshot({ path: shot, fullPage: false })
       beatRecord.screenshotPath = shot
 
-      const rateButtons = page.locator('button[aria-label*="Rate" i], button[aria-label*="star" i]')
-      const rateCount = await rateButtons.count()
-      if (rateCount >= 4) {
-        await rateButtons.nth(3).click()
-      } else {
-        await clickAnyOf(page, ['button:has-text("Continue")', 'button:has-text("Next")', 'button:has-text("Skip")'])
-      }
+      // Pick "Impressive" (4/5).
+      await page.click('button[aria-label="Impressive"]')
+      // Rating triggers handleInsightRate → completeBeat after 600ms delay.
       break
     }
 
@@ -354,29 +339,26 @@ async function clickAnyOf(page: Page, selectors: string[]): Promise<void> {
 }
 
 async function waitForValueMapActive(page: Page): Promise<void> {
-  // The Value Map may show an intro screen first. Click any "Start"/"I'm ready"/
-  // "Begin" button that appears, then wait for the first card.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    // If a quadrant question is visible, we're on the card
+  // The Value Map shows an intro screen first with a "Let's start" button.
+  for (let attempt = 0; attempt < 4; attempt++) {
     const hasCard = await page.locator('text=/How do you feel about this spend/i').count()
     if (hasCard > 0) return
 
-    // Otherwise click through intro CTA if present
     const introBtn = page.locator([
-      'button:has-text("I\'m ready")',
+      'button:has-text("Let\'s start")',
+      'button:has-text("start")',
       'button:has-text("Start")',
       'button:has-text("Begin")',
-      'button:has-text("Let\'s go")',
+      'button:has-text("I\'m ready")',
     ].join(', ')).first()
     if (await introBtn.count() > 0) {
       try {
         await introBtn.click({ timeout: 3000 })
       } catch {}
     }
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(1500)
   }
 
-  // Final wait — throw if no card appeared
   await page.waitForSelector('text=/How do you feel about this spend/i', { timeout: 15_000 })
 }
 
