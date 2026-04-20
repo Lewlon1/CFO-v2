@@ -1,10 +1,12 @@
 import type { Persona } from './types'
 import { builderClassic } from './builder-classic'
 import { fortressSaver } from './fortress-saver'
+import { truthTellerBalanced } from './truth-teller-balanced'
 
 export const PERSONAS: readonly Persona[] = [
   builderClassic,
   fortressSaver,
+  truthTellerBalanced,
 ] as const
 
 export function getPersona(id: string): Persona | undefined {
