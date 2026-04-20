@@ -118,10 +118,9 @@ export const builderClassic: Persona = {
     beatsCompleted: ['welcome', 'framework', 'value_map', 'archetype', 'csv_upload', 'capabilities', 'first_insight', 'handoff'],
     beatsSkipped: [],
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
+      user_profiles: { onboarding_completed_at: 'not-null' },
       financial_portrait: { archetype_name: 'exists' },
       transactions: { countBetween: [40, 80] },
-      onboarding_progress: { onboarding_completed_at: 'not-null' },
     },
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],

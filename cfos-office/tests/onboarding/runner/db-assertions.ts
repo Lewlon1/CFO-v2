@@ -25,7 +25,9 @@ export function assertDbState(persona: Persona, snapshot: DbStateSnapshot): stri
   if (expected.user_profiles) {
     for (const [key, want] of Object.entries(expected.user_profiles)) {
       const got = (snapshot.user_profiles ?? {})[key]
-      if (got !== want) {
+      if (want === 'not-null') {
+        if (got == null) errors.push(`user_profiles.${key}: expected not-null, got null`)
+      } else if (got !== want) {
         errors.push(`user_profiles.${key}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`)
       }
     }
