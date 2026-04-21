@@ -5,6 +5,7 @@ import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
 import { PERSONALITIES } from '@/lib/value-map/constants';
 import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
+import { extractNumbers } from './insight-validator';
 
 function currencySymbol(currency: string): string {
   switch (currency.toUpperCase()) {
@@ -26,76 +27,86 @@ function formatMoney(amount: number, currency: string): string {
 }
 
 /**
- * Turn a `PatternResult` into one or more QuotableFact entries. Each fact is
- * a literal string the LLM must echo verbatim in the narrative. The validator
- * later checks every number and merchant in the narrative appears in at least
- * one fact's `numbers` / `merchants`.
- *
- * The pattern's `data` shape is heterogeneous by design (each detector writes
- * its own keys), so this function pattern-matches on known keys and produces
- * canonical facts for each one.
+ * Keys whose string values are NOT merchant names — categories, day names,
+ * prompt copy, structural enums. Anything else at a string position is treated
+ * as a possible merchant for the validator's allowlist.
  */
-function factsFromPattern(pattern: PatternResult, currency: string): QuotableFact[] {
-  const facts: QuotableFact[] = [];
-  const data = pattern.data as Record<string, unknown>;
+const NON_MERCHANT_KEYS = new Set([
+  'id', 'layer', 'currency', 'template_kind', 'category', 'topCategory',
+  'top2Category', 'outlierDay', 'outlierName', 'narrative_prompt', 'cta_label',
+  'experiment_prompt', 'hypothesis', 'title', 'time_investment', 'reason',
+]);
 
-  if (typeof data.total === 'number' && typeof data.category === 'string') {
-    facts.push({
-      text: `${formatMoney(data.total, currency)} on ${data.category.toLowerCase()}`,
-      numbers: [Math.round(data.total)],
-      merchants: [],
-    });
+/**
+ * Walk an arbitrary value tree and harvest every numeric value into `numbers`,
+ * every plausibly-merchant-shaped string into `merchants`. The walk is
+ * intentionally permissive — the validator is the gatekeeper, this just builds
+ * the widest reasonable allowlist.
+ */
+function walkPatternData(
+  node: unknown,
+  numbers: Set<number>,
+  merchants: Set<string>,
+  parentKey: string | null,
+): void {
+  if (node === null || node === undefined) return;
+  if (typeof node === 'number') {
+    if (Number.isFinite(node) && Math.abs(node) >= 1) {
+      const abs = Math.abs(node);
+      numbers.add(Math.round(abs));
+      // Also include the floor for decimals so "29.99" matches both 29 and 30.
+      if (!Number.isInteger(abs)) numbers.add(Math.floor(abs));
+    }
+    return;
   }
-
-  if (typeof data.pct === 'number') {
-    facts.push({
-      text: `${Math.round(data.pct)}% of your spend`,
-      numbers: [Math.round(data.pct)],
-      merchants: [],
-    });
+  if (typeof node === 'string') {
+    if (parentKey !== null && NON_MERCHANT_KEYS.has(parentKey)) return;
+    const trimmed = node.trim();
+    if (trimmed.length >= 2 && !/^\d+(?:\.\d+)?$/.test(trimmed)) {
+      merchants.add(trimmed.toLowerCase());
+    }
+    return;
   }
-
-  if (typeof data.topMerchant === 'string' && typeof data.topMerchantAmount === 'number') {
-    facts.push({
-      text: `${formatMoney(data.topMerchantAmount, currency)} to ${data.topMerchant}`,
-      numbers: [Math.round(data.topMerchantAmount)],
-      merchants: [data.topMerchant.toLowerCase()],
-    });
+  if (Array.isArray(node)) {
+    for (const item of node) walkPatternData(item, numbers, merchants, parentKey);
+    return;
   }
-
-  if (Array.isArray(data.topMerchants)) {
-    for (const m of data.topMerchants) {
-      if (m && typeof m === 'object' && 'name' in m && 'total' in m) {
-        const name = String((m as { name: unknown }).name).toLowerCase();
-        const total = Number((m as { total: unknown }).total);
-        if (Number.isFinite(total)) {
-          facts.push({
-            text: `${formatMoney(total, currency)} to ${name}`,
-            numbers: [Math.round(total)],
-            merchants: [name],
-          });
-        }
-      }
+  if (typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) {
+      walkPatternData(v, numbers, merchants, k);
     }
   }
+}
 
-  if (typeof data.avgTrip === 'number') {
-    facts.push({
-      text: `around ${formatMoney(data.avgTrip, currency)} each time`,
-      numbers: [Math.round(data.avgTrip)],
-      merchants: [],
-    });
+/**
+ * Turn a `PatternResult` into a single QuotableFact whose `numbers` and
+ * `merchants` cover everything the LLM might legitimately cite. The pattern's
+ * `data` shape is heterogeneous (each detector writes its own keys), so we
+ * walk recursively and harvest indiscriminately. The validator's number-
+ * tolerance and merchant-allowlist intersection do the actual gating.
+ *
+ * `currency` is unused here — kept in the signature for future per-pattern
+ * formatted strings if we ever surface them.
+ */
+function factsFromPattern(pattern: PatternResult, _currency: string): QuotableFact[] {
+  const numbers = new Set<number>();
+  const merchants = new Set<string>();
+  walkPatternData(pattern.data, numbers, merchants, null);
+
+  // Numbers that appear in the pre-resolved narrative_prompt template (e.g.
+  // formatCurrency() output) may not be in `data` if the detector derived
+  // them inline. Harvest them too.
+  if (typeof pattern.narrative_prompt === 'string') {
+    for (const n of extractNumbers(pattern.narrative_prompt)) numbers.add(n);
   }
 
-  if (typeof data.storeCount === 'number' && data.storeCount >= 10) {
-    facts.push({
-      text: `${data.storeCount} different places`,
-      numbers: [data.storeCount],
-      merchants: [],
-    });
-  }
+  if (numbers.size === 0 && merchants.size === 0) return [];
 
-  return facts;
+  return [{
+    text: pattern.narrative_prompt,
+    numbers: Array.from(numbers),
+    merchants: Array.from(merchants),
+  }];
 }
 
 export function buildQuotableFacts(payload: InsightPayload): QuotableFact[] {
