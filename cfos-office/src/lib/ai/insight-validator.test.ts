@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractNumbers } from './insight-validator';
+import { extractNumbers, extractMerchants } from './insight-validator';
 
 describe('extractNumbers', () => {
   it('extracts integers', () => {
@@ -28,5 +28,34 @@ describe('extractNumbers', () => {
 
   it('preserves percentage numerators as-is (they are checkable too)', () => {
     expect(extractNumbers('69% of your spend')).toEqual([69]);
+  });
+});
+
+describe('extractMerchants', () => {
+  const knownMerchants = ['glovo', 'deliveroo', 'netflix', 'vanguard', 'puregym'];
+
+  it('matches case-insensitively', () => {
+    expect(extractMerchants('You spent £18 on Glovo and £22 on Deliveroo.', knownMerchants))
+      .toEqual(['glovo', 'deliveroo']);
+  });
+
+  it('matches as whole words only', () => {
+    // "vanguardian" should not match "vanguard"
+    expect(extractMerchants('vanguardian is not vanguard', knownMerchants))
+      .toEqual(['vanguard']);
+  });
+
+  it('returns each match once even when mentioned multiple times', () => {
+    expect(extractMerchants('Netflix. Netflix. Netflix.', knownMerchants))
+      .toEqual(['netflix']);
+  });
+
+  it('returns empty for no matches', () => {
+    expect(extractMerchants('grocery trips and bus fares', knownMerchants))
+      .toEqual([]);
+  });
+
+  it('handles empty merchant list', () => {
+    expect(extractMerchants('anything', [])).toEqual([]);
   });
 });
