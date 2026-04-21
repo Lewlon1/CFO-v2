@@ -273,18 +273,53 @@ function buildSuggestedResponses(
   hook: Hook
 ): string[] {
   const out: string[] = [];
-  const headline = layers.headline;
-  if (headline?.id === 'category_concentration') {
-    out.push(`Break down ${headline.data.topCategory}`);
-  } else if (headline) {
-    out.push('Tell me more about that');
+
+  // 1. Experiment CTA leads when present — it's the most concrete action.
+  const experiment = layers.action?.experiment;
+  if (experiment) {
+    switch (experiment.template_kind) {
+      case 'grocery_plan':
+        out.push('Draft my weekly grocery list');
+        break;
+      case 'subscription_audit':
+        out.push('Show me every active subscription');
+        break;
+      case 'convenience_swap':
+        out.push('Find me a swap I can stick to');
+        break;
+      default:
+        out.push('Set up this experiment');
+    }
   }
-  out.push(hook.suggested_response);
+
+  // 2. Pattern-specific drill-down action. Each maps to a concrete task the
+  // chat can execute, not a conversation starter.
+  const headline = layers.headline;
   const hidden = layers.hidden_pattern;
-  if (hidden?.id === 'merchant_fragmentation') out.push('Why does that matter?');
-  else if (hidden) out.push('What should I do about it?');
-  else out.push('Show me my full breakdown');
-  return out.slice(0, 3);
+  const drillSource = headline ?? hidden;
+  if (drillSource?.id === 'category_concentration') {
+    const cat = (drillSource.data as { topCategory?: string }).topCategory;
+    out.push(cat ? `Break down my ${cat.toLowerCase()}` : 'Break down my top category');
+  } else if (drillSource?.id === 'merchant_fragmentation') {
+    out.push('List my top merchants by spend');
+  } else if (drillSource?.id === 'day_of_week_skew') {
+    out.push('Show me what I spent last Saturday');
+  } else if (drillSource?.id === 'recurring_expense_total') {
+    out.push('List every recurring charge');
+  } else if (drillSource?.id === 'spending_velocity') {
+    out.push('Show my weekly spending pace');
+  } else if (drillSource?.id === 'convenience_vs_planned') {
+    out.push('Show me my convenience spending');
+  } else if (drillSource) {
+    out.push('Show me the full breakdown');
+  }
+
+  // 3. Hook's own suggested response stays (it's the narrative's closing action).
+  // Kept last so experiment + pattern action are the top two tappable chips.
+  if (hook.suggested_response) out.push(hook.suggested_response);
+
+  // Dedupe and cap at 3.
+  return Array.from(new Set(out)).slice(0, 3);
 }
 
 // --- Loaders ---
