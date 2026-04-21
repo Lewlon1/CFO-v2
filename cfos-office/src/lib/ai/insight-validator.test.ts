@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { extractNumbers, extractMerchants } from './insight-validator';
+import { extractNumbers, extractMerchants, validateNarrative } from './insight-validator';
+import type { QuotableFact } from '@/lib/analytics/insight-types';
 
 describe('extractNumbers', () => {
   it('extracts integers', () => {
@@ -57,5 +58,44 @@ describe('extractMerchants', () => {
 
   it('handles empty merchant list', () => {
     expect(extractMerchants('anything', [])).toEqual([]);
+  });
+});
+
+describe('validateNarrative', () => {
+  const facts: QuotableFact[] = [
+    { text: '£3,300 on housing', numbers: [3300], merchants: [] },
+    { text: '64% of your spend', numbers: [64], merchants: [] },
+    { text: '£500 a month to Vanguard', numbers: [500], merchants: ['vanguard'] },
+  ];
+
+  it('passes when narrative only cites allowed numbers and merchants', () => {
+    const narrative = 'You put £3,300 on housing and £500 a month to Vanguard. Overall, 64% of your spend went to housing.';
+    expect(validateNarrative(narrative, facts)).toEqual({ ok: true });
+  });
+
+  it('fails when narrative cites a number not in any fact', () => {
+    const narrative = 'You spent 20 a month on coffee and 3300 on housing.';
+    const result = validateNarrative(narrative, facts);
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.reason).toBe('numbers_not_allowed');
+      expect(result.offenders).toContain('20');
+    }
+  });
+
+  it('fails when narrative names a merchant not in any fact', () => {
+    const narrative = 'You subscribe to Netflix and put £500 to Vanguard.';
+    const result = validateNarrative(narrative, facts, { knownMerchants: ['netflix', 'vanguard'] });
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.reason).toBe('merchants_not_allowed');
+      expect(result.offenders).toContain('netflix');
+    }
+  });
+
+  it('ignores the transaction-count context fact when not provided', () => {
+    // When knownMerchants is not passed, no merchant check runs.
+    const narrative = 'A big number here: 3300 on housing.';
+    expect(validateNarrative(narrative, facts)).toEqual({ ok: true });
   });
 });
