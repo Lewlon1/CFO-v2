@@ -99,3 +99,34 @@ describe('validateNarrative', () => {
     expect(validateNarrative(narrative, facts)).toEqual({ ok: true });
   });
 });
+
+describe('validateNarrative — ±1 tolerance', () => {
+  const facts: QuotableFact[] = [
+    { text: '30 a month', numbers: [30], merchants: [] },
+    { text: '£3,300 on housing', numbers: [3300], merchants: [] },
+  ];
+
+  it('accepts a cited number within ±1 of an allowed number (rounding)', () => {
+    // Narrative cites £29.99; allowlist has 30. extractNumbers yields 29.99,
+    // |29.99 - 30| = 0.01, within tolerance.
+    const narrative = 'Gym is £29.99 a month and £3,300 on housing.';
+    expect(validateNarrative(narrative, facts)).toEqual({ ok: true });
+  });
+
+  it('accepts a cited number exactly ±1 from an allowed number', () => {
+    // Narrative cites 31; allowlist has 30. |31 - 30| = 1, at boundary.
+    const narrative = 'Around 31 a month and £3,300 on housing.';
+    expect(validateNarrative(narrative, facts)).toEqual({ ok: true });
+  });
+
+  it('rejects a cited number more than 1 away from any allowed number', () => {
+    // Narrative cites 35; allowlist has only 30 and 3300. |35-30|=5, |35-3300|=3265.
+    const narrative = 'Around 35 a month on something.';
+    const result = validateNarrative(narrative, facts);
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.reason).toBe('numbers_not_allowed');
+      expect(result.offenders).toContain('35');
+    }
+  });
+});

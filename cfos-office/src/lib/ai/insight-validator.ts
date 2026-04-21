@@ -57,7 +57,14 @@ export function validateNarrative(
   }
 
   const cited = extractNumbers(narrative);
-  const badNumbers = cited.filter((n) => !allowedNumbers.has(n));
+  // Allow ±1 tolerance — matches the judge's ±1-currency-unit grace and
+  // tolerates legitimate rounding (e.g. £29.99 cited when allowlist has 30).
+  const badNumbers = cited.filter((n) => {
+    for (const allowed of allowedNumbers) {
+      if (Math.abs(n - allowed) <= 1) return false;
+    }
+    return true;
+  });
   if (badNumbers.length > 0) {
     return {
       ok: false,
