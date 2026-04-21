@@ -4,7 +4,146 @@ import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
 import { PERSONALITIES } from '@/lib/value-map/constants';
-import type { InsightPayload } from '@/lib/analytics/insight-types';
+import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
+
+function currencySymbol(currency: string): string {
+  switch (currency.toUpperCase()) {
+    case 'GBP': return '£';
+    case 'EUR': return '€';
+    case 'USD': return '$';
+    default: return currency + ' ';
+  }
+}
+
+function formatMoney(amount: number, currency: string): string {
+  const sym = currencySymbol(currency);
+  const rounded = Number.isInteger(amount) ? amount : Math.round(amount * 100) / 100;
+  const hasCents = !Number.isInteger(rounded);
+  return `${sym}${rounded.toLocaleString('en-GB', {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
+  })}`;
+}
+
+/**
+ * Turn a `PatternResult` into one or more QuotableFact entries. Each fact is
+ * a literal string the LLM must echo verbatim in the narrative. The validator
+ * later checks every number and merchant in the narrative appears in at least
+ * one fact's `numbers` / `merchants`.
+ *
+ * The pattern's `data` shape is heterogeneous by design (each detector writes
+ * its own keys), so this function pattern-matches on known keys and produces
+ * canonical facts for each one.
+ */
+function factsFromPattern(pattern: PatternResult, currency: string): QuotableFact[] {
+  const facts: QuotableFact[] = [];
+  const data = pattern.data as Record<string, unknown>;
+
+  if (typeof data.total === 'number' && typeof data.category === 'string') {
+    facts.push({
+      text: `${formatMoney(data.total, currency)} on ${data.category.toLowerCase()}`,
+      numbers: [Math.round(data.total)],
+      merchants: [],
+    });
+  }
+
+  if (typeof data.pct === 'number') {
+    facts.push({
+      text: `${Math.round(data.pct)}% of your spend`,
+      numbers: [Math.round(data.pct)],
+      merchants: [],
+    });
+  }
+
+  if (typeof data.topMerchant === 'string' && typeof data.topMerchantAmount === 'number') {
+    facts.push({
+      text: `${formatMoney(data.topMerchantAmount, currency)} to ${data.topMerchant}`,
+      numbers: [Math.round(data.topMerchantAmount)],
+      merchants: [data.topMerchant.toLowerCase()],
+    });
+  }
+
+  if (Array.isArray(data.topMerchants)) {
+    for (const m of data.topMerchants) {
+      if (m && typeof m === 'object' && 'name' in m && 'total' in m) {
+        const name = String((m as { name: unknown }).name).toLowerCase();
+        const total = Number((m as { total: unknown }).total);
+        if (Number.isFinite(total)) {
+          facts.push({
+            text: `${formatMoney(total, currency)} to ${name}`,
+            numbers: [Math.round(total)],
+            merchants: [name],
+          });
+        }
+      }
+    }
+  }
+
+  if (typeof data.avgTrip === 'number') {
+    facts.push({
+      text: `around ${formatMoney(data.avgTrip, currency)} each time`,
+      numbers: [Math.round(data.avgTrip)],
+      merchants: [],
+    });
+  }
+
+  if (typeof data.storeCount === 'number' && data.storeCount >= 10) {
+    facts.push({
+      text: `${data.storeCount} different places`,
+      numbers: [data.storeCount],
+      merchants: [],
+    });
+  }
+
+  return facts;
+}
+
+export function buildQuotableFacts(payload: InsightPayload): QuotableFact[] {
+  const facts: QuotableFact[] = [];
+
+  // Transaction count is always quotable — frequently cited as "I went through
+  // all 66 of your transactions" etc.
+  facts.push({
+    text: `${payload.transactionCount} transactions`,
+    numbers: [payload.transactionCount],
+    merchants: [],
+  });
+
+  // Stat card values are already formatted correctly by the engine; we trust them
+  // verbatim. Extract numeric components for validation.
+  for (const card of payload.statCards) {
+    const numbers = Array.from(
+      card.value.matchAll(/\d[\d,]*(?:\.\d+)?/g),
+    ).map((m) => Number(m[0].replace(/,/g, ''))).filter((n) => Number.isFinite(n) && n >= 10);
+    facts.push({ text: card.value, numbers, merchants: [] });
+  }
+
+  // Per-pattern canonical facts
+  for (const layer of ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const) {
+    const pattern = payload.layers[layer];
+    if (!pattern) continue;
+    facts.push(...factsFromPattern(pattern, payload.currency));
+  }
+
+  // Experiment savings bands — the existing EXPERIMENT RULES already tell the
+  // LLM to quote these verbatim; we register them as quotable so the validator
+  // doesn't reject them.
+  const experiment = payload.layers.action?.experiment;
+  if (experiment) {
+    facts.push({
+      text: `${formatMoney(experiment.monthly_saving_low, experiment.currency)}–${formatMoney(experiment.monthly_saving_high, experiment.currency)} a month`,
+      numbers: [Math.round(experiment.monthly_saving_low), Math.round(experiment.monthly_saving_high)],
+      merchants: [],
+    });
+    facts.push({
+      text: `${formatMoney(experiment.annual_saving_low, experiment.currency)}–${formatMoney(experiment.annual_saving_high, experiment.currency)} a year`,
+      numbers: [Math.round(experiment.annual_saving_low), Math.round(experiment.annual_saving_high)],
+      merchants: [],
+    });
+  }
+
+  return facts;
+}
 
 /**
  * Build the anti-hallucination context block for the First Insight conversation.
