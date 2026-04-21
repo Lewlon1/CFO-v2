@@ -5,7 +5,9 @@ import { computeFirstInsight } from '@/lib/analytics/insight-engine'
 import { buildFirstInsightContext } from '@/lib/ai/context-builder'
 import { BASE_PERSONA } from '@/lib/ai/system-prompt'
 import { chatModel } from '@/lib/ai/provider'
-import type { StatCard } from '@/lib/analytics/insight-types'
+import type { StatCard, InsightPayload } from '@/lib/analytics/insight-types'
+import { buildQuotableFacts } from '@/lib/ai/context-builder'
+import { validateNarrative } from '@/lib/ai/insight-validator'
 
 // First-insight endpoint for the onboarding modal.
 //
@@ -52,6 +54,24 @@ function stripBlocks(text: string): string {
     .trim()
 }
 
+function collectKnownMerchants(payload: InsightPayload): string[] {
+  const merchants = new Set<string>()
+  for (const layer of ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const) {
+    const pattern = payload.layers[layer]
+    if (!pattern) continue
+    const data = pattern.data as Record<string, unknown>
+    if (typeof data.topMerchant === 'string') merchants.add(data.topMerchant.toLowerCase())
+    if (Array.isArray(data.topMerchants)) {
+      for (const m of data.topMerchants) {
+        if (m && typeof m === 'object' && 'name' in m) {
+          merchants.add(String((m as { name: unknown }).name).toLowerCase())
+        }
+      }
+    }
+  }
+  return Array.from(merchants)
+}
+
 export async function POST() {
   const supabase = await createClient()
   const {
@@ -96,6 +116,31 @@ export async function POST() {
     const statCards = parseStats(text)
     const suggestedResponses = parseOptions(text)
     const narrative = stripBlocks(text)
+
+    // Post-generation grounding check. Compare numbers/merchants in the narrative
+    // against the quotable-facts allowlist. On violation, log and return the
+    // deterministic fallback (no narrative) — graceful degradation keeps the
+    // UX working even when the model ignores grounding guardrails.
+    const facts = buildQuotableFacts(payload)
+    const knownMerchants = collectKnownMerchants(payload)
+    const validation = validateNarrative(narrative, facts, { knownMerchants })
+
+    if (!validation.ok) {
+      console.error(
+        '[generate-insight] narrative rejected by validator:',
+        validation.reason,
+        'offenders:', validation.offenders,
+      )
+      return NextResponse.json({
+        insight: {
+          narrative: '',
+          statCards: payload.statCards,
+          suggestedResponses: payload.suggestedResponses,
+          experiment: payload.layers.action?.experiment,
+        },
+        validation: { ok: false, reason: validation.reason },
+      })
+    }
 
     return NextResponse.json({
       insight: {
