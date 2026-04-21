@@ -106,3 +106,25 @@ export interface InsightPayload {
   suggestedResponses: string[];
   computedAt: string;
 }
+
+/**
+ * A single fact the LLM is allowed to quote verbatim in the first-insight
+ * narrative. `text` is the exact string the LLM must echo. `numbers` is the
+ * numeric values inside `text` (so the post-LLM validator can check that any
+ * number in the narrative appears in at least one allowed fact). `merchants`
+ * is the merchant names similarly checkable.
+ */
+export type QuotableFact = {
+  text: string;
+  numbers: number[];
+  merchants: string[];
+};
+
+/** Result of post-LLM validation. */
+export type ValidationResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: 'numbers_not_allowed' | 'merchants_not_allowed';
+      offenders: string[];
+    };
