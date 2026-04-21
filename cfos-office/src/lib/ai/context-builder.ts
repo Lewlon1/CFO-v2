@@ -189,7 +189,21 @@ export function buildFirstInsightContext(payload: InsightPayload): string {
     lines.push('This user has limited financial structure. Focus on one clear, achievable pattern. Do not overwhelm.');
   }
   lines.push('');
+  // Quotable facts — the ONLY strings containing numbers or merchant names
+  // the LLM is permitted to cite. The post-LLM validator rejects narratives
+  // containing any other number >= 10 or any other merchant name.
+  const quotableFacts = buildQuotableFacts(payload);
+  lines.push('### QUOTABLE FACTS — the only numbers/merchants you may cite');
+  lines.push('Each line is a phrase you may echo verbatim in your narrative.');
+  lines.push('You may NOT cite any other number >= 10 or any other merchant name.');
+  lines.push('If you want to mention a figure that is not listed here, rephrase without the figure.');
+  for (const f of quotableFacts) {
+    lines.push(`- "${f.text}"`);
+  }
+  lines.push('');
+
   lines.push('### Patterns to narrate (in this order)');
+  lines.push('For each pattern below, follow the instruction. Weave the quotable facts above into prose.');
   const layerOrder = ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const;
   const seenPatternIds = new Set<string>();
   for (const layer of layerOrder) {
@@ -202,7 +216,6 @@ export function buildFirstInsightContext(payload: InsightPayload): string {
     lines.push('');
     lines.push(`#### ${layer.toUpperCase()}`);
     lines.push(`Pattern: ${pattern.id}`);
-    lines.push(`Data: ${JSON.stringify(pattern.data)}`);
     lines.push(`Instruction: ${pattern.narrative_prompt}`);
   }
 
