@@ -14,6 +14,39 @@ import {
   normaliseMerchant,
 } from './pattern-detectors';
 
+/**
+ * Resolve the user's currency.
+ *
+ * FINDINGS.md bug #2: `user_profiles.primary_currency` schema-defaults to
+ * 'EUR' regardless of country, and the onboarding flow never asks. A UK
+ * user therefore ends up with country='GB' but primary_currency='EUR',
+ * and the first-insight narration renders "€" symbols on GBP data.
+ *
+ * This helper prefers a country-inferred currency when the profile value
+ * still looks like the schema default (EUR or null). Users who have
+ * explicitly set a non-default currency keep their choice.
+ */
+export function resolveUserCurrency(
+  country: string | null,
+  profileCurrency: string | null,
+): string {
+  const COUNTRY_CURRENCY: Record<string, string> = {
+    GB: 'GBP',
+    US: 'USD',
+    CA: 'CAD',
+    AU: 'AUD',
+    // EU countries left unset — they correctly default to EUR via the
+    // profileCurrency fallback.
+  };
+  const inferred = country ? COUNTRY_CURRENCY[country.toUpperCase()] : null;
+  // If the profile currency is still the schema default (EUR) or null, and
+  // we can infer from country, prefer the inference.
+  if (inferred && (!profileCurrency || profileCurrency === 'EUR')) {
+    return inferred;
+  }
+  return profileCurrency ?? inferred ?? 'EUR';
+}
+
 export async function computeFirstInsight(
   supabase: SupabaseClient,
   userId: string
@@ -26,8 +59,8 @@ export async function computeFirstInsight(
     loadValueMap(supabase, userId),
   ]);
 
-  const currency = profile?.primary_currency ?? 'EUR';
   const country = profile?.country ?? null;
+  const currency = resolveUserCurrency(country, profile?.primary_currency ?? null);
 
   const available: DataDependency[] = ['transactions'];
   if (valueMap) available.push('value_map');
