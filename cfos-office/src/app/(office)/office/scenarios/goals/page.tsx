@@ -1,20 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/supabase/types'
 import { GoalsEmptyStateCTA } from './GoalsEmptyStateCTA'
 
-type Goal = {
-  id: string
-  name: string
-  description: string | null
-  target_amount: number | null
-  current_amount: number | null
-  target_date: string | null
-  priority: string | null
-  status: string | null
-  monthly_required_saving: number | null
-  on_track: boolean | null
-  created_at: string
-}
+type Goal = Database['public']['Tables']['goals']['Row']
 
 export default async function GoalsPage() {
   const supabase = await createClient()

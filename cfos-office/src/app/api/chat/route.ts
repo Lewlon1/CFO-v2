@@ -41,8 +41,7 @@ export async function POST(req: Request) {
     messages: UIMessage[];
     conversationId: string | null;
     conversationType?: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    conversationMetadata?: Record<string, any>;
+    conversationMetadata?: Record<string, unknown>;
   };
 
   // Validate message length
@@ -58,8 +57,7 @@ export async function POST(req: Request) {
 
   // Fetch existing conversation to get type + metadata (if one exists)
   let conversationType: string | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let conversationMetadata: Record<string, any> | null = null;
+  let conversationMetadata: Record<string, unknown> | null = null;
   if (conversationId) {
     const { data: conv } = await supabase
       .from('conversations')
@@ -69,7 +67,12 @@ export async function POST(req: Request) {
       .single();
     if (conv) {
       conversationType = conv.type ?? undefined;
-      conversationMetadata = conv.metadata ?? null;
+      // metadata is Json | null in the schema; narrow to a plain record so the
+      // downstream prompt builders can index keys without re-asserting.
+      conversationMetadata =
+        conv.metadata && typeof conv.metadata === 'object' && !Array.isArray(conv.metadata)
+          ? (conv.metadata as Record<string, unknown>)
+          : null;
     }
   } else if (requestedType) {
     // New conversation with a specific type (e.g. trip_planning, scenario)

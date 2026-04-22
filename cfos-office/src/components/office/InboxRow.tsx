@@ -37,7 +37,11 @@ export function InboxRow() {
         setNudges(items)
         setCount(data.unread_count ?? items.length)
       })
-      .catch(() => {})
+      .catch((err) => {
+        // On failure the inbox row stays hidden (count remains 0).
+        // Log so a flaky nudges endpoint is visible.
+        console.error('[InboxRow] failed to load pending nudges', err)
+      })
   }, [])
 
   if (count === 0) return null

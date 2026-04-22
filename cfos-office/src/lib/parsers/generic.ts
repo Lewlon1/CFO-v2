@@ -1,6 +1,6 @@
 import Papa from 'papaparse'
 import { detectColumnMapping, isMappingHighConfidence } from '@/lib/csv/column-detector'
-import { transformRow } from '@/lib/csv/transform'
+import { transformRow, type ColumnMapping } from '@/lib/csv/transform'
 import type { ParsedTransaction, ParseResult } from './types'
 
 export type ColumnMappingNeeded = {
@@ -67,8 +67,10 @@ function applyMapping(
   const errors: string[] = []
 
   for (const row of rows) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const transformed = transformRow(row, mapping as any, defaultCurrency)
+    // mapping arrives as Record<string, string> from the API request body; values
+    // are user/auto-confirmed SemanticField identifiers. transformRow only reads
+    // entries whose value is a known SemanticField, so an unknown string is a no-op.
+    const transformed = transformRow(row, mapping as ColumnMapping, defaultCurrency)
     if (transformed.parseError) {
       errors.push(transformed.parseError)
       continue

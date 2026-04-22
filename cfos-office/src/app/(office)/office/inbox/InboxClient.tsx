@@ -67,7 +67,11 @@ export function InboxClient({ groups, unreadCount }: InboxClientProps) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nudge_ids: [nudge.id], action: 'read' }),
-      }).catch(() => {})
+      }).catch((err) => {
+        // Don't block navigation — but log so a failing PATCH that leaves
+        // a nudge stuck in "unread" is visible.
+        console.error('[InboxClient] failed to mark nudge as read', err)
+      })
     }
 
     // Navigate based on remapped action URL

@@ -100,7 +100,11 @@ export function ChatSheet() {
       .then((data) => {
         setConversations(data.conversations ?? [])
       })
-      .catch(() => {})
+      .catch((err) => {
+        // On failure the list stays empty — user can still start a new
+        // conversation. Log so a flaky endpoint is visible.
+        console.error('[ChatSheet] failed to load conversation list', err)
+      })
   }, [showConversations])
 
   const handleNewConversation = useCallback(() => {

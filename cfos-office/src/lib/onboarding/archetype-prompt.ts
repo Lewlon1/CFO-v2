@@ -1,14 +1,12 @@
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
+import type { ArchetypeData } from './types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface ArchetypeResult {
-  archetype_name: string
-  archetype_subtitle: string
-  traits: [string, string, string]
-  certainty_areas: string[]
-  conflict_areas: string[]
-}
+// Canonical shape lives in `./types` as `ArchetypeData`. Re-exported here under
+// the name `ArchetypeResult` because this module historically owned the LLM
+// validation contract; consumers import whichever name suits the call site.
+export type ArchetypeResult = ArchetypeData
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

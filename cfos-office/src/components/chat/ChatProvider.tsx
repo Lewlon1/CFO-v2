@@ -153,8 +153,11 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
           }
         }
       })
-      .catch(() => {
-        // Silent — no conversation to load is fine
+      .catch((err) => {
+        // A non-OK response is already handled (returns null upstream and
+        // we just don't load a conversation). This catch only fires on
+        // network/parse failures, which are real problems — log them.
+        console.error('[ChatProvider] failed to load recent conversation', err)
       })
   }, [setMessages])
 
@@ -277,7 +280,12 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
             setMessages(data.messages)
           }
         })
-        .catch(() => {})
+        .catch((err) => {
+          // If the fetch fails the UI stays on the previously loaded
+          // conversation. Log so a flaky API is at least visible in the
+          // console during development.
+          console.error('[ChatProvider] failed to load conversation messages', err)
+        })
     },
     [setMessages],
   )

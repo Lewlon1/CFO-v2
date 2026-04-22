@@ -1,4 +1,4 @@
-import { generateObject } from 'ai'
+import { generateObject, type UserContent } from 'ai'
 import { z } from 'zod'
 import { analysisModel } from '@/lib/ai/provider'
 
@@ -77,14 +77,14 @@ export async function extractBillData(
   files: Array<{ base64: string; fileType: 'pdf' | 'image' }>
 ): Promise<BillExtractionResult> {
   try {
-    const content: Array<{ type: string; [key: string]: unknown }> = []
+    const content: UserContent = []
 
     for (const file of files) {
       if (file.fileType === 'pdf') {
         content.push({
           type: 'file',
           data: file.base64,
-          mimeType: 'application/pdf',
+          mediaType: 'application/pdf',
         })
       } else {
         content.push({
@@ -105,8 +105,7 @@ export async function extractBillData(
       messages: [
         {
           role: 'user',
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: content as any,
+          content,
         },
       ],
     })

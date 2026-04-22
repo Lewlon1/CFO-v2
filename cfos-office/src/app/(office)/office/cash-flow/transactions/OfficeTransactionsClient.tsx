@@ -4,16 +4,16 @@ import { useState, useMemo } from 'react'
 import { MonthSelector, FilterPills, TransactionRow, SectionTitle } from '@/components/data'
 import { formatMonth } from '@/lib/constants/dashboard'
 import type { ValueCategory } from '@/lib/tokens'
+import type { Database } from '@/lib/supabase/types'
 
-interface Transaction {
-  id: string
-  date: string
-  description: string
-  amount: number
-  currency: string
-  category_id: string | null
-  value_category: string | null
-}
+// Server page selects exactly these columns from `transactions`. Using Pick of
+// the canonical Row type keeps nullability honest (description, currency,
+// value_category may all be null in the DB) instead of redefining a parallel
+// shape that silently asserts non-null.
+type Transaction = Pick<
+  Database['public']['Tables']['transactions']['Row'],
+  'id' | 'date' | 'description' | 'amount' | 'currency' | 'category_id' | 'value_category'
+>
 
 interface OfficeTransactionsClientProps {
   transactions: Transaction[]
@@ -71,13 +71,25 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
     try {
       // Map display value 'unsure' to DB enum 'no_idea'
       const dbValue = newCategory === 'unsure' ? 'no_idea' : newCategory
-      await fetch('/api/corrections/signal', {
+      const res = await fetch('/api/corrections/signal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transaction_id: txId, value_category: dbValue }),
       })
-    } catch {
-      // Silently fail — pill already updated optimistically
+      if (!res.ok) {
+        // Optimistic UI already updated — surface the failure so we know the
+        // server didn't get the correction. We don't roll back the pill (the
+        // user has moved on); we want the noise in logs/console so we can fix
+        // it before users start losing categorisations.
+        console.error(
+          '[OfficeTransactionsClient] correction signal POST failed',
+          { txId, status: res.status },
+        )
+      }
+    } catch (err) {
+      // Pill already updated optimistically; the server didn't see the change.
+      // Don't roll back — just make sure the failure is visible.
+      console.error('[OfficeTransactionsClient] correction signal threw', err)
     }
   }
 
@@ -102,7 +114,7 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
                   icon={cat?.icon ?? '?'}
                   iconBg={cat ? `${cat.color}1A` : 'rgba(245,245,240,0.04)'}
                   iconColor={cat?.color ?? 'rgba(245,245,240,0.3)'}
-                  merchant={tx.description}
+                  merchant={tx.description ?? '—'}
                   time={cat?.name ?? 'Uncategorised'}
                   category={cat?.name ?? ''}
                   amount={`${tx.amount < 0 ? '-' : ''}\u20AC${Math.abs(tx.amount).toFixed(2)}`}

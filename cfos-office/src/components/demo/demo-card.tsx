@@ -108,8 +108,6 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
   const tx = transactions[currentIndex]
   const currency = tx.currency
 
-  // No longer need feedbackTransactions — demo uses its own feedback engine
-
   // Running totals for the allocation strip
   const totals = results.reduce(
     (acc, r) => {
