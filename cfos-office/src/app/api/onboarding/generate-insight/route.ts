@@ -126,20 +126,49 @@ export async function POST() {
     const validation = validateNarrative(narrative, facts, { knownMerchants })
 
     if (!validation.ok) {
+      // Two failure modes, treated differently:
+      //
+      // 1. Merchant violations (`merchants_not_allowed`) are crisp bugs —
+      //    the LLM invented a merchant name not in the user's data. Always
+      //    fall back to the deterministic no-narrative response.
+      //
+      // 2. Number violations (`numbers_not_allowed`) are softer. A single
+      //    offender is usually a derived value (e.g. "31% of spend" =
+      //    100 - 69%) that's mathematically correct but not in the
+      //    quotable-facts allowlist. Throwing away an otherwise excellent
+      //    narrative for one such offender does more harm than good —
+      //    we'd return an empty UX and tank Likert scores. Threshold the
+      //    rejection: ≤ 2 offenders → keep the narrative, log only;
+      //    3+ → fall back.
+      const isMerchant = validation.reason === 'merchants_not_allowed'
+      const offenderCount = validation.offenders.length
+      const shouldFallBack = isMerchant || offenderCount >= 3
+
       console.error(
-        '[generate-insight] narrative rejected by validator:',
+        '[generate-insight] validator violation:',
         validation.reason,
         'offenders:', validation.offenders,
+        shouldFallBack ? '(falling back to no-narrative)' : '(keeping narrative)',
       )
-      return NextResponse.json({
-        insight: {
-          narrative: '',
-          statCards: payload.statCards,
-          suggestedResponses: payload.suggestedResponses,
-          experiment: payload.layers.action?.experiment,
-        },
-        validation: { ok: false, reason: validation.reason },
-      })
+
+      if (shouldFallBack) {
+        return NextResponse.json({
+          insight: {
+            narrative: '',
+            statCards: payload.statCards,
+            suggestedResponses: payload.suggestedResponses,
+            experiment: payload.layers.action?.experiment,
+          },
+          validation: {
+            ok: false,
+            reason: validation.reason,
+            offenders: validation.offenders,
+            rejectedNarrative: narrative,
+          },
+        })
+      }
+      // Else: fall through to ship the narrative with a soft-warning flag
+      // in the response so telemetry can track soft-violation rate.
     }
 
     return NextResponse.json({
@@ -153,6 +182,16 @@ export async function POST() {
           suggestedResponses.length > 0 ? suggestedResponses : payload.suggestedResponses,
         experiment: payload.layers.action?.experiment,
       },
+      // When the narrative shipped despite a soft validator violation,
+      // surface it for telemetry without affecting the user-visible payload.
+      ...(!validation.ok && {
+        validation: {
+          ok: false,
+          softViolation: true,
+          reason: validation.reason,
+          offenders: validation.offenders,
+        },
+      }),
     })
   } catch (err) {
     console.error('[generate-insight] Claude narration failed:', err)

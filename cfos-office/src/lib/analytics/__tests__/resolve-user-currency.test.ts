@@ -37,4 +37,39 @@ describe('resolveUserCurrency', () => {
   it('lowercase country code is normalised', () => {
     expect(resolveUserCurrency('gb', 'EUR')).toBe('GBP');
   });
+
+  describe('transaction-derived inference', () => {
+    const gbpTxns = Array.from({ length: 10 }, () => ({ currency: 'GBP' }));
+    const mixedTxns = [
+      ...Array.from({ length: 6 }, () => ({ currency: 'GBP' })),
+      ...Array.from({ length: 4 }, () => ({ currency: 'EUR' })),
+    ];
+
+    it('null country + null profile + GBP transactions -> GBP (transaction-derived)', () => {
+      expect(resolveUserCurrency(null, null, gbpTxns)).toBe('GBP');
+    });
+
+    it('null country + EUR profile (default) + GBP transactions -> GBP (transactions win)', () => {
+      expect(resolveUserCurrency(null, 'EUR', gbpTxns)).toBe('GBP');
+    });
+
+    it('user-set non-default profile currency beats transactions (user choice wins)', () => {
+      expect(resolveUserCurrency(null, 'USD', gbpTxns)).toBe('USD');
+    });
+
+    it('mixed transactions below 70% dominance -> falls through to country/profile', () => {
+      // 60% GBP, 40% EUR -> no dominant currency, fallback applies.
+      expect(resolveUserCurrency(null, 'EUR', mixedTxns)).toBe('EUR');
+    });
+
+    it('fewer than 5 transactions are ignored (insufficient signal)', () => {
+      const fewTxns = Array.from({ length: 3 }, () => ({ currency: 'GBP' }));
+      expect(resolveUserCurrency(null, 'EUR', fewTxns)).toBe('EUR');
+    });
+
+    it('transactions with null currency are ignored', () => {
+      const nullCurrencyTxns = Array.from({ length: 10 }, () => ({ currency: null }));
+      expect(resolveUserCurrency(null, 'EUR', nullCurrencyTxns)).toBe('EUR');
+    });
+  });
 });
