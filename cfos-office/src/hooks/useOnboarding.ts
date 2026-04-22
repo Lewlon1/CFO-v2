@@ -238,7 +238,13 @@ export function useOnboarding({ initialProgress, userName, currency }: UseOnboar
           onboardingData: state.data,
         }),
       })
-    } catch {}
+    } catch (err) {
+      // Non-blocking — we still advance to /office. But if this POST fails
+      // the server never stamps onboarding_completed_at, which means the
+      // onboarding modal could re-trigger on the next load. Log so a stuck
+      // loop is debuggable rather than invisible.
+      console.error('[onboarding] dismiss POST failed:', err)
+    }
 
     router.refresh()
     // Explicit navigation in case the user landed on onboarding from a non-/office

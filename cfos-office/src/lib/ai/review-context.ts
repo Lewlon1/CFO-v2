@@ -161,8 +161,11 @@ export async function assembleReviewContext(
   if (hasPreviousMonth) {
     try {
       valueShifts = await detectValueShifts(supabase, userId, reviewMonth, prevMonth)
-    } catch {
-      // Non-fatal — continue without shifts
+    } catch (err) {
+      // Non-fatal — continue without shifts. Logged so a failing detector
+      // shows up in server logs instead of silently producing emptier
+      // monthly reviews.
+      console.error('[review-context] detectValueShifts failed:', err)
     }
   }
 

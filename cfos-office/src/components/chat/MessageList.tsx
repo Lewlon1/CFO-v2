@@ -303,10 +303,9 @@ export function MessageList({
                   toolName === 'model_scenario' &&
                   output &&
                   typeof output === 'object' &&
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (output as any).scenario &&
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  !(output as any).error
+                  'scenario' in output &&
+                  (output as { scenario?: unknown }).scenario &&
+                  !('error' in output && (output as { error?: unknown }).error)
                 ) {
                   scenarioResults.push(output);
                 }
@@ -316,16 +315,17 @@ export function MessageList({
                   toolName === 'plan_trip' &&
                   output &&
                   typeof output === 'object' &&
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (output as any).type === 'trip_plan'
+                  (output as { type?: unknown }).type === 'trip_plan'
                 ) {
                   tripPlanResults.push(output);
                 }
 
                 // Saved-item confirmation cards for write tools
                 if (output && typeof output === 'object') {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const o = output as any;
+                  // The downstream card builders expect a record-like shape; the
+                  // tool outputs here are validated server-side against zod schemas
+                  // before reaching the client, so dynamic keying is safe.
+                  const o = output as Record<string, unknown>;
                   if (toolName === 'create_action_item' && o.success && o.action_item) {
                     savedCards.push(buildActionItemCard(o, toolCallId));
                   } else if (

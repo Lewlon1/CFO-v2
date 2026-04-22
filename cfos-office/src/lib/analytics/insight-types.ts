@@ -8,9 +8,6 @@ export type MonthlySnapshot = Database['public']['Tables']['monthly_snapshots'][
 export type RecurringExpense = Database['public']['Tables']['recurring_expenses']['Row'];
 export type ValueMapSession = Database['public']['Tables']['value_map_sessions']['Row'];
 
-/** @deprecated alias kept for call-site compatibility — points at value_map_sessions (archetype lives there) */
-export type ValueMapResult = ValueMapSession;
-
 export type InsightLayer =
   | 'headline'
   | 'gap'
@@ -63,7 +60,7 @@ export interface DetectorContext {
   supabase: SupabaseClient;
   userId: string;
   transactions: Transaction[];
-  valueMap: ValueMapResult | null;
+  valueMap: ValueMapSession | null;
   snapshots: MonthlySnapshot[];
   recurring: RecurringExpense[];
   currency: string;

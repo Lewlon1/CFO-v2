@@ -9,6 +9,7 @@ import { NavigationBar } from '@/components/navigation/NavigationBar'
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
 import { UserAvatarMenu } from '@/components/office/UserAvatarMenu'
 import type { OnboardingState } from '@/lib/onboarding/types'
+import { formatHeaderDate, getGreeting } from '@/lib/utils'
 
 const jetbrainsMono = JetBrains_Mono({
   variable: '--font-jetbrains-mono',
@@ -28,21 +29,6 @@ const cormorantGaramond = Cormorant_Garamond({
   weight: ['500', '600', '700'],
   display: 'swap',
 })
-
-function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
-}
-
-function getGreeting(): string {
-  const h = new Date().getHours()
-  if (h < 12) return 'Morning'
-  if (h < 18) return 'Afternoon'
-  return 'Evening'
-}
 
 export default async function OfficeLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -101,7 +87,7 @@ export default async function OfficeLayout({ children }: { children: React.React
         </div>
         <div className="text-right shrink-0">
           <span className="font-data text-[11px] text-[rgba(245,245,240,0.4)]">
-            {formatDate(new Date())}
+            {formatHeaderDate()}
           </span>
         </div>
         <UserAvatarMenu initial={initial} />

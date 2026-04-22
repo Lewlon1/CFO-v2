@@ -1,17 +1,6 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
-
-function toMonthlyEquivalent(amount: number, frequency: string): number {
-  switch (frequency) {
-    case 'monthly': return amount;
-    case 'bimonthly':
-    case 'bi-monthly': return amount / 2;
-    case 'quarterly': return amount / 3;
-    case 'annual':
-    case 'yearly': return amount / 12;
-    default: return amount;
-  }
-}
+import { toMonthlyEquivalent } from './helpers';
 
 export function createCalculateMonthlyBudgetTool(ctx: ToolContext) {
   return {

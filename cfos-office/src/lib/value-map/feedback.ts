@@ -1,5 +1,6 @@
 import type { ValueQuadrant, ValueMapTransaction, ValueMapResult } from './types'
 import { QUADRANTS } from './constants'
+import { formatAmount, currencySymbol } from './format'
 
 // ── Feedback rules engine ────────────────────────────────────────────────────
 //
@@ -300,28 +301,18 @@ const GENERIC_FEEDBACK: Record<ValueQuadrant, string[]> = {
 
 // ── Template resolution ──────────────────────────────────────────────────────
 
-function formatCurrency(amount: number, currency: string): string {
-  const symbols: Record<string, string> = {
-    GBP: '\u00A3',
-    USD: '$',
-    EUR: '\u20AC',
-  }
-  const symbol = symbols[currency] ?? currency + ' '
-  return `${symbol}${amount.toLocaleString('en', { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`
-}
-
 function resolveFeedback(template: string, ctx: FeedbackContext): string {
   // Prefer the proper-case description for display; ctx.merchant is the
   // normalised (lowercase) form used for rule matching and reads badly in UI
   // copy (e.g. "£17.80 at flahertys irish pub").
   const merchantDisplay = ctx.description ?? ctx.merchant ?? 'this transaction'
-  const formatted = formatCurrency(ctx.amount, ctx.currency)
-  const annualised = formatCurrency(ctx.amount * 12, ctx.currency)
+  const formatted = formatAmount(ctx.amount, ctx.currency)
+  const annualised = formatAmount(ctx.amount * 12, ctx.currency)
 
   return template
     .replace(/{merchant}/g, merchantDisplay)
     .replace(/{amount}/g, ctx.amount.toLocaleString('en', { minimumFractionDigits: ctx.amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 }))
-    .replace(/{currency}/g, ({ GBP: '\u00A3', USD: '$', EUR: '\u20AC' }[ctx.currency] ?? ctx.currency + ' '))
+    .replace(/{currency}/g, currencySymbol(ctx.currency))
     .replace(/{formatted}/g, formatted)
     .replace(/{annualised}/g, annualised)
 }

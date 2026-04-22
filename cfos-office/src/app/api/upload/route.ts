@@ -88,11 +88,17 @@ export async function POST(req: NextRequest) {
       const primaryCurrency = profile?.primary_currency ?? 'EUR'
       await detectAndFlagHolidaySpend(supabase, user.id, primaryCurrency, importBatchId)
 
-      // Check for payday (salary deposit) in imported transactions
-      evaluatePaydaySavings(supabase, user.id).catch(() => {})
+      // Check for payday (salary deposit) in imported transactions.
+      // Fire-and-forget: a failure here must not block the import response,
+      // but we want it visible in logs rather than silently swallowed.
+      evaluatePaydaySavings(supabase, user.id).catch((err) => {
+        console.error('[upload] evaluatePaydaySavings failed:', err)
+      })
 
       // Check if CFO should propose a personal Value Map retake (cooldown-gated)
-      evaluateValueMapRetake(supabase, user.id).catch(() => {})
+      evaluateValueMapRetake(supabase, user.id).catch((err) => {
+        console.error('[upload] evaluateValueMapRetake failed:', err)
+      })
 
       // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
       const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([

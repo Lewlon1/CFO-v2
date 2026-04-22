@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
@@ -12,16 +13,13 @@ const ALLOWED_PROFILE_FIELDS = new Set([
   'tax_residency_country', 'years_in_country',
 ]);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Ctx = { supabase: any; userId: string };
+type Ctx = { supabase: SupabaseClient; userId: string };
 
 // Ignore a list of columns that should never be restored verbatim (generated / managed)
 const ASSET_RESTORE_BLACKLIST = new Set(['id', 'user_id', 'created_at']);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function cleanRowForRestore(row: Record<string, any>): Record<string, any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const clean: Record<string, any> = {};
+function cleanRowForRestore(row: Record<string, unknown>): Record<string, unknown> {
+  const clean: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) {
     if (ASSET_RESTORE_BLACKLIST.has(k)) continue;
     clean[k] = v;

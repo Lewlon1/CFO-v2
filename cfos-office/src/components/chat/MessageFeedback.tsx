@@ -29,6 +29,8 @@ export function MessageFeedback({ messageId }: MessageFeedbackProps) {
 
   function submitFeedback(r: -1 | 1, c: string | null) {
     setSubmitted(true);
+    // Fire-and-forget: feedback POST is best-effort analytics — never block
+    // the UI on failure, and a lost rating is acceptable.
     fetch('/api/analytics/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
