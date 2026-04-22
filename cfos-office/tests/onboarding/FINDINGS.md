@@ -16,13 +16,21 @@ These are surfacing from smoke tests against CFO Staging on 2026-04-20. Not bugs
 
 ### 2. `user_profiles.primary_currency` defaults to EUR for non-EUR users
 
-**Surfaced by:** `builder-classic` persona (UK/GBP user).
+**Status:** ✅ Resolved at the read site on 2026-04-22 (commits `1db0a4b`, `f2caa3a`).
 
-**What happens:** After onboarding, a UK user's `primary_currency` is `EUR` in the DB. Country and city are `null`. The onboarding flow never asks about currency, so the default column value carries through.
+**Original surface:** `builder-classic` persona (UK/GBP user). `primary_currency='EUR'`, `country=null`, narrative said "€3,300 on housing" for a GBP CSV.
 
-**Where:** `user_profiles` table — check the default column value. Compare with intended behaviour: the CFO chat flow collects currency/country via `request_structured_input` after handoff, but first_insight narration (below) already rendered financial figures with `€` symbols for a GBP CSV.
+**What we did:** Added `resolveUserCurrency(country, profileCurrency, transactions)` in `src/lib/analytics/insight-engine.ts`. Resolution order:
 
-**Impact:** The first insight reported "€3,300 a month on housing" for a user whose CSV is entirely in GBP. User-visible.
+1. Profile currency, IF user has explicitly set it to a non-default value (not 'EUR')
+2. Dominant transaction currency (≥70% of ≥5 transactions in one currency)
+3. Country lookup (GB→GBP, US→USD, CA→CAD, AU→AUD)
+4. Profile currency (even if it's the schema default 'EUR')
+5. 'EUR' final fallback
+
+This catches the test case (country=null, EUR profile, GBP transactions → GBP) without needing a DB migration. The schema default + onboarding flow are still wrong; this is a read-site workaround. A proper fix would set the column default based on country at user-creation time.
+
+**Verification:** smoke run on builder-classic shows narrative now uses £ throughout. judge accuracy 4.5 (was 2.0 pre-fix).
 
 ### 3. Per-persona teardown `deleteUser` intermittently fails with "Database error deleting user"
 
@@ -33,6 +41,41 @@ These are surfacing from smoke tests against CFO Staging on 2026-04-20. Not bugs
 **Impact:** Not user-facing, but noisy. Likely a timing/FK issue — some row referencing auth.users hasn't committed by the time delete runs.
 
 **Suggested fix:** Add a short retry (250ms×3) inside `deleteTestUser`, or preempt by deleting dependent rows manually first.
+
+### 4. First-insight narration hallucinated numbers and merchants
+
+**Status:** ✅ Resolved on 2026-04-22 (commits `377457d` → `f2caa3a` on `claude/ecstatic-gauss-21f180`).
+
+**Original surface:** 2026-04-21 full suite run. All 4 personas that completed the flow failed the LLM judge on R3/R3b/R4 — narratives cited numbers and merchants not in the CSV (e.g. "86 cents of every euro" for a GBP user, "€20/month gym" when the gym is £29.99).
+
+**Root cause:** The prompt asked Claude to "narrate this data" with prose-friendly guardrails. With Sonnet's 0.7 temperature and strong prose bias, the model paraphrased data into creative restatements that broke the "LLM interprets, system computes" rule mechanically.
+
+**Fix:** Quotable-facts allowlist + post-LLM validator with graceful fallback. Spec at `cfos-office/docs/superpowers/plans/2026-04-21-first-insight-grounding-and-actionability.md`. 12 commits across two work sessions:
+
+- Pass 1 (8 commits, `377457d` → `040f7cb`): types + `extractNumbers` + `extractMerchants` + `validateNarrative` + `buildQuotableFacts` + prompt wiring + route validator + action-verb suggestedResponses.
+- Pass 2 regression fix (4 commits, `450625d` → `f2caa3a`): universal pattern-data walker (Pass 1's per-key extraction missed most patterns and emptied every narrative), ±1 tolerance in validator, soft-rejection threshold (≤2 number offenders ship the narrative with a `softViolation` telemetry flag; merchant violations always fall back), transaction-derived currency.
+
+**Final result vs original baseline (2026-04-21T13-38-49-154Z → 2026-04-22T04-11-29-601Z):**
+
+| Likert | Before | After | Δ |
+|---|---|---|---|
+| warmth | 4.8 | 5.0 | +0.2 |
+| accuracy | 3.8 | 4.5 | +0.7 |
+| on_brand | 4.1 | 4.3 | +0.2 |
+| persona_fit | 4.0 | 4.8 | +0.8 |
+| actionability | 3.4 | 3.5 | +0.1 |
+
+All five dimensions exceed baseline. Builder-classic R3/R3b now PASS; R4 still fails on judge tokenization (`£3,300` extracts as `300` after currency-strip + comma-split — judge-side regex bug, not a product hallucination). Fortress-saver R3b still fails on persona-keyword gap (no pattern emits "savings/foundation/buffer" when income is undetected — separate session).
+
+**Out of scope (to register as a new finding when prioritised):**
+
+### 5. Sign-in redirect timeout for 6 of 8 personas
+
+**Surfaced by:** every full-suite run since 2026-04-21.
+
+**Symptom:** truth-teller-balanced, drifter-expat, anchor-debt, skip-value-map, skip-csv-upload, time-saver-expert all fail at ~22s with `_error-at-signin.png`. The captured/ folder has `archetype.json` + `insight.json` (so the LLM was called), then the Playwright driver crashes at the post-handoff sign-in redirect.
+
+**Conjecture:** Concurrency=2 + the dev-server's per-request compile latency under parallel load expose a Playwright timing assumption in `tests/onboarding/runner/playwright-driver.ts` (around line 104). Was 4 personas pre-bug-#4-fix; became 6 post-fix. Not introduced by the product changes — the same dev server now serves a slightly heavier route (validator + walker). Investigate with concurrency=1 or longer redirect timeout.
 
 ## Observations worth noting
 
