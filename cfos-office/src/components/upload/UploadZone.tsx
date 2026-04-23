@@ -9,7 +9,7 @@ type Props = {
   context?: 'transactions' | 'balance_sheet' | 'bills'
 }
 
-const ACCEPTED_TRANSACTIONS = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic,.pdf'
+const ACCEPTED_TRANSACTIONS = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic,.pdf,.ofx,.qif'
 const ACCEPTED_BALANCE_SHEET = '.csv,.xlsx,.xls,.png,.jpg,.jpeg,.heic,.webp,.pdf'
 const ACCEPTED_BILLS = '.pdf,.png,.jpg,.jpeg,.heic,.webp'
 

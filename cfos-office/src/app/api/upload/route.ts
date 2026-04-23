@@ -136,6 +136,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result.summary })
     }
 
+    // Client-parsed transactions → preview.
+    // This is the universal-parser hot path: the browser parses the
+    // file locally (universal-csv / universal-pdf / ofx / qif) and POSTs
+    // only the ParsedTransaction[] here. The raw file never touches
+    // the server on this branch.
+    if (body.action === 'preview') {
+      const incoming = body.transactions
+      if (!Array.isArray(incoming) || incoming.length === 0) {
+        return NextResponse.json({ error: 'No transactions provided.' }, { status: 400 })
+      }
+      const transactions = incoming as ParsedTransaction[]
+      const preview = await buildPreview(transactions, user.id, supabase)
+      return NextResponse.json({ preview, importBatchId: randomUUID() })
+    }
+
     // Apply column mapping → return preview
     if (body.action === 'apply-mapping') {
       const result = applyColumnMapping(
