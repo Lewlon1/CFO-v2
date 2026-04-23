@@ -34,15 +34,24 @@ export function NetWorthSection({ totalAssets, totalLiabilities, currency = 'EUR
   }
 
   const netWorth = totalAssets - totalLiabilities
+  const pctAssets = totalAssets > 0 ? (totalAssets / (totalAssets + totalLiabilities)) * 100 : 100
 
   return (
     <div className="pt-1">
       <div className="flex items-baseline gap-1.5">
-        <span className={`font-data text-[16px] font-extrabold tracking-[-0.03em] ${netWorth >= 0 ? 'text-[#06B6D4]' : 'text-[#F43F5E]'}`}>
+        <span className={`font-data text-[18px] font-extrabold tracking-[-0.03em] tabular-nums ${netWorth >= 0 ? 'text-[#06B6D4]' : 'text-[#F43F5E]'}`}>
           {formatCurrency(netWorth, currency)}
         </span>
         <span className="text-[11px] text-[rgba(245,245,240,0.3)]">net worth</span>
       </div>
+      {(totalAssets > 0 || totalLiabilities > 0) && (
+        <div className="flex h-[5px] rounded-[3px] overflow-hidden mt-2">
+          <div style={{ flex: pctAssets, background: '#06B6D4' }} />
+          {totalLiabilities > 0 && (
+            <div style={{ flex: 100 - pctAssets, background: '#F43F5E' }} />
+          )}
+        </div>
+      )}
     </div>
   )
 }

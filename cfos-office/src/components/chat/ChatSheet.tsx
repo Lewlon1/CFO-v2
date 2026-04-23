@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { X, MoreVertical, Plus, MessageSquare } from 'lucide-react'
+import { X, MoreVertical, Plus, MessageSquare, ArrowRight } from 'lucide-react'
 import { useChatContext } from './ChatProvider'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
-import { RETURNING_USER_PROMPTS } from '@/lib/chat/prompt-buttons'
+import { CHAT_SUBJECTS, type FolderKey } from '@/lib/chat/folder-prompts'
 
 export function ChatSheet() {
   const {
@@ -20,10 +20,10 @@ export function ChatSheet() {
     startConversation,
     handleOptionSelect,
     handleStructuredSubmit,
-    sendChatMessage,
     chatError,
     dismissError,
     userCurrency,
+    currentFolder,
   } = useChatContext()
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -218,7 +218,7 @@ export function ChatSheet() {
           <>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {messages.length === 0 ? (
-                <SheetEmptyState onSelect={sendChatMessage} />
+                <FolderEmptyState folder={currentFolder} onFillInput={setInput} />
               ) : (
                 <MessageList
                   messages={messages}
@@ -248,28 +248,51 @@ export function ChatSheet() {
   )
 }
 
-// ── Empty state when no messages ────────────────────────────────────────────
+// ── Contextual empty state — folder-aware subject + pre-prompts ────────────
 
-function SheetEmptyState({ onSelect }: { onSelect: (text: string) => void }) {
+function FolderEmptyState({
+  folder,
+  onFillInput,
+}: {
+  folder: FolderKey
+  onFillInput: (text: string) => void
+}) {
+  const meta = CHAT_SUBJECTS[folder] ?? CHAT_SUBJECTS.home
+
   return (
-    <div className="flex flex-col items-center px-5 py-8 text-center">
-      <CFOAvatar size={48} />
-      <p className="mt-4 text-sm text-office-text font-medium">
-        What&apos;s on your mind?
-      </p>
-      <p className="mt-1 text-xs text-office-text-muted mb-5">
-        Pick a topic or type your own question below.
-      </p>
-      <div className="w-full grid gap-1.5">
-        {RETURNING_USER_PROMPTS.map((prompt) => (
+    <div className="px-4 pt-4 pb-6">
+      <div className="text-[18px] leading-tight tracking-[-0.01em] text-office-text"
+        style={{ fontFamily: 'var(--font-cormorant), Georgia, serif' }}
+      >
+        {meta.subject}
+      </div>
+      <div className="text-[11px] text-[rgba(245,245,240,0.45)] italic mt-0.5">
+        {meta.subtitle}
+      </div>
+
+      <div className="h-px bg-[rgba(255,255,255,0.06)] my-4" />
+
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-office-gold mb-2.5">
+        Things you could ask
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {meta.prompts.map((prompt, i) => (
           <button
-            key={prompt.id}
-            onClick={() => onSelect(prompt.message)}
-            className="w-full px-4 py-3 text-left text-[13px] text-office-text/80 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-[10px] hover:bg-[rgba(255,255,255,0.06)] transition-colors min-h-[44px]"
+            key={prompt}
+            onClick={() => onFillInput(prompt)}
+            className="flex items-center gap-2 text-left px-3 py-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-[10px] hover:border-office-gold transition-colors min-h-[44px]"
           >
-            {prompt.label}
+            <span className="text-[10px] text-[rgba(245,245,240,0.25)] font-medium shrink-0 tabular-nums">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <span className="flex-1 text-[13px] text-office-text leading-snug">{prompt}</span>
+            <ArrowRight size={12} className="text-[rgba(245,245,240,0.25)] shrink-0" strokeWidth={1.5} />
           </button>
         ))}
+      </div>
+
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(245,245,240,0.25)] mt-5">
+        Or ask your own
       </div>
     </div>
   )

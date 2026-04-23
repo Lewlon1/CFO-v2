@@ -1,51 +1,18 @@
-import { FolderDetail } from '@/components/office/FolderDetail'
-import type { FileItem } from '@/components/office/FolderDetail'
+import { createClient } from '@/lib/supabase/server'
+import { CashFlowDashboard } from '@/components/office/dashboards/CashFlowDashboard'
 
-const files: FileItem[] = [
-  {
-    id: 'monthly-overview',
-    label: 'Monthly overview',
-    description: 'dashboard · this month',
-    icon: '◉',
-    href: '/office/cash-flow/monthly-overview',
-  },
-  {
-    id: 'transactions',
-    label: 'Transactions',
-    description: 'list · all items',
-    icon: '≡',
-    href: '/office/cash-flow/transactions',
-  },
-  {
-    id: 'bills',
-    label: 'Bills & subscriptions',
-    description: 'tracker · known providers',
-    icon: '↻',
-    href: '/office/cash-flow/bills',
-  },
-  {
-    id: 'patterns',
-    label: 'Spending patterns',
-    description: 'insights · regular habits',
-    icon: '◈',
-    href: '/office/cash-flow/patterns',
-  },
-  {
-    id: 'upload',
-    label: 'Upload statement',
-    description: 'action · csv / screenshot',
-    icon: '⊕',
-    href: '/office/cash-flow/upload',
-  },
-  {
-    id: 'spending-breakdown',
-    label: 'Spending breakdown',
-    description: 'dashboard · by category',
-    icon: '⊞',
-    href: '/office/cash-flow/spending-breakdown',
-  },
-]
+export default async function CashFlowPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
 
-export default function CashFlowPage() {
-  return <FolderDetail accentColor="#22C55E" files={files} />
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('primary_currency')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const currency = profile?.primary_currency ?? 'EUR'
+
+  return <CashFlowDashboard currency={currency} />
 }

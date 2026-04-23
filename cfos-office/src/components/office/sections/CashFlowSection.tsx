@@ -50,21 +50,26 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFl
     )
   }
 
-  const { total_income, total_spending } = summary
+  const { total_spending, vs_previous_month_pct } = summary
+  const delta = vs_previous_month_pct
 
   return (
     <div className="space-y-1 pt-1">
       <div className="flex items-baseline gap-1.5">
-        <span className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-[#22C55E]">
-          {formatCurrency(total_income, currency)}
-        </span>
-        <span className="text-[11px] text-[rgba(245,245,240,0.3)]">income</span>
-      </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-text-primary">
+        <span className="font-data text-[18px] font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
           {formatCurrency(total_spending, currency)}
         </span>
         <span className="text-[11px] text-[rgba(245,245,240,0.3)]">spent</span>
+        {delta != null && Math.abs(delta) >= 1 && (
+          <span
+            className="text-[11px] ml-auto"
+            style={{
+              color: delta > 0 ? 'var(--negative)' : 'var(--positive)',
+            }}
+          >
+            {delta > 0 ? '↑' : '↓'} {Math.abs(Math.round(delta))}% vs prev
+          </span>
+        )}
       </div>
     </div>
   )

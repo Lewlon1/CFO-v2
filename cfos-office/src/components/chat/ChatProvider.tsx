@@ -11,8 +11,9 @@ import {
 } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, type UIMessage } from 'ai'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 
 // ── Context shape ─────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ interface ChatContextValue {
     displayText: string,
   ) => void
   userCurrency?: string
+  currentFolder: FolderKey
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -57,7 +59,9 @@ interface ChatProviderProps {
 
 export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const trackEvent = useTrackEvent()
+  const currentFolder = folderKeyFromPath(pathname)
 
   // Sheet visibility
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -359,6 +363,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     handleOptionSelect,
     handleStructuredSubmit,
     userCurrency,
+    currentFolder,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
