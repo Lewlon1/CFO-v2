@@ -15,7 +15,6 @@ import { detectHoldingsMapping } from '@/lib/parsers/holdings-detector'
 import { parseHoldingsCSV } from '@/lib/parsers/holdings-csv'
 import { parseBalanceSheetScreenshot } from '@/lib/parsers/balance-sheet-screenshot'
 import { parseBalanceSheetPDF } from '@/lib/parsers/balance-sheet-pdf'
-import { parsePdfTransactions } from '@/lib/parsers/pdf-transactions'
 import { runBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import type { ConfirmedBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import Papa from 'papaparse'
@@ -228,16 +227,12 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  if (isPdf) {
-    const buffer = await file.arrayBuffer()
-    const result = await parsePdfTransactions(buffer, user.id)
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 422 })
-    }
-    const clientBatchId = formData.get('batchId') as string | null
-    const preview = await buildPreview(result.transactions, user.id, supabase)
-    return NextResponse.json({ preview, importBatchId: clientBatchId ?? randomUUID() })
-  }
+  // Transaction PDFs no longer have a server-side branch — the universal
+  // PDF parser handles them client-side (text extraction first, then a
+  // Haiku-vision fallback via /api/extract-pdf-transactions). The wizard
+  // POSTs the parsed transactions back through the JSON `action: 'preview'`
+  // path above. Balance-sheet PDFs still go through the server because
+  // their schema extraction is unrelated to the universal parser.
 
   // ── Balance sheet screenshot branch ──
   if (isImage && isBalanceSheetContext) {
