@@ -6,6 +6,11 @@ export type ParsedTransactionSource =
   | 'csv_hsbc'
   | 'csv_barclays'
   | 'csv_generic'
+  | 'csv_universal'
+  | 'pdf_text'
+  | 'pdf_vision'
+  | 'ofx'
+  | 'qif'
   | 'screenshot'
   | 'pdf_statement'
 
@@ -25,6 +30,71 @@ export type ParsedTransaction = {
 export type ParseResult =
   | { ok: true; transactions: ParsedTransaction[] }
   | { ok: false; error: string }
+
+// ── Universal parser (Session A) ────────────────────────────────────
+// Types for the single-pipeline parser that replaces the per-bank
+// branching. Every parser in this family emits ParsedTransaction with
+// the signed-amount invariant: debits negative, credits positive.
+
+export type FileType = 'csv' | 'pdf' | 'ofx' | 'qif' | 'xlsx' | 'image'
+
+export type SignConvention =
+  // amount column is already signed (Revolut, Starling, Barclays, HSBC)
+  | 'signed_single_column'
+  // separate credit + debit columns, both positive (Monzo Money In/Out)
+  | 'split_in_out'
+  // magnitude in one column, sign derived from a DR/CR-style flag column
+  | 'type_flag'
+
+// 1,234.56 (UK/US) vs 1.234,56 (ES/DE/FR). Drives parseAmount().
+export type DecimalFormat = 'dot' | 'comma'
+
+export type FormatTemplateColumnMapping = {
+  date: string
+  description: string
+  amount?: string
+  debit?: string
+  credit?: string
+  type_flag?: string
+  // When sign_convention === 'type_flag', these string values tell the
+  // parser which flag means debit vs credit (e.g. { debit: 'DR', credit: 'CR' }).
+  type_flag_values?: { debit: string; credit: string }
+  currency?: string
+  balance?: string
+}
+
+export type FormatTemplate = {
+  id?: string
+  headerHash: string
+  bankName: string | null
+  fileType: FileType
+  columnMapping: FormatTemplateColumnMapping
+  signConvention: SignConvention
+  // 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'ISO' | other explicit token
+  dateFormat: string
+  decimalFormat: DecimalFormat
+  currencyDefault: string
+  sampleHeaders: string
+  detectionSource: 'llm' | 'manual' | 'user_confirmed'
+  useCount?: number
+}
+
+// Spec-facing alias. The universal parser's output IS a ParsedTransaction —
+// the signed-amount contract is already encoded there (see the comment on
+// ParsedTransaction.amount above). Callers can use either name.
+export type NormalisedTransaction = ParsedTransaction
+
+// Universal parser result — extends ParseResult with warnings and
+// a skippedRows counter so the UI can surface partial failures.
+export type UniversalParseResult =
+  | {
+      ok: true
+      transactions: ParsedTransaction[]
+      template: FormatTemplate
+      skippedRows: number
+      warnings: string[]
+    }
+  | { ok: false; error: string; warnings?: string[] }
 
 // Returned from the /api/upload parse step — includes duplicate flags
 export type PreviewTransaction = ParsedTransaction & {

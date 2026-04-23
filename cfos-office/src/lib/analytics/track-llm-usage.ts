@@ -10,7 +10,9 @@ interface LLMUsageParams {
     | 'bill_analysis'
     | 'balance_sheet_screenshot_parse'
     | 'balance_sheet_pdf_parse'
-    | 'pdf_transaction_parse';
+    | 'pdf_transaction_parse'
+    | 'format_detection'
+    | 'pdf_vision_extraction';
   model: string;
   inputTokens?: number;
   outputTokens?: number;
