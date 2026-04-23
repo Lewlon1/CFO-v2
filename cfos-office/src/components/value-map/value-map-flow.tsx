@@ -67,6 +67,13 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
   const [cutDecisions, setCutDecisions] = useState<Array<{ transaction_id: string; cut: boolean }>>([])
   const [oneThing, setOneThing] = useState('')
 
+  // Guard against handleExerciseComplete being invoked more than once per
+  // session. Independent of the useTrackEvent memoisation fix, the Value Map
+  // card flow has several async transitions and this ref guarantees the
+  // funnel events fire exactly once even if a late re-render triggers the
+  // callback again.
+  const completionTrackedRef = useRef(false)
+
   // Rotating hero subhead on the onboarding intro (mirrors demo-flow).
   const [introSubhead, setIntroSubhead] = useState<string>(VALUE_MAP_INTRO_SUBHEADS[0])
   useEffect(() => {
@@ -274,13 +281,17 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
 
   const handleExerciseComplete = useCallback(
     (exerciseResults: ValueMapResult[]) => {
-      trackEvent('value_map_completed', {
-        mode,
-        card_count: exerciseResults.length,
-        is_real_data: isRealData,
-      })
       const personality = calculatePersonality(exerciseResults)
-      trackEvent('value_map_reading_shown', { archetype: personality.personality })
+      // Funnel events must fire exactly once per session.
+      if (!completionTrackedRef.current) {
+        completionTrackedRef.current = true
+        trackEvent('value_map_completed', {
+          mode,
+          card_count: exerciseResults.length,
+          is_real_data: isRealData,
+        })
+        trackEvent('value_map_reading_shown', { archetype: personality.personality })
+      }
       setResults(exerciseResults)
       setReadyToFinish(true)
     },

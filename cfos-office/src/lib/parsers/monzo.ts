@@ -27,7 +27,9 @@ export function parseMonzoCSV(text: string): ParseResult {
     const date = parseUKDate(row['Date'] || '')
     if (!date) continue
 
-    // Monzo splits outgoing/incoming into separate columns
+    // Monzo splits outgoing/incoming into separate columns (both positive).
+    // CFO convention: debits negative, credits positive. Negate Money Out,
+    // pass Money In through as-is.
     const moneyOut = parseFloat((row['Money Out'] || '0').replace(/[£,]/g, ''))
     const moneyIn = parseFloat((row['Money In'] || '0').replace(/[£,]/g, ''))
     const amount = moneyIn > 0 ? moneyIn : -moneyOut

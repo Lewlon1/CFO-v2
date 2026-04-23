@@ -49,6 +49,8 @@ function parseWithHeaders(rows: Record<string, string>[]): ParseResult {
     transactions.push({
       date,
       description,
+      // CFO convention: debits negative, credits positive.
+      // HSBC's single Amount column is pre-signed in the source export.
       amount,
       currency: 'GBP',
       source: 'csv_hsbc',
@@ -76,6 +78,8 @@ function parsePositional(rows: string[][]): ParseResult {
     transactions.push({
       date,
       description,
+      // CFO convention: debits negative, credits positive.
+      // HSBC's headerless export preserves the signed amount in column 3.
       amount,
       currency: 'GBP',
       source: 'csv_hsbc',

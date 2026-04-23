@@ -45,7 +45,10 @@ export function parseRevolutCSV(text: string): ParseResult {
     transactions.push({
       date,
       description,
-      amount, // Revolut amounts are already signed
+      // CFO convention: debits negative, credits positive.
+      // Revolut's Amount column is pre-signed in the source export, so we
+      // trust it as-is. No sign mutation here.
+      amount,
       currency,
       source: 'csv_revolut',
       raw_description: description,

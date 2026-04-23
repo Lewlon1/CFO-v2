@@ -32,7 +32,9 @@ export function parseStarlingCSV(text: string): ParseResult {
     transactions.push({
       date,
       description,
-      amount, // Starling amounts are already signed
+      // CFO convention: debits negative, credits positive.
+      // Starling's Amount (GBP) column is pre-signed in the source export.
+      amount,
       currency: 'GBP',
       source: 'csv_starling',
       raw_description: `${counterParty} ${reference}`.trim(),

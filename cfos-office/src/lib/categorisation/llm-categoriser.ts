@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { utilityModel, utilityModelId } from '@/lib/ai/provider'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import { logBedrockUsage } from '@/lib/ai/usage-logger'
+import { sendAlert } from '@/lib/alerts/notify'
 import { normaliseMerchant } from './normalise-merchant'
 import type { Category } from '@/lib/parsers/types'
 
@@ -79,7 +80,19 @@ If you cannot confidently assign a category, omit that transaction from the resu
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
+    // Previously this path was silent — a Bedrock outage meant 100% of
+    // uncategorised transactions stayed unclassified and `user_merchant_rules`
+    // never grew. Alert so the failure is visible; still return [] so a bad
+    // batch doesn't take the import down with it.
+    const message = error instanceof Error ? error.message : String(error)
     console.error('[llm-categoriser] bedrock call failed', { error, batchSize, userId })
+    void sendAlert({
+      severity: 'critical',
+      event: 'llm_categorisation_failed',
+      user_id: userId,
+      details: `Bedrock call failed for ${batchSize} transaction(s): ${message}`,
+      metadata: { model: utilityModelId, batchSize },
+    })
     return []
   }
 
@@ -96,11 +109,23 @@ If you cannot confidently assign a category, omit that transaction from the resu
         typeof r.confidence === 'number'
     )
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     console.error('[llm-categoriser] parse failed', {
       error,
       batchSize,
       userId,
       responsePreview: text?.slice(0, 500),
+    })
+    void sendAlert({
+      severity: 'warning',
+      event: 'llm_categorisation_unparseable',
+      user_id: userId,
+      details: `Could not parse Haiku response (${batchSize} transactions): ${message}`,
+      metadata: {
+        model: utilityModelId,
+        batchSize,
+        responsePreview: text?.slice(0, 500),
+      },
     })
     return []
   }
@@ -156,6 +181,13 @@ export async function saveLearnedMerchantRules(
       error,
       userId,
       count: rows.length,
+    })
+    void sendAlert({
+      severity: 'critical',
+      event: 'user_merchant_rules_upsert_failed',
+      user_id: userId,
+      details: `upsert of ${rows.length} merchant rule(s) failed: ${error.message}`,
+      metadata: { code: error.code, details: error.details, rowCount: rows.length },
     })
   }
 }

@@ -32,6 +32,8 @@ export function parseBarclaysCSV(text: string): ParseResult {
     transactions.push({
       date,
       description,
+      // CFO convention: debits negative, credits positive.
+      // Barclays' Amount column is pre-signed in the source export.
       amount,
       currency: 'GBP',
       source: 'csv_barclays',
