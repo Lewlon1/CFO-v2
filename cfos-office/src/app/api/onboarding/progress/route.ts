@@ -16,9 +16,24 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Invalid progress' }, { status: 400 })
   }
 
+  // When resetting to the welcome beat with no completed beats, also clear
+  // onboarding_completed_at so the modal will render again. This keeps the
+  // debug/test path (reset-and-walk-through-flow) a single PATCH.
+  const isFreshReset =
+    progress.beat === 'welcome' &&
+    (progress.completedBeats?.length ?? 0) === 0 &&
+    !progress.completedAt &&
+    !progress.skippedAt
+
+  const updatePayload: Record<string, unknown> = { onboarding_progress: progress }
+  if (isFreshReset) {
+    updatePayload.onboarding_completed_at = null
+    updatePayload.capability_preferences = null
+  }
+
   const { error } = await supabase
     .from('user_profiles')
-    .update({ onboarding_progress: progress })
+    .update(updatePayload)
     .eq('id', user.id)
 
   if (error) {

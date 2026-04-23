@@ -250,31 +250,39 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
     chatCtx?.startConversation('chip_opener', { prompt: chip.prompt })
   }, [dismiss, chatCtx])
 
+  // Accepting an experiment now saves it as an action_item and advances to
+  // the handoff beat (instead of dismissing onboarding + jumping into chat).
+  // This preserves the final welcome screen so the user always finishes the
+  // onboarding arc. The action item shows up in their office afterwards; they
+  // can chat about executing it whenever they're ready.
   const handleAcceptExperiment = useCallback(async (experiment: Experiment) => {
-    await dismiss()
-    // startConversation accepts Record<string, string> — stringify numeric
-    // fields, parse them back in context-builder.ts.
-    chatCtx?.startConversation('experiment_template', {
-      template_kind: experiment.template_kind,
-      title: experiment.title,
-      hypothesis: experiment.hypothesis,
-      time_investment: experiment.time_investment,
-      monthly_saving_low: String(experiment.monthly_saving_low),
-      monthly_saving_high: String(experiment.monthly_saving_high),
-      annual_saving_low: String(experiment.annual_saving_low),
-      annual_saving_high: String(experiment.annual_saving_high),
-      annual_minutes_saved:
-        experiment.annual_minutes_saved === null
-          ? ''
-          : String(experiment.annual_minutes_saved),
-      currency: experiment.currency,
-    })
-  }, [dismiss, chatCtx])
+    try {
+      const res = await fetch('/api/onboarding/save-experiment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ experiment }),
+      })
+      if (!res.ok) {
+        console.error('[onboarding] save-experiment failed:', res.status)
+      }
+    } catch (err) {
+      console.error('[onboarding] save-experiment error:', err)
+      // Non-blocking — still advance the user so they don't get stuck.
+    }
+    completeBeat('first_insight', { acceptedExperiment: experiment.template_kind })
+  }, [completeBeat])
 
   const handleInsightRate = useCallback((rating: number) => {
     setTimeout(() => {
       completeBeat('first_insight', { insightRating: rating })
     }, 600)
+  }, [completeBeat])
+
+  // Fallback advancement when the user doesn't accept the surfaced experiment
+  // (or no experiment is available) — always takes them to the handoff beat
+  // so no one can get stranded on first_insight without a path forward.
+  const handleInsightContinue = useCallback(() => {
+    completeBeat('first_insight')
   }, [completeBeat])
 
   const handleAction = useCallback((action: string) => {
@@ -433,6 +441,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
                 loading={insightLoading}
                 onRate={handleInsightRate}
                 onAcceptExperiment={handleAcceptExperiment}
+                onContinue={handleInsightContinue}
               />
             ) : undefined
           }

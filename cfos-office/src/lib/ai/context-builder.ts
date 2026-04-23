@@ -164,7 +164,14 @@ export function buildQuotableFacts(payload: InsightPayload): QuotableFact[] {
  * section that STRICTLY constrains Claude to narrate only what's in the
  * payload — no inventing income, savings rate, surplus, goals, etc.
  */
-export function buildFirstInsightContext(payload: InsightPayload): string {
+const CAPABILITY_FOCUS: Record<string, string> = {
+  cashflow: 'The user wants to understand where their money goes. Emphasise spending patterns, categories, and cash flow clarity. Make the hook actionable toward tracking and awareness.',
+  values: 'The user wants to understand why they spend the way they do. Connect patterns to behaviour and habits. The hook should invite reflection on whether spending matches what they care about.',
+  networth: 'The user wants to track what they own and owe. Where possible, frame patterns in terms of what they reveal about financial position — recurring costs as liabilities, consistent deposits as assets. Hook toward a net worth conversation.',
+  scenarios: 'The user is weighing a big decision. Frame patterns in terms of financial headroom and optionality. The hook should invite a forward-looking question: "what would it take to..."',
+}
+
+export function buildFirstInsightContext(payload: InsightPayload, selectedCapabilities?: string[]): string {
   const lines: string[] = [];
   lines.push('## First insight — data from the system');
   lines.push('The following patterns were computed deterministically. You MUST narrate ONLY these patterns.');
@@ -212,6 +219,19 @@ export function buildFirstInsightContext(payload: InsightPayload): string {
     lines.push(`- "${f.text}"`);
   }
   lines.push('');
+
+  if (selectedCapabilities && selectedCapabilities.length > 0) {
+    const focuses = selectedCapabilities
+      .map((id) => CAPABILITY_FOCUS[id])
+      .filter(Boolean)
+    if (focuses.length > 0) {
+      lines.push('### User focus areas (what they said they came for)')
+      lines.push('The user told us what they want from this product. Angle the insight and hook toward these goals:')
+      for (const f of focuses) lines.push(`- ${f}`)
+      lines.push('Do not mention these focus areas by name. Just let them shape what you emphasise and where the hook lands.')
+      lines.push('')
+    }
+  }
 
   lines.push('### Patterns to narrate (in this order)');
   lines.push('For each pattern below, follow the instruction. Weave the quotable facts above into prose.');

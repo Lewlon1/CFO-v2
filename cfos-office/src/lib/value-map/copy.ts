@@ -8,12 +8,12 @@ export const VALUE_MAP_INTRO_HERO = 'Your Value Map' as const
 // (see useRotatingSubhead below) so returning visitors see a different angle;
 // the 3-bullet block always surfaces all three promises regardless.
 export const VALUE_MAP_INTRO_SUBHEADS: readonly string[] = [
-  // Primary — save without sacrifice
-  "Tell me what your money is really for, and I'll spend the rest of our time helping you protect it.",
-  // Secondary A — evolves with you
-  'A quick sketch of what matters to you. Every conversation we have sharpens it.',
-  // Secondary B — a CFO that knows you
-  "Other apps treat all your spending the same. I won't. Show me what's foundation and what's a leak, and I'll work from there.",
+  // Primary — echoes the hero "see the gap" promise
+  "Two minutes to show me what your money is really for. Then we can see the gap — and close it without touching what matters.",
+  // Secondary A — framework vocabulary used directly (no softening)
+  "Show me your Foundations and your Leaks. I'll know what to protect and where to look.",
+  // Secondary B — ties to the "building toward" positioning
+  "Tell me what you're building toward. I'll help make sure your numbers line up.",
 ] as const
 
 export interface IntroBullet {
@@ -23,16 +23,16 @@ export interface IntroBullet {
 
 export const VALUE_MAP_INTRO_BULLETS: readonly IntroBullet[] = [
   {
-    title: 'Personalised guidance from minute one.',
-    body: 'Your answers shape every suggestion I make from here.',
-  },
-  {
     title: 'Save without sacrifice.',
-    body: "I'll find money by cutting what you resent, not what you love.",
+    body: 'Your Foundations and Investments stay protected. Room to save lives in the Leaks.',
   },
   {
-    title: 'A CFO that learns you.',
-    body: 'This is a starting point. The picture gets sharper every time we talk.',
+    title: 'Personal from minute one.',
+    body: 'Every suggestion I make is shaped by what you tell me now.',
+  },
+  {
+    title: 'Sharper every conversation.',
+    body: 'A starting sketch. It gets clearer every time we sit down.',
   },
 ] as const
 

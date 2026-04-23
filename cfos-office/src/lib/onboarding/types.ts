@@ -68,6 +68,10 @@ export interface OnboardingData {
   insightData?: FirstInsightResult
   // User's emoji rating of the first insight (1-5)
   insightRating?: number
+  // Which experiment (if any) the user accepted during the first_insight beat.
+  // Set when handleAcceptExperiment persists the experiment as an action_item
+  // and advances to the handoff beat. Used for analytics / profile seeding.
+  acceptedExperiment?: string
 }
 
 export interface OnboardingState {

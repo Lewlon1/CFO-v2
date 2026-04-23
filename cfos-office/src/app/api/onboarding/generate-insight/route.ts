@@ -82,7 +82,13 @@ export async function POST() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const payload = await computeFirstInsight(supabase, user.id)
+  const [payload, profileResult] = await Promise.all([
+    computeFirstInsight(supabase, user.id),
+    supabase.from('profiles').select('onboarding_progress').eq('id', user.id).single(),
+  ])
+
+  const onboardingData = (profileResult.data?.onboarding_progress as { data?: { selectedCapabilities?: string[] } } | null)?.data
+  const selectedCapabilities = onboardingData?.selectedCapabilities ?? []
 
   if (payload.transactionCount === 0) {
     return NextResponse.json({
@@ -95,7 +101,7 @@ export async function POST() {
     })
   }
 
-  const contextBlock = buildFirstInsightContext(payload)
+  const contextBlock = buildFirstInsightContext(payload, selectedCapabilities)
   const systemPrompt = `${BASE_PERSONA}\n\n${contextBlock}`
 
   try {

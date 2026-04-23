@@ -14,12 +14,12 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
     },
     {
       id: 'welcome-2',
-      text: 'My job is straightforward — know your numbers better than you do and tell you what they mean. No jargon, no judgment. Just clarity.',
+      text: 'My job\u2019s simple — know your numbers better than you do, and tell you what they mean. No jargon. No lectures.',
       delayMs: 1800,
     },
     {
       id: 'welcome-3',
-      text: 'The more you share with me, the sharper my guidance gets. Think of this as our first meeting — I need to understand how you think about money before I can help you manage it.',
+      text: 'Before we look at your numbers, I want to know how you think about money. The more you share, the sharper I get.',
       delayMs: 2200,
     },
     {
@@ -33,7 +33,7 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
   framework: [
     {
       id: 'framework-1',
-      text: 'Most finance apps tell you <em>where</em> your money went. I want to understand <em>how you feel</em> about where it went. There\'s a difference.',
+      text: 'Most finance apps tell you <em>where</em> your money went. I\u2019d rather know <em>how you feel</em> about where it went. That\u2019s a different conversation.',
       delayMs: 1600,
     },
     {
@@ -43,12 +43,12 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
     },
     {
       id: 'framework-3',
-      text: 'Don\'t overlook <strong class="text-[rgba(232,168,76,0.5)]">Unsure</strong>. It\'s often the most insightful category — it reveals where your relationship with money is genuinely unresolved. Those are the areas where I can help most.',
+      text: 'Don\u2019t skip <strong class="text-[rgba(232,168,76,0.5)]">Unsure</strong>. That\u2019s the honest one — the category that flags where your relationship with money is still being figured out. That\u2019s where I can help most.',
       delayMs: 1800,
     },
     {
       id: 'framework-4',
-      text: "I'd like to run a short exercise to set a baseline. I'll show you some common transactions — tell me how they feel. This isn't permanent — your categories will evolve as we get to know each other better.",
+      text: 'Quick exercise to set a baseline — no right or wrong answers, it\u2019s just so we can understand each other. I\u2019ll show you some common transactions; tell me how they feel. Nothing\u2019s locked in. The more we interact, the more these will evolve.',
       delayMs: 2000,
     },
     {
@@ -80,21 +80,21 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
     },
     {
       id: 'archetype-bridge',
-      text: "That's your baseline. Now — want to see how your beliefs hold up against the real numbers? Upload a bank statement and I'll compare what you think with what your money actually says.",
+      text: "That\u2019s the read. Now let\u2019s see where your spending matches it \u2014 and where it doesn\u2019t. That gap is where most of the wins live.",
       delayMs: 2000,
     },
     {
       id: 'archetype-continue',
       delayMs: 400,
       action: 'continue',
-      buttonText: 'Upload a statement',
+      buttonText: 'Show me the gap',
     },
   ],
 
   csv_upload: [
     {
       id: 'csv-prompt',
-      text: "Share the last 3 months if you can — the more data I have, the more useful I'll be from day one.",
+      text: "Three months if you can. The more I see, the sharper I get.",
       delayMs: 1200,
     },
     {
@@ -107,7 +107,7 @@ export const BEAT_MESSAGES: Record<OnboardingBeat, BeatMessage[]> = {
   capabilities: [
     {
       id: 'capabilities-ask',
-      text: "While I analyse your statement — what brought you to the office? What should I focus on first?",
+      text: "While I look through your statements \u2014 what brought you in today? Where should I start?",
       delayMs: 1600,
     },
     {
@@ -159,9 +159,9 @@ export const ONBOARDING_VALUE_CATEGORIES = [
 
 export const CAPABILITY_OPTIONS = [
   { id: 'cashflow', label: 'Where my money actually goes', icon: '$', color: '#22C55E', folder: 'Cash Flow' },
-  { id: 'values', label: 'Understanding my spending habits', icon: '◇', color: '#E8A84C', folder: 'Values & You' },
+  { id: 'values', label: 'Why I spend the way I do', icon: '◇', color: '#E8A84C', folder: 'Values & You' },
   { id: 'networth', label: 'Tracking what I own & owe', icon: '≡', color: '#06B6D4', folder: 'Net Worth' },
-  { id: 'scenarios', label: 'Planning big financial decisions', icon: '⊕', color: '#F43F5E', folder: 'Scenario Planning' },
+  { id: 'scenarios', label: 'A big decision I need to make', icon: '⊕', color: '#F43F5E', folder: 'Scenario Planning' },
 ] as const
 
 // ── CSV polling ──────────────────────────────────────────────────────────────

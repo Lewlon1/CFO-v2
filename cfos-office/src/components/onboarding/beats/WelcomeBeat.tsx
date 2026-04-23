@@ -40,7 +40,7 @@ export function WelcomeBeat({ archetypeData, monthsOfData, onChipTap }: WelcomeB
     copy.shareMore,
     copy.useCases,
     copy.invitation,
-  ]
+  ].filter((p) => p.trim().length > 0)
 
   return (
     <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.4s_ease-out] space-y-1 max-w-[min(calc(100%-40px),460px)]">

@@ -571,15 +571,7 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
             {introSubhead}
           </p>
         </div>
-        <ul className="w-full max-w-xs rounded-xl border border-border bg-card px-4 py-3 space-y-2.5 text-left">
-          {VALUE_MAP_INTRO_BULLETS.map((b) => (
-            <li key={b.title} className="text-xs leading-relaxed">
-              <span className="font-semibold text-foreground">{b.title}</span>{' '}
-              <span className="text-muted-foreground">{b.body}</span>
-            </li>
-          ))}
-        </ul>
-        <Button
+<Button
           onClick={handleStart}
           className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
         >

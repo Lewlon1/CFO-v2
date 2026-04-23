@@ -458,3 +458,15 @@ Error handling, performance, security review, seed user #1 data.
 6. **Holiday spending distorts averages.** Tag foreign merchant clusters as holiday spending and show baseline vs holiday spending separately.
 
 7. **Token budget is real.** A fully populated profile + 6 months of snapshots + portrait + goals can easily hit 4000+ tokens of context. Prioritise ruthlessly. Current month data > historical. Active goals > completed.
+
+---
+## Playwright tests
+End-to-end tests live in `cfos-office/tests/onboarding/` (personas, runner, unit tests, and runtime output under `test-output/`).
+`.claude/settings.json` excludes this directory from Claude Code's
+auto-discovery to preserve context budget during normal dev sessions.
+
+When editing a spec or debugging a failing test, explicitly read the file in
+the session prompt's Phase 0 — for example:
+`cat cfos-office/tests/onboarding/runner/playwright-driver.ts`
+
+Deny rules only suppress auto-globbing; explicit reads still work.

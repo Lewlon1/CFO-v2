@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { StatCardBlock } from '@/components/chat/StatCardBlock'
 import { CfoThinking } from '@/components/brand/CfoThinking'
@@ -19,15 +18,13 @@ interface InsightBeatProps {
   loading?: boolean
   onRate?: (rating: number) => void
   onAcceptExperiment?: (experiment: Experiment) => void
+  // Fallback/continue CTA — always wired so the flow can advance even when
+  // no experiment is surfaced. When an experiment exists, renders as a
+  // secondary link under the experiment card; when none, renders as the
+  // primary action.
+  onContinue?: () => void
 }
 
-const EMOJI_SCALE = [
-  { emoji: '\uD83D\uDE12', label: 'Not close' },
-  { emoji: '\uD83D\uDE10', label: 'Meh' },
-  { emoji: '\uD83E\uDD14', label: 'Somewhat' },
-  { emoji: '\uD83D\uDE2E', label: 'Impressive' },
-  { emoji: '\uD83C\uDFAF', label: 'Spot on' },
-]
 
 // ── Skeleton (shown while engine + Claude are still computing) ───────────────
 
@@ -60,51 +57,18 @@ function InsightSkeleton() {
   )
 }
 
-// ── Emoji reaction scale ────────────────────────────────────────────────────
-
-function EmojiScale({ onRate }: { onRate?: (rating: number) => void }) {
-  const [selected, setSelected] = useState<number | null>(null)
-
-  const handleTap = (index: number) => {
-    if (selected !== null) return
-    setSelected(index)
-    onRate?.(index + 1)
-  }
-
-  return (
-    <div className="pt-2 space-y-1.5">
-      <p className="text-[11px] text-[var(--text-tertiary)] font-[var(--font-dm-sans)]">
-        Does it resonate?
-      </p>
-      <div className="flex gap-3">
-        {EMOJI_SCALE.map((item, i) => (
-          <button
-            key={i}
-            onClick={() => handleTap(i)}
-            aria-label={item.label}
-            className={`text-2xl min-h-[44px] min-w-[44px] flex items-center justify-center
-              rounded-xl transition-all duration-300
-              ${selected === null
-                ? 'hover:scale-125 hover:bg-[var(--bg-elevated)] active:scale-95'
-                : selected === i
-                  ? 'scale-125'
-                  : 'opacity-0 scale-75'
-              }`}
-          >
-            {item.emoji}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function InsightBeat({ insight, loading, onRate, onAcceptExperiment }: InsightBeatProps) {
+export function InsightBeat({
+  insight,
+  loading,
+  onAcceptExperiment,
+  onContinue,
+}: InsightBeatProps) {
   if (loading || !insight) return <InsightSkeleton />
 
   const { narrative, statCards, experiment } = insight
+  const hasExperiment = Boolean(experiment && onAcceptExperiment)
 
   return (
     <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.4s_ease-out] space-y-3 max-w-[min(calc(100%-40px),420px)]">
@@ -138,7 +102,28 @@ export function InsightBeat({ insight, loading, onRate, onAcceptExperiment }: In
         <ExperimentCard experiment={experiment} onAccept={onAcceptExperiment} />
       )}
 
-      <EmojiScale onRate={onRate} />
+      {onContinue && (
+        hasExperiment ? (
+          <button
+            onClick={onContinue}
+            className="w-full min-h-[44px] text-sm text-[var(--text-tertiary)]
+                       hover:text-[var(--text-secondary)] transition-colors
+                       font-[var(--font-dm-sans)] pt-1"
+          >
+            Not right now — show me around
+          </button>
+        ) : (
+          <button
+            onClick={onContinue}
+            className="w-full min-h-[44px] rounded-xl bg-[var(--accent-gold)]
+                       text-[var(--bg-base)] text-sm font-semibold
+                       transition-all duration-200
+                       hover:brightness-110 active:scale-[0.98]"
+          >
+            Let&apos;s keep going
+          </button>
+        )
+      )}
     </div>
   )
 }

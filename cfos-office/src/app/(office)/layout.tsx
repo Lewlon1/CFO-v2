@@ -1,6 +1,12 @@
 import { redirect } from 'next/navigation'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
+
+// Layout reads per-user profile from Supabase (onboarding state, currency,
+// display name) — must re-render on every request, never cache at the route
+// level. Without this, stale onboarding progress survives PATCHes to
+// /api/onboarding/progress.
+export const dynamic = 'force-dynamic'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { ChatProvider } from '@/components/chat/ChatProvider'
 import { ChatBar } from '@/components/chat/ChatBar'
