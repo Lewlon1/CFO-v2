@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Onboarding test suite artifacts
 tests/onboarding/test-output/
+
+# Parser diagnostic fixtures — contain real statement PII
+tests/fixtures/

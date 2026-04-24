@@ -10,7 +10,8 @@
     "seed:test-user": "npx tsx scripts/seed-test-user.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:onboarding": "tsx tests/onboarding/runner/cli.ts"
+    "test:onboarding": "tsx tests/onboarding/runner/cli.ts",
+    "parse:diagnose": "tsx scripts/parse-diagnose.ts"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^4.0.89",
