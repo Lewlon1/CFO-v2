@@ -15,7 +15,6 @@ import { detectHoldingsMapping } from '@/lib/parsers/holdings-detector'
 import { parseHoldingsCSV } from '@/lib/parsers/holdings-csv'
 import { parseBalanceSheetScreenshot } from '@/lib/parsers/balance-sheet-screenshot'
 import { parseBalanceSheetPDF } from '@/lib/parsers/balance-sheet-pdf'
-import { parsePdfTransactions } from '@/lib/parsers/pdf-transactions'
 import { runBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import type { ConfirmedBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import Papa from 'papaparse'
@@ -136,6 +135,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result.summary })
     }
 
+    // Client-parsed transactions → preview.
+    // This is the universal-parser hot path: the browser parses the
+    // file locally (universal-csv / universal-pdf / ofx / qif) and POSTs
+    // only the ParsedTransaction[] here. The raw file never touches
+    // the server on this branch.
+    if (body.action === 'preview') {
+      const incoming = body.transactions
+      if (!Array.isArray(incoming) || incoming.length === 0) {
+        return NextResponse.json({ error: 'No transactions provided.' }, { status: 400 })
+      }
+      const transactions = incoming as ParsedTransaction[]
+      const preview = await buildPreview(transactions, user.id, supabase)
+      return NextResponse.json({ preview, importBatchId: randomUUID() })
+    }
+
     // Apply column mapping → return preview
     if (body.action === 'apply-mapping') {
       const result = applyColumnMapping(
@@ -213,16 +227,12 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  if (isPdf) {
-    const buffer = await file.arrayBuffer()
-    const result = await parsePdfTransactions(buffer, user.id)
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 422 })
-    }
-    const clientBatchId = formData.get('batchId') as string | null
-    const preview = await buildPreview(result.transactions, user.id, supabase)
-    return NextResponse.json({ preview, importBatchId: clientBatchId ?? randomUUID() })
-  }
+  // Transaction PDFs no longer have a server-side branch — the universal
+  // PDF parser handles them client-side (text extraction first, then a
+  // Haiku-vision fallback via /api/extract-pdf-transactions). The wizard
+  // POSTs the parsed transactions back through the JSON `action: 'preview'`
+  // path above. Balance-sheet PDFs still go through the server because
+  // their schema extraction is unrelated to the universal parser.
 
   // ── Balance sheet screenshot branch ──
   if (isImage && isBalanceSheetContext) {

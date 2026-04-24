@@ -76,6 +76,9 @@ export function parseSantanderXLSX(buffer: ArrayBuffer): ParseResult {
     transactions.push({
       date,
       description,
+      // CFO convention: debits negative, credits positive.
+      // Santander's Importe column is pre-signed in the source export
+      // (Spanish decimals — handled above in parseSantanderAmount).
       amount,
       currency: 'EUR', // Santander ES is EUR
       source: 'csv_santander',

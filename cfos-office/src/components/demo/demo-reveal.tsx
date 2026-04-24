@@ -160,8 +160,15 @@ export function DemoReveal({ reading, personality, userName, country, results, f
   // Show full reading on the card — overflow-hidden clips anything past the bottom
   const cardExcerpt = reading
 
-  // Track reading generated
+  // Track reading generated. Guard against the effect re-firing when
+  // `fallback` or `personality.type` flip post-mount — the funnel event must
+  // fire exactly once per reveal. trackEvent is now a stable reference (see
+  // use-track-event.ts) so listing it here would no longer re-trigger, but
+  // the ref guard removes the assumption entirely.
+  const readingShownRef = useRef(false)
   useEffect(() => {
+    if (readingShownRef.current) return
+    readingShownRef.current = true
     demoAnalytics(fallback ? 'demo_reading_fallback' : 'demo_reading_generated')
     trackEvent('value_map_reading_shown', { archetype: personality.type })
   }, [fallback, trackEvent, personality.type])

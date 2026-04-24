@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CfoAvatar } from '@/components/chat/cfo-avatar'
@@ -70,6 +70,10 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
   const trackEvent = useTrackEvent()
   const selectedCountry = DEMO_COUNTRIES.find((c) => c.code === country)
 
+  // Funnel events must fire exactly once per session even if the exercise
+  // handler gets invoked more than once (e.g. animation-driven re-entry).
+  const completionTrackedRef = useRef(false)
+
   // ── Welcome → Explainer ───────────────────────────────────────────────────
 
   const handleStart = useCallback(() => {
@@ -90,8 +94,11 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
   const handleExerciseComplete = useCallback(async (exerciseResults: ValueMapResult[], elapsedSeconds: number) => {
     setResults(exerciseResults)
     setStep('loading')
-    demoAnalytics('demo_finished', { elapsed_seconds: Math.round(elapsedSeconds), cards: exerciseResults.length })
-    trackEvent('value_map_completed', { mode: 'demo', card_count: exerciseResults.length })
+    if (!completionTrackedRef.current) {
+      completionTrackedRef.current = true
+      demoAnalytics('demo_finished', { elapsed_seconds: Math.round(elapsedSeconds), cards: exerciseResults.length })
+      trackEvent('value_map_completed', { mode: 'demo', card_count: exerciseResults.length })
+    }
 
     // Save session to DB first (fast insert), then fetch reading with session_id
     let savedSessionId: string | null = null

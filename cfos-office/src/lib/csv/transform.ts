@@ -27,7 +27,7 @@ export function transformRow(
 
   const date = parseDate(rawDate)
   const rawNum = parseAmount(rawAmount)
-  const amount = applySign(rawNum, rawType)
+  const amount = applySign(rawNum, rawType, rawAmount)
 
   let parseError: string | undefined
   if (!date) parseError = `Could not parse date: "${rawDate}"`
@@ -81,17 +81,41 @@ function parseAmount(raw: string): number {
   return parseFloat(cleaned)
 }
 
-function applySign(amount: number, rawType: string): number {
+function applySign(amount: number, rawType: string, rawAmount: string): number {
   if (isNaN(amount)) return NaN
   const lower = rawType.toLowerCase()
+  // Widened keyword set — previous version missed common English variants
+  // (withdrawal, outgoing, purchase, deposit, received, sent) which made a
+  // populated Type column functionally useless and let debits persist as
+  // positive magnitudes downstream.
   const isIncome =
     lower.includes('ingreso') || lower.includes('income') ||
     lower.includes('credit') || lower.includes('abono') ||
-    lower.includes('salary') || lower.includes('salario')
+    lower.includes('salary') || lower.includes('salario') ||
+    lower.includes('deposit') || lower.includes('incoming') ||
+    lower.includes('received') || lower.includes('refund') ||
+    lower.includes('money in')
   const isExpense =
     lower.includes('gasto') || lower.includes('expense') ||
-    lower.includes('debit') || lower.includes('cargo') || lower.includes('pago')
+    lower.includes('debit') || lower.includes('cargo') || lower.includes('pago') ||
+    lower.includes('withdrawal') || lower.includes('outgoing') ||
+    lower.includes('purchase') || lower.includes('payment') ||
+    lower.includes('sent') || lower.includes('money out')
+  // CFO convention: debits negative, credits positive.
   if (isIncome) return Math.abs(amount)
   if (isExpense) return -Math.abs(amount)
+  // No type hint matched. If the source amount string itself carries an
+  // explicit sign (leading '-' or parenthesised accounting notation like
+  // "(42.00)"), honour it. parseFloat preserves a leading '-' but strips
+  // parentheses, so detect parens separately on the raw string.
+  const trimmed = rawAmount.trim()
+  const parenNegative = /^\(.*\)$/.test(trimmed)
+  if (parenNegative) return -Math.abs(amount)
+  // Explicit leading '-' or '+' already flows through parseFloat into
+  // `amount`. When neither a type nor a signed amount is available we have
+  // no way to infer direction — return as-is and rely on the caller (or a
+  // downstream reviewer) to flag the file. CFO convention can't be enforced
+  // without at least one of: signed amount column, type column, or split
+  // debit/credit columns.
   return amount
 }

@@ -8,6 +8,7 @@ import { TransactionPreview } from './TransactionPreview'
 import { HoldingsPreview } from './HoldingsPreview'
 import { ImportResult } from './ImportResult'
 import type { PreviewTransaction, Category, ParsedHolding } from '@/lib/parsers/types'
+import { parseFileOnClient, fileTypeFromName } from '@/lib/parsers/format-detect-client'
 import type {
   ConfirmedBalanceSheetImport,
   BalanceSheetSource,
@@ -208,12 +209,61 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
     const fileType = ext ?? 'unknown'
     trackEvent('upload_started', { file_type: fileType })
     setState({ step: 'uploading' })
+
+    // Universal parser path — CSV / PDF / OFX / QIF parse in the
+    // browser and only the parsed transactions are POSTed. The raw
+    // file never leaves the client. Balance-sheet uploads and
+    // holdings, images, and XLSX still take the FormData path.
+    const detectedType = fileTypeFromName(file.name)
+    const canParseClientSide =
+      context === 'transactions' &&
+      (detectedType === 'csv' || detectedType === 'pdf' || detectedType === 'ofx' || detectedType === 'qif')
+
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('upload_context', context)
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      const data = await res.json()
+      let res: Response
+      // The upload route returns several variant shapes (preview,
+      // holdings, balance-sheet, mapping, error). Existing code below
+      // narrows via `data.type` / `data.needsColumnMapping` checks, so
+      // we keep the handler loosely typed to match the original flow.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: any
+
+      if (canParseClientSide) {
+        const outcome = await parseFileOnClient(file)
+        if (outcome.kind === 'error') {
+          trackEvent('upload_failed', { file_type: fileType, error: outcome.error })
+          recordResult({ fileName: file.name, ok: false, kind: 'error', error: outcome.error })
+          if (totalFilesRef.current > 1) await advanceOrFinish()
+          else setState({ step: 'error', message: outcome.error })
+          return
+        }
+        if (outcome.kind === 'holdings_hint' || outcome.kind === 'server_fallback') {
+          // Fall through to the existing server-side FormData path.
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('upload_context', context)
+          res = await fetch('/api/upload', { method: 'POST', body: formData })
+          data = await res.json()
+        } else {
+          // outcome.kind === 'transactions'
+          res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'preview',
+              transactions: outcome.transactions,
+              fileName: file.name,
+            }),
+          })
+          data = await res.json()
+        }
+      } else {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('upload_context', context)
+        res = await fetch('/api/upload', { method: 'POST', body: formData })
+        data = await res.json()
+      }
 
       if (!res.ok) {
         trackEvent('upload_failed', { file_type: fileType, error: data.error ?? 'Upload failed' })
