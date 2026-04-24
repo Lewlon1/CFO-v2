@@ -205,6 +205,21 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
     ) {
       return
     }
+    // Nothing actually imported — every file in the batch failed. Skip the
+    // insight round-trip and render a grounded fallback so Claude cannot
+    // narrate over an empty or partial dataset.
+    if ((state.data.transactionCount ?? 0) === 0) {
+      insightRequested.current = true
+      setData({
+        insightData: {
+          narrative:
+            "I couldn't read any transactions from what you uploaded. Once a statement lands I'll have something concrete to say.",
+          statCards: [],
+          suggestedResponses: [],
+        },
+      })
+      return
+    }
     insightRequested.current = true
     setInsightLoading(true)
 
@@ -239,7 +254,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
     run()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.data.importBatchId, uploadInFlight])
+  }, [state.data.importBatchId, state.data.transactionCount, uploadInFlight])
 
   // ── Action handlers ─────────────────────────────────────────────────────
 

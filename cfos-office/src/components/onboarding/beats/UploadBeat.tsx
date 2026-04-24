@@ -31,28 +31,24 @@ export function UploadBeat({ onComplete, onSkip, onBackgroundDone, hidden }: Upl
   }, [])
 
   // Fires per-file after the server commits that file's transactions.
-  // We advance the beat on the FIRST successful import so the user can move
-  // on while remaining files keep processing. Parent keeps this component
-  // mounted (hidden) until onBackgroundDone fires.
+  // We accumulate the counts but do NOT advance the onboarding beat here —
+  // we wait for the full batch so the user sees the wizard's BatchSummary
+  // (including any per-file failures) before moving on. Previously we
+  // advanced on first success and hid the wizard in the background, which
+  // buried failure messages and let the insight engine narrate over a
+  // partial dataset.
   const handleImported = useCallback((importBatchId?: string, count?: number) => {
     totalImportedRef.current += count ?? 0
     if (importBatchId) lastBatchIdRef.current = importBatchId
+  }, [])
 
-    if (!advancedRef.current && lastBatchIdRef.current) {
-      advancedRef.current = true
-      onComplete(lastBatchIdRef.current, totalImportedRef.current)
-    }
-  }, [onComplete])
-
-  // Wizard finished the whole queue. If we never advanced (e.g. every file
-  // failed to import) fall back to the original behaviour so the modal is
-  // never stuck. Otherwise, signal the parent that the hidden wizard can go.
+  // Wizard finished the whole queue (or the user acknowledged the batch
+  // summary). Advance the onboarding beat now, passing the final imported
+  // count so the modal can skip insight generation when nothing landed.
   const handleDone = useCallback(() => {
-    if (!advancedRef.current) {
-      advancedRef.current = true
-      onComplete(lastBatchIdRef.current, totalImportedRef.current)
-      return
-    }
+    if (advancedRef.current) return
+    advancedRef.current = true
+    onComplete(lastBatchIdRef.current, totalImportedRef.current)
     onBackgroundDone?.(totalImportedRef.current)
   }, [onComplete, onBackgroundDone])
 

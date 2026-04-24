@@ -64,7 +64,8 @@ export async function parseUniversalPDF(
   if (!Array.isArray(data.transactions) || data.transactions.length === 0) {
     return {
       ok: false,
-      error: 'Vision extraction returned no transactions',
+      error:
+        "Couldn't read transactions from this PDF. Many bank statements aren't machine-readable — try exporting the same statement as CSV or XLSX from your bank's website.",
       warnings: data.warnings,
     }
   }

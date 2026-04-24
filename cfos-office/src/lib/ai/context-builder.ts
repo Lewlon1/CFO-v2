@@ -177,7 +177,9 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   lines.push('The following patterns were computed deterministically. You MUST narrate ONLY these patterns.');
   lines.push('');
   lines.push('STRICT RULES:');
-  lines.push('- Every number you cite must appear in the data below. No estimating.');
+  lines.push('- Every number you cite must appear verbatim in the QUOTABLE FACTS list below. No estimating.');
+  lines.push('- Do NOT compute ratios, averages, multipliers, time spans, daily rates, or per-month figures yourself — if a derived figure is not listed in QUOTABLE FACTS, do not cite it. Rephrase qualitatively instead ("sharp spike", "a meaningful chunk") without inventing the number.');
+  lines.push('- Do NOT extrapolate (e.g. "across four months" unless the months of data count shown is exactly four). Stick to what the data shows.');
   lines.push("- You do NOT know the user's income, savings rate, or surplus. Do not mention these concepts.");
   lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
   lines.push('- You do NOT know whether their spending is "sustainable" or "affordable" — that requires income.');
