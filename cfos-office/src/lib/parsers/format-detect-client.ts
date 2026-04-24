@@ -3,26 +3,29 @@
 // Flow for a single file the user just selected:
 //
 //   1. Identify file type from extension.
-//   2. CSV only: short-circuit if the CSV looks like a holdings export
-//      (Vanguard etc.) — return a HoldingsHint so the caller can
-//      FormData-POST it to the existing holdings pipeline.
-//   3. For CSV/PDF: read a sample, compute a header hash, POST to
-//      /api/detect-format to get (or create+cache) a FormatTemplate.
-//   4. Parse the full file client-side using the template. The raw
-//      file never leaves the browser.
-//   5. For OFX/QIF: no detection needed — structured formats parse
-//      directly client-side.
+//   2. CSV / XLSX: short-circuit if it looks like a holdings export
+//      (Vanguard etc.) and hand back to the server-side holdings
+//      pipeline. XLSX is flattened in-browser to CSV text first.
+//   3. CSV / XLSX: compute a header hash + sample, POST to
+//      /api/detect-format for a cached FormatTemplate, then parse the
+//      full text client-side via parseUniversalCSV.
+//   4. PDF: render pages to PNG in-browser, POST to
+//      /api/extract-pdf-transactions for Haiku vision extraction.
+//      PDF pages DO leave the browser — different privacy posture than
+//      CSV, but unavoidable for image extraction.
+//   5. OFX / QIF: deterministic parse, no detection needed.
 //
-// Output is a ParsedTransaction[] that the caller hands to
-// /api/upload with { action: 'preview', transactions }.
+// Output is a ParsedTransaction[] the caller POSTs to /api/upload
+// with { action: 'preview', transactions }.
 
 import Papa from 'papaparse'
 import { computeHeaderHash, extractCsvSample } from './fingerprint'
 import { detectHoldingsMapping } from './holdings-detector'
 import { parseOFX } from './ofx'
 import { parseQIF } from './qif'
-import { parseUniversalCSV } from './universal-csv'
-import { extractPdfSample, parseUniversalPDF } from './universal-pdf'
+import { parseUniversalCSV, repairTemplate } from './universal-csv'
+import { parseUniversalPDF } from './universal-pdf'
+import { xlsxBufferToCSV } from './xlsx-to-csv'
 import type {
   FileType,
   FormatTemplate,
@@ -31,9 +34,14 @@ import type {
 } from './types'
 
 export type ClientParseOutcome =
-  | { kind: 'transactions'; transactions: ParsedTransaction[]; template?: FormatTemplate; warnings: string[] }
+  | {
+      kind: 'transactions'
+      transactions: ParsedTransaction[]
+      template?: FormatTemplate
+      warnings: string[]
+    }
   | { kind: 'holdings_hint' } // caller should FormData-POST the file as before
-  | { kind: 'server_fallback'; reason: string } // e.g. XLSX/image — use server path
+  | { kind: 'server_fallback'; reason: string } // images only (screenshots)
   | { kind: 'error'; error: string }
 
 export function fileTypeFromName(filename: string): FileType | 'unsupported' {
@@ -53,9 +61,9 @@ export async function parseFileOnClient(file: File): Promise<ClientParseOutcome>
     return { kind: 'error', error: `Unsupported file type: ${file.name}` }
   }
 
-  // XLSX and images stay on the server path — out of universal-parser scope.
-  if (fileType === 'xlsx' || fileType === 'image') {
-    return { kind: 'server_fallback', reason: fileType }
+  // Images still go through the server screenshot path.
+  if (fileType === 'image') {
+    return { kind: 'server_fallback', reason: 'image' }
   }
 
   try {
@@ -75,36 +83,31 @@ export async function parseFileOnClient(file: File): Promise<ClientParseOutcome>
 
     if (fileType === 'csv') {
       const text = await file.text()
+      return handleTabular(text, file.name, 'csv')
+    }
 
-      // Inspect headers once. If it's a holdings CSV, hand back to the
-      // existing server-side holdings pipeline so that path is
-      // unchanged. detectHoldingsMapping is already strict about
-      // rejecting transaction-shaped files, so this doesn't steal
-      // normal uploads.
-      const preview = Papa.parse<Record<string, string>>(text, { header: true, preview: 1 })
-      const headers = preview.meta.fields ?? []
-      if (headers.length > 0 && detectHoldingsMapping(headers)) {
-        return { kind: 'holdings_hint' }
+    if (fileType === 'xlsx') {
+      // Flatten the workbook to CSV text with header-row detection so
+      // bank exports with metadata prefix rows (Santander, BBVA) land
+      // in the same template path as regular CSV uploads.
+      const buf = await file.arrayBuffer()
+      let csv: string
+      try {
+        csv = xlsxBufferToCSV(buf)
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
+        return { kind: 'error', error: `Could not read XLSX: ${detail}` }
       }
-      if (headers.length === 0) {
-        return { kind: 'error', error: 'CSV has no headers.' }
+      if (!csv || csv.trim().length === 0) {
+        return { kind: 'error', error: 'XLSX first sheet is empty' }
       }
-
-      const headerHash = await computeHeaderHash(headers)
-      const sample = extractCsvSample(text, 5)
-      const template = await fetchTemplate({ fileType: 'csv', headerHash, sample, filename: file.name })
-      const result = parseUniversalCSV(text, template)
-      return outcomeFromResult(result)
+      return handleTabular(csv, file.name, 'xlsx')
     }
 
     if (fileType === 'pdf') {
-      const sample = await extractPdfSample(file)
-      // PDFs don't have a stable column-header row; hash the first
-      // page's normalised text as a stable proxy for "this bank's PDF
-      // layout" so repeat uploads hit the cache.
-      const headerHash = await computeHeaderHash(sample.split(/\s+/).slice(0, 30))
-      const template = await fetchTemplate({ fileType: 'pdf', headerHash, sample, filename: file.name })
-      const result = await parseUniversalPDF(file, template)
+      // Currency default is best-effort here; the vision endpoint
+      // prefers whatever `accountCurrency` it reads from the statement.
+      const result = await parseUniversalPDF(file, 'GBP')
       return outcomeFromResult(result)
     }
 
@@ -113,6 +116,43 @@ export async function parseFileOnClient(file: File): Promise<ClientParseOutcome>
     const message = err instanceof Error ? err.message : String(err)
     return { kind: 'error', error: message }
   }
+}
+
+// Shared CSV/XLSX handling. Input is CSV text either read directly
+// (.csv) or flattened from a workbook (.xlsx → sheet_to_csv).
+async function handleTabular(
+  text: string,
+  filename: string,
+  fileType: 'csv' | 'xlsx',
+): Promise<ClientParseOutcome> {
+  const preview = Papa.parse<Record<string, string>>(text, { header: true, preview: 1 })
+  const headers = preview.meta.fields ?? []
+
+  // Holdings shortcut — strict detector, won't swallow transaction files.
+  if (headers.length > 0 && detectHoldingsMapping(headers)) {
+    return { kind: 'holdings_hint' }
+  }
+  if (headers.length === 0) {
+    return { kind: 'error', error: 'No headers detected in file' }
+  }
+
+  const headerHash = await computeHeaderHash(headers)
+  const sample = extractCsvSample(text, 5)
+  // XLSX files go through the CSV template on the server (they're just
+  // tabular data once flattened). The template cache is still keyed on
+  // header hash so repeat uploads of the same sheet layout are free.
+  const rawTemplate = await fetchTemplate({
+    fileType: 'csv',
+    headerHash,
+    sample,
+    filename,
+  })
+  // Haiku sometimes picks a narrative column (e.g. BBVA's "Movement")
+  // as amountCol. repairTemplate cross-checks against the data rows
+  // and swaps in the first numeric column if needed.
+  const template = repairTemplate(text, rawTemplate)
+  const result = parseUniversalCSV(text, template)
+  return outcomeFromResult(result)
 }
 
 async function fetchTemplate(input: {

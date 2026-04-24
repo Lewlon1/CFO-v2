@@ -2,14 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Any Bedrock calls for categorisation use the EU inference profile.
 import { createClient } from '@/lib/supabase/server'
-import { detectFormat } from '@/lib/parsers'
-import { parseRevolutCSV } from '@/lib/parsers/revolut'
-import { parseSantanderXLSX } from '@/lib/parsers/santander'
-import { parseMonzoCSV } from '@/lib/parsers/monzo'
-import { parseStarlingCSV } from '@/lib/parsers/starling'
-import { parseHsbcCSV } from '@/lib/parsers/hsbc'
-import { parseBarclaysCSV } from '@/lib/parsers/barclays'
-import { parseGenericCSV, applyColumnMapping } from '@/lib/parsers/generic'
 import { parseScreenshot } from '@/lib/parsers/screenshot'
 import { detectHoldingsMapping } from '@/lib/parsers/holdings-detector'
 import { parseHoldingsCSV } from '@/lib/parsers/holdings-csv'
@@ -150,18 +142,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ preview, importBatchId: randomUUID() })
     }
 
-    // Apply column mapping → return preview
-    if (body.action === 'apply-mapping') {
-      const result = applyColumnMapping(
-        body.rawRows as Record<string, string>[],
-        body.mapping as Record<string, string>,
-        body.currency ?? 'EUR'
-      )
-      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
-      const preview = await buildPreview(result.transactions, user.id, supabase)
-      return NextResponse.json({ preview, importBatchId: randomUUID() })
-    }
-
+    // Legacy 'apply-mapping' action removed: the manual column-mapping
+    // UI it powered is no longer reached — format-detect-client +
+    // repairTemplate now handle column disambiguation automatically.
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }
 
@@ -252,82 +235,73 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  let parseResult: Awaited<ReturnType<typeof parseRevolutCSV>> | null = null
-  let needsColumnMapping = false
-  let columnMappingData: {
-    headers: string[]
-    autoMapping: Record<string, string>
-    rawRows: Record<string, string>[]
-  } | null = null
+  let parseResult: ParseResult | null = null
 
   if (isImage) {
+    // Transaction screenshots (bank-app receipts etc) still go through
+    // the server-side vision parser. Balance-sheet screenshots were
+    // handled higher up.
     const buffer = await file.arrayBuffer()
     const base64 = Buffer.from(buffer).toString('base64')
     const mimeType = file.type || 'image/jpeg'
     const dataUrl = `data:${mimeType};base64,${base64}`
     parseResult = await parseScreenshot(dataUrl, user.id)
-  } else if (isXlsx) {
-    const buffer = await file.arrayBuffer()
-    parseResult = parseSantanderXLSX(buffer)
-  } else {
-    const text = await file.text()
-
-    // Try holdings detection BEFORE transaction detection so a Vanguard
-    // export doesn't get mis-routed into the generic transaction parser.
-    const headerSniff = Papa.parse<Record<string, string>>(text, {
-      header: true,
-      preview: 1,
-    })
-    const headers = headerSniff.meta.fields ?? []
-    const holdingsMapping = detectHoldingsMapping(headers)
-
-    if (holdingsMapping) {
-      const holdingsResult = parseHoldingsCSV(text, holdingsMapping, filename)
-      if (holdingsResult.ok) {
-        return NextResponse.json({
-          type: 'holdings',
-          holdings: holdingsResult.holdings,
-          suggestedAssetName: holdingsResult.suggestedAssetName,
-          suggestedProvider: holdingsResult.suggestedProvider,
-        })
-      }
-      // If holdings detection matched but parsing failed, fall back to an
-      // error rather than silently trying to parse as transactions — the
-      // column shape told us it wasn't a transaction file.
-      return NextResponse.json({ error: holdingsResult.error }, { status: 422 })
-    }
-
-    const format = detectFormat(filename, text)
-    if (format === 'revolut') {
-      parseResult = parseRevolutCSV(text)
-    } else if (format === 'monzo') {
-      parseResult = parseMonzoCSV(text)
-    } else if (format === 'starling') {
-      parseResult = parseStarlingCSV(text)
-    } else if (format === 'hsbc') {
-      parseResult = parseHsbcCSV(text)
-    } else if (format === 'barclays') {
-      parseResult = parseBarclaysCSV(text)
-    } else {
-      const genericResult = parseGenericCSV(text)
-      if ('needsMapping' in genericResult && genericResult.needsMapping) {
-        needsColumnMapping = true
-        columnMappingData = {
-          headers: genericResult.headers,
-          autoMapping: genericResult.autoMapping,
-          rawRows: genericResult.rawRows,
+  } else if (isXlsx || !isPdf) {
+    // CSV / XLSX raw-file uploads no longer have a server branch — the
+    // client uploader parses them via format-detect-client.ts (xlsx
+    // flattened to CSV, Haiku template detection, parseUniversalCSV)
+    // and POSTs the parsed transactions back through JSON
+    // `action: 'preview'` above. A raw multipart CSV/XLSX upload here
+    // implies an out-of-date client; surface loudly rather than fail
+    // silently on per-bank heuristics.
+    //
+    // Holdings CSVs are the one exception: the client short-circuits
+    // holdings detection and POSTs the raw file. Preserve that path.
+    if (!isXlsx) {
+      const text = await file.text()
+      const headerSniff = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        preview: 1,
+      })
+      const headers = headerSniff.meta.fields ?? []
+      const holdingsMapping = detectHoldingsMapping(headers)
+      if (holdingsMapping) {
+        const holdingsResult = parseHoldingsCSV(text, holdingsMapping, filename)
+        if (holdingsResult.ok) {
+          return NextResponse.json({
+            type: 'holdings',
+            holdings: holdingsResult.holdings,
+            suggestedAssetName: holdingsResult.suggestedAssetName,
+            suggestedProvider: holdingsResult.suggestedProvider,
+          })
         }
-      } else {
-        parseResult = genericResult as ParseResult
+        return NextResponse.json({ error: holdingsResult.error }, { status: 422 })
       }
     }
-  }
 
-  if (needsColumnMapping && columnMappingData) {
-    return NextResponse.json({
-      needsColumnMapping: true,
-      ...columnMappingData,
-    })
+    sendAlert({
+      severity: 'warning',
+      event: 'legacy_multipart_upload',
+      user_id: user.id,
+      details: `Raw multipart CSV/XLSX upload hit /api/upload for "${filename}" — client should parse client-side via the universal pipeline.`,
+      metadata: { filename, fileSize: file.size, isXlsx },
+    }).catch(() => {})
+    return NextResponse.json(
+      {
+        error:
+          'Raw CSV/XLSX uploads are no longer handled server-side. Reload the page and upload again — the uploader parses statements client-side.',
+      },
+      { status: 422 },
+    )
+  } else {
+    // PDF transaction uploads come in via the JSON preview path — the
+    // client renders pages and calls /api/extract-pdf-transactions
+    // directly. Raw multipart PDFs here are unexpected (balance-sheet
+    // PDFs were handled higher up).
+    return NextResponse.json(
+      { error: 'Raw PDF uploads are no longer handled server-side. Use the in-browser uploader.' },
+      { status: 422 },
+    )
   }
 
   if (!parseResult) {

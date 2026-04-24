@@ -1,13 +1,10 @@
+// Source tag on every ParsedTransaction. The universal refactor
+// collapses the per-bank variants into `csv_universal`; old DB rows
+// still carry the deleted tags (e.g. `csv_revolut`) — downstream
+// consumers must tolerate unknown strings (ImportHistory already
+// uses Record<string,string>).
 export type ParsedTransactionSource =
-  | 'csv_revolut'
-  | 'csv_santander'
-  | 'csv_monzo'
-  | 'csv_starling'
-  | 'csv_hsbc'
-  | 'csv_barclays'
-  | 'csv_generic'
   | 'csv_universal'
-  | 'pdf_text'
   | 'pdf_vision'
   | 'ofx'
   | 'qif'
@@ -86,6 +83,14 @@ export type NormalisedTransaction = ParsedTransaction
 
 // Universal parser result — extends ParseResult with warnings and
 // a skippedRows counter so the UI can surface partial failures.
+export type StatementMetadata = {
+  openingBalance: number | null
+  closingBalance: number | null
+  statementPeriodStart: string | null  // ISO date
+  statementPeriodEnd: string | null    // ISO date
+  accountCurrency: string | null       // ISO 4217
+}
+
 export type UniversalParseResult =
   | {
       ok: true
@@ -93,6 +98,10 @@ export type UniversalParseResult =
       template: FormatTemplate
       skippedRows: number
       warnings: string[]
+      // Only populated by the PDF vision path today. CSV/XLSX may
+      // surface this in future if the detect-format prompt is extended
+      // to extract period + balances from header rows.
+      statementMetadata?: StatementMetadata | null
     }
   | { ok: false; error: string; warnings?: string[] }
 

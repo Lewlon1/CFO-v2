@@ -95,6 +95,78 @@ export function parseUniversalCSV(
   return { ok: true, transactions, template, skippedRows, warnings }
 }
 
+// ── template repair ────────────────────────────────────────────────
+// Haiku sometimes picks a non-numeric column for amount (e.g. BBVA's
+// "Movement" column which is narrative text, not values). Before we
+// commit to parseUniversalCSV, verify the chosen amount column
+// actually contains numbers in the first rows. If it doesn't, swap in
+// the first column that does.
+
+// Stricter numeric check than parseAmount: rejects date-like values
+// ("22/04/2026" would clean to a valid number otherwise), requires a
+// decimal fraction OR a leading sign OR digits only.
+const MONEY_LIKE =
+  /^[\s€$£¥()+]*[-−]?[\s€$£¥()+]*(?:\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,4})?|\d+(?:[.,]\d{1,4})?)[\s€$£¥()+]*$/
+
+function columnIsNumeric(
+  rows: Record<string, string>[],
+  col: string,
+  format: DecimalFormat,
+  minFraction = 0.6,
+): boolean {
+  const sample = rows.slice(0, 10).map((r) => (r[col] ?? '').trim()).filter((v) => v !== '')
+  if (sample.length === 0) return false
+  const numericLike = sample.filter((v) => {
+    if (v.includes('/')) return false // dates
+    if (!MONEY_LIKE.test(v)) return false
+    return parseAmount(v, format) !== null
+  }).length
+  return numericLike / sample.length >= minFraction
+}
+
+export function repairTemplate(
+  text: string,
+  template: FormatTemplate,
+): FormatTemplate {
+  // Only repairs the signed_single_column path for now — it's the bug
+  // source for XLSX exports with narrative-named columns.
+  if (template.signConvention !== 'signed_single_column') return template
+  const cols = template.columnMapping
+  if (!cols.amount) return template
+
+  const parsed = Papa.parse<Record<string, string>>(text, {
+    header: true,
+    skipEmptyLines: true,
+    preview: 10,
+    transformHeader: (h) => h.trim(),
+  })
+  if (!parsed.data || parsed.data.length === 0) return template
+
+  if (columnIsNumeric(parsed.data, cols.amount, template.decimalFormat)) {
+    return template
+  }
+
+  // The chosen column isn't numeric. Scan headers and pick the first
+  // one whose values parse as amounts. Prefer headers whose name hints
+  // at money (contains "amount", "importe", "cantidad", "value") among
+  // the numeric candidates.
+  const allHeaders = parsed.meta.fields ?? []
+  const excluded = new Set<string | undefined>([
+    cols.date, cols.description, cols.balance, cols.currency,
+  ])
+  const numericCols = allHeaders.filter(
+    (h) => !excluded.has(h) && columnIsNumeric(parsed.data, h, template.decimalFormat),
+  )
+  if (numericCols.length === 0) return template
+
+  const moneyRegex = /amount|importe|cantidad|value|monto|valeur|betrag/i
+  const preferred = numericCols.find((h) => moneyRegex.test(h)) ?? numericCols[0]
+  return {
+    ...template,
+    columnMapping: { ...cols, amount: preferred },
+  }
+}
+
 // ── amount resolution ──────────────────────────────────────────────
 
 function resolveAmount(
@@ -146,8 +218,12 @@ export function parseAmount(raw: string, format: DecimalFormat): number | null {
   const trimmed = String(raw).trim()
   if (trimmed === '') return null
 
+  // Normalise Unicode minus variants to ASCII hyphen. Spanish bank
+  // XLSX exports use U+2212 (−), some PDFs use U+2013 (–) or U+2212.
+  const normalised = trimmed.replace(/[\u2212\u2013\u2014]/g, '-')
+
   // Remove currency symbols and whitespace. Keep digits, signs, dots, commas.
-  let cleaned = trimmed.replace(/[^\d.,\-+]/g, '')
+  let cleaned = normalised.replace(/[^\d.,\-+]/g, '')
   if (cleaned === '' || cleaned === '-' || cleaned === '+') return null
 
   if (format === 'comma') {

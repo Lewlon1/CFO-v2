@@ -37,7 +37,10 @@ import type {
 export const runtime = 'nodejs'
 
 const RequestSchema = z.object({
-  fileType: z.enum(['csv', 'pdf', 'ofx', 'qif']),
+  // PDFs no longer hit this endpoint — they go direct to
+  // /api/extract-pdf-transactions. XLSX is flattened to CSV client-side
+  // and funnels through the `csv` path.
+  fileType: z.enum(['csv', 'ofx', 'qif']),
   headerHash: z.string().regex(/^[0-9a-f]{64}$/, 'invalid sha256'),
   sample: z.string().min(1).max(20_000),
   filename: z.string().optional(),
@@ -63,28 +66,37 @@ const DetectionSchema = z.object({
   currencyDefault: z.string().min(3).max(3),
 })
 
-const DETECTION_PROMPT = `You are a CSV/PDF format analyser for a personal finance app. Your job is to identify the column structure of a bank statement export.
+const DETECTION_PROMPT = `You are a bank-statement CSV format analyser for a personal finance app. Identify the column structure from the provided sample rows.
 
 File type: {fileType}
-Sample (first few rows only):
+Sample (first few rows):
 ---
 {sample}
 ---
 
-Return a JSON object describing the format using the provided schema.
+Return a JSON object matching the provided schema.
 
-Guidance:
-- dateCol / descriptionCol: the exact column header names as they appear.
-- For CSVs with a single signed amount column, set amountCol and signConvention = "signed_single_column".
-- For CSVs with separate credit/debit columns (e.g. Monzo "Money In" / "Money Out"), set creditCol + debitCol and signConvention = "split_in_out". amountCol should be null.
-- For CSVs with a magnitude column plus a DR/CR-style flag column, set amountCol + typeFlagCol + typeFlagDebitValue + typeFlagCreditValue and signConvention = "type_flag".
-- balanceCol: the running-balance column (e.g. Balance, Saldo). Null if absent.
+Column mapping:
+- dateCol / descriptionCol: the EXACT column header names as they appear in the sample.
+- amountCol MUST contain NUMERIC values in the sample data rows (e.g. "25", "-1000", "−4,99"). If the column you pick has free-text like "TRANSFER RECEIVED" or "COMPRA BIZUM" in the sample rows, it is NOT the amount column. Cross-check against the data rows before returning.
+- Single signed amount column: set amountCol and signConvention = "signed_single_column".
+- Separate credit + debit columns (e.g. Monzo "Money In" / "Money Out"): set creditCol + debitCol, signConvention = "split_in_out", amountCol = null.
+- Magnitude column + DR/CR-style flag column: set amountCol + typeFlagCol + typeFlagDebitValue + typeFlagCreditValue, signConvention = "type_flag".
+- balanceCol: running-balance column (e.g. Balance, Saldo). Null if absent.
 - currencyCol: per-row currency column. Null if absent.
+
+When multiple columns could plausibly be the description (e.g. "Reason" + "Movement"), prefer the more informative one (longer text, narrates the transaction). If in doubt, concatenate them downstream — but return the one that reads more like a merchant / narrative as descriptionCol.
+
+Formatting:
 - dateFormat: "DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD", "ISO", or an explicit token like "DD-MM-YYYY".
 - decimalFormat: "dot" when numbers look like 1,234.56 (UK/US); "comma" when 1.234,56 (ES/DE/FR).
-- currencyDefault: ISO 4217 code for the statement currency (GBP, EUR, USD, etc.). Infer from the sample if possible.
-- If the file is a PDF with no clear column headers, infer the column structure from the text layout and set dateCol/descriptionCol/amountCol to the semantic field names you identify (e.g. "Date", "Description", "Amount").
-- If a value is genuinely not present, set it to null.`
+
+Currency (IMPORTANT):
+- currencyDefault is the PRIMARY account currency. It MUST be the currency of the statement-level balance or the account denomination — NOT the first currency that appears in a transaction row.
+- Revolut multi-currency caveat: Revolut CSVs expose transactions in any wallet currency (EUR, GBP, USD) via a "Currency" column. The account base (and therefore currencyDefault) is the currency of the majority of balance values, NOT a minority wallet that happens to appear first.
+- If the sample is genuinely ambiguous, prefer EUR or GBP based on locale cues (e.g. Spanish merchant names → EUR; UK sort codes / postcodes → GBP).
+
+If a value is genuinely not present, return null.`
 
 export async function POST(req: NextRequest) {
   // Auth — we don't care which user, but anonymous calls are rejected.
