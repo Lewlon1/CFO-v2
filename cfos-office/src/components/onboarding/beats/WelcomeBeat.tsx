@@ -5,14 +5,12 @@ import {
   buildWelcomeCopy,
   formatMonthsPhrase,
   WELCOME_CHIPS,
-  type WelcomeChip,
 } from '@/lib/onboarding/welcome-copy'
 import type { ArchetypeData } from '@/lib/onboarding/types'
 
 interface WelcomeBeatProps {
   archetypeData?: ArchetypeData
   monthsOfData: number
-  onChipTap: (chip: WelcomeChip) => void
 }
 
 const mdComponents = {
@@ -26,7 +24,7 @@ const mdComponents = {
   ),
 }
 
-export function WelcomeBeat({ archetypeData, monthsOfData, onChipTap }: WelcomeBeatProps) {
+export function WelcomeBeat({ archetypeData, monthsOfData }: WelcomeBeatProps) {
   const copy = buildWelcomeCopy({
     archetypeName: archetypeData?.archetype_name ?? 'new here',
     archetypeSubtitle: archetypeData?.archetype_subtitle ?? 'let\u2019s figure it out together',
@@ -52,22 +50,14 @@ export function WelcomeBeat({ archetypeData, monthsOfData, onChipTap }: WelcomeB
         ))}
       </div>
 
-      <div className="flex flex-col gap-2 pt-4">
+      <ul className="pt-3 space-y-1.5 text-sm text-[var(--text-secondary)]">
         {WELCOME_CHIPS.map((chip) => (
-          <button
-            key={chip.id}
-            onClick={() => onChipTap(chip)}
-            className={`w-full px-4 py-3 rounded-xl text-sm text-left min-h-[44px]
-              transition-all active:scale-[0.98] transform
-              ${chip.primary
-                ? 'bg-[var(--accent-gold)] text-[#0F0F0D] font-semibold hover:brightness-110'
-                : 'border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'
-              }`}
-          >
-            {chip.label}
-          </button>
+          <li key={chip.id} className="flex gap-2 leading-relaxed">
+            <span aria-hidden className="text-[var(--text-tertiary)]">·</span>
+            <span>{chip.label}</span>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   )
 }

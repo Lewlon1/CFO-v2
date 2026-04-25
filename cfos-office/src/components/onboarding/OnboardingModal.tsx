@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { MessageRenderer } from './MessageRenderer'
 import { ValueMapBeat } from './beats/ValueMapBeat'
@@ -15,8 +15,6 @@ import type { ValueMapResult } from '@/lib/value-map/types'
 import { shouldReact, getReactionMessage, type ReactionContext } from '@/lib/onboarding/value-map-reactions'
 import { InsightBeat } from './beats/InsightBeat'
 import { WelcomeBeat } from './beats/WelcomeBeat'
-import { ChatContext } from '@/components/chat/ChatProvider'
-import type { WelcomeChip } from '@/lib/onboarding/welcome-copy'
 import type { Experiment } from '@/lib/analytics/insight-types'
 
 interface OnboardingModalProps {
@@ -243,13 +241,6 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
   // ── Action handlers ─────────────────────────────────────────────────────
 
-  const chatCtx = useContext(ChatContext)
-
-  const handleChipTap = useCallback(async (chip: WelcomeChip) => {
-    await dismiss()
-    chatCtx?.startConversation('chip_opener', { prompt: chip.prompt })
-  }, [dismiss, chatCtx])
-
   // Accepting an experiment now saves it as an action_item and advances to
   // the handoff beat (instead of dismissing onboarding + jumping into chat).
   // This preserves the final welcome screen so the user always finishes the
@@ -450,7 +441,6 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
               <WelcomeBeat
                 archetypeData={state.data.archetypeData}
                 monthsOfData={Math.max(1, Math.ceil((state.data.transactionCount ?? 0) / 30))}
-                onChipTap={handleChipTap}
               />
             ) : undefined
           }

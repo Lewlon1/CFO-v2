@@ -370,7 +370,7 @@ async function tapValueMapCard(page: Page, response: PersonaValueMapResponse): P
   await page.waitForTimeout(1700)
 
   if (response.hardToDecide || response.quadrant === null) {
-    // "Unsure" button appears after 3s with no selection — wait for it
+    // "Unsure" button is visible alongside the quadrants once the 1.5s gate clears
     await page.waitForSelector('button:has-text("Unsure")', { timeout: 8_000 })
     await page.click('button:has-text("Unsure")')
   } else {
