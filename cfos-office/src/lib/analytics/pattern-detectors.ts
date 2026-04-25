@@ -654,6 +654,7 @@ export const geographicSpendingModes: PatternDetector = {
       maxDate: number;
     }
     const groups = new Map<string, Group>();
+    let trackedTotal = 0;
     for (const t of ctx.transactions) {
       if (!isPlSpend(t)) continue;
       const city = t.location_city;
@@ -663,6 +664,7 @@ export const geographicSpendingModes: PatternDetector = {
       const time = new Date(t.date).getTime();
       if (!Number.isFinite(time)) continue;
       const abs = absExpense(Number(t.amount));
+      trackedTotal += abs;
       const merchantKey = normaliseMerchant(t.description ?? '');
       const existing = groups.get(location);
       if (existing) {
@@ -683,13 +685,25 @@ export const geographicSpendingModes: PatternDetector = {
       }
     }
 
-    // Retain groups with ≥ 3 transactions across ≥ 2 distinct merchants and
-    // compute daily rate. The merchant threshold prevents a cluster of
-    // identical SaaS charges (e.g. 5 Stripe payments all geo-tagged Dublin
-    // by their billing entity) from registering as a "spending mode".
+    // A "spending mode" must be a substantial slice of the user's life —
+    // not a brief layover or a handful of online subscriptions geo-tagged
+    // by their billing entity. Each group must clear all of:
+    //   - >=5 transactions
+    //   - >=3 distinct merchants
+    //   - >=10% of total tracked (located) spend
+    // These are AND'd, not OR'd. Soft thresholds let weak signals through.
     const DAY_MS = 24 * 60 * 60 * 1000;
+    const MIN_TXN_COUNT = 5;
+    const MIN_MERCHANT_COUNT = 3;
+    const MIN_SPEND_SHARE = 0.10;
+    const minSpend = trackedTotal * MIN_SPEND_SHARE;
     const eligible = [...groups.values()]
-      .filter((g) => g.count >= 3 && g.merchants.size >= 2)
+      .filter(
+        (g) =>
+          g.count >= MIN_TXN_COUNT &&
+          g.merchants.size >= MIN_MERCHANT_COUNT &&
+          g.total >= minSpend,
+      )
       .map((g) => {
         const daysSpanned = Math.max(
           1,
@@ -705,11 +719,16 @@ export const geographicSpendingModes: PatternDetector = {
     const top2 = sorted[1];
     const higher = Math.max(top1.dailyRate, top2.dailyRate);
     if (higher <= 0) return null;
-    const delta = Math.abs(top1.dailyRate - top2.dailyRate) / higher;
+    const relativeDelta = Math.abs(top1.dailyRate - top2.dailyRate) / higher;
+    const absoluteDelta = Math.abs(top1.dailyRate - top2.dailyRate);
 
-    let score = 0;
-    if (delta > 0.30) score += 40;
-    if (score === 0) return null;
+    // Two real modes need a clear lifestyle gap, not statistical hair-
+    // splitting. Require BOTH a 50% relative delta AND a >=€5/day absolute
+    // delta — the latter prevents €4/day vs €6/day from registering.
+    if (relativeDelta < 0.50) return null;
+    if (absoluteDelta < 5) return null;
+
+    let score = 40;
 
     const topGroups = sorted.slice(0, 3).map((g) => ({
       location: g.location,
@@ -747,6 +766,17 @@ export const monthOverMonthTrend: PatternDetector = {
     const currentTotal = Number(current.total_spending ?? 0);
     const priorTotal = Number(prior.total_spending ?? 0);
     if (priorTotal <= 0) return null;
+
+    // Partial-month guard: when the latest snapshot is mid-month or the
+    // statement window cut off early, comparing it to a full prior month
+    // produces a fake "100% drop" headline. Skip when the current month
+    // has no spending or far fewer transactions than the prior month —
+    // both signals that the dataset doesn't cover a full month yet.
+    const currentTxnCount = Number(current.transaction_count ?? 0);
+    const priorTxnCount = Number(prior.transaction_count ?? 0);
+    if (currentTotal <= 0) return null;
+    if (currentTxnCount < 5) return null;
+    if (priorTxnCount > 0 && currentTxnCount < priorTxnCount * 0.3) return null;
 
     const delta = currentTotal - priorTotal;
     const pctChange = delta / priorTotal;
