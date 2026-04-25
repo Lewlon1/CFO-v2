@@ -16,7 +16,6 @@ import { useTrackEvent } from '@/lib/events/use-track-event'
 const FEEDBACK_DURATION = 5000 // ms
 const CARD_TRANSITION = 250 // ms
 const GATE_DURATION = 1500 // ms — buttons inert for this long
-const HARD_TO_DECIDE_DELAY = 3000 // ms — escape hatch appears after this
 
 
 function contextHint(tx: ValueMapTransaction): string | null {
@@ -93,7 +92,6 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
 
   // Engagement gate state
   const [canTap, setCanTap] = useState(false)
-  const [showHardToDecide, setShowHardToDecide] = useState(false)
 
   // Timing refs
   const cardShownAt = useRef<number>(0)
@@ -102,7 +100,6 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
   // Timer refs
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const gateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const total = transactions.length
   const tx = transactions[currentIndex]
@@ -122,7 +119,6 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
   useEffect(() => {
     // Reset gate
     setCanTap(false)
-    setShowHardToDecide(false)
     setSelectedQuadrant(null)
     setConfidence(3)
 
@@ -130,13 +126,11 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
     cardShownAt.current = Date.now()
     firstTapAt.current = null
 
-    // Start gate timers
+    // Start gate timer
     gateTimerRef.current = setTimeout(() => setCanTap(true), GATE_DURATION)
-    hardTimerRef.current = setTimeout(() => setShowHardToDecide(true), HARD_TO_DECIDE_DELAY)
 
     return () => {
       if (gateTimerRef.current) clearTimeout(gateTimerRef.current)
-      if (hardTimerRef.current) clearTimeout(hardTimerRef.current)
     }
   }, [currentIndex])
 
@@ -493,13 +487,17 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
       )}
 
       {/* Hard to decide button */}
-      {cardState === 'visible' && showHardToDecide && !selectedQuadrant && (
-        <div className="px-4 pb-3 flex justify-center">
+      {cardState === 'visible' && !selectedQuadrant && (
+        <div
+          className={cn(
+            'px-4 pb-3 transition-opacity duration-300',
+            !canTap && 'opacity-40 pointer-events-none',
+          )}
+        >
           <Button
             variant="outline"
-            size="sm"
             onClick={handleHardToDecide}
-            className="text-sm text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
+            className="w-full min-h-[56px] rounded-xl text-sm font-medium text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
           >
             Unsure
           </Button>
