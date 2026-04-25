@@ -120,12 +120,20 @@ export async function POST(req: NextRequest) {
 
   // Cache hit — no LLM call, no Bedrock tokens, no cost. This is the
   // hot path; every upload after the first of any given format lands
-  // here.
-  const { data: existing } = await service
+  // here. Treat any read error (table missing, RLS denial, network) as
+  // a cache miss so a degraded cache never 500s the upload.
+  const { data: existing, error: lookupError } = await service
     .from('bank_format_templates')
     .select('*')
     .eq('header_hash', body.headerHash)
     .maybeSingle()
+
+  if (lookupError) {
+    console.error(
+      '[detect-format] cache lookup failed (treating as miss):',
+      lookupError.message,
+    )
+  }
 
   if (existing) {
     await service
@@ -238,14 +246,53 @@ export async function POST(req: NextRequest) {
       .eq('header_hash', body.headerHash)
       .maybeSingle()
     if (refetched) return NextResponse.json({ template: rowToTemplate(refetched) })
-    console.error('[detect-format] template insert failed:', insertError)
-    return NextResponse.json(
-      { error: 'detection_failed', raw: insertError?.message ?? 'insert failed' },
-      { status: 500 },
-    )
+
+    // The cache table is unhealthy (missing, RLS denial, etc.). The
+    // template the LLM produced is still valid — return it without an
+    // id/useCount so the client gets a working upload, and log loudly
+    // so we can repair the cache out-of-band.
+    console.error('[detect-format] template insert failed (degrading to no-cache):', insertError)
+    return NextResponse.json({
+      template: synthesiseTemplate({
+        headerHash: body.headerHash,
+        bankName: detection.bankName,
+        fileType: body.fileType,
+        columnMapping,
+        signConvention: detection.signConvention,
+        dateFormat: detection.dateFormat,
+        decimalFormat: detection.decimalFormat,
+        currencyDefault: detection.currencyDefault,
+        sampleHeaders: firstRow,
+      }),
+    })
   }
 
   return NextResponse.json({ template: rowToTemplate(inserted) })
+}
+
+function synthesiseTemplate(input: {
+  headerHash: string
+  bankName: string | null
+  fileType: FileType
+  columnMapping: FormatTemplate['columnMapping']
+  signConvention: SignConvention
+  dateFormat: string
+  decimalFormat: DecimalFormat
+  currencyDefault: string
+  sampleHeaders: string
+}): FormatTemplate {
+  return {
+    headerHash: input.headerHash,
+    bankName: input.bankName,
+    fileType: input.fileType,
+    columnMapping: input.columnMapping,
+    signConvention: input.signConvention,
+    dateFormat: input.dateFormat,
+    decimalFormat: input.decimalFormat,
+    currencyDefault: input.currencyDefault,
+    sampleHeaders: input.sampleHeaders,
+    detectionSource: 'llm',
+  }
 }
 
 type TemplateRow = {
