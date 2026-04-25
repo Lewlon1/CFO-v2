@@ -649,6 +649,7 @@ export const geographicSpendingModes: PatternDetector = {
       location: string;
       total: number;
       count: number;
+      merchants: Set<string>;
       minDate: number;
       maxDate: number;
     }
@@ -662,10 +663,12 @@ export const geographicSpendingModes: PatternDetector = {
       const time = new Date(t.date).getTime();
       if (!Number.isFinite(time)) continue;
       const abs = absExpense(Number(t.amount));
+      const merchantKey = normaliseMerchant(t.description ?? '');
       const existing = groups.get(location);
       if (existing) {
         existing.total += abs;
         existing.count += 1;
+        if (merchantKey) existing.merchants.add(merchantKey);
         if (time < existing.minDate) existing.minDate = time;
         if (time > existing.maxDate) existing.maxDate = time;
       } else {
@@ -673,16 +676,20 @@ export const geographicSpendingModes: PatternDetector = {
           location,
           total: abs,
           count: 1,
+          merchants: merchantKey ? new Set([merchantKey]) : new Set(),
           minDate: time,
           maxDate: time,
         });
       }
     }
 
-    // Retain groups with ≥ 3 transactions and compute daily rate.
+    // Retain groups with ≥ 3 transactions across ≥ 2 distinct merchants and
+    // compute daily rate. The merchant threshold prevents a cluster of
+    // identical SaaS charges (e.g. 5 Stripe payments all geo-tagged Dublin
+    // by their billing entity) from registering as a "spending mode".
     const DAY_MS = 24 * 60 * 60 * 1000;
     const eligible = [...groups.values()]
-      .filter((g) => g.count >= 3)
+      .filter((g) => g.count >= 3 && g.merchants.size >= 2)
       .map((g) => {
         const daysSpanned = Math.max(
           1,

@@ -22,6 +22,76 @@ const CITY_MAP: Array<{ pattern: RegExp; city: string; country: string }> = [
   { pattern: /\bROME|ROMA\b/i, city: 'Rome', country: 'IT' },
 ]
 
+// SaaS, payment-processor, and online-services merchants whose card
+// descriptors include the merchant's billing-entity address — typically
+// Dublin or another EU tax-residence city — even though the user's spend
+// is online from anywhere. Tagging these as a physical location produces
+// false "two cities" narratives in the geographic-modes detector.
+//
+// Bank-agnostic: the patterns target merchant names in the description,
+// which every bank exports. When matched, location enrichment is skipped
+// for that row; the row stays usable everywhere else.
+const SAAS_BILLING_PATTERNS: RegExp[] = [
+  // Cloud / dev tools
+  /\bAWS\b/i,
+  /\bAMAZON WEB SERVICES\b/i,
+  /\bGOOGLE\b/i,
+  /\bGCP\b/i,
+  /\bMICROSOFT\b/i,
+  /\bAZURE\b/i,
+  /\bMETA(?:\s+PLATFORMS|\s+IRELAND)?\b/i,
+  /\bFACEBOOK\b/i,
+  /\bLINKEDIN\b/i,
+  /\bAPPLE\.COM\b/i,
+  /\bAPPLE DISTRIBUTION\b/i,
+  /\bGITHUB\b/i,
+  /\bGITLAB\b/i,
+  /\bVERCEL\b/i,
+  /\bCLOUDFLARE\b/i,
+  /\bDIGITALOCEAN\b/i,
+  /\bHEROKU\b/i,
+  /\bNETLIFY\b/i,
+  /\bRAILWAY\b/i,
+  // Productivity / SaaS
+  /\bNOTION\b/i,
+  /\bFIGMA\b/i,
+  /\bSLACK\b/i,
+  /\bDROPBOX\b/i,
+  /\bZOOM\b/i,
+  /\bADOBE\b/i,
+  /\bOPENAI\b/i,
+  /\bANTHROPIC\b/i,
+  /\bSUBSTACK\b/i,
+  /\bSQUARESPACE\b/i,
+  /\bDISCORD\b/i,
+  // Streaming / consumer subscriptions billed via Irish entities
+  /\bSPOTIFY\b/i,
+  /\bNETFLIX\b/i,
+  /\bDISNEY\s*\+/i,
+  /\bAMAZON PRIME\b/i,
+  // Payment processors / gateways
+  /\bSTRIPE\b/i,
+  /\bPADDLE\b/i,
+  /\bCHECKOUT\.COM\b/i,
+  /\bADYEN\b/i,
+  /\bBRAINTREE\b/i,
+  /\bPAYPAL\b/i,
+  // Generic structural hints — descriptions that look like online billing
+  // descriptors rather than physical merchant locations.
+  /\.COM\b/i,            // MERCHANT.COM — almost always online
+  /\.IO\b/i,
+  /\.NET\b/i,
+  /\.APP\b/i,
+  /^\*[A-Z]/,            // Visa platform indicator (*MERCHANT)
+]
+
+function isSaaSBilling(description: string): boolean {
+  for (const pattern of SAAS_BILLING_PATTERNS) {
+    if (pattern.test(description)) return true
+  }
+  return false
+}
+
 /**
  * Post-import enricher: scans transaction descriptions for known city names
  * and writes `location_city` / `location_country` on matches.
@@ -29,6 +99,10 @@ const CITY_MAP: Array<{ pattern: RegExp; city: string; country: string }> = [
  * Scoped by (user_id, import_batch_id) so a single import only re-checks its
  * own rows. Only rows without an existing location are considered, making
  * this safe to re-run.
+ *
+ * SaaS / payment-processor / online-services merchants are skipped — their
+ * card descriptors carry the billing entity's address (typically Dublin)
+ * not the user's actual location.
  *
  * Returns the number of rows updated.
  */
@@ -48,6 +122,7 @@ export async function enrichLocation(
   const updates: Array<{ id: string; city: string; country: string }> = []
   for (const t of txs) {
     const desc = t.description ?? ''
+    if (isSaaSBilling(desc)) continue
     for (const entry of CITY_MAP) {
       if (entry.pattern.test(desc)) {
         updates.push({ id: t.id, city: entry.city, country: entry.country })
