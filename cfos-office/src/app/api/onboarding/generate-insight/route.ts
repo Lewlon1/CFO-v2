@@ -72,6 +72,40 @@ function collectKnownMerchants(payload: InsightPayload): string[] {
   return Array.from(merchants)
 }
 
+// Deterministic narrative for when Claude can't be trusted (validator
+// rejection or generation error). Built only from payload fields the
+// engine has already computed — never invents numbers, never goes
+// through the validator (the validator is for LLM output). Keeps the
+// First Meeting screen from rendering as a blank card stack.
+function buildFallbackNarrative(payload: InsightPayload): string {
+  const greeting = payload.userName ? `Hey ${payload.userName} — ` : 'Hey — '
+  const monthsWord = payload.monthCount === 1 ? 'month' : 'months'
+  const intro = `${greeting}I've been through ${payload.transactionCount} transactions across ${payload.monthCount} ${monthsWord} of data.`
+
+  let middle = ''
+  const headline = payload.layers.headline
+  if (headline?.id === 'balance_trajectory') {
+    const shape = String(headline.data.shape ?? '')
+    if (shape === 'decline') {
+      middle = " Your balance is on a decline shape — worth a closer look at what's pulling it down."
+    } else if (shape === 'sawtooth') {
+      middle = ' Your balance shows a healthy pay-cycle sawtooth — a clean rhythm.'
+    } else if (shape === 'flat') {
+      middle = ' Your balance has been holding pretty steady.'
+    }
+  } else if (headline?.id === 'category_concentration') {
+    middle = ' One spending category is doing a lot of the work — see the breakdown below.'
+  } else if (headline?.id === 'income_detected') {
+    middle = ' I can see regular deposits coming in.'
+  }
+
+  const closing = payload.layers.action?.experiment
+    ? ' The biggest opportunity I spotted is below — take a look.'
+    : " Tell me what you want to dig into and I'll pull the thread."
+
+  return `${intro}${middle}${closing}`
+}
+
 export async function POST() {
   const supabase = await createClient()
   const {
@@ -146,7 +180,7 @@ export async function POST() {
 
       return NextResponse.json({
         insight: {
-          narrative: '',
+          narrative: buildFallbackNarrative(payload),
           statCards: payload.statCards,
           suggestedResponses: payload.suggestedResponses,
           experiment: payload.layers.action?.experiment,
@@ -160,9 +194,13 @@ export async function POST() {
       })
     }
 
+    // If Claude returned only [STATS]/[OPTIONS] blocks and no prose, fall
+    // back rather than render an empty narrative beneath the stat cards.
+    const finalNarrative = narrative.trim().length > 0 ? narrative : buildFallbackNarrative(payload)
+
     return NextResponse.json({
       insight: {
-        narrative,
+        narrative: finalNarrative,
         statCards:
           statCards.length > 0
             ? statCards
@@ -174,10 +212,11 @@ export async function POST() {
     })
   } catch (err) {
     console.error('[generate-insight] Claude narration failed:', err)
-    // Fall back to the deterministic engine output without narration.
+    // Fall back to the deterministic engine output with a grounded narrative
+    // built only from payload data — never blank.
     return NextResponse.json({
       insight: {
-        narrative: '',
+        narrative: buildFallbackNarrative(payload),
         statCards: payload.statCards,
         suggestedResponses: payload.suggestedResponses,
         experiment: payload.layers.action?.experiment,
