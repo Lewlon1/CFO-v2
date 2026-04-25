@@ -200,14 +200,19 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
     trackEvent('upload_started', { file_type: fileType })
     setState({ step: 'uploading' })
 
-    // Universal parser path — CSV / PDF / OFX / QIF parse in the
-    // browser and only the parsed transactions are POSTed. The raw
-    // file never leaves the client. Balance-sheet uploads and
-    // holdings, images, and XLSX still take the FormData path.
+    // Universal parser path — CSV / XLSX / PDF / OFX / QIF parse in the
+    // browser and only the parsed transactions are POSTed. XLSX is
+    // flattened to CSV in-browser via xlsxBufferToCSV. The raw file
+    // never leaves the client. Balance-sheet uploads / holdings CSVs /
+    // images still take the FormData path.
     const detectedType = fileTypeFromName(file.name)
     const canParseClientSide =
       context === 'transactions' &&
-      (detectedType === 'csv' || detectedType === 'pdf' || detectedType === 'ofx' || detectedType === 'qif')
+      (detectedType === 'csv' ||
+        detectedType === 'xlsx' ||
+        detectedType === 'pdf' ||
+        detectedType === 'ofx' ||
+        detectedType === 'qif')
 
     try {
       let res: Response
