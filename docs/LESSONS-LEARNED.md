@@ -19,3 +19,7 @@
 - `036_bank_format_templates.sql` — required by the new universal parser's `detect-format` route; route already degrades gracefully if the table is unhealthy (`fcc3937`), but full functionality needs this migration applied.
 
 No migrations applied this session. No new release PR opened — that is Friday's task.
+
+### Addendum — `48ef24f` cherry-pick
+
+After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one commit not on `prepare-beta-v2-O1zeV` — `48ef24f` (final beat CTA clarification + Unsure button surfaced earlier, 4 files: `OnboardingModal.tsx`, `WelcomeBeat.tsx`, `value-map-card.tsx`, `playwright-driver.ts`). Branches had diverged (cashflow chain on prepare-beta-v2 vs fix-onboarding-issues-ifwJV both branched from `32f2492`), so fast-forward wasn't possible. Cherry-picked cleanly — auto-merged `OnboardingModal.tsx` with no manual resolution. New commit on `prepare-beta-v2-O1zeV`: `ba1d6f2`.
