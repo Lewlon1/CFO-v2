@@ -108,6 +108,18 @@ AWS_REGION=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 
+# Bedrock model overrides
+BEDROCK_OPUS_MODEL=     # Bedrock model id for archetype generation (value-map/reveal)
+
+# External services
+BRAVE_SEARCH_API_KEY=   # Bill optimisation web search (lib/bills/brave-search.ts)
+RESEND_API_KEY=         # Transactional email + alerting
+
+# Cron + alerting
+CRON_SECRET=            # Bearer token validated by all /api/cron/* handlers
+ALERT_EMAIL=            # Recipient address for error alert webhook
+ALERT_WEBHOOK_URL=      # Resend webhook URL for error alerts
+
 # App
 NEXT_PUBLIC_APP_URL=
 ```
