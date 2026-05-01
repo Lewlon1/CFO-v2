@@ -8,23 +8,10 @@ import { Briefing } from './Briefing'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
 import type { BalanceSheetResponse } from '@/app/api/balance-sheet/route'
 
 const ACCENT = '#06B6D4'
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
-function formatMonthShort(month: string): string {
-  const [y, m] = month.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short' })
-}
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -79,7 +66,7 @@ export function NetWorthDashboard({ currency }: NetWorthDashboardProps) {
             <DrillDownRow
               title="Assets"
               subtitle={data.total_assets > 0
-                ? `${data.asset_groups.length} groups · ${formatCurrency(data.total_assets, effectiveCurrency)}`
+                ? `${data.asset_groups.length} groups · ${formatCurrencyRounded(data.total_assets, effectiveCurrency)}`
                 : 'savings, stocks, property'}
               href="/office/net-worth/assets"
               icon="↑"
@@ -88,7 +75,7 @@ export function NetWorthDashboard({ currency }: NetWorthDashboardProps) {
             <DrillDownRow
               title="Liabilities"
               subtitle={data.total_liabilities > 0
-                ? `${data.liability_groups.length} groups · ${formatCurrency(data.total_liabilities, effectiveCurrency)}`
+                ? `${data.liability_groups.length} groups · ${formatCurrencyRounded(data.total_liabilities, effectiveCurrency)}`
                 : 'debts and credit'}
               href="/office/net-worth/liabilities"
               icon="↓"
@@ -133,11 +120,11 @@ export function NetWorthDashboard({ currency }: NetWorthDashboardProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildBriefing(data: BalanceSheetResponse, currency: string): string {
-  const nw = formatCurrency(data.net_worth, currency)
+  const nw = formatCurrencyRounded(data.net_worth, currency)
   if (data.net_worth_change == null) {
     return `You're worth ${nw} today. Tell me more about what you own and owe and I'll track how it moves month to month.`
   }
-  const deltaAbs = formatCurrency(Math.abs(data.net_worth_change), currency)
+  const deltaAbs = formatCurrencyRounded(Math.abs(data.net_worth_change), currency)
   const direction = data.net_worth_change >= 0 ? 'Up' : 'Down'
   return `You're worth ${nw} today. ${direction} ${deltaAbs} this month.`
 }
@@ -169,7 +156,7 @@ function HeroTrend({
           className="font-data tabular-nums font-semibold tracking-[-0.01em]"
           style={{ fontSize: 30, color: ACCENT, lineHeight: 1 }}
         >
-          {formatCurrency(data.net_worth, currency)}
+          {formatCurrencyRounded(data.net_worth, currency)}
         </div>
         {data.net_worth_change != null && (
           <div
@@ -183,7 +170,7 @@ function HeroTrend({
             ) : (
               <ArrowDown size={11} strokeWidth={2.5} />
             )}
-            {formatCurrency(Math.abs(data.net_worth_change), currency)}
+            {formatCurrencyRounded(Math.abs(data.net_worth_change), currency)}
           </div>
         )}
         <div className="text-[11px] text-text-tertiary ml-auto">
@@ -264,7 +251,7 @@ function AssetsLiabilitiesRow({
           className="font-data text-[17px] tabular-nums font-medium mt-1"
           style={{ color: 'var(--positive)' }}
         >
-          {formatCurrency(data.total_assets, currency)}
+          {formatCurrencyRounded(data.total_assets, currency)}
         </div>
         <div className="text-[10px] text-text-tertiary mt-0.5">
           {assetCount} item{assetCount === 1 ? '' : 's'}
@@ -281,7 +268,7 @@ function AssetsLiabilitiesRow({
           className="font-data text-[17px] tabular-nums font-medium mt-1"
           style={{ color: 'var(--negative)' }}
         >
-          {formatCurrency(data.total_liabilities, currency)}
+          {formatCurrencyRounded(data.total_liabilities, currency)}
         </div>
         <div className="text-[10px] text-text-tertiary mt-0.5">
           {liabCount === 0 ? 'none recorded' : `${liabCount} item${liabCount === 1 ? '' : 's'}`}
@@ -341,7 +328,7 @@ function Composition({
               className="font-data text-[11px] tabular-nums text-right w-[60px]"
               style={{ color: r.isLiab ? 'var(--negative)' : 'var(--text-primary)' }}
             >
-              {formatCurrency(r.amount, currency)}
+              {formatCurrencyRounded(r.amount, currency)}
             </div>
           </div>
         ))}

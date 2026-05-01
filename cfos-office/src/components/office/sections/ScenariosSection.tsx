@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 
 interface Trip {
   name: string
@@ -13,15 +14,6 @@ interface Trip {
 interface ScenariosSectionProps {
   nextTrip: Trip | null
   currency?: string
-}
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 export function ScenariosSection({ nextTrip, currency = 'EUR' }: ScenariosSectionProps) {
@@ -40,7 +32,7 @@ export function ScenariosSection({ nextTrip, currency = 'EUR' }: ScenariosSectio
     <div className="pt-1">
       <div className="flex items-baseline gap-1.5">
         <span className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-[#F43F5E]">
-          {formatCurrency(nextTrip.total_estimated ?? 0, nextTrip.currency || currency)}
+          {formatCurrencyRounded(nextTrip.total_estimated ?? 0, nextTrip.currency || currency)}
         </span>
         <span className="text-[11px] text-[rgba(245,245,240,0.3)]">{nextTrip.name} target</span>
       </div>

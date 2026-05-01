@@ -7,6 +7,7 @@ import { Briefing } from './Briefing'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 
 const ACCENT = '#E8A84C'
 
@@ -16,15 +17,6 @@ const VALUE_META: Record<string, { label: string; color: string; order: number }
   leak: { label: 'Leak', color: '#F43F5E', order: 3 },
   burden: { label: 'Burden', color: '#8B5CF6', order: 4 },
   no_idea: { label: 'Unclassified', color: '#6B7280', order: 5 },
-}
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 export interface ValuesDashboardGap {
@@ -254,7 +246,7 @@ function ValueBreakdown({
             <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: e.meta.color }} />
             <span className="text-[11px] text-text-secondary flex-1">{e.meta.label}</span>
             <span className="font-data text-[11px] text-text-primary tabular-nums">
-              {formatCurrency(e.amount, currency)}
+              {formatCurrencyRounded(e.amount, currency)}
             </span>
           </div>
         ))}

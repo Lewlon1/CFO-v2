@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
+import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 
 const VALUE_CONFIG = {
   foundation: { color: '#22C55E', label: 'Foundation', desc: 'Essentials, non-negotiable' },
@@ -12,15 +13,6 @@ const VALUE_CONFIG = {
 } as const
 
 type VCKey = keyof typeof VALUE_CONFIG
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 
 function ValueDonut({ segments, total }: { segments: { key: VCKey; pct: number }[]; total: number }) {
   // SVG donut chart — stroke-dasharray based
@@ -55,7 +47,7 @@ function ValueDonut({ segments, total }: { segments: { key: VCKey; pct: number }
         })}
         {/* Center text */}
         <text x={21} y={20} textAnchor="middle" fill="rgba(245,245,240,0.6)" fontFamily="JetBrains Mono" fontSize={4.5} fontWeight={500}>
-          {formatCurrency(total)}
+          {formatCurrencyRounded(total)}
         </text>
         <text x={21} y={25} textAnchor="middle" fill="rgba(245,245,240,0.2)" fontFamily="JetBrains Mono" fontSize={2.5}>
           total spent
@@ -183,7 +175,7 @@ export function OfficeValuesBreakdown() {
               <p className="font-data text-[8px] text-[rgba(245,245,240,0.22)] mt-[2px]">{leakData.count} transactions</p>
             </div>
             <span className="font-data text-[12px] font-medium text-[#F43F5E] shrink-0">
-              -{formatCurrency(leakData.amount)}
+              -{formatCurrencyRounded(leakData.amount)}
             </span>
           </div>
         </>
@@ -204,7 +196,7 @@ export function OfficeValuesBreakdown() {
               <p className="font-data text-[8px] text-[rgba(245,245,240,0.22)] mt-[2px]">{unsureData.count} transactions</p>
             </div>
             <span className="font-data text-[12px] font-medium text-[#F59E0B] shrink-0">
-              -{formatCurrency(unsureData.amount)}
+              -{formatCurrencyRounded(unsureData.amount)}
             </span>
           </div>
         </>

@@ -9,24 +9,10 @@ import { Briefing } from './Briefing'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
 import type { TrendsResponse } from '@/app/api/dashboard/trends/route'
 
 const ACCENT = '#22C55E'
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
-function formatMonthShort(month: string): string {
-  // month is 'YYYY-MM' or 'YYYY-MM-DD'
-  const [y, m] = month.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'short' })
-}
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
@@ -88,7 +74,7 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
             <DrillDownRow
               title="Bills & subscriptions"
               subtitle={summary.recurring?.items?.length
-                ? `${summary.recurring.items.length} recurring · ${formatCurrency(summary.recurring.monthly_total, currency)} / month`
+                ? `${summary.recurring.items.length} recurring · ${formatCurrencyRounded(summary.recurring.monthly_total, currency)} / month`
                 : 'tracker · known providers'}
               href="/office/cash-flow/bills"
               icon="↻"
@@ -140,7 +126,7 @@ function buildBriefing(
   summary: NonNullable<ReturnType<typeof useDashboardData>['summary']>,
   currency: string,
 ): string {
-  const amount = formatCurrency(summary.total_spending, currency)
+  const amount = formatCurrencyRounded(summary.total_spending, currency)
   const delta = summary.vs_previous_month_pct
   if (delta == null) {
     return `You spent ${amount} across ${summary.transaction_count} transactions. First full month — I'll start looking for patterns.`
@@ -173,21 +159,21 @@ function MetricsRow({
   const metrics = [
     {
       label: 'Spent',
-      value: formatCurrency(summary.total_spending, currency),
+      value: formatCurrencyRounded(summary.total_spending, currency),
       sub: `${summary.transaction_count} txns`,
       color: 'var(--text-primary)',
     },
     {
       label: 'vs prev',
       value: prevDelta != null
-        ? `${prevDelta > 0 ? '+' : '−'}${formatCurrency(Math.abs(Math.round(prevDelta)), currency)}`
+        ? `${prevDelta > 0 ? '+' : '−'}${formatCurrencyRounded(Math.abs(Math.round(prevDelta)), currency)}`
         : '—',
       sub: delta != null ? `${Math.round(delta)}% ${delta >= 0 ? 'up' : 'down'}` : 'no baseline',
       color: delta != null && delta > 0 ? 'var(--negative)' : delta != null && delta < 0 ? 'var(--positive)' : 'var(--text-secondary)',
     },
     {
       label: 'Net',
-      value: `${summary.surplus_deficit >= 0 ? '+' : '−'}${formatCurrency(Math.abs(summary.surplus_deficit), currency)}`,
+      value: `${summary.surplus_deficit >= 0 ? '+' : '−'}${formatCurrencyRounded(Math.abs(summary.surplus_deficit), currency)}`,
       sub: summary.total_income > 0 ? 'income − spend' : 'no income this month',
       color: 'var(--text-secondary)',
     },
@@ -235,7 +221,7 @@ function TrendBars({
       <div className="flex items-baseline justify-between mb-[10px]">
         <div className="text-[11px] font-semibold text-text-primary">Monthly spend · {months.length} months</div>
         <div className="text-[10px] text-text-tertiary italic">
-          latest {formatCurrency(latest?.total_spending ?? 0, currency)}
+          latest {formatCurrencyRounded(latest?.total_spending ?? 0, currency)}
         </div>
       </div>
       <div className="flex items-end gap-[5px] h-[54px]">
@@ -314,7 +300,7 @@ function CategoryBreakdown({
             <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.color }} />
             <span className="text-[11px] text-text-secondary flex-1 truncate">{c.name}</span>
             <span className="font-data text-[11px] text-text-primary tabular-nums">
-              {formatCurrency(c.amount, currency)}
+              {formatCurrencyRounded(c.amount, currency)}
             </span>
           </div>
         ))}

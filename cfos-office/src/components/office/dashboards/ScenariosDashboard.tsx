@@ -6,17 +6,9 @@ import { Briefing } from './Briefing'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 
 const ACCENT = '#F43F5E'
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 
 function formatTripDates(start: string, end: string): string {
   const s = new Date(start)
@@ -243,7 +235,7 @@ function GoalsSection({
               </div>
               <div className="flex justify-between mt-1">
                 <span className="font-data text-[10px] text-text-tertiary tabular-nums">
-                  {formatCurrency(current, currency)} / {formatCurrency(target, currency)}
+                  {formatCurrencyRounded(current, currency)} / {formatCurrencyRounded(target, currency)}
                 </span>
                 {g.target_date && (
                   <span className="text-[10px] text-text-tertiary italic">
@@ -299,7 +291,7 @@ function TripsSection({
             </div>
             <div className="text-right shrink-0">
               <div className="font-data text-[12px] text-text-primary tabular-nums">
-                {formatCurrency(t.total_estimated ?? 0, t.currency || currency)}
+                {formatCurrencyRounded(t.total_estimated ?? 0, t.currency || currency)}
               </div>
               <div
                 className="text-[9px] italic mt-0.5"

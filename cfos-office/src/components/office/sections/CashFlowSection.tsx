@@ -2,16 +2,8 @@
 
 import Link from 'next/link'
 import { Upload } from 'lucide-react'
+import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 import type { DashboardSummary } from '@/app/api/dashboard/summary/route'
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 
 interface CashFlowSectionProps {
   summary: DashboardSummary | undefined
@@ -57,7 +49,7 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFl
     <div className="space-y-1 pt-1">
       <div className="flex items-baseline gap-1.5">
         <span className="font-data text-[18px] font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
-          {formatCurrency(total_spending, currency)}
+          {formatCurrencyRounded(total_spending, currency)}
         </span>
         <span className="text-[11px] text-[rgba(245,245,240,0.3)]">spent</span>
         {delta != null && Math.abs(delta) >= 1 && (

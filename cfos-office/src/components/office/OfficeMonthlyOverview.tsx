@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
+import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 
 const ICON_EMOJI: Record<string, string> = {
   'shopping-basket': '🛒',
@@ -19,15 +20,6 @@ const ICON_EMOJI: Record<string, string> = {
 
 function iconToEmoji(icon: string): string {
   return ICON_EMOJI[icon] ?? '📋'
-}
-
-function formatCurrency(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 function MonthSelector({ months, current, onChange }: {
@@ -120,17 +112,17 @@ export function OfficeMonthlyOverview() {
       <div className="grid grid-cols-2 gap-1.5 mb-1.5">
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
           <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">Income</p>
-          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-[#22C55E]">{formatCurrency(total_income)}</p>
+          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-[#22C55E]">{formatCurrencyRounded(total_income)}</p>
           <p className="font-data text-[8px] mt-[2px]" style={{ color: 'rgba(34,197,94,0.5)' }}>+0% vs prev</p>
         </div>
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
           <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">Spent</p>
-          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-text-primary">{formatCurrency(total_spending)}</p>
+          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-text-primary">{formatCurrencyRounded(total_spending)}</p>
           {vsPct != null && <p className="font-data text-[8px] mt-[2px]" style={{ color: vsPctColor }}>{vsPctText}</p>}
         </div>
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
           <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">{surplus_deficit >= 0 ? 'Surplus' : 'Deficit'}</p>
-          <p className={`font-data text-[16px] font-extrabold tracking-[-0.03em] ${surplus_deficit >= 0 ? 'text-[#22C55E]' : 'text-[#F43F5E]'}`}>{formatCurrency(surplus_deficit)}</p>
+          <p className={`font-data text-[16px] font-extrabold tracking-[-0.03em] ${surplus_deficit >= 0 ? 'text-[#22C55E]' : 'text-[#F43F5E]'}`}>{formatCurrencyRounded(surplus_deficit)}</p>
         </div>
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
           <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">Transactions</p>
@@ -175,7 +167,7 @@ export function OfficeMonthlyOverview() {
             color: 'rgba(232,168,76,0.5)',
           }}
         >
-          avg {formatCurrency(weeklyAvg)}/wk
+          avg {formatCurrencyRounded(weeklyAvg)}/wk
         </span>
       </div>
 
@@ -197,7 +189,7 @@ export function OfficeMonthlyOverview() {
             </div>
           </div>
           <div className="text-right shrink-0">
-            <p className="font-data text-[11px] font-medium">{formatCurrency(cat.amount)}</p>
+            <p className="font-data text-[11px] font-medium">{formatCurrencyRounded(cat.amount)}</p>
             <p className="font-data text-[8px] text-[rgba(245,245,240,0.3)]">{cat.pct?.toFixed(1) ?? '0'}%</p>
           </div>
         </div>
