@@ -132,3 +132,20 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 **For Friday:**
 - Release PR will pick this up alongside C1 and C2a in the same v2 fast-forward.
 - The npm-vs-pnpm constraint is now codified in `cfos-office/CLAUDE.md`. Two prior sessions stumbled on it; a third shouldn't.
+
+## Session C2b — 2026-05-01
+
+**Goal:** Migrate `CfoAvatar` (£ glyph) call sites to brand `CFOAvatar` (mascot). Delete orphan.
+
+**Outcome:** All call sites migrated. `cfos-office/src/components/chat/cfo-avatar.tsx` deleted. Typecheck and build pass (63 routes, 17.5s). Net `-26 LOC` across 10 files (1 deletion, 9 modifications). Stayed on `claude/extract-office-utils-WFpBD` — branch now carries C2a + C1.5 + C2b for Friday's v2 fast-forward.
+
+**Surprises:**
+- **13 JSX call sites, not 14.** A3's audit said 14 (per `LESSONS-LEARNED.md` Session A3). Re-counted via grep at this session's tip and got 13: value-map-flow ×3, retake-impact ×3, plus 7 other single-site files. Possibly a single site was removed in a recent commit between A3 and now, or A3 was off-by-one. The migration completed cleanly either way; the typecheck would have caught a missed site.
+- **Sweep 2 returned two false positives.** The `size="sm"` grep across `value-map/` and `demo/` flagged two `Button size="sm"` instances (`value-map-card.tsx:512`, `demo-card.tsx:451`) that have nothing to do with the avatar. Worth noting for future spec authors: a `size=` sweep needs to scope to JSX tag context, not just the prop string.
+- **No `status="thinking"` collateral.** Only one site used `status="thinking"` (in `demo-reveal.tsx`) and it was already explicitly flagged. Confirmed via post-migration sweep.
+
+**Visual note:** Lewis declined a pre-merge design pass; trusts mascot at 24px. Watch the value-map cards (small avatar in `value-map-card`, `value-map-summary`, `cut-or-keep`, `one-thing`, `demo-card`, `demo-reveal`) and demo-reveal's pulse-wrapped variant during Friday smoke test.
+
+**For C2c (if any):**
+- `CfoThinking` already exists at `components/brand/` and is the correct destination if `demo-reveal`'s pulse-wrap pattern needs to consolidate further. A3 deferred that — out of scope for v2.
+- The brand directory's casing convention (`CFOAvatar`, `CfoThinking`) is inconsistent. Worth flagging for a separate cleanup pass if anyone wants stylistic uniformity.
