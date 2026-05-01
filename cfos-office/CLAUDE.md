@@ -68,6 +68,10 @@ These are not aspirational. They are implementation constraints.
 
 ## Tech Stack Details
 
+### Package manager
+
+This repo uses **npm**. Do not use pnpm or yarn — they fail on this repo's hoisting expectations. Use `npm ci` for clean installs (lockfile-driven) and `npm run build` / `npm run typecheck` for verification.
+
 ### Bedrock Configuration
 
 ```typescript
