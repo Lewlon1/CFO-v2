@@ -61,3 +61,31 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 **For C1:**
 - **Commit ordering:** (1) delete `prompt-buttons.ts`; (2) delete the 3 confirmed-DEAD API routes (+ optional 4th if Lewis confirms `value-map/regenerate`); (3) register the 3 nudge cron entries in `vercel.json` and strip the `// TODO: Not registered` comment headers in each handler; (4) document the 6 undocumented env vars in `cfos-office/CLAUDE.md`. ~165 LOC removed, ~12 LOC added — well under 500.
 - **Needs Lewis input:** verdict on `/api/value-map/regenerate`; sanity-check on UTC schedule choices; Vercel cron vs Supabase pg_cron architectural call (`DEFERRED.md` flagged this as open).
+
+## Session A3 — 2026-05-01
+
+**Goal:** Component consolidation audit. CFO avatar verification + broader pattern hunt for C2 extractions. Read-only on source. Output: `docs/COMPONENT-CONSOLIDATION.md`.
+
+**Outcome:**
+- **CFO avatar consolidation:** **VERIFIED** — but with a wrinkle. The two files are not "two copies of the same component"; they're **two visually-different artefacts** that overlap in role. `chat/cfo-avatar.tsx` (`CfoAvatar`) renders a £ glyph in a coloured square; `brand/CFOAvatar.tsx` (`CFOAvatar`) renders a full SVG mascot. Both are alive because the office redesign migrated the new mascot into office/onboarding/inbox surfaces but left the value-map and demo flows on the old £ glyph. The consolidation is real and worthwhile, but it's a *visual* migration (placeholder → polished), not a *code* dedupe — Lewis must approve the visual change in value-map/demo before merge, and the mascot SVG may need a simplified small variant (24px) check.
+- **Recommended C2 extractions:** **3** total commits:
+  1. CFO avatar consolidation (anchor) — ~60 LOC removed.
+  2. Shared `formatCurrency` helper for the office dashboards (9 identical copies → 1 helper) — ~45 LOC removed, zero behaviour change.
+  3. *(Optional)* `DashboardEmptyState` primitive replacing inline `EmptyCashFlow`/`EmptyNetWorth` — ~10 LOC removed, consistency win.
+- **Estimated impact:** ~115 LOC removed, ~50 added — ~−65 net, well under 500.
+- **Deferred:** folder-shell wrapper, trend-chart consolidation, wider currency-format unification across chat/trips, full EmptyState consolidation across surfaces.
+
+**Surprises:**
+- **Avatar count was 23 call sites, not 17.** A0 counted importer files (9 + 8 = 17) but several files have multiple usages (`value-map-flow.tsx` × 3, `retake-impact.tsx` × 3, `OnboardingModal.tsx` × 2, `CfoThinking.tsx` × 2). Total call sites: 14 (`CfoAvatar`) + 9 (`CFOAvatar`) = 23.
+- **`formatCurrency` is a much bigger duplication than expected.** Found **17** separate definitions across the codebase, falling into 3 distinct implementation idioms with **different visible output** (2-decimal Intl, 0-decimal Intl, manual symbol+toLocaleString). The 2-decimal vs 0-decimal split is intentional (legacy dashboard surface vs new office surface), so the right C2 scope is just deduping the 9 office-tree copies — pure mechanical zero-risk extraction.
+- **The shell-level extractions are already done.** `Briefing`, `DetailHeader`, `DrillDownRow` are all shared primitives in active use across all four office dashboards. The folder-page comparison matrix turned up far less untapped duplication than expected — the codebase is in better shape than the pure import counts suggested.
+- **Only one `status="thinking"` site** exists across the 14 `CfoAvatar` calls (in `demo-reveal.tsx`). Migration is straightforward — wrap in `<span className="animate-pulse">` or use the existing `CfoThinking` wrapper.
+
+**For C2:**
+- **Sequence:** start with the zero-risk Commits 2+3 (formatCurrency dedupe, DashboardEmptyState). They're pure extraction with no visual change. Land them first.
+- **Avatar commit goes last** because it requires a visual QA pass (mascot at 24px in value-map cards). If the small-size SVG doesn't read well, hold the avatar commit and add a `variant="compact"` prop or keep the `CfoAvatar` file for that one size class.
+- **Lewis decisions before merge:**
+  - Visual sign-off on the mascot replacing the £ glyph in value-map and demo flows.
+  - Whether the mascot SVG needs a simplified compact variant for `size={24}`.
+  - Whether to bundle `formatMonthShort` (2-copy duplicate) into the same C2 helper file as `formatCurrency`.
+- **No Lewis input needed** for Commits 2 and 3 — both produce byte-identical UI.
