@@ -39,3 +39,25 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 **For A1/A3:**
 - **A1** (cleanup): delete `src/lib/chat/prompt-buttons.ts`; decide on the four orphan API routes (delete or wire); pick one CFO-avatar implementation and remove the other; document the six missing env vars; consider consolidating `office/sections/*` and `office/dashboards/*` (post-launch).
 - **A3** (cron + ops): decide whether the nudge engine is shipping in v2 — if yes, register the three cron schedules in `vercel.json` and verify `CRON_SECRET` in Vercel; if no, gate the evaluator wiring behind a feature flag or remove. Also: add CI (build + Vitest at minimum, ideally the persona-driver suite against staging) so the next merge has automated signal — currently zero CI runs configured for the repo.
+
+## Session A1 — 2026-05-01
+
+**Goal:** Dead-code verification, orphan API check, cron registration plan. Read-only on source. Output: `docs/DEAD-CODE-AUDIT.md` with C1 PR scope.
+
+**Outcome:**
+- **Tier 1 dead:** 1 (`src/lib/chat/prompt-buttons.ts`, 130 LOC, residue of `/chat` → `/office`).
+- **Orphan API verdicts:** 3 DEAD / 0 WIRED / 1 FLAG-FOR-LEWIS.
+  - DEAD: `/api/transactions/recategorise` (UI uses `/api/corrections/signal` instead), `/api/transactions/low-confidence-count` (no consumer), `/api/nudges/count` (inbox derives count from list).
+  - FLAG: `/api/value-map/regenerate` — orphan today but the `'manual'` reason argument and the `pendingRegen` polling UI suggest it's a deliberate seam for a planned "Regenerate my archetype" button. Lewis to decide delete vs hold.
+- **Cron plan:** 3 nudge routes proposed for `vercel.json` at `0 7 * * *` (daily), `0 8 * * 1` (Mon weekly), `0 8 1 * *` (1st-of-month). All four cron handlers (incl. existing `daily-bills`) already validate `CRON_SECRET` correctly.
+- **CRON_SECRET gaps:** **0**.
+- **Phase 0 fold-back:** A0 docs (`df90c91`) fast-forwarded into `claude/prepare-beta-v2-O1zeV` and pushed; tip is now `df90c91`.
+
+**Surprises:**
+- `/api/transactions/recategorise` is a *substantial* endpoint (rule creation, both category dimensions) but every transaction-edit UI in the office layout writes to `/api/corrections/signal` instead. Either an architecture pivot left it stranded, or the planned bulk/admin recategorise UI was never built.
+- All four cron route handlers already enforce `CRON_SECRET` cleanly — registering the three nudge routes is purely a `vercel.json` change with no security implications.
+- The existing `cfos-office/docs/cleanup/track-3-dead-code.md` already independently flagged `prompt-buttons.ts` as a "binary dead vs. alive" candidate via Knip — the A0 finding aligns.
+
+**For C1:**
+- **Commit ordering:** (1) delete `prompt-buttons.ts`; (2) delete the 3 confirmed-DEAD API routes (+ optional 4th if Lewis confirms `value-map/regenerate`); (3) register the 3 nudge cron entries in `vercel.json` and strip the `// TODO: Not registered` comment headers in each handler; (4) document the 6 undocumented env vars in `cfos-office/CLAUDE.md`. ~165 LOC removed, ~12 LOC added — well under 500.
+- **Needs Lewis input:** verdict on `/api/value-map/regenerate`; sanity-check on UTC schedule choices; Vercel cron vs Supabase pg_cron architectural call (`DEFERRED.md` flagged this as open).
