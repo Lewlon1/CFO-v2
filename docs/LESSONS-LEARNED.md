@@ -117,3 +117,18 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 **For C2b:**
 - Avatar migration is the next move. Visual change involved — Lewis declined a design pass; trusts mascot at 24px.
 - Recommend keeping the same branch (`claude/extract-office-utils-WFpBD`) so Lewis can pick up all C2 work in a single fast-forward.
+
+## Session C1.5 — 2026-05-01
+
+**Goal:** Declare `pdfjs-dist` as explicit direct dep + codify npm as canonical package manager.
+
+**Outcome:** `pdfjs-dist@5.4.296` pinned exact in `cfos-office/package.json`. `cfos-office/CLAUDE.md` gains a "Package manager" subsection at the top of "Tech Stack Details" stating npm-only. `npm ci` reproducible; `npm run build` clean (63 routes, 23.7s). Stayed on `claude/extract-office-utils-WFpBD` (the C2a branch); folds into v2 alongside C2a's three commits.
+
+**Surprises:**
+- **Single transitive resolution.** `npm ls pdfjs-dist` returned exactly one version (`5.4.296` via `pdf-parse@2.4.5`), so no Lewis decision needed. Pinned to that exact version with `--save-exact`.
+- **Lockfile diff was minimal.** Adding the direct dep added one line to `package-lock.json` and one to `package.json`. npm did not restructure the tree because `pdfjs-dist` was already at the top of resolution under transitive parenting.
+- **`npm install` flagged 3 vulnerabilities (1 moderate, 2 high)** in transitive deps — pre-existing, unrelated to this change. Did not run `npm audit fix --force`; that's a separate concern.
+
+**For Friday:**
+- Release PR will pick this up alongside C1 and C2a in the same v2 fast-forward.
+- The npm-vs-pnpm constraint is now codified in `cfos-office/CLAUDE.md`. Two prior sessions stumbled on it; a third shouldn't.
