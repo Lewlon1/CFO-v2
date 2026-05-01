@@ -2,9 +2,9 @@
 
 import { useEffect } from 'react'
 import useSWR from 'swr'
-import Link from 'next/link'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 import { Briefing } from './Briefing'
+import { DashboardEmptyState } from './DashboardEmptyState'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
@@ -44,7 +44,12 @@ export function NetWorthDashboard({ currency }: NetWorthDashboardProps) {
           <div className="h-20 rounded-[10px] bg-bg-deep animate-pulse" />
         </div>
       ) : !data || !data.has_data ? (
-        <EmptyNetWorth />
+        <DashboardEmptyState
+          body="Track your assets and debts to see your net worth take shape."
+          actionLabel="Set up →"
+          actionHref="/office/net-worth/upload"
+          accent={ACCENT}
+        />
       ) : (
         <>
           <Briefing accentColor={ACCENT}>{buildBriefing(data, effectiveCurrency)}</Briefing>
@@ -333,25 +338,6 @@ function Composition({
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-function EmptyNetWorth() {
-  return (
-    <div className="flex flex-col items-center text-center gap-3 py-10">
-      <p className="text-sm text-text-secondary max-w-[280px]">
-        Track your assets and debts to see your net worth take shape.
-      </p>
-      <Link
-        href="/office/net-worth/upload"
-        className="text-[13px] font-medium"
-        style={{ color: ACCENT }}
-      >
-        Set up &rarr;
-      </Link>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Upload, ArrowRight } from 'lucide-react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { Briefing } from './Briefing'
+import { DashboardEmptyState } from './DashboardEmptyState'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
@@ -48,7 +49,13 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
           <div className="h-40 rounded-[10px] bg-bg-deep animate-pulse" />
         </div>
       ) : !summary ? (
-        <EmptyCashFlow />
+        <DashboardEmptyState
+          icon={<Upload size={18} className="text-text-muted" />}
+          body="Upload a recent bank statement and your CFO can start showing you what's going on."
+          actionLabel="Upload →"
+          actionHref="/office/cash-flow/upload"
+          accent={ACCENT}
+        />
       ) : (
         <>
           <Briefing accentColor={ACCENT}>
@@ -305,28 +312,6 @@ function CategoryBreakdown({
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-function EmptyCashFlow() {
-  return (
-    <div className="flex flex-col items-center text-center gap-3 py-10">
-      <div className="w-10 h-10 rounded-full bg-bg-deep flex items-center justify-center">
-        <Upload size={18} className="text-text-muted" />
-      </div>
-      <p className="text-sm text-text-secondary max-w-[280px]">
-        Upload a recent bank statement and your CFO can start showing you what&apos;s going on.
-      </p>
-      <Link
-        href="/office/cash-flow/upload"
-        className="text-[13px] font-medium"
-        style={{ color: ACCENT }}
-      >
-        Upload &rarr;
-      </Link>
     </div>
   )
 }
