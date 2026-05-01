@@ -89,3 +89,14 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
   - Whether the mascot SVG needs a simplified compact variant for `size={24}`.
   - Whether to bundle `formatMonthShort` (2-copy duplicate) into the same C2 helper file as `formatCurrency`.
 - **No Lewis input needed** for Commits 2 and 3 — both produce byte-identical UI.
+
+## Session C1 — 2026-05-01
+**Goal:** Execute v2 cleanup PR per A1 recommendations.
+**Outcome:** 4 commits landed on `claude/prepare-beta-v2-O1zeV`. ~−145 LOC net (266 deletions, 12 additions, 12 doc lines). `prompt-buttons.ts` deleted, 3 orphan API routes deleted (`recategorise`, `low-confidence-count`, `nudges/count`), 3 nudge cron routes registered in `vercel.json` with TODO headers stripped, 6 env vars documented in `cfos-office/CLAUDE.md`. `npm run build` passes (63 routes, compiled in 24.2s). `/api/value-map/regenerate` preserved per Lewis (Session 30 seam).
+**Surprises:**
+- Repo uses **npm**, not pnpm — `package-lock.json` is the canonical lockfile and there is no `pnpm-lock.yaml` or `packageManager` field. A `pnpm install` builds an incorrect dep tree (pdfjs-dist resolves transitively under npm but is not in `package.json`), so the build fails. Use `npm ci && npm run build` for verification.
+- The TODO headers on the three nudge cron handlers were 2-line comment blocks (TODO line + Edge Function/DEFERRED.md continuation), not single lines. Removed the full block in each file.
+**For Friday smoke test:**
+- Cron routes won't fire until next scheduled UTC tick — `nudges-daily` 07:00, `nudges-weekly` 08:00 Mon, `nudges-monthly` 08:00 day 1. Worth confirming on Vercel dashboard that the schedules registered after deploy.
+- Env-var doc commit is doc-only — no runtime impact, but Lewis should confirm the six values are set in Vercel project envs before any production deploy.
+- `pdfjs-dist` is imported by `cfos-office/src/lib/parsers/universal-pdf.ts` but not declared in `cfos-office/package.json`. Pre-existing on v2 tip; only npm tolerates it (transitive resolution). Worth adding as an explicit dep for hygiene.
