@@ -100,3 +100,20 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 - Cron routes won't fire until next scheduled UTC tick — `nudges-daily` 07:00, `nudges-weekly` 08:00 Mon, `nudges-monthly` 08:00 day 1. Worth confirming on Vercel dashboard that the schedules registered after deploy.
 - Env-var doc commit is doc-only — no runtime impact, but Lewis should confirm the six values are set in Vercel project envs before any production deploy.
 - `pdfjs-dist` is imported by `cfos-office/src/lib/parsers/universal-pdf.ts` but not declared in `cfos-office/package.json`. Pre-existing on v2 tip; only npm tolerates it (transitive resolution). Worth adding as an explicit dep for hygiene.
+
+## Session C2a — 2026-05-01
+
+**Goal:** Zero-risk component extractions per A3 (formatCurrencyRounded helper, DashboardEmptyState primitive).
+
+**Outcome:** 2 commits landed on `claude/extract-office-utils-WFpBD` (which is in sync with `claude/prepare-beta-v2-O1zeV` at C1's tip). Net `-64` LOC across the two commits (10 files modified + 2 created in C1; 3 files modified + 1 created in C2). `formatCurrencyRounded` + `formatMonthShort` now live at `cfos-office/src/lib/utils/format-currency-rounded.ts` (replaces 9 `formatCurrency` copies and 2 `formatMonthShort` copies). `DashboardEmptyState` now lives at `cfos-office/src/components/office/dashboards/DashboardEmptyState.tsx` (replaces `EmptyCashFlow` and `EmptyNetWorth`). `npm run build` passes (63 routes, 15.9s). Zero visual change.
+
+**Surprises:**
+- **Branch designation conflict.** Harness asked for `claude/extract-office-utils-WFpBD`; task spec said `claude/prepare-beta-v2-O1zeV`. The two branches were already at the same commit (e617173) at session start, so the work landed on the harness branch with no functional difference — but Lewis will need to merge `claude/extract-office-utils-WFpBD` into `claude/prepare-beta-v2-O1zeV` (or fast-forward, since the former is strictly ahead) before the Friday release PR.
+- **`formatMonthShort` semantics in the spec draft would have changed output.** The task draft used `new Date(string).toLocaleString(...)`, but the existing inline implementation manually parses `YYYY-MM` with `new Date(y, m-1, 1)` (local timezone). The two diverge in non-UK timezones because the ISO string parser interprets bare `YYYY-MM` as UTC. Preserved the existing semantics in the helper to honour the "byte-identical output" guarantee. Updated the helper signature to `(month: string)` rather than `(date: Date | string)`.
+- **JSX entities don't decode in string props.** Initial migration of `EmptyCashFlow` passed `body="...what&apos;s..."` and `actionLabel="Upload &rarr;"` as string props — these would render the literal entity strings, not `'` and `→`. Fixed by passing actual unicode characters. Worth flagging in any future "extract inline JSX" sessions.
+- **Confirmed C1's `pnpm`-vs-`npm` finding.** First build attempt with `pnpm build` failed on the same `pdfjs-dist/build/pdf.worker.mjs` resolution error C1 documented. Switched to `npm ci && npm run build` and it passed cleanly. Worth resurfacing this in `cfos-office/CLAUDE.md` if it bites a third session.
+- **`Link` import in `NetWorthDashboard.tsx` became unused** after extracting `EmptyNetWorth` (the only `<Link>` was in the empty-state CTA). Removed it; tsc would have flagged the unused import otherwise.
+
+**For C2b:**
+- Avatar migration is the next move. Visual change involved — Lewis declined a design pass; trusts mascot at 24px.
+- Recommend keeping the same branch (`claude/extract-office-utils-WFpBD`) so Lewis can pick up all C2 work in a single fast-forward.
