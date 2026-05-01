@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { DemoEmailCapture } from '@/components/demo/demo-email-capture'
 import { DemoResonanceFeedback } from '@/components/demo/demo-resonance-feedback'
 import { PayoffPanel } from '@/components/demo/payoff-panel'
@@ -259,7 +259,13 @@ export function DemoReveal({ reading, personality, userName, country, results, f
         onClick={!done ? skip : undefined}
       >
         <div className="flex items-start gap-3">
-          <CfoAvatar size="sm" status={done ? 'idle' : 'thinking'} className="mt-0.5 shrink-0" />
+          {done ? (
+            <CFOAvatar size={24} className="mt-0.5 shrink-0" />
+          ) : (
+            <span className="animate-pulse">
+              <CFOAvatar size={24} className="mt-0.5 shrink-0" />
+            </span>
+          )}
           <p>{displayed}{!done && <span className="animate-pulse">|</span>}</p>
         </div>
         {!done && (

@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import { getDemoFeedback, getDemoMilestoneFeedback } from '@/lib/demo/feedback'
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
@@ -340,7 +340,7 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleFeedbackTap() }}
           >
-            <CfoAvatar size="sm" />
+            <CFOAvatar size={24} />
             <p className="text-sm text-foreground leading-relaxed max-w-xs">
               {feedbackText}
             </p>

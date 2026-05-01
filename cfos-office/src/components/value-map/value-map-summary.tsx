@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { ArrowRight, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import { formatAmount } from '@/lib/value-map/format'
 import { calculatePersonality } from '@/lib/value-map/personalities'
@@ -150,7 +150,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
       {hasObservations && (
         <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <CfoAvatar size="sm" />
+            <CFOAvatar size={24} />
             <span className="text-sm font-semibold text-[#E8A84C]">Your CFO</span>
           </div>
 

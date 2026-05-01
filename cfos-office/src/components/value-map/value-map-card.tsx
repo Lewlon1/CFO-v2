@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Undo2, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import { formatAmount, formatDate } from '@/lib/value-map/format'
 import { getFeedback, getMilestoneFeedback } from '@/lib/value-map/feedback'
@@ -367,7 +367,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleFeedbackTap() }}
           >
-            <CfoAvatar size="sm" />
+            <CFOAvatar size={24} />
             <p className="text-sm text-foreground leading-relaxed max-w-xs">
               {feedbackText}
             </p>

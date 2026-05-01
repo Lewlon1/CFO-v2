@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 
 interface RetakeImpactProps {
   retakeId: string | null
@@ -60,7 +60,7 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
   if (!retakeId) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
-        <CfoAvatar size="lg" />
+        <CFOAvatar size={48} />
         <div className="space-y-2 max-w-sm">
           <h1 className="text-xl font-semibold text-foreground">Thanks for the help</h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -81,7 +81,7 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
-        <CfoAvatar size="lg" />
+        <CFOAvatar size={48} />
         <p className="text-sm text-muted-foreground">Measuring the impact of your answers…</p>
       </div>
     )
@@ -95,7 +95,7 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
 
   return (
     <div className="flex flex-col items-center justify-start h-full px-6 pt-12 pb-8 gap-6 text-center overflow-y-auto">
-      <CfoAvatar size="lg" />
+      <CFOAvatar size={48} />
       <div className="space-y-2 max-w-sm">
         <h1 className="text-xl font-semibold text-foreground">That just paid off</h1>
         <p className="text-sm text-muted-foreground leading-relaxed">

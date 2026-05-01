@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { CfoThinking } from '@/components/brand/CfoThinking'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import {
@@ -183,7 +183,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
     return (
       <div className="flex flex-col items-center justify-center gap-6 px-4 py-8 flex-1 overflow-y-auto">
         <div className="flex flex-col items-center gap-3 text-center">
-          <CfoAvatar size="lg" />
+          <CFOAvatar size={48} />
           <h1 className="text-2xl font-semibold text-foreground">{VALUE_MAP_INTRO_HERO}</h1>
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
             {introSubhead}

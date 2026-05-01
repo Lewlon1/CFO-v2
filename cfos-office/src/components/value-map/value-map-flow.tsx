@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { CfoThinking } from '@/components/brand/CfoThinking'
 import { ValueMapCard } from './value-map-card'
 import { ValueMapSummary } from './value-map-summary'
@@ -573,7 +573,7 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
   if (step === 'intro') {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
-        <CfoAvatar size="lg" />
+        <CFOAvatar size={48} />
         <div className="space-y-2 max-w-sm">
           <h1 className="text-xl font-semibold text-foreground">
             {VALUE_MAP_INTRO_HERO}
@@ -657,7 +657,7 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
   if (step === 'checkin_empty') {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
-        <CfoAvatar size="lg" />
+        <CFOAvatar size={48} />
         <div className="space-y-2 max-w-sm">
           <h1 className="text-xl font-semibold text-foreground">Nothing to check in on</h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -739,7 +739,7 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
   if (step === 'personal_empty') {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
-        <CfoAvatar size="lg" />
+        <CFOAvatar size={48} />
         <div className="space-y-2 max-w-sm">
           <h1 className="text-xl font-semibold text-foreground">Nothing to retake yet</h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
