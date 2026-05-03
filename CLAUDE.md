@@ -5,6 +5,19 @@
 A trust-first personal finance advisor that combines chat (Claude via Bedrock) with a structured dashboard to help users understand and optimise their financial lives. Users share data gradually through conversation and CSV uploads, receiving increasingly personalised advice powered by an AI "CFO" that knows their numbers, understands their psychology, and gives honest strategic advice.
 
 The product name is **The CFO's Office**. The metaphor: walking into a startup CFO's office for a chat about your personal finances.
+
+---
+
+## Repo layout
+
+Source code lives in `cfos-office/`. All file paths in this document (e.g. `lib/...`, `app/...`, `components/...`) are relative to that directory. When Claude Code is invoked from the repo root, prefix paths with `cfos-office/` to access the actual files.
+
+Other top-level directories:
+- `docs/audits/` — current audit snapshots (V2 branch state, dead code, component consolidation, lessons learned)
+- `docs/decisions/` — open decision records
+- `docs/design/` — design mockups
+- `docs/archive/` — historical: pre-implementation specs, superseded audits, completed cleanup tracks
+
 ---
 
 ## Architecture
@@ -68,6 +81,10 @@ These are not aspirational. They are implementation constraints.
 
 ## Tech Stack Details
 
+### Package manager
+
+This repo uses **npm**. Do not use pnpm or yarn — they fail on this repo's hoisting expectations. Use `npm ci` for clean installs (lockfile-driven) and `npm run build` / `npm run typecheck` for verification.
+
 ### Bedrock Configuration
 
 ```typescript
@@ -83,10 +100,23 @@ export const bedrock = createAmazonBedrock({
 export const chatModel = bedrock('anthropic.claude-sonnet-4-6-20250514-v1:0');
 ```
 
+### Model Routing
+
+- `chatModel` (Sonnet) — CFO chat, scenario planning, monthly reviews, all user-facing conversation.
+- `analysisModel` (Sonnet) — retained for any analysis calls that need Sonnet quality.
+- `utilityModel` (Haiku) — structured extraction where personality/nuance doesn't matter: transaction categorisation fallback (`lib/categorisation/llm-categoriser.ts`) and post-conversation portrait analysis (`app/api/analyze-conversation/route.ts`). ~¼ the cost of Sonnet at equivalent quality for classification tasks.
+
+Model IDs resolve from `BEDROCK_CLAUDE_MODEL` / `BEDROCK_CLAUDE_UTILITY_MODEL` env vars, falling back to `eu.anthropic.claude-sonnet-4-6` and `eu.anthropic.claude-haiku-4-5` respectively. EU inference profiles only — no data leaves EU.
+
+### Prompt Caching
+
+The chat route system prompt is sent as a system-role message with `providerOptions.bedrock.cachePoint: { type: 'default' }` so it is cached across turns within a 5-minute TTL. First turn writes the cache (~1.25x cost on that segment); subsequent turns read it (~0.1x). Cache hit/write metrics land in `[bedrock-usage]` console logs via `lib/ai/usage-logger.ts`.
+
 ### Environment Variables Required
 
 ```
-# Supabase
+# Supabase — Claude can apply migrations to staging but never to production.
+# All SQL migrations to production require approval by Lewis.
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -95,6 +125,18 @@ SUPABASE_SERVICE_ROLE_KEY=
 AWS_REGION=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+
+# Bedrock model overrides
+BEDROCK_OPUS_MODEL=        # Bedrock model id for archetype generation (value-map/reveal)
+
+# External services
+BRAVE_SEARCH_API_KEY=      # Bill optimisation web search (lib/bills/brave-search.ts)
+RESEND_API_KEY=            # Transactional email + alerting
+
+# Cron + alerting
+CRON_SECRET=               # Bearer token validated by all /api/cron/* handlers
+ALERT_EMAIL=               # Recipient address for error alert webhook
+ALERT_WEBHOOK_URL=         # Resend webhook URL for error alerts
 
 # App
 NEXT_PUBLIC_APP_URL=
@@ -153,14 +195,19 @@ A priority queue that determines which profile questions to ask and when. See th
 
 ### The CFO Persona
 
-Direct, knowledgeable, strategic. Knows the user's numbers. Pushes back when needed. Remembers everything. Adjusts tone based on user preference (gentle/direct/blunt). A CFO advises — they don't decide for you.
+Warm, sharp, and conversational — like a smart mate who happens to be brilliant with money. Knows the user's numbers inside out. Pushes back when needed but never lectures. Uses real numbers and tangible comparisons ("that's a weekend in Lisbon every month") instead of financial jargon. Adjusts tone based on user preference (gentle/direct/blunt).
+
+A CFO guides — they don't decide for you.
 
 Key persona rules:
-- Use actual numbers, not generic ranges
+- Use actual numbers and tangible comparisons, never generic ranges or jargon
 - Never lecture — explain once, then move to action
-- When spending contradicts values, name it without judgement
-- Acknowledge limitations honestly (not a licensed advisor, can't do tax)
+- When spending contradicts values, name it once without judgement, then help
+- Acknowledge limitations honestly and specifically (not a licensed adviser, can't do tax)
 - Reference past conversations naturally
+- Never use the product name "The CFO's Office" in conversation — you are "your CFO"
+- Talk like a person, not a product
+- Never say "advice" or "advise" — use "guidance", "suggestion", or just say what you'd do
 
 ---
 
@@ -440,6 +487,32 @@ Rules engine, scheduled jobs, delivery.
 
 ### Session 13: Polish + Deploy (Day 20-22)
 Error handling, performance, security review, seed user #1 data.
+
+---
+
+## Mobile-First Design
+
+**This is a mobile-first product.** Chat is the primary interface and most users will be on their phones. Every screen must be fully functional on mobile before adding desktop enhancements.
+
+### Rules
+
+- **Viewport height**: Always use `h-dvh` (dynamic viewport height), never `h-screen`. On iOS Safari, `100vh` doesn't shrink when the URL bar hides — `100dvh` does.
+- **Sidebars are desktop-only**: Use `hidden md:flex` (not `flex md:flex`). The mobile layout is a single full-width column.
+- **Touch targets**: All interactive elements must be at least 44×44px (`min-h-[44px]`, `min-w-[44px]`).
+- **No auto-focus on mobile**: Auto-focusing a textarea pops the keyboard immediately, covering content. Guard with `window.matchMedia('(pointer: fine)')` to focus only on mouse-driven devices.
+- **Input anchored at bottom**: Chat input is always at the bottom of the flex column — never scrolls with content. Achieved via `flex flex-col` on the container with `flex-1 overflow-y-auto` on the messages area.
+- **Overflow discipline**: Chat layout uses `overflow-hidden` so scrolling is scoped to the messages container, not the page.
+- **Safe area insets**: When adding bottom-anchored UI (chat input, tab bars), account for `env(safe-area-inset-bottom)` on iPhone X+.
+
+### Tailwind Pattern
+
+```
+Mobile (base)          → no prefix
+Tablet (768px+)        → md:
+Desktop (1024px+)      → lg:
+```
+
+Write styles for the smallest screen first, then layer in larger-screen overrides.
 
 ---
 
