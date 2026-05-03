@@ -533,6 +533,28 @@ Write styles for the smallest screen first, then layer in larger-screen override
 7. **Token budget is real.** A fully populated profile + 6 months of snapshots + portrait + goals can easily hit 4000+ tokens of context. Prioritise ruthlessly. Current month data > historical. Active goals > completed.
 
 ---
+
+## Known data limitations
+
+### Message audit trail
+
+The `messages.tools_used`, `messages.profile_updates`, `messages.actions_created`,
+and `messages.insights_generated` columns are populated on a forward basis only,
+starting from the deploy of S-W1.5-10 (2026-05-03 — adjust if deploy slips).
+
+Messages created before that date have these four columns as NULL by design — they
+predate the parser fix. The previous parser looked for `tool-call` / `tool-result`
+part types that don't exist in AI SDK v6 UIMessage format, so it silently wrote NULL
+for every assistant message.
+
+When running disclosure analytics across historical conversations, treat pre-cutoff
+messages as data-unavailable, not data-empty. The dedicated tables (`action_items`,
+`user_profiles`, `financial_portrait`, `value_category_rules`, `assets`,
+`liabilities`, `goals`) remain the source of truth for what was actually written.
+The message audit trail exists to reconstruct *when within a conversation* something
+happened.
+
+---
 ## Playwright tests
 End-to-end tests live in `cfos-office/tests/onboarding/` (personas, runner, unit tests, and runtime output under `test-output/`).
 `.claude/settings.json` excludes this directory from Claude Code's
