@@ -6,7 +6,7 @@
  * The two coexist intentionally: legacy dashboard/balance-sheet surfaces use
  * the precise variant; office dashboards use this rounded variant.
  *
- * Refs: docs/COMPONENT-CONSOLIDATION.md §3 Extraction A
+ * Refs: docs/audits/2026-05-01-component-consolidation.md §3 Extraction A
  */
 export function formatCurrencyRounded(amount: number, currency = 'EUR'): string {
   return new Intl.NumberFormat('en-IE', {

@@ -28,7 +28,7 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 
 **Goal:** Branch state snapshot for v2 cleanup planning, against unified branch `claude/prepare-beta-v2-O1zeV`. Read-only — no source code modified.
 
-**Outcome:** Branch is **118 commits ahead** of `origin/main` (425 files changed, +39,068/−17,475). The big diff is structural — `cfos-office/` reorganisation plus the orphan-`/src/` cleanup — not behaviour. The active code is healthy: only **one** lib orphan (`src/lib/chat/prompt-buttons.ts`, leftover from the `/chat` → `/office` move), zero component orphans, and zero unused runtime dependencies. The CFO-avatar duplication (`chat/cfo-avatar.tsx` vs `brand/CFOAvatar.tsx`) is the most visible inconsistency. `BatchSummary`, `/api/detect-format`, `/api/extract-pdf-transactions`, `/api/onboarding/save-experiment` (recent-merge additions) are all wired up. Migrations 031–036 are present in the repo as expected; production still at 030. Full report: `docs/V2-AUDIT.md`.
+**Outcome:** Branch is **118 commits ahead** of `origin/main` (425 files changed, +39,068/−17,475). The big diff is structural — `cfos-office/` reorganisation plus the orphan-`/src/` cleanup — not behaviour. The active code is healthy: only **one** lib orphan (`src/lib/chat/prompt-buttons.ts`, leftover from the `/chat` → `/office` move), zero component orphans, and zero unused runtime dependencies. The CFO-avatar duplication (`chat/cfo-avatar.tsx` vs `brand/CFOAvatar.tsx`) is the most visible inconsistency. `BatchSummary`, `/api/detect-format`, `/api/extract-pdf-transactions`, `/api/onboarding/save-experiment` (recent-merge additions) are all wired up. Migrations 031–036 are present in the repo as expected; production still at 030. Full report: `docs/audits/2026-05-01-v2-audit.md`.
 
 **Surprises:**
 - Three nudge cron routes exist (`/api/cron/nudges-daily`, `nudges-weekly`, `nudges-monthly`) but **none** are registered in `vercel.json` — only `daily-bills` is. Either the nudge engine is dormant in production or schedules need adding before launch.
@@ -42,7 +42,7 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 
 ## Session A1 — 2026-05-01
 
-**Goal:** Dead-code verification, orphan API check, cron registration plan. Read-only on source. Output: `docs/DEAD-CODE-AUDIT.md` with C1 PR scope.
+**Goal:** Dead-code verification, orphan API check, cron registration plan. Read-only on source. Output: `docs/audits/2026-05-01-dead-code.md` with C1 PR scope.
 
 **Outcome:**
 - **Tier 1 dead:** 1 (`src/lib/chat/prompt-buttons.ts`, 130 LOC, residue of `/chat` → `/office`).
@@ -64,7 +64,7 @@ After the fast-forward, `claude/fix-onboarding-issues-ifwJV` still held one comm
 
 ## Session A3 — 2026-05-01
 
-**Goal:** Component consolidation audit. CFO avatar verification + broader pattern hunt for C2 extractions. Read-only on source. Output: `docs/COMPONENT-CONSOLIDATION.md`.
+**Goal:** Component consolidation audit. CFO avatar verification + broader pattern hunt for C2 extractions. Read-only on source. Output: `docs/audits/2026-05-01-component-consolidation.md`.
 
 **Outcome:**
 - **CFO avatar consolidation:** **VERIFIED** — but with a wrinkle. The two files are not "two copies of the same component"; they're **two visually-different artefacts** that overlap in role. `chat/cfo-avatar.tsx` (`CfoAvatar`) renders a £ glyph in a coloured square; `brand/CFOAvatar.tsx` (`CFOAvatar`) renders a full SVG mascot. Both are alive because the office redesign migrated the new mascot into office/onboarding/inbox surfaces but left the value-map and demo flows on the old £ glyph. The consolidation is real and worthwhile, but it's a *visual* migration (placeholder → polished), not a *code* dedupe — Lewis must approve the visual change in value-map/demo before merge, and the mascot SVG may need a simplified small variant (24px) check.

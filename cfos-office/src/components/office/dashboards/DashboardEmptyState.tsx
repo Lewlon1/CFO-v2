@@ -17,7 +17,7 @@ interface DashboardEmptyStateProps {
  * dashboard/EmptyState and balance-sheet/EmptyState, which carry chat-context
  * hooks and multi-CTA variants.
  *
- * Refs: docs/COMPONENT-CONSOLIDATION.md §3 Extraction B
+ * Refs: docs/audits/2026-05-01-component-consolidation.md §3 Extraction B
  */
 export function DashboardEmptyState({
   icon,
