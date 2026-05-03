@@ -365,11 +365,11 @@ export async function buildSystemPrompt(
       .eq('status', 'pending'),
     supabase
       .from('trips')
-      .select('name, destination, start_date, end_date, total_estimated, status, currency')
+      .select('id, name, destination, start_date, end_date, total_estimated, status, currency, updated_at')
       .eq('user_id', userId)
       .in('status', ['planning', 'booked'])
-      .order('start_date', { ascending: true })
-      .limit(3),
+      .is('deleted_at', null)
+      .order('start_date', { ascending: true }),
     supabase
       .from('assets')
       .select('*')
@@ -391,6 +391,24 @@ export async function buildSystemPrompt(
   const goals = goalsResult.status === 'fulfilled' ? goalsResult.value.data : null;
   const actions = actionsResult.status === 'fulfilled' ? actionsResult.value.data : null;
   const trips = tripsResult.status === 'fulfilled' ? tripsResult.value.data : null;
+  // Defensive read-side dedup: collapse rows with the same destination+month, keep most recent.
+  // Protects against any legacy duplicates created before plan_trip's UPSERT path landed.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dedupedTrips: any[] | null = (() => {
+    if (!trips) return trips;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const byKey = new Map<string, any>();
+    for (const t of trips) {
+      const dest = (t.destination ?? t.name ?? '').trim().toLowerCase();
+      const month = t.start_date ? t.start_date.slice(0, 7) : 'no-date';
+      const key = `${dest}|${month}`;
+      const existing = byKey.get(key);
+      if (!existing || (t.updated_at && existing.updated_at && t.updated_at > existing.updated_at)) {
+        byKey.set(key, t);
+      }
+    }
+    return Array.from(byKey.values()).slice(0, 3);
+  })();
   const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
   const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
 
@@ -417,6 +435,7 @@ export async function buildSystemPrompt(
   if (isFirstInsight) {
     const sections = [
       BASE_PERSONA + styleModifier,
+      buildCurrentDateContext(),
       buildFirstInsightContext(firstInsightPayload),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
       buildToolUsageInstructions(),
@@ -427,6 +446,7 @@ export async function buildSystemPrompt(
 
   const sections = [
     BASE_PERSONA + styleModifier,
+    buildCurrentDateContext(),
     buildProfileContext(profile),
     buildFinancialContext(snapshots, recurring, profile),
     await getCountryBenchmarks(profile, supabase),
@@ -435,7 +455,7 @@ export async function buildSystemPrompt(
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
     buildGoalsContext(goals, actions),
-    buildTripsContext(trips, profile),
+    buildTripsContext(dedupedTrips, profile),
     buildToolUsageInstructions(),
     await getValueMappingContext(userId, supabase),
     await getValueCheckinNudgeContext(userId, supabase, conversationType),
@@ -445,6 +465,20 @@ export async function buildSystemPrompt(
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
+}
+
+function buildCurrentDateContext(): string {
+  const now = new Date();
+  const iso = now.toISOString().slice(0, 10);
+  const formatted = now.toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  return [
+    '## Current date',
+    `Today is ${formatted} (${iso}).`,
+    '',
+    'When the user mentions a month, season, or quarter without a year, do NOT assume the current year. Ask which year they mean — unless the user has already named the year, the date sits clearly in the future, or the conversation context makes it unambiguous. Never silently default to "the next upcoming May".',
+  ].join('\n');
 }
 
 // ── Onboarding resume context ───────────────────────────────────────────────
