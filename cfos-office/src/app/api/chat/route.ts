@@ -1,6 +1,7 @@
 import { streamText, generateText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
@@ -13,6 +14,8 @@ import { createToolbox, type ToolContext } from '@/lib/ai/tools';
 import { sendAlert, wrapToolsWithAlerts } from '@/lib/alerts/notify';
 import { extractMessageAudit } from '@/lib/ai/audit-trail';
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete';
+import { extractFromConversation } from '@/lib/ai/portrait-extraction';
+import { createServiceClient } from '@/lib/supabase/service';
 
 export const maxDuration = 60;
 
@@ -96,22 +99,34 @@ export async function POST(req: Request) {
       .eq('status', 'active')
       .select('id');
 
-    // Fire-and-forget post-conversation analysis for completed conversations
+    // Post-conversation portrait extraction for any conversations we just
+    // marked completed. Wrapped in `after()` so the work survives past the
+    // streaming response (a bare `fetch().catch()` here was killed by Vercel
+    // before landing — see S-W1.5-11). On failure, `analysed_at` stays NULL
+    // and the daily cron at /api/cron/portrait-extraction picks it up.
     if (completedConvs && completedConvs.length > 0) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
       for (const conv of completedConvs) {
-        fetch(`${appUrl}/api/analyze-conversation`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
-            conversation_id: conv.id,
-            user_id: user.id,
-          }),
-        }).catch(() => {
-          // Fire-and-forget — don't block conversation creation
+        after(async () => {
+          try {
+            // Use a fresh service-role client inside `after()` so the work
+            // doesn't depend on the request's auth cookies still being valid
+            // and isn't gated by RLS on `financial_portrait` / `profiling_queue`.
+            const serviceSupabase = createServiceClient();
+            await extractFromConversation(serviceSupabase, {
+              conversationId: conv.id,
+              userId: user.id,
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[chat] post-conversation extraction failed:', message);
+            await sendAlert({
+              severity: 'critical',
+              event: 'portrait_extraction_after_failed',
+              user_id: user.id,
+              details: message,
+              metadata: { conversationId: conv.id, callSite: 'chat_route' },
+            }).catch(() => {});
+          }
         });
       }
 

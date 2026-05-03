@@ -455,9 +455,20 @@ Validation rules:
 Use for: relationship status, employment details, behavioral observations, preferences.
 
 ### Channel C: Post-Conversation Analysis (Supplementary)
-Edge Function runs after conversation ends. Sends transcript to Claude for behavioral trait extraction. Results written to financial_portrait.
+The post-conversation extractor reads a completed conversation's transcript and writes behavioural traits to `financial_portrait` with `source = 'post_conversation'`. Implementation lives at `lib/ai/portrait-extraction.ts` (Haiku via `utilityModel`).
 
 Use for: spending patterns, behavioral traits, value shifts, contradictions.
+
+**Trigger conditions.** Portrait entries are written from the following sources:
+
+- **`balance_sheet`** — when `updateAssetPortrait()` runs after an asset/liability upsert (`lib/balance-sheet/portrait.ts`).
+- **`gap_analysis`** — when `analyseGap()` runs after Value Map completion or check-in (`lib/analytics/gap-analyser.ts`).
+- **`post_conversation`** — when a previously active conversation transitions to `status = 'completed'` (which happens when a user starts a new conversation or a new monthly review). Both call sites — `app/api/chat/route.ts` and `app/api/review/start/route.ts` — wrap the work in Next.js `after()` so it runs after the response is sent. The daily cron at `/api/cron/portrait-extraction` (06:00 UTC) sweeps any completed conversations from the last 7 days where `analysed_at IS NULL` to catch transient failures. Both paths stamp `conversations.analysed_at` on terminal outcomes (success or "too few messages") so neither double-processes.
+- **`manual_reextraction`** — ad-hoc backfill via `scripts/reextract-portrait.ts`. Outputs SQL inserts to stdout; never auto-applied.
+
+**Failure handling.** Bedrock or DB failures throw out of `extractFromConversation`, leaving `analysed_at` NULL so the cron retries. The throw triggers `sendAlert({ severity: 'critical', event: 'portrait_extraction_after_failed' | 'portrait_extraction_cron_failures' })` via the standard `lib/alerts/notify.ts` webhook. Silent pipeline failures are the failure mode this whole layer exists to prevent — historical context: S-W1.5-11 was triggered by zero `post_conversation` entries existing in prod for three weeks despite 28 completed conversations.
+
+**Operational alarm.** A user with `≥10` user messages and zero portrait entries from `source = 'post_conversation'` is a red flag. Cross-check `llm_usage_log` for `call_type = 'post_conversation_analysis'` rows and `conversations.analysed_at` for unprocessed completed rows to localise the failure.
 
 ---
 
