@@ -10,6 +10,7 @@ import {
   refreshMonthlySnapshots,
   extractAffectedMonths,
 } from '@/lib/analytics/monthly-snapshot'
+import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
 
 const VALID_QUADRANTS = new Set(['foundation', 'investment', 'burden', 'leak'])
 const RETAKE_WEIGHT_MULTIPLIER = 2.0
@@ -177,6 +178,11 @@ export async function POST(req: NextRequest) {
     console.error('[api/value-map/personal] session insert error:', sessionError)
     return NextResponse.json({ error: 'Could not create session' }, { status: 500 })
   }
+
+  // Permissive onboarding completion — fire-and-forget.
+  markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
+    console.error('[value-map/personal] markOnboardingCompleteIfReady failed:', err)
+  })
 
   // 4. Persist per-card results to value_map_results
   const resultRows = actionable

@@ -22,6 +22,7 @@ import { detectAndFlagHolidaySpend } from '@/lib/analytics/holiday-detector'
 import { enrichLocation } from '@/lib/analytics/location-enricher'
 import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings'
 import { evaluateValueMapRetake } from '@/lib/nudges/evaluators/value-map-retake'
+import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
 import type {
   Category,
   ValueCategoryRule,
@@ -90,6 +91,13 @@ export async function POST(req: NextRequest) {
       evaluateValueMapRetake(supabase, user.id).catch((err) => {
         console.error('[upload] evaluateValueMapRetake failed:', err)
       })
+
+      // Permissive onboarding completion — fire-and-forget.
+      if (stats.imported > 0) {
+        markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
+          console.error('[upload] markOnboardingCompleteIfReady failed:', err)
+        })
+      }
 
       // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
       const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([

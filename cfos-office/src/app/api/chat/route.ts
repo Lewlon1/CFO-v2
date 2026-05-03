@@ -12,6 +12,7 @@ import { calculateProfileCompleteness } from '@/lib/profiling/engine';
 import { createToolbox, type ToolContext } from '@/lib/ai/tools';
 import { sendAlert, wrapToolsWithAlerts } from '@/lib/alerts/notify';
 import { extractMessageAudit } from '@/lib/ai/audit-trail';
+import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete';
 
 export const maxDuration = 60;
 
@@ -153,6 +154,12 @@ export async function POST(req: Request) {
         user_id: user.id,
         role: 'user',
         content: textContent,
+      });
+
+      // Permissive onboarding completion — fire-and-forget. Helper itself
+      // enforces the >=3 user-message threshold; no pre-count needed here.
+      markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
+        console.error('[chat] markOnboardingCompleteIfReady failed:', err);
       });
     }
   }

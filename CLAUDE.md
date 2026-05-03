@@ -193,6 +193,20 @@ A priority queue that determines which profile questions to ask and when. See th
 - Three input methods: structured (inline components), conversational (Claude function calling), inferred (Claude extracts from natural speech)
 - Confidence thresholds determine auto-save vs confirmation vs explicit ask
 
+### Onboarding completion
+
+A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. Two parallel paths set it:
+
+1. **Modal path** (`POST /api/onboarding/complete`) — fires when the user reaches the `handoff` beat in the onboarding modal and dismisses. Also seeds `financial_portrait` via `seedFromOnboarding`.
+2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from three write sites after a real engagement signal: Value Map session insert (`api/value-map/personal`), transaction import success (`api/upload`), and user message insert (`api/chat`). Stamps the timestamp only; does not seed.
+
+**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND at least one of:
+- a `value_map_sessions` row exists for `profile_id = userId`
+- ≥1 `transactions` row with `user_id = userId AND deleted_at IS NULL`
+- ≥3 `messages` rows with `role='user' AND deleted_at IS NULL`, joined via `conversations.user_id = userId`
+
+The timestamp is a one-way ratchet in the permissive path (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. There is deliberately no wall-clock floor (e.g. "spent ≥60s in app"); anyone who hits one of the three signals has clearly been engaged.
+
 ### The CFO Persona
 
 Warm, sharp, and conversational — like a smart mate who happens to be brilliant with money. Knows the user's numbers inside out. Pushes back when needed but never lectures. Uses real numbers and tangible comparisons ("that's a weekend in Lisbon every month") instead of financial jargon. Adjusts tone based on user preference (gentle/direct/blunt).
