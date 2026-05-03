@@ -7,6 +7,14 @@ import { PERSONALITIES } from '@/lib/value-map/constants';
 import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
 import { extractNumbers } from './insight-validator';
 
+const COHORT_LABEL: Record<string, string> = {
+  wave_1: 'Wave 1',
+  wave_1_5: 'Wave 1.5',
+  wave_2: 'Wave 2',
+  wave_3: 'Wave 3',
+  public: 'public launch',
+};
+
 function currencySymbol(currency: string): string {
   switch (currency.toUpperCase()) {
     case 'GBP': return '£';
@@ -576,6 +584,9 @@ function buildProfileContext(profile: any): string {
   if (profile.residency_status) fields.push(`Residency status: ${profile.residency_status}`);
   if (profile.tax_residency_country) fields.push(`Tax residency: ${profile.tax_residency_country}`);
   if (profile.years_in_country) fields.push(`Years in country: ${profile.years_in_country}`);
+  if (profile.beta_cohort && COHORT_LABEL[profile.beta_cohort]) {
+    fields.push(`Cohort: ${COHORT_LABEL[profile.beta_cohort]} beta tester`);
+  }
 
   if (fields.length === 0) return '';
 
