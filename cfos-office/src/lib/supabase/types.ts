@@ -217,6 +217,60 @@ export type Database = {
           },
         ]
       }
+      bank_format_templates: {
+        Row: {
+          bank_name: string | null
+          column_mapping: Json
+          created_at: string
+          created_by_user_id: string | null
+          currency_default: string
+          date_format: string
+          decimal_format: string
+          detection_source: string
+          file_type: string
+          header_hash: string
+          id: string
+          last_seen_at: string
+          sample_headers: string
+          sign_convention: string
+          use_count: number
+        }
+        Insert: {
+          bank_name?: string | null
+          column_mapping: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          currency_default?: string
+          date_format: string
+          decimal_format: string
+          detection_source?: string
+          file_type: string
+          header_hash: string
+          id?: string
+          last_seen_at?: string
+          sample_headers: string
+          sign_convention: string
+          use_count?: number
+        }
+        Update: {
+          bank_name?: string | null
+          column_mapping?: Json
+          created_at?: string
+          created_by_user_id?: string | null
+          currency_default?: string
+          date_format?: string
+          decimal_format?: string
+          detection_source?: string
+          file_type?: string
+          header_hash?: string
+          id?: string
+          last_seen_at?: string
+          sample_headers?: string
+          sign_convention?: string
+          use_count?: number
+        }
+        Relationships: []
+      }
       benchmarks: {
         Row: {
           average_monthly: number
@@ -1921,6 +1975,7 @@ export type Database = {
           advice_style: string | null
           age_range: string | null
           anonymised_at: string | null
+          beta_cohort: Database["public"]["Enums"]["beta_cohort_t"] | null
           bonus_month_details: Json | null
           budget_config: Json | null
           capability_preferences: string[] | null
@@ -1936,6 +1991,7 @@ export type Database = {
           has_bonus_months: boolean | null
           housing_type: string | null
           id: string
+          is_lifetime_pro: boolean
           monthly_rent: number | null
           nationality: string | null
           net_monthly_income: number | null
@@ -1961,6 +2017,7 @@ export type Database = {
           advice_style?: string | null
           age_range?: string | null
           anonymised_at?: string | null
+          beta_cohort?: Database["public"]["Enums"]["beta_cohort_t"] | null
           bonus_month_details?: Json | null
           budget_config?: Json | null
           capability_preferences?: string[] | null
@@ -1976,6 +2033,7 @@ export type Database = {
           has_bonus_months?: boolean | null
           housing_type?: string | null
           id: string
+          is_lifetime_pro?: boolean
           monthly_rent?: number | null
           nationality?: string | null
           net_monthly_income?: number | null
@@ -2001,6 +2059,7 @@ export type Database = {
           advice_style?: string | null
           age_range?: string | null
           anonymised_at?: string | null
+          beta_cohort?: Database["public"]["Enums"]["beta_cohort_t"] | null
           bonus_month_details?: Json | null
           budget_config?: Json | null
           capability_preferences?: string[] | null
@@ -2016,6 +2075,7 @@ export type Database = {
           has_bonus_months?: boolean | null
           housing_type?: string | null
           id?: string
+          is_lifetime_pro?: boolean
           monthly_rent?: number | null
           nationality?: string | null
           net_monthly_income?: number | null
@@ -2305,6 +2365,7 @@ export type Database = {
         | "reit"
         | "cash"
         | "other"
+      beta_cohort_t: "wave_1" | "wave_1_5" | "wave_2" | "wave_3" | "public"
       budget_period: "weekly" | "monthly" | "quarterly" | "yearly"
       category_tier: "core" | "lifestyle" | "financial"
       debt_type:
@@ -2535,6 +2596,7 @@ export const Constants = {
         "cash",
         "other",
       ],
+      beta_cohort_t: ["wave_1", "wave_1_5", "wave_2", "wave_3", "public"],
       budget_period: ["weekly", "monthly", "quarterly", "yearly"],
       category_tier: ["core", "lifestyle", "financial"],
       debt_type: [
@@ -2638,3 +2700,4 @@ export const Constants = {
     },
   },
 } as const
+
