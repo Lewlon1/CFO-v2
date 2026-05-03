@@ -1,12 +1,27 @@
 # Tech Debt Registry — The CFO's Office
 
-> Last updated: 2026-04-09 (Session 23)
-> Generated during Session 16 (Repo Audit & Landing Page)
+> Last updated: 2026-05-03 (Session 27 — doc cleanup pass).
+> Generated during Session 16 (Repo Audit & Landing Page).
 >
 > Living document — update as debt is added or resolved.
 > Entries sourced from manual testing across sessions 3–19 plus the
 > Session 16 read-only audit. Session labels below are preserved verbatim
 > from the testing notes.
+
+## Resolved since last refresh (2026-04-09 → 2026-05-03)
+
+| # | Item | Resolved by |
+|---|------|-------------|
+| #17 | Bill management: no delete option | `/api/bills/delete/route.ts` + UI handler in `BillsClient` (delete button + confirm flow) |
+| #20 | Cron job configuration unverified | Session C1 (commit `4b32367`, 2026-05-01) — `vercel.json` registers `daily-bills`, `nudges-daily`, `nudges-weekly`, `nudges-monthly`. All four handlers validate `CRON_SECRET`. |
+| #28 | Empty-queue handling for `get_value_review_queue` | `src/lib/ai/tools/get-value-review-queue.ts:391` returns "No uncertain transactions to review. All value categories are either confirmed or high-confidence." instead of calling the tool with an empty result. |
+| #34 | Custom favicon | `cfos-office/src/app/favicon.ico` present (no longer the Next.js default). |
+
+Also worth noting from Sessions 24–C2b (parser refactor, Session 25 cleanup, V2 audits, C-series follow-ups). See `SESSION-LOG.md` and `docs/audits/2026-04-29-lessons-learned.md` for the full story:
+
+- **Universal parser pipeline** — per-bank parsers deleted (`revolut.ts`, `monzo.ts`, `starling.ts`, `hsbc.ts`, `barclays.ts`, `generic.ts`, `santander.ts`, `uk-date.ts`, `parsers/index.ts`); `/api/upload` narrowed to non-CSV/XLSX cases. Parser correctness bugs from earlier diagnostic CLI fixed (commits `7bcf8a9`, `4878e6d`).
+- **Session 25 cleanup** — 12 dead-code files deleted, type consolidation, error-handling pass, zero circular deps confirmed (`e6f5a3c`).
+- **V2 audit (A0/A1/A3, May 1)** — 1 lib orphan deleted (`prompt-buttons.ts`), 3 orphan API routes deleted, CFO avatar consolidated onto `brand/CFOAvatar`, `formatCurrency` deduped across office dashboards into `formatCurrencyRounded` helper, `DashboardEmptyState` primitive extracted, 6 undocumented env vars added to `CLAUDE.md`. See `docs/audits/2026-05-01-*.md`.
 
 ---
 
@@ -27,10 +42,10 @@
 | 14 | Scenarios created in chat not logged to What If section (pill button does log) | Session 10 | Users can't find saved scenarios | Tier 2 |
 | 15 | Monthly review: value shift detection weak | Session 8 | Reviews feel generic | Tier 2 |
 | 16 | Monthly review: goal / action item context understanding | Session 8 | Reviews miss user priorities | Tier 2 |
-| 17 | Bill management: no delete option | Session 9 | Users stuck with wrong bills | Tier 2 |
+| 17 | ✅ Bill management: no delete option | Session 9 | Users stuck with wrong bills | **RESOLVED** — see top of file |
 | 18 | Bill management: doc upload consistency needs improvement | Session 9 | Friction in bill tracking | Tier 2 |
 | 19 | Bill management: add new variables | Session 9 | Feature gap | Tier 2 |
-| 20 | Cron job configuration unverified (bills + nudges) | Sessions 9, 11 | Scheduled tasks may not run | Tier 2 |
+| 20 | ✅ Cron job configuration unverified (bills + nudges) | Sessions 9, 11 | Scheduled tasks may not run | **RESOLVED** — see top of file |
 | 21 | Payday detection nudge untested on CSV upload | Session 11 | Proactive feature may not fire | Tier 2 |
 | 22 | Values over time methodology unclear — should every transaction be F/I/L/B? | Session 5 | Dashboard view may be misleading | Architecture decision |
 | 23 | Recurring bill detection method review | Session 5 | Detection approach unverified | Tier 2 |
@@ -38,7 +53,7 @@
 | 25 | Mobile UX needs review | Session 13 | Mobile-first product, mobile untested | Tier 2 |
 | 26 | Error handling review across app | Session 13 | Inconsistent failure UX | Tier 2 |
 | 27 | Tell Claude *"actually dining is an investment for me"* — verify it acknowledges and calls the tool | Session 4 | Inline correction flow unverified | Tier 2 |
-| 28 | Empty-queue handling for `get_value_review_queue` — CFO should say *"all confirmed"* rather than call the tool with an empty result (see Playbook B) | Session 16 (transactions refactor) | Poor UX when everything is already reviewed | Tier 2 |
+| 28 | ✅ Empty-queue handling for `get_value_review_queue` — CFO should say *"all confirmed"* rather than call the tool with an empty result (see Playbook B) | Session 16 (transactions refactor) | Poor UX when everything is already reviewed | **RESOLVED** — see top of file |
 
 ---
 
@@ -48,10 +63,10 @@
 |----|-------|--------|--------|------------|
 | 29 | Messages table doesn't show which tool was called (`tools_used = null` tracking bug, pre-existing) | Sessions 7, 16 (refactor) | Developer visibility only | Tier 3 |
 | 30 | 3 deferred TODOs: `TODO(session-14): log to user_events` in `src/lib/ai/tools/upsert-asset.ts`, `upsert-liability.ts`, `get-balance-sheet.ts` | Session 16 audit | User event coverage gap for balance-sheet tools | Session 14 |
-| 31 | `src/lib/ai/context-builder.ts` at 1,316 lines — largest file in the repo, candidate for future refactor | Session 16 audit | Token / maintenance burden | Tier 3 |
+| 31 | `src/lib/ai/context-builder.ts` at **2,012 lines** as of 2026-05-03 (grew from 1,316 in the Session 16 audit; profile context expansion + 6 new env-aware sections). Still the largest file in the repo, still a candidate for future refactor. | Session 16 audit | Token / maintenance burden | Tier 3 |
 | 32 | Large files to monitor (300+ lines): `app/api/chat/route.ts` (679), `value-map-flow.tsx` (672), `HoldingsPreview.tsx` (641), `get-value-review-queue.ts` (542), `value-map-card.tsx` (532), `demo-card.tsx` (466), `MessageList.tsx` (462), `feedback.ts` (451), `model-scenario.ts` (444), `StructuredInput.tsx` (408), `api/demo/reading/route.ts` (400), `api/upload/route.ts` (390), `api/balance-sheet/route.ts` (385), `UploadWizard.tsx` (363), `demo-reveal.tsx` (360), `balance-sheet-import.ts` (350), `BillUploadModal.tsx` (337), `question-registry.ts` (332), `ChatInterface.tsx` (319) | Session 16 audit | Future refactor candidates | Tier 3 |
 | 33 | Unused npm dependencies not verified — run `npx depcheck` in a follow-up | Session 16 audit | Possible bundle bloat | Tier 3 |
-| 34 | Custom favicon needed — `src/app/favicon.ico` may still be the default Next.js favicon | Session 16 audit | Minor branding polish | Tier 3 |
+| 34 | ✅ Custom favicon needed — `src/app/favicon.ico` may still be the default Next.js favicon | Session 16 audit | Minor branding polish | **RESOLVED** — see top of file |
 
 ---
 

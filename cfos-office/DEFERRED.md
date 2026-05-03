@@ -1,24 +1,20 @@
 # Deferred Items — tracking work intentionally pushed out of Session 26
 
+> Last reviewed: 2026-05-03 (Session 27 — doc cleanup).
+
 These items were considered in Session 26 but explicitly deferred. Each should get its own session when the time is right.
 
 ---
 
-## Multi-document upload
+## ✅ RESOLVED — Multi-document upload
 
-- **Where:** `cfos-office/src/components/upload/UploadZone.tsx:38-48` — currently only reads `e.target.files?.[0]`, no `multiple` attribute
-- **Fix:** add `multiple` attribute, loop through `FileList` calling `/api/upload` once per file, track progress
-- **Priority:** P3 — single-file upload works; multi-upload is convenience, not blocking beta
-- **Deferred:** Session 26 — by user decision
+`UploadZone.tsx` now has `multiple` on the file input (line 62) and uses `Array.from(e.target.files ?? [])` / `Array.from(e.dataTransfer.files)` so both drag-and-drop and the file picker hand a `File[]` to `onFiles`. Resolved between Session 26 and 2026-05-03.
 
 ---
 
-## Cron route registration
+## ✅ RESOLVED — Cron route registration
 
-- **Where:** `cfos-office/src/app/api/cron/nudges-daily/`, `nudges-weekly/`, `nudges-monthly/`
-- **Problem:** These three routes exist but are not registered in `cfos-office/vercel.json` (only `daily-bills` is). They never run.
-- **Decision needed:** Vercel cron (simple, but costs per invocation) vs Supabase Edge Functions + pg_cron (free, but more moving parts)
-- **Priority:** P2 — affects nudge delivery, which is a planned Session 11 feature
+`vercel.json` now registers all four cron entries: `daily-bills`, `nudges-daily`, `nudges-weekly`, `nudges-monthly`. Resolved by **Session C1, commit `4b32367`** (2026-05-01). Decision taken: Vercel cron (not Supabase pg_cron). All four handlers validate `CRON_SECRET`. Note from C1: routes won't fire until the next scheduled UTC tick — confirm on the Vercel dashboard after deploy.
 
 ---
 

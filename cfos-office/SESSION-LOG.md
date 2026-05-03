@@ -4,6 +4,69 @@ Running log of session-bounded work for the CFO's Office project. Each
 entry captures: branch, scope, what was observed, what was changed,
 and follow-ups — so the next session can pick up cold.
 
+Sessions A0–C2b are summarised below as pointers; the long-form per-session
+lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
+
+---
+
+## Session 27 — Documentation cleanup — 2026-05-03
+
+**Branch:** `claude/prepare-beta-v2-O1zeV`
+**Scope:** Tidy non-code docs across the repo. Read-only on source; only `.md` files touched (plus three orphan code files in repo root deleted).
+
+**Phase 1 (commit `905cbf3`):** Structural cleanup. Deleted 3 orphan code files in root (`capability-assessment.jsx`, `Database Schema v0.sql`, `003_category_system.sql` — the live migration of the same name lives in `cfos-office/supabase/migrations/`). Archived 3 Apr 3 pre-implementation specs to `docs/archive/2026-04-pre-implementation/`. Archived superseded `AUDIT-REPORT.md` (Apr 13) to `docs/archive/audits/2026-04-13-pre-v2-audit.md`. Archived root `docs/superpowers/` (CSV engine spec, superseded by Apr 24 parser refactor) to `docs/archive/superpowers/`. Moved Session 25 cleanup tracks to `docs/archive/cleanup-session25/` (Session 25 work landed in `e6f5a3c`, so the tracks are historical now). Reorganised current docs into `docs/audits/` (May 1 trio + Apr 29 lessons, dated filenames) and `docs/decisions/` (`wasted-data-points.md`). Added a brief `README.md` at repo root.
+
+**Phase 2 (commit `fe19f46`):** Reconciled the two diverged `CLAUDE.md` files into one canonical version at the repo root. Merged five additive sections (Repo layout, Package manager, Model Routing, Prompt Caching, Mobile-First Design) and refreshed two (Environment Variables, CFO Persona). Deleted `cfos-office/CLAUDE.md`.
+
+**Phase 3 (this commit):** Refreshed living registries — `TECH_DEBT.md` (4 items moved to Resolved: #17, #20, #28, #34; #31 line-count updated 1316→2012), `DEFERRED.md` (multi-doc upload + cron registration marked resolved), `docs/decisions/wasted-data-points.md` (3 of 4 monthly-snapshot fields wired). This SESSION-LOG entry added.
+
+**Follow-ups:**
+- Set up CI (build + Vitest) per Lessons Learned 2026-04-29 — still flagged.
+- Migration debt `031`–`036` on production Supabase — Lewis-applied on Friday per Lessons Learned.
+
+---
+
+## Sessions C1 / C1.5 / C2a / C2b — V2 cleanup execution — 2026-05-01
+
+Pointer entries — full lesson notes in `docs/audits/2026-04-29-lessons-learned.md`.
+
+**C1 — A1 cleanup PR.** 4 commits, ~−145 LOC net. Deleted `prompt-buttons.ts` and 3 orphan API routes (`/api/transactions/recategorise`, `/api/transactions/low-confidence-count`, `/api/nudges/count`). Registered the 3 nudge cron routes in `vercel.json` and stripped the TODO headers (commit `4b32367`). Documented 6 previously-undocumented env vars in `CLAUDE.md`. Surprise: repo is npm-only, `pnpm install` fails on `pdfjs-dist` resolution.
+
+**C1.5 — Package manager hygiene.** Pinned `pdfjs-dist@5.4.296` as an explicit direct dep (was transitive-only via `pdf-parse`). Codified npm-as-canonical in `CLAUDE.md` so future sessions don't stumble on the pnpm trap.
+
+**C2a — A3 zero-risk extractions.** Two helpers: `formatCurrencyRounded` + `formatMonthShort` at `src/lib/utils/format-currency-rounded.ts` (replacing 9 `formatCurrency` copies + 2 `formatMonthShort` copies in office dashboards); `DashboardEmptyState` primitive replacing inline `EmptyCashFlow` / `EmptyNetWorth`. Net −64 LOC, byte-identical UI.
+
+**C2b — CFO avatar consolidation.** All call sites migrated from `chat/cfo-avatar` (£ glyph) to `brand/CFOAvatar` (mascot SVG). 13 JSX call sites across 9 files; orphan deleted. Net −26 LOC. Visual change in value-map and demo flows — Lewis declined a pre-merge design pass; Friday smoke test should eyeball the mascot at 24px.
+
+---
+
+## Session 26 — V2 audit (A0 / A1 / A3) — 2026-05-01
+
+Pointer entries — full audit reports in `docs/audits/2026-05-01-{v2-audit,dead-code,component-consolidation}.md`; per-session lessons in `docs/audits/2026-04-29-lessons-learned.md`.
+
+**A0 — Branch state snapshot.** 118 commits ahead of `origin/main`, 425 files changed. Active code is healthy (1 lib orphan, 0 component orphans, 0 unused runtime deps). Most visible inconsistency: CFO-avatar duplication. Three nudge cron routes exist but were not registered in `vercel.json` (resolved by C1). Six env vars read by code but undocumented (resolved by C1). Output: `docs/audits/2026-05-01-v2-audit.md`.
+
+**A1 — Dead-code verification + cron plan.** Tier 1 dead: 1 (`prompt-buttons.ts`). Orphan API routes: 3 DEAD, 1 FLAG-FOR-LEWIS (`/api/value-map/regenerate` — kept as a "Regenerate my archetype" seam per Lewis). Cron schedules proposed (07:00 daily, 08:00 Mon weekly, 08:00 first-of-month). All four cron handlers already enforce `CRON_SECRET`. Output: `docs/audits/2026-05-01-dead-code.md`.
+
+**A3 — Component consolidation.** CFO avatar duplication is *visual* (£ glyph vs mascot SVG), not code dedupe — needs Lewis sign-off. 17 separate `formatCurrency` definitions across 3 implementation idioms; the 9 office-tree copies are mechanical zero-risk dedup territory. Shell-level extractions (`Briefing`, `DetailHeader`, `DrillDownRow`) already done. Recommended C2 scope: 3 commits totalling ~−65 net LOC. Output: `docs/audits/2026-05-01-component-consolidation.md`.
+
+---
+
+## Session 25 — Codebase cleanup (7-track low-risk pass) — 2026-04-22
+
+**Branch:** `claude/condescending-brown-a20148` (merged in `b06d5f7`)
+**Outcome commit:** `e6f5a3c refactor(cleanup): 7-track codebase cleanup (low-risk pass)`
+
+7 tracks ran in parallel against the v2 working tree. Detail in `docs/archive/cleanup-session25/SUMMARY.md` (and per-track files alongside). Headline: 369 → 357 source files (−12), ~50.6k → ~49.2k LOC (~−1,400). Lint warnings 38 → 35. Build/tests still passing. Root `/src/` orphan tree (65 files / 556 KB) had been deleted in `77c8a1d` on 2026-04-03.
+
+- **T1 dedup:** 3 consolidations (`toMonthlyEquivalent`, `formatCurrency` in feedback, `formatDate`/`getGreeting` in `(office)/layout`).
+- **T2 type consolidation:** `ArchetypeData`, deprecated `ValueMapResult` alias, `Goal`, `Transaction` (surfaced + fixed a latent nullability bug).
+- **T3 dead code:** 12 files deleted (transactions cluster, notifications cluster, 3 standalone orphans).
+- **T4 circular deps:** `madge --circular` → zero cycles. Recommendation to wire into CI still open.
+- **T5 type strengthening:** 8 files, 7 `eslint-disable` directives removed; surfaced + fixed `mimeType` → `mediaType` bug in `bill-extractor.ts` (AI SDK v6 contract).
+- **T6 error handling:** 11 silent-swallow catches now log via `console.error` + context.
+- **T7 deprecated/AI slop:** Codebase already clean. 1 stub deleted (`persist-messages.ts`), 1 scar-tissue comment removed.
+
 ---
 
 ## Session: Parser Refactor — Universal Pipeline, 99% Accuracy Target — 2026-04-24

@@ -1,5 +1,7 @@
 # Wasted Data Points
 
+> Last reviewed: 2026-05-03 (Session 27).
+
 Data points that are written but never read, or exist in schema but are never populated.
 Each needs a decision: wire it up, stop collecting it, or drop the column.
 
@@ -14,6 +16,15 @@ These 5 fields were collected but never injected into the CFO context. Now wired
 - `tax_residency_country`
 - `years_in_country`
 
+## RESOLVED: monthly_snapshots — 3 of 4 numeric fields wired
+
+`src/lib/analytics/monthly-snapshot.ts:102–104` now writes:
+- `avg_transaction_size`
+- `largest_transaction`
+- `largest_transaction_desc`
+
+`dining_out_count` remains unimplemented (see Open below).
+
 ## OPEN: messages metadata (written per message, never queried)
 
 - `profile_updates` -- JSON of profile changes made during this message
@@ -22,14 +33,11 @@ These 5 fields were collected but never injected into the CFO context. Now wired
 
 **Decision needed:** Are these for a future admin dashboard? Audit trail? If neither, stop writing them to save payload size.
 
-## OPEN: monthly_snapshots (columns exist, never populated)
+## OPEN: monthly_snapshots — `dining_out_count` only
 
 - `dining_out_count` -- needs category-specific counting in snapshot compute function
-- `avg_transaction_size` -- simple arithmetic, just never added to compute function
-- `largest_transaction` -- same
-- `largest_transaction_desc` -- same
 
-**Decision needed:** Wire into snapshot compute function. Low effort, high value -- the CFO could reference "your biggest purchase this month."
+**Decision needed:** Wire it up (low effort once category mapping is settled) or drop the column.
 
 ## OPEN: value_map_results (written, but context-builder reads from financial_portrait instead)
 
