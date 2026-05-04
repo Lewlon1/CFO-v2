@@ -332,6 +332,7 @@ export async function buildSystemPrompt(
     tripsResult,
     assetsResult,
     liabilitiesResult,
+    activeExperimentResult,
   ] = await Promise.allSettled([
     supabase
       .from('user_profiles')
@@ -389,6 +390,13 @@ export async function buildSystemPrompt(
       .select('*')
       .eq('user_id', userId)
       .order('interest_rate', { ascending: false, nullsFirst: false }),
+    supabase
+      .from('active_experiments')
+      .select('pattern_name, experiment_text, observation_type')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null;
@@ -419,6 +427,8 @@ export async function buildSystemPrompt(
   })();
   const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
   const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
+  const activeExperiment =
+    activeExperimentResult.status === 'fulfilled' ? activeExperimentResult.value.data : null;
 
   // Build advice style modifier
   const adviceStyle = profile?.advice_style || 'direct';
@@ -459,6 +469,7 @@ export async function buildSystemPrompt(
     buildFinancialContext(snapshots, recurring, profile),
     await getCountryBenchmarks(profile, supabase),
     getOnboardingResumeContext(profile),
+    buildActiveExperimentContext(activeExperiment),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
@@ -473,6 +484,21 @@ export async function buildSystemPrompt(
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildActiveExperimentContext(activeExperiment: any | null): string {
+  if (!activeExperiment) return '';
+  const patternName = (activeExperiment.pattern_name as string | undefined)?.trim();
+  const experimentText = (activeExperiment.experiment_text as string | undefined)?.trim();
+  if (!patternName || !experimentText) return '';
+  return [
+    '## Active experiment',
+    `The user is currently noticing **${patternName}**. You proposed:`,
+    `> ${experimentText}`,
+    '',
+    "Don't ask again or contradict the experiment. If they bring it up unprompted, engage; otherwise leave it to land — they only need to be reminded once.",
+  ].join('\n');
 }
 
 function buildCurrentDateContext(): string {
@@ -1952,8 +1978,8 @@ If they agree (any affirmative — "sure", "go ahead", "let's do it", "let's do 
   1. field: "net_monthly_income", input_type: "currency_amount", label: "What's your monthly take-home pay?", rationale: "Helps me tell you whether your spending patterns are sustainable"
   2. field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What's your housing situation?", rationale: "Housing is usually the biggest lever — I need this to give you meaningful benchmarks"
   3. field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "I'll compare this against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}
-- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for rent exists in your context, use it: "€1,400 rent — roughly in line with typical for Spain."
-- Confirm before moving on: "I'll note €2,800/month take-home — sound right?" Then call the next tool immediately.
+- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
+- Confirm before moving on by quoting the value the user just submitted (e.g. "I'll note that — sound right?"). Then call the next tool immediately.
 
 If they defer ("over time" / "later" / "not now"):
 - Respect it. Do NOT push further in this conversation. The profiling engine picks up future questions across sessions.

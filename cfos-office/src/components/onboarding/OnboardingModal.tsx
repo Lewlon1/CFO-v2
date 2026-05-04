@@ -15,7 +15,6 @@ import type { ValueMapResult } from '@/lib/value-map/types'
 import { shouldReact, getReactionMessage, type ReactionContext } from '@/lib/onboarding/value-map-reactions'
 import { InsightBeat } from './beats/InsightBeat'
 import { WelcomeBeat } from './beats/WelcomeBeat'
-import type { Experiment } from '@/lib/analytics/insight-types'
 
 interface OnboardingModalProps {
   initialProgress: OnboardingState | null
@@ -212,8 +211,6 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
         insightData: {
           narrative:
             "I couldn't read any transactions from what you uploaded. Once a statement lands I'll have something concrete to say.",
-          statCards: [],
-          suggestedResponses: [],
         },
       })
       return
@@ -241,8 +238,6 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
         setData({
           insightData: {
             narrative: "I've started looking through your numbers. Let's dig in together.",
-            statCards: [],
-            suggestedResponses: [],
           },
         })
       } finally {
@@ -256,17 +251,16 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
 
   // ── Action handlers ─────────────────────────────────────────────────────
 
-  // Accepting an experiment now saves it as an action_item and advances to
-  // the handoff beat (instead of dismissing onboarding + jumping into chat).
-  // This preserves the final welcome screen so the user always finishes the
-  // onboarding arc. The action item shows up in their office afterwards; they
-  // can chat about executing it whenever they're ready.
-  const handleAcceptExperiment = useCallback(async (experiment: Experiment) => {
+  // Accepting the wow moment persists it as an active_experiment row and
+  // advances to the handoff beat. The candidate_token was issued by
+  // /api/onboarding/generate-insight; the route verifies the HMAC and
+  // re-derives the locked beats from the signed payload.
+  const handleAcceptExperiment = useCallback(async (candidateToken: string) => {
     try {
       const res = await fetch('/api/onboarding/save-experiment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ experiment }),
+        body: JSON.stringify({ candidate_token: candidateToken }),
       })
       if (!res.ok) {
         console.error('[onboarding] save-experiment failed:', res.status)
@@ -275,7 +269,7 @@ export function OnboardingModal({ initialProgress, userName, currency }: Onboard
       console.error('[onboarding] save-experiment error:', err)
       // Non-blocking — still advance the user so they don't get stuck.
     }
-    completeBeat('first_insight', { acceptedExperiment: experiment.template_kind })
+    completeBeat('first_insight', { acceptedExperiment: candidateToken })
   }, [completeBeat])
 
   const handleInsightRate = useCallback((rating: number) => {

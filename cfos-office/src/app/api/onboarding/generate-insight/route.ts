@@ -1,226 +1,103 @@
 import { NextResponse } from 'next/server'
-import { generateText } from 'ai'
 import { createClient } from '@/lib/supabase/server'
-import { computeFirstInsight } from '@/lib/analytics/insight-engine'
-import { buildFirstInsightContext } from '@/lib/ai/context-builder'
-import { BASE_PERSONA } from '@/lib/ai/system-prompt'
-import { chatModel } from '@/lib/ai/provider'
-import type { StatCard, InsightPayload } from '@/lib/analytics/insight-types'
-import { buildQuotableFacts } from '@/lib/ai/context-builder'
-import { validateNarrative } from '@/lib/ai/insight-validator'
+import { createServiceClient } from '@/lib/supabase/service'
+import { generateWowMomentCandidate } from '@/lib/experiments/candidate-engine'
+import { generateWowMoment } from '@/lib/experiments/wow-moment-generator'
+import { signCandidatePayload } from '@/lib/experiments/candidate-token'
 
-// First-insight endpoint for the onboarding modal.
+// First-insight endpoint for the onboarding modal — Wow Moment v2.
 //
-// 1. Runs the PR #31 deterministic pattern-detection engine.
-// 2. Asks Claude to narrate the computed payload under the anti-hallucination
-//    guardrails assembled by `buildFirstInsightContext`.
-// 3. Parses `[STATS]` / `[OPTIONS]` blocks out of Claude's response so the
-//    client can render stat cards + tappable suggestions alongside the
-//    narrative inline in the modal.
+// Pipeline:
+//   1. Detectors precompute every figure deterministically (lib/experiments).
+//   2. Bedrock writes ONLY the [OBSERVED] beat 01 prose; beats 02/03/04 are
+//      rendered from locked templates.
+//   3. We don't insert into active_experiments here — the user has to accept
+//      via /api/onboarding/save-experiment first. This way the modal can
+//      preview without locking the user into an experiment they bail on.
+//   4. The signed `candidate_token` lets the save route persist the exact
+//      candidate the user saw without us storing pending state server-side.
 
-function parseStats(text: string): StatCard[] {
-  const m = text.match(/\[STATS\]([\s\S]*?)\[\/STATS\]/)
-  if (!m) return []
-  return m[1]
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [label, value] = line.split('|').map((s) => s.trim())
-      if (!label || !value) return null
-      return { label, value, source_pattern_id: 'llm' }
-    })
-    .filter((c): c is StatCard => c !== null)
-}
-
-function parseOptions(text: string): string[] {
-  // Accept both closed and unclosed [OPTIONS] blocks — Claude frequently drops the closing tag.
-  const open = text.match(/\[OPTIONS\]([\s\S]*?)(?:\[\/OPTIONS\]|$)/)
-  if (!open) return []
-  return open[1]
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('-'))
-    .map((line) => line.replace(/^[-*]\s*/, '').trim())
-    .filter(Boolean)
-}
-
-function stripBlocks(text: string): string {
-  return text
-    .replace(/\[STATS\][\s\S]*?\[\/STATS\]/g, '')
-    .replace(/\[OPTIONS\][\s\S]*?(?:\[\/OPTIONS\]|$)/g, '')
-    .replace(/\[\/?OPTIONS\]/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
-function collectKnownMerchants(payload: InsightPayload): string[] {
-  const merchants = new Set<string>()
-  for (const layer of ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const) {
-    const pattern = payload.layers[layer]
-    if (!pattern) continue
-    const data = pattern.data as Record<string, unknown>
-    if (typeof data.topMerchant === 'string') merchants.add(data.topMerchant.toLowerCase())
-    if (Array.isArray(data.topMerchants)) {
-      for (const m of data.topMerchants) {
-        if (m && typeof m === 'object' && 'name' in m) {
-          merchants.add(String((m as { name: unknown }).name).toLowerCase())
-        }
-      }
-    }
-  }
-  return Array.from(merchants)
-}
-
-// Deterministic narrative for when Claude can't be trusted (validator
-// rejection or generation error). Built only from payload fields the
-// engine has already computed — never invents numbers, never goes
-// through the validator (the validator is for LLM output). Keeps the
-// First Meeting screen from rendering as a blank card stack.
-function buildFallbackNarrative(payload: InsightPayload): string {
-  const greeting = payload.userName ? `Hey ${payload.userName} — ` : 'Hey — '
-  const monthsWord = payload.monthCount === 1 ? 'month' : 'months'
-  const intro = `${greeting}I've been through ${payload.transactionCount} transactions across ${payload.monthCount} ${monthsWord} of data.`
-
-  let middle = ''
-  const headline = payload.layers.headline
-  if (headline?.id === 'balance_trajectory') {
-    const shape = String(headline.data.shape ?? '')
-    if (shape === 'decline') {
-      middle = " Your balance is on a decline shape — worth a closer look at what's pulling it down."
-    } else if (shape === 'sawtooth') {
-      middle = ' Your balance shows a healthy pay-cycle sawtooth — a clean rhythm.'
-    } else if (shape === 'flat') {
-      middle = ' Your balance has been holding pretty steady.'
-    }
-  } else if (headline?.id === 'category_concentration') {
-    middle = ' One spending category is doing a lot of the work — see the breakdown below.'
-  } else if (headline?.id === 'income_detected') {
-    middle = ' I can see regular deposits coming in.'
-  }
-
-  const closing = payload.layers.action?.experiment
-    ? ' The biggest opportunity I spotted is below — take a look.'
-    : " Tell me what you want to dig into and I'll pull the thread."
-
-  return `${intro}${middle}${closing}`
-}
+const FALLBACK_NARRATIVE =
+  "I've started looking through your numbers. Let's dig in together when you've got a minute."
 
 export async function POST() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const [payload, profileResult] = await Promise.all([
-    computeFirstInsight(supabase, user.id),
-    supabase.from('profiles').select('onboarding_progress').eq('id', user.id).single(),
-  ])
+  // Service client bypasses RLS so detectors see everything they need
+  // (transactions, value_map_sessions, future cross-user normalisation, etc).
+  const serviceClient = createServiceClient()
 
-  const onboardingData = (profileResult.data?.onboarding_progress as { data?: { selectedCapabilities?: string[] } } | null)?.data
-  const selectedCapabilities = onboardingData?.selectedCapabilities ?? []
-
-  if (payload.transactionCount === 0) {
-    return NextResponse.json({
-      insight: {
-        narrative:
-          "I've logged everything, but I don't have enough data yet to spot patterns. Upload another statement and I'll have more to say.",
-        statCards: [],
-        suggestedResponses: [],
-      },
-    })
+  let candidate
+  try {
+    candidate = await generateWowMomentCandidate(user.id, serviceClient)
+  } catch (err) {
+    console.error('[generate-insight] candidate engine failed:', err)
+    return NextResponse.json({ insight: { narrative: FALLBACK_NARRATIVE } })
   }
 
-  const contextBlock = buildFirstInsightContext(payload, selectedCapabilities)
-  const systemPrompt = `${BASE_PERSONA}\n\n${contextBlock}`
+  if (!candidate) {
+    return NextResponse.json({ insight: { narrative: FALLBACK_NARRATIVE } })
+  }
+
+  // Pull the user's display name + archetype for the prompt.
+  const [profileResult, vmResult] = await Promise.all([
+    serviceClient
+      .from('user_profiles')
+      .select('display_name')
+      .eq('id', user.id)
+      .maybeSingle(),
+    serviceClient
+      .from('value_map_sessions')
+      .select('archetype_name')
+      .eq('profile_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   try {
-    const result = await generateText({
-      model: chatModel,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: '[System: Post-upload analysis triggered. Deliver your first insight.]',
-        },
-      ],
-      maxOutputTokens: 800,
-      temperature: 0.7,
+    const { wowMoment, experimentInsert } = await generateWowMoment(candidate, {
+      display_name: profileResult.data?.display_name ?? null,
+      archetype: vmResult.data?.archetype_name ?? null,
     })
 
-    const text = result.text
-    const statCards = parseStats(text)
-    const suggestedResponses = parseOptions(text)
-    const narrative = stripBlocks(text)
-
-    // Post-generation grounding check. Compare numbers/merchants in the narrative
-    // against the quotable-facts allowlist. On violation, log and return the
-    // deterministic fallback (no narrative) — graceful degradation keeps the
-    // UX working even when the model ignores grounding guardrails.
-    const facts = buildQuotableFacts(payload)
-    const knownMerchants = collectKnownMerchants(payload)
-    const validation = validateNarrative(narrative, facts, { knownMerchants })
-
-    if (!validation.ok) {
-      // CLAUDE.md rule: "The LLM interprets. The system computes." Any number
-      // or merchant the narrative cites that is not in the quotable-facts
-      // allowlist means Claude fabricated it. There is no safe threshold —
-      // a single wrong number is enough to mislead a user about their own
-      // money. Drop the narrative and ship the deterministic stat cards.
-      console.error(
-        '[generate-insight] validator violation:',
-        validation.reason,
-        'offenders:', validation.offenders,
-        '(falling back to no-narrative)',
-      )
-
-      return NextResponse.json({
-        insight: {
-          narrative: buildFallbackNarrative(payload),
-          statCards: payload.statCards,
-          suggestedResponses: payload.suggestedResponses,
-          experiment: payload.layers.action?.experiment,
-        },
-        validation: {
-          ok: false,
-          reason: validation.reason,
-          offenders: validation.offenders,
-          rejectedNarrative: narrative,
-        },
-      })
+    const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!secret) {
+      // Should never happen on a configured deployment, but bail safely if so.
+      console.error('[generate-insight] missing SUPABASE_SERVICE_ROLE_KEY for token signing')
+      return NextResponse.json({ insight: { narrative: FALLBACK_NARRATIVE } })
     }
 
-    // If Claude returned only [STATS]/[OPTIONS] blocks and no prose, fall
-    // back rather than render an empty narrative beneath the stat cards.
-    const finalNarrative = narrative.trim().length > 0 ? narrative : buildFallbackNarrative(payload)
+    const candidate_token = signCandidatePayload(
+      {
+        candidate,
+        patternName: experimentInsert.pattern_name,
+        question: experimentInsert.question,
+        experimentText: experimentInsert.experiment_text,
+        noticingTarget: experimentInsert.noticing_target,
+        ts: Date.now(),
+      },
+      secret,
+    )
 
     return NextResponse.json({
       insight: {
-        narrative: finalNarrative,
-        statCards:
-          statCards.length > 0
-            ? statCards
-            : payload.statCards.map((c) => ({ ...c })),
-        suggestedResponses:
-          suggestedResponses.length > 0 ? suggestedResponses : payload.suggestedResponses,
-        experiment: payload.layers.action?.experiment,
+        observed: wowMoment.observed,
+        named: wowMoment.named,
+        asked: wowMoment.asked,
+        proposed: wowMoment.proposed,
+        narrative: wowMoment.narrative,
+        candidate_token,
       },
     })
   } catch (err) {
-    console.error('[generate-insight] Claude narration failed:', err)
-    // Fall back to the deterministic engine output with a grounded narrative
-    // built only from payload data — never blank.
-    return NextResponse.json({
-      insight: {
-        narrative: buildFallbackNarrative(payload),
-        statCards: payload.statCards,
-        suggestedResponses: payload.suggestedResponses,
-        experiment: payload.layers.action?.experiment,
-      },
-    })
+    console.error('[generate-insight] generation/validation failed:', err)
+    return NextResponse.json({ insight: { narrative: FALLBACK_NARRATIVE } })
   }
 }

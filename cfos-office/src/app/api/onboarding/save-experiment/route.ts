@@ -1,43 +1,26 @@
-// Persists a first-insight experiment as an action_item during onboarding so
-// the user can accept it AND continue through the handoff beat instead of
-// being routed straight into chat (which skipped the final onboarding screen).
-//
-// The in-chat equivalent is `create_action_item` tool (lib/ai/tools/create-action-item.ts).
-// This endpoint exists because during onboarding we have no conversation_id,
-// so we insert with conversation_id = null and a default 'spending_change'
-// category (all three experiment templates — grocery_plan, subscription_audit,
-// convenience_swap — are spending-change patterns).
-
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import type { Experiment } from '@/lib/analytics/insight-types'
+import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { verifyCandidateToken } from '@/lib/experiments/candidate-token'
+import { nextSundayAt } from '@/lib/experiments/scheduling'
 
-export const dynamic = 'force-dynamic'
+// Persists the wow moment as the user's active_experiment when they tap the
+// CTA in the onboarding modal. The route receives a signed candidate_token
+// (issued by /api/onboarding/generate-insight) so the stored row reflects
+// exactly what the user saw, without keeping pending state between calls.
 
 interface SaveExperimentRequest {
-  experiment: Experiment
-}
-
-function buildDescription(e: Experiment): string {
-  const lines = [e.hypothesis, `Time: ${e.time_investment}`]
-  const hasRange = e.annual_saving_low > 0 || e.annual_saving_high > 0
-  if (hasRange) {
-    const sym =
-      e.currency === 'EUR' ? '\u20AC' :
-      e.currency === 'GBP' ? '\u00A3' :
-      e.currency === 'USD' ? '$' : `${e.currency} `
-    const annual = e.annual_saving_low === e.annual_saving_high
-      ? `${sym}${e.annual_saving_low.toLocaleString()}`
-      : `${sym}${e.annual_saving_low.toLocaleString()}\u2013${sym}${e.annual_saving_high.toLocaleString()}`
-    lines.push(`Estimated saving: ${annual}/year`)
-  }
-  return lines.join('\n')
+  candidate_token?: string
 }
 
 export async function POST(req: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   let body: SaveExperimentRequest
   try {
@@ -45,30 +28,66 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
-
-  const e = body.experiment
-  if (!e?.title || !e?.template_kind) {
-    return NextResponse.json({ error: 'Invalid experiment payload' }, { status: 400 })
+  if (!body?.candidate_token) {
+    return NextResponse.json({ error: 'Missing candidate_token' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('action_items')
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!secret) {
+    console.error('[save-experiment] missing SUPABASE_SERVICE_ROLE_KEY')
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
+
+  let signed
+  try {
+    signed = verifyCandidateToken(body.candidate_token, secret)
+  } catch (err) {
+    console.error('[save-experiment] token verification failed:', err)
+    return NextResponse.json({ error: 'Invalid candidate_token' }, { status: 400 })
+  }
+
+  const serviceClient = createServiceClient()
+
+  // Defence-in-depth: lifetime block. The unique partial index also enforces
+  // one active row at a time, but blocking on any prior row matches the
+  // candidate engine's gate so the user can't smuggle a second wow moment
+  // through after dismissing the first.
+  const priorCheck = await serviceClient
+    .from('active_experiments')
+    .select('id')
+    .eq('user_id', user.id)
+    .limit(1)
+  if (priorCheck.data && priorCheck.data.length > 0) {
+    return NextResponse.json({ error: 'Experiment already exists for user' }, { status: 409 })
+  }
+
+  const now = new Date()
+  const callbackDueAt = nextSundayAt(now, { hourUTC: 18, minDaysAhead: 1, maxDaysAhead: 7 })
+
+  const insertResult = await serviceClient
+    .from('active_experiments')
     .insert({
       user_id: user.id,
       conversation_id: null,
-      title: e.title,
-      description: buildDescription(e),
-      category: 'spending_change',
-      priority: 'medium',
-      status: 'pending',
+      observation_type: signed.candidate.observation_type,
+      pattern_template_key: signed.candidate.pattern_template_key,
+      pattern_name: signed.patternName,
+      observation_payload: signed.candidate.payload,
+      question: signed.question,
+      experiment_text: signed.experimentText,
+      noticing_target: signed.noticingTarget,
+      status: 'active',
+      proposed_at: now.toISOString(),
+      accepted_at: now.toISOString(),
+      callback_due_at: callbackDueAt.toISOString(),
     })
-    .select('id, title, category, priority')
+    .select('id')
     .single()
 
-  if (error) {
-    console.error('[save-experiment] DB error:', error)
-    return NextResponse.json({ error: 'Could not save action item' }, { status: 500 })
+  if (insertResult.error) {
+    console.error('[save-experiment] DB insert failed:', insertResult.error)
+    return NextResponse.json({ error: 'Could not save experiment' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, action_item: data })
+  return NextResponse.json({ ok: true, experiment_id: insertResult.data?.id })
 }

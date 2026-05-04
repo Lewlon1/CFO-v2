@@ -145,6 +145,87 @@ export type Database = {
           },
         ]
       }
+      active_experiments: {
+        Row: {
+          accepted_at: string | null
+          callback_due_at: string
+          cfo_synthesis: string | null
+          conversation_id: string | null
+          created_at: string
+          experiment_text: string
+          id: string
+          next_action_kind: string | null
+          next_action_payload: Json | null
+          noticing_target: string
+          observation_payload: Json
+          observation_type: string
+          pattern_name: string
+          pattern_template_key: string
+          proposed_at: string
+          question: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          callback_due_at: string
+          cfo_synthesis?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          experiment_text: string
+          id?: string
+          next_action_kind?: string | null
+          next_action_payload?: Json | null
+          noticing_target: string
+          observation_payload: Json
+          observation_type: string
+          pattern_name: string
+          pattern_template_key: string
+          proposed_at?: string
+          question: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          callback_due_at?: string
+          cfo_synthesis?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          experiment_text?: string
+          id?: string
+          next_action_kind?: string | null
+          next_action_payload?: Json | null
+          noticing_target?: string
+          observation_payload?: Json
+          observation_type?: string
+          pattern_name?: string
+          pattern_template_key?: string
+          proposed_at?: string
+          question?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "active_experiments_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "active_experiments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assets: {
         Row: {
           account_id: string | null
@@ -416,6 +497,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          analysed_at: string | null
           anonymised_at: string | null
           created_at: string | null
           deleted_at: string | null
@@ -428,6 +510,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          analysed_at?: string | null
           anonymised_at?: string | null
           created_at?: string | null
           deleted_at?: string | null
@@ -440,6 +523,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          analysed_at?: string | null
           anonymised_at?: string | null
           created_at?: string | null
           deleted_at?: string | null
