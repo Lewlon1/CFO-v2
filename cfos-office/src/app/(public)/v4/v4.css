@@ -1,0 +1,161 @@
+/*
+ * Landing v4 — scoped styles.
+ * Everything in this file is namespaced under `.landing-v4` so it cannot
+ * leak into the rest of the app, which remains dark-only.
+ */
+
+/* === Default (dark) === */
+.landing-v4 {
+  --paper: #0F0F0D;
+  --ink: #F5F2EA;
+  --ink-fade: rgba(245, 242, 234, 0.55);
+  --ink-quiet: rgba(245, 242, 234, 0.32);
+  --rule: rgba(245, 242, 234, 0.10);
+  --card: rgba(245, 242, 234, 0.04);
+  --card-border: rgba(245, 242, 234, 0.08);
+  --accent: #E8A84C;
+  --accent-soft: rgba(232, 168, 76, 0.18);
+  --accent-bg: rgba(232, 168, 76, 0.08);
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
+}
+
+/* === Light === */
+.landing-v4[data-theme="light"] {
+  --paper: #F4EFE3;       /* cream */
+  --ink: #1A1814;          /* near-black ink */
+  --ink-fade: rgba(26, 24, 20, 0.62);
+  --ink-quiet: rgba(26, 24, 20, 0.42);
+  --rule: rgba(26, 24, 20, 0.14);
+  --card: rgba(26, 24, 20, 0.03);
+  --card-border: rgba(26, 24, 20, 0.10);
+  --accent: #B7822E;       /* slightly deeper gold for contrast on cream */
+  --accent-soft: rgba(183, 130, 46, 0.20);
+  --accent-bg: rgba(183, 130, 46, 0.10);
+  color-scheme: light;
+}
+
+/* === Inverted callout (Compounding) — flips paper/ink regardless of page theme === */
+.landing-v4 .v4-invert {
+  --paper: #1A1814;
+  --ink: #F5F2EA;
+  --ink-fade: rgba(245, 242, 234, 0.62);
+  --ink-quiet: rgba(245, 242, 234, 0.40);
+  --rule: rgba(245, 242, 234, 0.14);
+  --card: rgba(245, 242, 234, 0.05);
+  --card-border: rgba(245, 242, 234, 0.10);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* === Scoped font utilities — don't touch global Tailwind theme === */
+.landing-v4 .v4-serif {
+  font-family: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+}
+.landing-v4 .v4-sans {
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+.landing-v4 .v4-mono {
+  font-family: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* === Section eyebrow (mono uppercase tracking) === */
+.landing-v4 .v4-eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-fade);
+}
+
+/* === Rule line under section headers === */
+.landing-v4 .v4-rule {
+  height: 1px;
+  background: var(--rule);
+  border: 0;
+}
+
+/* === CTA button — primary === */
+.landing-v4 .v4-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 52px;
+  padding: 0 28px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+.landing-v4 .v4-cta:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+.landing-v4 .v4-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* === Theme toggle === */
+.landing-v4 .v4-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--ink-fade);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.landing-v4 .v4-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-quiet);
+}
+.landing-v4 .v4-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* === Capability card === */
+.landing-v4 .v4-capability {
+  border-top: 1px solid var(--rule);
+  padding: 32px 0;
+}
+.landing-v4 .v4-capability:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+
+/* === Journey strip === */
+.landing-v4 .v4-journey {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-fade);
+}
+
+/* === Smooth theme transition === */
+.landing-v4,
+.landing-v4 * {
+  transition-property: background-color, color, border-color;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-v4,
+  .landing-v4 * {
+    transition: none;
+  }
+}
