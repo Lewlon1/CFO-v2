@@ -6,6 +6,7 @@ import { extractSignals, CATEGORY_AMBIGUITY, type MerchantHistory } from '@/lib/
 import { resolveValueCategory, loadUserRules } from '@/lib/prediction/predictor'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { computeCategorizationStats, type CategorizationStats } from '@/lib/categorisation/categorisation-stats'
+import { sendAlert } from '@/lib/alerts/notify'
 import { loadExistingKeys, isDuplicate, computeDedupeHash } from './duplicate-detector'
 import type { ParsedTransaction, Category, ValueCategoryRule, UserMerchantRule, RecurringMatch } from '@/lib/parsers/types'
 import type { CatResult } from '@/lib/categorisation/rules-engine'
@@ -107,6 +108,11 @@ export async function runImportPipeline(
   // Pass 1: rules-based categorisation
   const toInsert: TxnToInsert[] = []
 
+  // Track user category picks from the preview so we can persist them as
+  // user_merchant_rules after the loop. Future imports of the same merchant
+  // will then auto-categorise via the rules engine without LLM fallback.
+  const learnedFromPreview = new Map<string, string>()
+
   for (const txn of transactions) {
     if (opts.skipDuplicates !== false && isDuplicate(txn, existingKeys)) {
       stats.duplicates++
@@ -136,6 +142,13 @@ export async function runImportPipeline(
         needsLLM: false,
         tier: 'user_rule',
       })
+      // Capture the pick as a learned merchant rule. Skip empty string (the
+      // user explicitly chose "Uncategorised" — don't lock that in) and skip
+      // when normaliseMerchant returns nothing.
+      if (typeof categoryId === 'string' && categoryId.length > 0) {
+        const normalised = normaliseMerchant(txn.description)
+        if (normalised) learnedFromPreview.set(normalised, categoryId)
+      }
       continue
     }
 
@@ -222,6 +235,35 @@ export async function runImportPipeline(
         txn.valueConfidence = valResult.confidence
         txn.valuePredictionSource = mapSource(valResult.source)
       }
+    }
+  }
+
+  // Persist user category picks from the preview as merchant rules so the
+  // next import of the same merchant auto-categorises via the rules engine.
+  // Best-effort: a failure here must not block the import.
+  if (learnedFromPreview.size > 0) {
+    const rows = Array.from(learnedFromPreview, ([normalised, categoryId]) => ({
+      user_id: opts.userId,
+      normalised_merchant: normalised,
+      category_id: categoryId,
+      confidence: 1.0,
+      source: 'user_preview',
+    }))
+    const { error: rulesErr } = await supabase
+      .from('user_merchant_rules')
+      .upsert(rows, { onConflict: 'user_id,normalised_merchant', ignoreDuplicates: false })
+    if (rulesErr) {
+      console.error('[pipeline] failed to save user_preview merchant rules', {
+        error: rulesErr,
+        userId: opts.userId,
+        count: rows.length,
+      })
+      void sendAlert({
+        severity: 'critical',
+        event: 'user_merchant_rules_upsert_failed',
+        user_id: opts.userId,
+        details: `upsert of ${rows.length} user_preview merchant rule(s) failed: ${rulesErr.message}`,
+      })
     }
   }
 
