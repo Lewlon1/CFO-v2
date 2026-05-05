@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ToolContext } from './types'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
+import { EXCLUDED_FROM_PL_PG_LIST } from '@/lib/analytics/categories'
 
 type ReviewTransaction = {
   id: string
@@ -73,6 +74,11 @@ export async function fetchAndScoreReviewCandidates(
   supabase: SupabaseClient,
   userId: string
 ): Promise<{ scoredGroups: ScoredMerchantGroup[]; totalCandidates: number }> {
+  // Exclude transfers/debt-repayments/savings (self-moves between user's own
+  // accounts) and income — none of these have a Foundation/Burden/Investment/
+  // Leak sense, so asking the user to classify them just produces noise.
+  // NULL-category rows (uncategorised) are kept — they may be real spending
+  // the rules engine + LLM didn't recognise yet.
   const { data: candidates, error } = await supabase
     .from('transactions')
     .select(
@@ -82,6 +88,7 @@ export async function fetchAndScoreReviewCandidates(
     .eq('value_confirmed_by_user', false)
     .or('value_confidence.is.null,value_confidence.lt.0.7')
     .lt('amount', 0)
+    .or(`category_id.is.null,category_id.not.in.${EXCLUDED_FROM_PL_PG_LIST}`)
     .order('value_confidence', { ascending: true, nullsFirst: true })
     .limit(500)
 
