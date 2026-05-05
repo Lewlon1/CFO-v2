@@ -35,7 +35,7 @@ export function UploadZone({ onFiles, isLoading, context = 'transactions' }: Pro
       ? 'Holdings CSV · pension or mortgage PDF · screenshots — drop multiple'
       : context === 'bills'
         ? 'PDF, PNG, JPG — drop multiple or click to browse'
-        : 'Revolut CSV · Santander XLSX · screenshots — drop multiple or click to browse'
+        : 'CSV · XLSX · PDF · screenshots — drop multiple or click to browse'
 
   return (
     <div
