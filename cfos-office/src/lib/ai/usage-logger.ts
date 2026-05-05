@@ -1,6 +1,6 @@
 export type BedrockUsageEvent = {
-  callSite: 'chat' | 'categorise' | 'portrait' | string
-  model: 'sonnet' | 'haiku'
+  callSite: 'chat' | 'categorise' | 'portrait' | 'wow_moment_author' | string
+  model: 'sonnet' | 'haiku' | 'opus'
   inputTokens: number
   outputTokens: number
   cacheCreationTokens?: number
@@ -18,6 +18,7 @@ export function estimateCostUSD(event: BedrockUsageEvent): number {
   const rates = {
     sonnet: { input: 3.3 / 1_000_000, output: 16.5 / 1_000_000 },
     haiku: { input: 0.88 / 1_000_000, output: 4.4 / 1_000_000 },
+    opus: { input: 16.5 / 1_000_000, output: 82.5 / 1_000_000 },
   }
   const r = rates[event.model]
 
