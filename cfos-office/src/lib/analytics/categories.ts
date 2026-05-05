@@ -5,6 +5,12 @@
 export const NEUTRAL_CATEGORY_IDS = ['transfers', 'debt_repayments', 'savings_investments'] as const
 export const INCOME_CATEGORY_ID = 'income'
 
+// Synthetic slug used by snapshots and the dashboard for transactions whose
+// category_id is NULL (rules engine + LLM fallback couldn't classify them).
+// They still count toward total_spending and surface as an "Uncategorised"
+// bucket in the breakdown so the user can see and recategorise them.
+export const UNCATEGORISED_CATEGORY_ID = 'uncategorised'
+
 const NEUTRAL_SET: ReadonlySet<string> = new Set(NEUTRAL_CATEGORY_IDS)
 
 // Postgres `IN ()` literal for use with PostgREST `.not('category_id', 'in', EXCLUDED_FROM_PL_PG_LIST)`.

@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  affectsSpendingBreakdown,
+  INCOME_CATEGORY_ID,
+  UNCATEGORISED_CATEGORY_ID,
   isIncomeRow,
+  isNeutralCategory,
   isSpendRow,
 } from './categories'
 
@@ -50,14 +52,20 @@ async function refreshOneMonth(
   let spendingRowCount = 0
 
   for (const txn of txns) {
-    if (!affectsSpendingBreakdown(txn.category_id)) continue
-    const cid = txn.category_id as string
+    // Drop neutrals (transfers/debt/savings) and income — the same exclusions
+    // affectsSpendingBreakdown enforced. NULL category rows fall through and
+    // get bucketed under the synthetic 'uncategorised' slug so they still
+    // count toward total_spending instead of vanishing silently.
+    if (txn.category_id === INCOME_CATEGORY_ID) continue
+    if (isNeutralCategory(txn.category_id)) continue
+
+    const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
     const delta = -Number(txn.amount) // outflow → +ve, refund → -ve
     spendingByCategory[cid] = (spendingByCategory[cid] ?? 0) + delta
     const vc = txn.value_category ?? 'no_idea'
     spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + delta
 
-    if (isSpendRow(txn.amount, txn.category_id)) {
+    if (isSpendRow(txn.amount, txn.category_id) || (Number(txn.amount) < 0 && !txn.category_id)) {
       spendingRowCount += 1
       const abs = -Number(txn.amount)
       if (abs > largestTxn) {

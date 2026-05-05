@@ -21,30 +21,52 @@ interface OfficeTransactionsClientProps {
 }
 
 export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTransactionsClientProps) {
+  // Distinct YYYY-MM strings present in the data, sorted newest → oldest.
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>()
+    for (const tx of transactions) months.add(tx.date.slice(0, 7))
+    return Array.from(months).sort().reverse()
+  }, [transactions])
+
+  const [currentMonth, setCurrentMonth] = useState<string>(
+    () => availableMonths[0] ?? new Date().toISOString().slice(0, 7),
+  )
   const [activeFilter, setActiveFilter] = useState('all')
 
-  // Build unique filter options from categories present in transactions
+  // Reset the category filter when the user navigates months — a category
+  // mix from one month doesn't necessarily exist in the next.
+  const handleMonthChange = (next: string) => {
+    setCurrentMonth(next)
+    setActiveFilter('all')
+  }
+
+  const monthScopedTxns = useMemo(
+    () => transactions.filter((tx) => tx.date.slice(0, 7) === currentMonth),
+    [transactions, currentMonth],
+  )
+
+  // Build unique filter options from categories present in the visible month.
   const filterOptions = useMemo(() => {
     const catCounts: Record<string, number> = {}
-    for (const tx of transactions) {
+    for (const tx of monthScopedTxns) {
       const cat = tx.category_id ? categoryMap[tx.category_id]?.name ?? 'Other' : 'Other'
       catCounts[cat] = (catCounts[cat] ?? 0) + 1
     }
     const sorted = Object.entries(catCounts).sort(([, a], [, b]) => b - a).slice(0, 5)
     return [
-      { id: 'all', label: `All (${transactions.length})` },
+      { id: 'all', label: `All (${monthScopedTxns.length})` },
       ...sorted.map(([name]) => ({ id: name.toLowerCase(), label: name })),
     ]
-  }, [transactions, categoryMap])
+  }, [monthScopedTxns, categoryMap])
 
-  // Filter transactions
+  // Filter the month-scoped set by category.
   const filtered = useMemo(() => {
-    if (activeFilter === 'all') return transactions
-    return transactions.filter(tx => {
+    if (activeFilter === 'all') return monthScopedTxns
+    return monthScopedTxns.filter(tx => {
       const cat = tx.category_id ? categoryMap[tx.category_id]?.name ?? '' : ''
       return cat.toLowerCase() === activeFilter
     })
-  }, [transactions, activeFilter, categoryMap])
+  }, [monthScopedTxns, activeFilter, categoryMap])
 
   // Group by date
   const grouped = useMemo(() => {
@@ -57,9 +79,17 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a))
   }, [filtered])
 
-  const monthLabel = transactions[0]?.date
-    ? formatMonth(transactions[0].date.slice(0, 7))
-    : formatMonth(new Date().toISOString().slice(0, 7))
+  const monthLabel = formatMonth(currentMonth)
+  const currentMonthIdx = availableMonths.indexOf(currentMonth)
+  const handlePrev = () => {
+    // availableMonths is sorted desc, so "previous calendar month" = next index.
+    const next = availableMonths[currentMonthIdx + 1]
+    if (next) handleMonthChange(next)
+  }
+  const handleNext = () => {
+    const next = availableMonths[currentMonthIdx - 1]
+    if (next) handleMonthChange(next)
+  }
 
   const formatDateLabel = (dateStr: string) => {
     const d = new Date(dateStr)
@@ -95,7 +125,7 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
 
   return (
     <div className="px-3.5 pt-1.5 pb-24">
-      <MonthSelector label={monthLabel} />
+      <MonthSelector label={monthLabel} onPrev={handlePrev} onNext={handleNext} />
       <FilterPills options={filterOptions} activeId={activeFilter} onChange={setActiveFilter} />
 
       {grouped.length === 0 ? (

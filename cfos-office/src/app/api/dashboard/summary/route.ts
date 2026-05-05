@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import {
-  affectsSpendingBreakdown,
   isNeutralCategory,
   INCOME_CATEGORY_ID,
+  UNCATEGORISED_CATEGORY_ID,
 } from '@/lib/analytics/categories'
 
 type FrequencyResult = { frequency: string; estimated: boolean; monthly_equivalent: number }
@@ -146,14 +146,16 @@ export async function GET(req: NextRequest) {
     .gte('date', monthStart)
     .lt('date', nextMonth)
 
-  // Count per category. Only count rows that contribute to the spending breakdown
-  // (non-neutral, non-income); refunds count as one transaction, same as outflows.
+  // Count per category. Mirrors the bucketing in monthly-snapshot.ts: drop
+  // income + neutral rows; bucket NULL-category rows under 'uncategorised' so
+  // their counts match the spending_by_category jsonb the writer produces.
   const catCounts: Record<string, number> = {}
   const vcCounts: Record<string, number> = {}
   const vcCatBreakdown: Record<string, Record<string, number>> = {}
   for (const txn of txns ?? []) {
-    if (!affectsSpendingBreakdown(txn.category_id)) continue
-    const cid = txn.category_id as string
+    if (txn.category_id === INCOME_CATEGORY_ID) continue
+    if (isNeutralCategory(txn.category_id)) continue
+    const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
     catCounts[cid] = (catCounts[cid] ?? 0) + 1
 
     const vc = txn.value_category ?? 'no_idea'
@@ -164,19 +166,21 @@ export async function GET(req: NextRequest) {
     vcCatBreakdown[vc][cid] = (vcCatBreakdown[vc][cid] ?? 0) + -Number(txn.amount)
   }
 
-  // Enrich spending_by_category with metadata + percentages
+  // Enrich spending_by_category with metadata + percentages. Synthetic
+  // 'uncategorised' bucket carries display metadata since it has no DB row.
   const rawByCat = (snapshot.spending_by_category ?? {}) as Record<string, number>
   const totalSpending = snapshot.total_spending ?? 0
   const enrichedByCat: Record<string, CategorySummary> = {}
   for (const [slug, amount] of Object.entries(rawByCat)) {
     const cat = catMap.get(slug)
+    const isUncategorised = slug === UNCATEGORISED_CATEGORY_ID
     enrichedByCat[slug] = {
       amount: Math.round(amount * 100) / 100,
       count: catCounts[slug] ?? 0,
       pct: totalSpending > 0 ? Math.round((amount / totalSpending) * 1000) / 10 : 0,
-      name: cat?.name ?? slug,
-      icon: cat?.icon ?? 'circle',
-      color: cat?.color ?? 'primary',
+      name: cat?.name ?? (isUncategorised ? 'Uncategorised' : slug),
+      icon: cat?.icon ?? (isUncategorised ? 'help-circle' : 'circle'),
+      color: cat?.color ?? (isUncategorised ? '#94a3b8' : 'primary'),
       tier: cat?.tier ?? 'core',
     }
   }
@@ -283,6 +287,19 @@ export async function GET(req: NextRequest) {
     ).then(() => {})
   }
 
+  // Self-heal vs_previous_month_pct: the writer can leave this NULL when the
+  // previous month's snapshot didn't exist at write time (upload-order race).
+  // Snapshots are sorted desc, so the previous calendar month is at index+1.
+  let vsPrevPct = snapshot.vs_previous_month_pct
+  if (vsPrevPct == null) {
+    const idx = snapshots.indexOf(snapshot)
+    const prev = idx >= 0 ? snapshots[idx + 1] : undefined
+    const currSpend = snapshot.total_spending ?? 0
+    if (prev?.total_spending && prev.total_spending > 0) {
+      vsPrevPct = Math.round(((currSpend - prev.total_spending) / prev.total_spending) * 1000) / 10
+    }
+  }
+
   const result: DashboardSummary = {
     month: snapshot.month,
     total_income: snapshot.total_income ?? 0,
@@ -292,7 +309,7 @@ export async function GET(req: NextRequest) {
     avg_transaction_size: snapshot.avg_transaction_size ?? 0,
     largest_transaction: snapshot.largest_transaction ?? 0,
     largest_transaction_desc: snapshot.largest_transaction_desc,
-    vs_previous_month_pct: snapshot.vs_previous_month_pct,
+    vs_previous_month_pct: vsPrevPct,
     spending_by_category: enrichedByCat,
     spending_by_value_category: enrichedByVc,
     recurring,

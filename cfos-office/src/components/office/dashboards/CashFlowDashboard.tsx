@@ -135,8 +135,14 @@ function buildBriefing(
 ): string {
   const amount = formatCurrencyRounded(summary.total_spending, currency)
   const delta = summary.vs_previous_month_pct
+  const isFirstMonth = (summary.available_months?.length ?? 1) <= 1
   if (delta == null) {
-    return `You spent ${amount} across ${summary.transaction_count} transactions. First full month — I'll start looking for patterns.`
+    if (isFirstMonth) {
+      return `You spent ${amount} across ${summary.transaction_count} transactions. First full month — I'll start looking for patterns.`
+    }
+    // Multi-month user but no comparable prior figure (e.g. previous month
+    // had €0 spending). Don't fake a "first month" — just state the facts.
+    return `You spent ${amount} across ${summary.transaction_count} transactions this month.`
   }
   if (Math.abs(delta) < 3) {
     return `You spent ${amount} this month, roughly in line with last month. Steady — but that's also how creep hides.`
