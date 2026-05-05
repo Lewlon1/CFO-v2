@@ -1,177 +1,226 @@
 import { NextResponse } from 'next/server'
+import { generateText } from 'ai'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
-import { composeEvidencePool } from '@/lib/experiments/candidate-engine'
-import { classifyTier } from '@/lib/experiments/tier-classifier'
-import { authorWowMoment } from '@/lib/experiments/wow-author'
-import { signV3Payload } from '@/lib/experiments/candidate-token'
+import { computeFirstInsight } from '@/lib/analytics/insight-engine'
+import { buildFirstInsightContext } from '@/lib/ai/context-builder'
+import { BASE_PERSONA } from '@/lib/ai/system-prompt'
+import { chatModel } from '@/lib/ai/provider'
+import type { StatCard, InsightPayload } from '@/lib/analytics/insight-types'
+import { buildQuotableFacts } from '@/lib/ai/context-builder'
+import { validateNarrative } from '@/lib/ai/insight-validator'
 
-// First-insight endpoint for the onboarding modal — Wow Moment v3.
+// First-insight endpoint for the onboarding modal.
 //
-// Pipeline:
-//   1. Compose the evidence pool (v3 detectors + legacy + gap-analyser),
-//      enriched with comparative-scale context.
-//   2. Classify the tier (showstopper / reframe / honest tease).
-//   3. Opus authors all four beats grounded by the chosen evidence's
-//      verifiable_claims.
-//   4. Sign a v3 payload so save-experiment writes the exact authored
-//      moment the user accepts.
+// 1. Runs the PR #31 deterministic pattern-detection engine.
+// 2. Asks Claude to narrate the computed payload under the anti-hallucination
+//    guardrails assembled by `buildFirstInsightContext`.
+// 3. Parses `[STATS]` / `[OPTIONS]` blocks out of Claude's response so the
+//    client can render stat cards + tappable suggestions alongside the
+//    narrative inline in the modal.
 
-const NARRATIVE_FALLBACK =
-  "I've started looking through your numbers. Let's dig in together when you've got a minute."
+function parseStats(text: string): StatCard[] {
+  const m = text.match(/\[STATS\]([\s\S]*?)\[\/STATS\]/)
+  if (!m) return []
+  return m[1]
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label, value] = line.split('|').map((s) => s.trim())
+      if (!label || !value) return null
+      return { label, value, source_pattern_id: 'llm' }
+    })
+    .filter((c): c is StatCard => c !== null)
+}
+
+function parseOptions(text: string): string[] {
+  // Accept both closed and unclosed [OPTIONS] blocks — Claude frequently drops the closing tag.
+  const open = text.match(/\[OPTIONS\]([\s\S]*?)(?:\[\/OPTIONS\]|$)/)
+  if (!open) return []
+  return open[1]
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('-'))
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean)
+}
+
+function stripBlocks(text: string): string {
+  return text
+    .replace(/\[STATS\][\s\S]*?\[\/STATS\]/g, '')
+    .replace(/\[OPTIONS\][\s\S]*?(?:\[\/OPTIONS\]|$)/g, '')
+    .replace(/\[\/?OPTIONS\]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function collectKnownMerchants(payload: InsightPayload): string[] {
+  const merchants = new Set<string>()
+  for (const layer of ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const) {
+    const pattern = payload.layers[layer]
+    if (!pattern) continue
+    const data = pattern.data as Record<string, unknown>
+    if (typeof data.topMerchant === 'string') merchants.add(data.topMerchant.toLowerCase())
+    if (Array.isArray(data.topMerchants)) {
+      for (const m of data.topMerchants) {
+        if (m && typeof m === 'object' && 'name' in m) {
+          merchants.add(String((m as { name: unknown }).name).toLowerCase())
+        }
+      }
+    }
+  }
+  return Array.from(merchants)
+}
+
+// Deterministic narrative for when Claude can't be trusted (validator
+// rejection or generation error). Built only from payload fields the
+// engine has already computed — never invents numbers, never goes
+// through the validator (the validator is for LLM output). Keeps the
+// First Meeting screen from rendering as a blank card stack.
+function buildFallbackNarrative(payload: InsightPayload): string {
+  const greeting = payload.userName ? `Hey ${payload.userName} — ` : 'Hey — '
+  const monthsWord = payload.monthCount === 1 ? 'month' : 'months'
+  const intro = `${greeting}I've been through ${payload.transactionCount} transactions across ${payload.monthCount} ${monthsWord} of data.`
+
+  let middle = ''
+  const headline = payload.layers.headline
+  if (headline?.id === 'balance_trajectory') {
+    const shape = String(headline.data.shape ?? '')
+    if (shape === 'decline') {
+      middle = " Your balance is on a decline shape — worth a closer look at what's pulling it down."
+    } else if (shape === 'sawtooth') {
+      middle = ' Your balance shows a healthy pay-cycle sawtooth — a clean rhythm.'
+    } else if (shape === 'flat') {
+      middle = ' Your balance has been holding pretty steady.'
+    }
+  } else if (headline?.id === 'category_concentration') {
+    middle = ' One spending category is doing a lot of the work — see the breakdown below.'
+  } else if (headline?.id === 'income_detected') {
+    middle = ' I can see regular deposits coming in.'
+  }
+
+  const closing = payload.layers.action?.experiment
+    ? ' The biggest opportunity I spotted is below — take a look.'
+    : " Tell me what you want to dig into and I'll pull the thread."
+
+  return `${intro}${middle}${closing}`
+}
 
 export async function POST() {
-  const startedAt = Date.now()
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!secret) {
-    console.error('[generate-insight] missing SUPABASE_SERVICE_ROLE_KEY')
-    return NextResponse.json({ insight: { narrative: NARRATIVE_FALLBACK } })
-  }
+  const [payload, profileResult] = await Promise.all([
+    computeFirstInsight(supabase, user.id),
+    supabase.from('profiles').select('onboarding_progress').eq('id', user.id).single(),
+  ])
 
-  const serviceClient = createServiceClient()
+  const onboardingData = (profileResult.data?.onboarding_progress as { data?: { selectedCapabilities?: string[] } } | null)?.data
+  const selectedCapabilities = onboardingData?.selectedCapabilities ?? []
 
-  function logGenerated(extras: Record<string, unknown>) {
-    console.log(
-      '[wow_generated]',
-      JSON.stringify({
-        event: 'wow_generated',
-        userId: user!.id,
-        latency_ms: Date.now() - startedAt,
-        ...extras,
-      }),
-    )
-  }
-
-  // 1. Evidence pool + tier classification.
-  let composed
-  try {
-    composed = await composeEvidencePool(user.id, serviceClient)
-  } catch (err) {
-    console.error('[generate-insight] evidence pool failed:', err)
-    logGenerated({ outcome: 'pool_error', tier: null })
-    return NextResponse.json({ insight: { narrative: NARRATIVE_FALLBACK } })
-  }
-
-  // Lifetime block: a prior experiment exists. Render an honest narrative
-  // (no four beats) — the user already had their wow moment.
-  if (composed.hasPriorExperiment) {
-    logGenerated({ outcome: 'lifetime_block', tier: null })
-    return NextResponse.json({ insight: { narrative: NARRATIVE_FALLBACK } })
-  }
-
-  const classification = classifyTier(composed.pool, composed.dataDepth)
-
-  // Tier 3 with no evidence at all = render an honest fallback narrative
-  // without an Opus call. Saves cost and avoids LLM hallucination on thin data.
-  if (classification.tier === 'tier_3' && !classification.evidence) {
-    logGenerated({
-      outcome: 'tier3_no_evidence',
-      tier: 'tier_3',
-      pool_size: composed.pool.length,
-      data_days: composed.dataDepth.days,
-      data_tx_count: composed.dataDepth.txCount,
-    })
+  if (payload.transactionCount === 0) {
     return NextResponse.json({
       insight: {
         narrative:
-          "You've shared a small amount of data so far — not enough to read patterns yet. Send me a couple more statements and I'll have something concrete to say.",
+          "I've logged everything, but I don't have enough data yet to spot patterns. Upload another statement and I'll have more to say.",
+        statCards: [],
+        suggestedResponses: [],
       },
     })
   }
 
-  // Tier 1/2/3 with evidence → Opus authors all four beats.
-  let authored
+  const contextBlock = buildFirstInsightContext(payload, selectedCapabilities)
+  const systemPrompt = `${BASE_PERSONA}\n\n${contextBlock}`
+
   try {
-    authored = await authorWowMoment({
-      evidence: classification.evidence!, // safe: tier_3-no-evidence path returned above
-      supporting: classification.supporting,
-      tier: classification.tier,
-      user: {
-        display_name: composed.context.display_name,
-        archetype: composed.context.archetype,
-        certainty_areas: composed.context.certainty_areas,
-        conflict_areas: composed.context.conflict_areas,
-        currency: composed.context.currency,
+    const result = await generateText({
+      model: chatModel,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: '[System: Post-upload analysis triggered. Deliver your first insight.]',
+        },
+      ],
+      maxOutputTokens: 800,
+      temperature: 0.7,
+    })
+
+    const text = result.text
+    const statCards = parseStats(text)
+    const suggestedResponses = parseOptions(text)
+    const narrative = stripBlocks(text)
+
+    // Post-generation grounding check. Compare numbers/merchants in the narrative
+    // against the quotable-facts allowlist. On violation, log and return the
+    // deterministic fallback (no narrative) — graceful degradation keeps the
+    // UX working even when the model ignores grounding guardrails.
+    const facts = buildQuotableFacts(payload)
+    const knownMerchants = collectKnownMerchants(payload)
+    const validation = validateNarrative(narrative, facts, { knownMerchants })
+
+    if (!validation.ok) {
+      // CLAUDE.md rule: "The LLM interprets. The system computes." Any number
+      // or merchant the narrative cites that is not in the quotable-facts
+      // allowlist means Claude fabricated it. There is no safe threshold —
+      // a single wrong number is enough to mislead a user about their own
+      // money. Drop the narrative and ship the deterministic stat cards.
+      console.error(
+        '[generate-insight] validator violation:',
+        validation.reason,
+        'offenders:', validation.offenders,
+        '(falling back to no-narrative)',
+      )
+
+      return NextResponse.json({
+        insight: {
+          narrative: buildFallbackNarrative(payload),
+          statCards: payload.statCards,
+          suggestedResponses: payload.suggestedResponses,
+          experiment: payload.layers.action?.experiment,
+        },
+        validation: {
+          ok: false,
+          reason: validation.reason,
+          offenders: validation.offenders,
+          rejectedNarrative: narrative,
+        },
+      })
+    }
+
+    // If Claude returned only [STATS]/[OPTIONS] blocks and no prose, fall
+    // back rather than render an empty narrative beneath the stat cards.
+    const finalNarrative = narrative.trim().length > 0 ? narrative : buildFallbackNarrative(payload)
+
+    return NextResponse.json({
+      insight: {
+        narrative: finalNarrative,
+        statCards:
+          statCards.length > 0
+            ? statCards
+            : payload.statCards.map((c) => ({ ...c })),
+        suggestedResponses:
+          suggestedResponses.length > 0 ? suggestedResponses : payload.suggestedResponses,
+        experiment: payload.layers.action?.experiment,
       },
-      dataDepth: composed.dataDepth,
     })
   } catch (err) {
-    console.error('[generate-insight] author failed:', err)
-    logGenerated({
-      outcome: 'author_error',
-      tier: classification.tier,
-      evidence_source: classification.evidence?.source,
+    console.error('[generate-insight] Claude narration failed:', err)
+    // Fall back to the deterministic engine output with a grounded narrative
+    // built only from payload data — never blank.
+    return NextResponse.json({
+      insight: {
+        narrative: buildFallbackNarrative(payload),
+        statCards: payload.statCards,
+        suggestedResponses: payload.suggestedResponses,
+        experiment: payload.layers.action?.experiment,
+      },
     })
-    return NextResponse.json({ insight: { narrative: NARRATIVE_FALLBACK } })
   }
-
-  // 4. Sign a v3 candidate token for save-experiment.
-  const evidence = classification.evidence!
-  const noticingTarget = pickNoticingTarget(evidence) ?? evidence.source
-
-  const tokenPayload = {
-    v: 3 as const,
-    evidence_id: evidence.evidence_id,
-    tier: classification.tier,
-    legacy_observation_type: evidence.legacy_observation_type,
-    source: evidence.source,
-    observed: authored.result.observed,
-    named: authored.result.named,
-    asked: authored.result.asked,
-    proposed: authored.result.proposed,
-    noticing_target: noticingTarget,
-    payload: {
-      evidence_id: evidence.evidence_id,
-      source: evidence.source,
-      headline: evidence.headline,
-      wow_score: evidence.wow_score,
-      tier: classification.tier,
-      context_facts: evidence.context_facts,
-    },
-    used_fallback: authored.used_fallback,
-    ts: Date.now(),
-  }
-  const candidate_token = signV3Payload(tokenPayload, secret)
-
-  logGenerated({
-    outcome: 'authored',
-    tier: classification.tier,
-    evidence_source: evidence.source,
-    evidence_id: evidence.evidence_id,
-    wow_score: evidence.wow_score,
-    used_fallback: authored.used_fallback,
-    pool_size: composed.pool.length,
-    data_days: composed.dataDepth.days,
-    data_tx_count: composed.dataDepth.txCount,
-  })
-
-  return NextResponse.json({
-    insight: {
-      observed: authored.result.observed,
-      named: authored.result.named,
-      asked: authored.result.asked,
-      proposed: authored.result.proposed,
-      narrative: authored.result.observed,
-      candidate_token,
-    },
-    meta: {
-      tier: classification.tier,
-      evidence_source: evidence.source,
-      used_fallback: authored.used_fallback,
-    },
-  })
-}
-
-function pickNoticingTarget(evidence: { verifiable_claims: { kind: string; value: string | number }[] }): string | null {
-  const merchant = evidence.verifiable_claims.find((c) => c.kind === 'merchant')
-  if (merchant) return String(merchant.value)
-  return null
 }

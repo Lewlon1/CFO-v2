@@ -332,7 +332,6 @@ export async function buildSystemPrompt(
     tripsResult,
     assetsResult,
     liabilitiesResult,
-    activeExperimentResult,
   ] = await Promise.allSettled([
     supabase
       .from('user_profiles')
@@ -390,13 +389,6 @@ export async function buildSystemPrompt(
       .select('*')
       .eq('user_id', userId)
       .order('interest_rate', { ascending: false, nullsFirst: false }),
-    supabase
-      .from('active_experiments')
-      .select('pattern_name, experiment_text, observation_type')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .limit(1)
-      .maybeSingle(),
   ]);
 
   const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null;
@@ -427,8 +419,6 @@ export async function buildSystemPrompt(
   })();
   const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
   const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
-  const activeExperiment =
-    activeExperimentResult.status === 'fulfilled' ? activeExperimentResult.value.data : null;
 
   // Build advice style modifier
   const adviceStyle = profile?.advice_style || 'direct';
@@ -469,7 +459,6 @@ export async function buildSystemPrompt(
     buildFinancialContext(snapshots, recurring, profile),
     await getCountryBenchmarks(profile, supabase),
     getOnboardingResumeContext(profile),
-    buildActiveExperimentContext(activeExperiment),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
@@ -484,21 +473,6 @@ export async function buildSystemPrompt(
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildActiveExperimentContext(activeExperiment: any | null): string {
-  if (!activeExperiment) return '';
-  const patternName = (activeExperiment.pattern_name as string | undefined)?.trim();
-  const experimentText = (activeExperiment.experiment_text as string | undefined)?.trim();
-  if (!patternName || !experimentText) return '';
-  return [
-    '## Active experiment',
-    `The user is currently noticing **${patternName}**. You proposed:`,
-    `> ${experimentText}`,
-    '',
-    "Don't ask again or contradict the experiment. If they bring it up unprompted, engage; otherwise leave it to land — they only need to be reminded once.",
-  ].join('\n');
 }
 
 function buildCurrentDateContext(): string {
