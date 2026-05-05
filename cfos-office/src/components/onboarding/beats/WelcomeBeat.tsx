@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import {
   buildWelcomeCopy,
   formatMonthsPhrase,
-  WELCOME_CHIPS,
+  WELCOME_TOPICS,
 } from '@/lib/onboarding/welcome-copy'
 import type { ArchetypeData } from '@/lib/onboarding/types'
 
@@ -50,11 +50,11 @@ export function WelcomeBeat({ archetypeData, monthsOfData }: WelcomeBeatProps) {
         ))}
       </div>
 
-      <ul className="pt-3 space-y-1.5 text-sm text-[var(--text-secondary)]">
-        {WELCOME_CHIPS.map((chip) => (
-          <li key={chip.id} className="flex gap-2 leading-relaxed">
-            <span aria-hidden className="text-[var(--text-tertiary)]">·</span>
-            <span>{chip.label}</span>
+      <ul className="pt-3 space-y-3 text-sm">
+        {WELCOME_TOPICS.map((topic) => (
+          <li key={topic.id} className="leading-relaxed">
+            <div className="font-semibold text-[var(--text-primary)]">{topic.category}</div>
+            <div className="italic text-[var(--text-secondary)]">“{topic.question}”</div>
           </li>
         ))}
       </ul>

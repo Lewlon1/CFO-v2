@@ -28,55 +28,58 @@ export function buildWelcomeCopy(input: WelcomeCopyInput): WelcomeParagraphs {
   const { archetypeName, archetypeSubtitle, monthsPhrase } = input
 
   const opening = monthsPhrase
-    ? `You\u2019re **${archetypeName}** \u2014 ${archetypeSubtitle}. That\u2019s the lens I\u2019ll use from here. With ${monthsPhrase} of your spending in front of me, I already know what to protect and where to look.`
-    : `You\u2019re **${archetypeName}** \u2014 ${archetypeSubtitle}. That\u2019s the lens I\u2019ll use from here. Every suggestion I make will pass through it.`
+    ? `You’re **${archetypeName}** — ${archetypeSubtitle}. That’s the lens I’ll use from here. With ${monthsPhrase} of your spending in front of me, I already know what to protect and where to look.`
+    : `You’re **${archetypeName}** — ${archetypeSubtitle}. That’s the lens I’ll use from here. Every suggestion I make will pass through it.`
 
   const transition = monthsPhrase
     ? `The more of your life I can see, the sharper I get.`
-    : `Right now I\u2019m working from what you told me, not what your bank shows. The more I can see, the sharper I get.`
+    : `Right now I’m working from what you told me, not what your bank shows. The more I can see, the sharper I get.`
 
-  const whatItIs = `Here\u2019s what this place is. I\u2019m not a budgeting app. I won\u2019t ping you when you overspend on coffee, and I won\u2019t make you fill in spreadsheets. I\u2019m a CFO \u2014 I look at your real numbers, spot what you can\u2019t see from the inside, and help you make the calls that move you forward.`
+  const whatItIs = `Here’s what this place is. I’m not a budgeting app. I won’t ping you when you overspend on coffee, and I won’t make you fill in spreadsheets. I’m a CFO — I look at your real numbers, spot what you can’t see from the inside, and help you make the calls that move you forward.`
 
-  const shareMore = `Other accounts, credit cards, bills I haven\u2019t seen yet \u2014 that\u2019s where the gaps usually hide. Show me what you pay for electricity, internet, or your phone and I can often find you a better deal within minutes.`
+  const shareMore = `Other accounts, credit cards, bills I haven’t seen yet — that’s where the gaps usually hide. Show me what you pay for electricity, internet, or your phone and I can often find you a better deal within minutes.`
 
   // Cut: the "reasons people come" paragraph duplicated content from the
   // capabilities beat and the chips below. Empty string renders nothing.
   const useCases = ``
 
-  const invitation = `**What\u2019s on your mind today?**`
+  const invitation = `**What’s on your mind today?**`
 
   return { opening, transition, whatItIs, shareMore, useCases, invitation }
 }
 
-// ── Action chips ───────────────────────────────────────────────────────────
+// ── What-the-CFO-helps-with topics ─────────────────────────────────────────
 
-export interface WelcomeChip {
+export interface WelcomeTopic {
   id: string
-  label: string
-  prompt: string
-  primary?: boolean
+  category: string
+  question: string
 }
 
-export const WELCOME_CHIPS: WelcomeChip[] = [
+export const WELCOME_TOPICS: WelcomeTopic[] = [
   {
-    id: 'spending',
-    label: 'Show me where my money\u2019s going',
-    prompt: 'Show me where my money\u2019s going.',
-    primary: true,
+    id: 'everyday',
+    category: 'Everyday money management',
+    question: 'Where does it all go — and am I paying too much for any of this?',
   },
   {
-    id: 'bills',
-    label: 'Sort out my monthly bills',
-    prompt: 'Help me sort out my monthly bills.',
+    id: 'planning',
+    category: 'Planning & goals',
+    question: 'What am I actually building toward — and is what I’m doing getting me there?',
   },
   {
-    id: 'add-account',
-    label: 'Add another account or card',
-    prompt: 'I\u2019d like to add another account or card so you can see the full picture.',
+    id: 'advisory',
+    category: 'Ongoing advisory',
+    question: 'What did we agree last time — following up on experiments?',
   },
   {
-    id: 'trip',
-    label: 'Plan a trip I keep delaying',
-    prompt: 'I want to plan a trip I\u2019ve been putting off. Help me figure out how to afford it.',
+    id: 'investing',
+    category: 'Investing & wealth building',
+    question: 'Should this money be doing more?',
+  },
+  {
+    id: 'life-events',
+    category: 'Life events & protection',
+    question: 'Plan a trip or what happens if…?',
   },
 ]
