@@ -9,6 +9,46 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.1 — Phase A: P0 Brand & Polish — 2026-05-06
+
+**Branch:** `claude/laughing-ardinghelli-42b13c`
+**Scope:** Four mechanical fixes from the April 2026 UX audit, scoped tight ahead of the larger Phase B sweep. No new dependencies, no DB changes, no new primitives. One commit per phase, all independently revertable.
+
+**Commits:**
+- `a2ab9ba` — `fix(voice): remove 'advice' from CompletenessIndicator copy` (Phase 1, 1 file).
+- `30bee81` — `fix(tokens): align value-category colours to tokens.ts as single source` (Phase 2, 6 files). Removed `.fill` from `VALUE_COLORS` in `lib/constants/dashboard.ts` and refactored five consumers (three office files + two dashboard files) to import `valueCategories` from `lib/tokens.ts`. Foundation/Investment were swapped between sources before this; Leak/Burden also drifted.
+- `2ec29eb` — `fix(ios): use dvh for auth layout and modal max-heights` (Phase 3, 3 files). `min-h-screen` → `min-h-dvh` in `(auth)/layout.tsx`; `max-h-[Nvh]` → `max-h-[Ndvh]` in `BillUploadModal.tsx` and `TransactionPreview.tsx` (×2).
+- `d8f847a` — `fix(voice): add explicit advice/advise prohibition to LLM prompts` (Phase 4, 2 files). Rewrote `value-map/reveal/route.ts:51` and `demo/reading/route.ts:157` to use "guidance" instead of "advice" and added a VOICE RULE block to each prompt.
+
+**Verification (all clean):**
+- `grep -rnE "\b(advice|advise)\b"` across `src/components/profile/`, `src/app/api/value-map/`, `src/app/api/demo/` → only the two explicit VOICE RULE prohibition lines remain.
+- `grep -rnE "#22C55E|#3B82F6|#F43F5E|#8B5CF6"` across the six Phase 2 files → no output. (Two hits in `dashboard.ts` lines 3, 9 are `CATEGORY_COLORS` — traditional spending palette, not value-category drift.)
+- `grep -rnE "min-h-screen|max-h-\[[0-9]+vh\]"` across `(auth)/`, `bills/`, `upload/` → no output.
+- `npm run build` → clean.
+- `npx tsc --noEmit` → clean.
+- iOS Safari behavioural verification (URL-bar overlap, keyboard clipping) — automated grep proves the class change but the visual outcome needs eyeballing on a real device or in DevTools simulator. Flagged for next QA pass.
+
+**What did NOT change but probably should later:**
+- `no_idea` / `unsure` key-and-colour reconciliation. tokens.ts uses `unsure`, app code uses `no_idea`; current consumers preserve their own inline `no_idea` hex (some `#6B7280`, one `#F59E0B`). Out of Phase A scope.
+- `OfficeValuesBreakdown.tsx` lines 170 and ~195 still have `bg-[rgba(243,63,94,0.1)]` and `bg-[rgba(245,158,11,0.1)]` inline rgba background tints. Phase B will replace these via primitive component classes.
+- Tailwind class strings in `VALUE_COLORS` (`bg-blue-500/10` for foundation while canonical hex is green) — visible component-internal mismatch in the dashboard surfaces that import VALUE_COLORS for Tailwind classes. Phase B systematic class-map fix.
+- `TripPlanResult.tsx:14` uses `#8B5CF6` for `local_transport` — collides with the Burden hex by accident but is a different domain. Out of value-category scope; revisit when chat result components get a primitive sweep.
+- Many other files use the four hex codes for legitimate semantic purposes (`OfficeMonthlyOverview` uses `#22C55E` for income, etc.) — these are the canonical `colors.positive`/`colors.negative` semantics, not drift. Should eventually swap inline hex for `colors.*` token reads, but not P0.
+
+**Lessons learned (append-only):**
+- **Two sources of colour truth is a smell, not a debate.** When `tokens.ts` and `dashboard.ts` disagreed, the resolution was always "tokens wins." If it ever happens again with another design property (radii, spacing, typography), default to one source and refactor consumers — don't write a third.
+- **Voice rules need to live in three places, not one.** Code review (the audit), product copy (component files), and LLM prompts (system instructions) all need the same rule reinforced. A copy-deck rule that only exists in one of the three will leak through the others — confirmed when the audit found "advice" in both UI strings *and* two Bedrock prompts.
+- **Brief manifests can lie.** The original brief listed 4 files for Phase 2 but its instruction to delete `.fill` would have broken 2 unlisted consumers (`ValuesDonut`, `ValuesTrendChart` in `components/dashboard/`). Always verify the "files touched" list against the actual blast radius before locking scope. Lewis approved expanding from 4 to 6 files in this case.
+- **Beware `dvh` matching the brief's `vh` regex.** `grep "max-h-\[.*vh\]"` matches both `vh` and `dvh`. The verification grep needed tightening to `max-h-\[[0-9]+vh\]` to exclude the new `dvh` strings. Brief verification commands need to be tested before they're executed by an autonomous agent.
+
+**What's unblocked next:** Phase B (primitive layer expansion) can now scope `Card`/`Badge`/`Heading`/`Dialog`/`Toast` etc. with confidence that the colour and voice baselines are clean. The Tailwind-class drift inside `VALUE_COLORS` is the next obvious cleanup target.
+
+**Follow-ups:**
+- Visual QA on iOS device for `/login` URL-bar behaviour and `BillUploadModal` keyboard clipping.
+- Phase B kickoff per `UI-DIRECTION.md`.
+
+---
+
 ## Session 27 — Documentation cleanup — 2026-05-03
 
 **Branch:** `claude/prepare-beta-v2-O1zeV`
