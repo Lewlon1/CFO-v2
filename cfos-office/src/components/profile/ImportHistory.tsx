@@ -14,14 +14,26 @@ interface ImportHistoryProps {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
+  // Current tags (post universal-parser refactor)
+  csv_universal: 'CSV',
+  pdf_vision: 'PDF',
+  ofx: 'OFX',
+  qif: 'QIF',
+  screenshot: 'Screenshot',
+  manual: 'Manual entry',
+  // Legacy tags (pre-refactor DB rows) — keep for existing import history
   csv_revolut: 'Revolut CSV',
   csv_santander: 'Santander CSV',
+  csv_monzo: 'Monzo CSV',
+  csv_starling: 'Starling CSV',
+  csv_hsbc: 'HSBC CSV',
+  csv_barclays: 'Barclays CSV',
   csv_generic: 'CSV',
   csv_import: 'CSV',
   CSV: 'CSV',
   xlsx: 'Spreadsheet',
-  screenshot: 'Screenshot',
-  manual: 'Manual entry',
+  pdf_text: 'PDF',
+  pdf_statement: 'PDF',
 }
 
 export function ImportHistory({ imports }: ImportHistoryProps) {

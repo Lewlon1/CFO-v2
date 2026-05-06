@@ -54,11 +54,11 @@ export function createDeleteValueRuleTool(ctx: ToolContext) {
           if (!normDesc) {
             return { error: 'Merchant pattern could not be normalised.' }
           }
-          query = query.eq('match_type', 'merchant_contains').eq('match_value', normDesc)
+          query = query.eq('match_type', 'merchant').eq('match_value', normDesc)
         }
 
         const { data: deleted, error } = await query.select(
-          'id, match_value, value_category, context_conditions'
+          'id, match_value, value_category, time_context'
         )
 
         if (error) {
@@ -86,7 +86,7 @@ export function createDeleteValueRuleTool(ctx: ToolContext) {
             rules: deleted.map((r) => ({
               match_value: r.match_value,
               value_category: r.value_category,
-              context_conditions: r.context_conditions,
+              time_context: r.time_context,
             })),
           },
         })
@@ -97,7 +97,7 @@ export function createDeleteValueRuleTool(ctx: ToolContext) {
             id: r.id,
             match_value: r.match_value,
             value_category: r.value_category,
-            context_conditions: r.context_conditions,
+            time_context: r.time_context,
           })),
           message:
             deleted.length === 1

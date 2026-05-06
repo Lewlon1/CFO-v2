@@ -11,6 +11,7 @@ export interface ValueMapTransaction {
   transaction_date: string
   is_recurring: boolean
   category_name?: string | null
+  context?: string
 }
 
 export interface ValueMapResult {

@@ -34,14 +34,13 @@ export async function parseBalanceSheetPDF(
   userId?: string
 ): Promise<BalanceSheetPdfResult> {
   let text: string
-  let parser: { destroy: () => Promise<void> } | null = null
+  let parser: InstanceType<typeof import('pdf-parse').PDFParse> | null = null
   try {
     // Dynamic import keeps pdf-parse out of the client bundle. v2 exposes
     // a PDFParse class rather than a default-export function.
     const { PDFParse } = await import('pdf-parse')
     parser = new PDFParse({ data: new Uint8Array(buffer) })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (parser as any).getText()
+    const result = await parser.getText()
     text = (result.text ?? '').trim()
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -51,7 +50,10 @@ export async function parseBalanceSheetPDF(
       try {
         await parser.destroy()
       } catch {
-        // ignore
+        // Cleanup-only finally: swallowing destroy errors is intentional —
+        // we've already returned the parse result (success or failure) and
+        // can't surface a destroy-time failure usefully. The parser is
+        // local to this call so a leak here is bounded to one invocation.
       }
     }
   }

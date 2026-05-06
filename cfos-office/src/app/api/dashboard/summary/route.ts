@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import {
+  isNeutralCategory,
+  INCOME_CATEGORY_ID,
+  UNCATEGORISED_CATEGORY_ID,
+} from '@/lib/analytics/categories'
 
 type FrequencyResult = { frequency: string; estimated: boolean; monthly_equivalent: number }
 
@@ -98,16 +103,18 @@ export async function GET(req: NextRequest) {
     .order('month', { ascending: false })
 
   if (!snapshots || snapshots.length === 0) {
-    return NextResponse.json({ error: 'no_data' }, { status: 404 })
+    return NextResponse.json({ hasData: false })
   }
 
   const availableMonths = snapshots.map(s => s.month)
 
-  // Find the requested month's snapshot
+  // Find the requested month's snapshot. Accept either 'YYYY-MM' (the documented
+  // format) or 'YYYY-MM-DD' (what the client historically sent back from
+  // available_months, which are raw date strings).
   let snapshot
   if (monthParam) {
-    const monthDate = `${monthParam}-01`
-    snapshot = snapshots.find(s => s.month === monthDate)
+    const monthKey = monthParam.slice(0, 7)
+    snapshot = snapshots.find(s => String(s.month).startsWith(monthKey))
     if (!snapshot) {
       return NextResponse.json({ error: 'Month not found' }, { status: 404 })
     }
@@ -130,43 +137,50 @@ export async function GET(req: NextRequest) {
     ? `${yearNum + 1}-01-01`
     : `${yearNum}-${String(monthNum + 1).padStart(2, '0')}-01`
 
+  // Pull both spend rows AND positive non-income rows so refunds can net against
+  // their category in the breakdown. Neutral / income categories are excluded server-side.
   const { data: txns } = await supabase
     .from('transactions')
     .select('category_id, value_category, amount, description')
     .eq('user_id', user.id)
     .gte('date', monthStart)
     .lt('date', nextMonth)
-    .lt('amount', 0)
 
-  // Count per category
+  // Count per category. Mirrors the bucketing in monthly-snapshot.ts: drop
+  // income + neutral rows; bucket NULL-category rows under 'uncategorised' so
+  // their counts match the spending_by_category jsonb the writer produces.
   const catCounts: Record<string, number> = {}
   const vcCounts: Record<string, number> = {}
-  // Top categories per value category
   const vcCatBreakdown: Record<string, Record<string, number>> = {}
   for (const txn of txns ?? []) {
-    const cid = txn.category_id ?? 'uncategorised'
+    if (txn.category_id === INCOME_CATEGORY_ID) continue
+    if (isNeutralCategory(txn.category_id)) continue
+    const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
     catCounts[cid] = (catCounts[cid] ?? 0) + 1
 
     const vc = txn.value_category ?? 'no_idea'
     vcCounts[vc] = (vcCounts[vc] ?? 0) + 1
 
     if (!vcCatBreakdown[vc]) vcCatBreakdown[vc] = {}
-    vcCatBreakdown[vc][cid] = (vcCatBreakdown[vc][cid] ?? 0) + Math.abs(txn.amount)
+    // Net amount: outflows positive, refunds negative.
+    vcCatBreakdown[vc][cid] = (vcCatBreakdown[vc][cid] ?? 0) + -Number(txn.amount)
   }
 
-  // Enrich spending_by_category with metadata + percentages
+  // Enrich spending_by_category with metadata + percentages. Synthetic
+  // 'uncategorised' bucket carries display metadata since it has no DB row.
   const rawByCat = (snapshot.spending_by_category ?? {}) as Record<string, number>
   const totalSpending = snapshot.total_spending ?? 0
   const enrichedByCat: Record<string, CategorySummary> = {}
   for (const [slug, amount] of Object.entries(rawByCat)) {
     const cat = catMap.get(slug)
+    const isUncategorised = slug === UNCATEGORISED_CATEGORY_ID
     enrichedByCat[slug] = {
       amount: Math.round(amount * 100) / 100,
       count: catCounts[slug] ?? 0,
       pct: totalSpending > 0 ? Math.round((amount / totalSpending) * 1000) / 10 : 0,
-      name: cat?.name ?? slug,
-      icon: cat?.icon ?? 'circle',
-      color: cat?.color ?? 'primary',
+      name: cat?.name ?? (isUncategorised ? 'Uncategorised' : slug),
+      icon: cat?.icon ?? (isUncategorised ? 'help-circle' : 'circle'),
+      color: cat?.color ?? (isUncategorised ? '#94a3b8' : 'primary'),
       tier: cat?.tier ?? 'core',
     }
   }
@@ -203,6 +217,9 @@ export async function GET(req: NextRequest) {
 
     const descMap = new Map<string, { amounts: number[]; dates: string[]; months: Set<string>; category_id: string | null }>()
     for (const r of recRows ?? []) {
+      // Exclude neutral movements (transfers, debt repayments, savings) so things
+      // like "Credit card repayment" never surface as recurring spend.
+      if (isNeutralCategory(r.category_id) || r.category_id === INCOME_CATEGORY_ID) continue
       const key = r.description
       if (!descMap.has(key)) descMap.set(key, { amounts: [], dates: [], months: new Set(), category_id: r.category_id })
       const entry = descMap.get(key)!
@@ -270,6 +287,19 @@ export async function GET(req: NextRequest) {
     ).then(() => {})
   }
 
+  // Self-heal vs_previous_month_pct: the writer can leave this NULL when the
+  // previous month's snapshot didn't exist at write time (upload-order race).
+  // Snapshots are sorted desc, so the previous calendar month is at index+1.
+  let vsPrevPct = snapshot.vs_previous_month_pct
+  if (vsPrevPct == null) {
+    const idx = snapshots.indexOf(snapshot)
+    const prev = idx >= 0 ? snapshots[idx + 1] : undefined
+    const currSpend = snapshot.total_spending ?? 0
+    if (prev?.total_spending && prev.total_spending > 0) {
+      vsPrevPct = Math.round(((currSpend - prev.total_spending) / prev.total_spending) * 1000) / 10
+    }
+  }
+
   const result: DashboardSummary = {
     month: snapshot.month,
     total_income: snapshot.total_income ?? 0,
@@ -279,7 +309,7 @@ export async function GET(req: NextRequest) {
     avg_transaction_size: snapshot.avg_transaction_size ?? 0,
     largest_transaction: snapshot.largest_transaction ?? 0,
     largest_transaction_desc: snapshot.largest_transaction_desc,
-    vs_previous_month_pct: snapshot.vs_previous_month_pct,
+    vs_previous_month_pct: vsPrevPct,
     spending_by_category: enrichedByCat,
     spending_by_value_category: enrichedByVc,
     recurring,

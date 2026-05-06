@@ -7,7 +7,8 @@ export type NudgeType =
   | 'action_item_reminder'
   | 'upload_reminder'
   | 'spending_spike'
-  | 'goal_milestone';
+  | 'goal_milestone'
+  | 'value_map_retake';
 
 export type NudgeFrequency = 'once' | 'recurring';
 export type NudgePriority = 'high' | 'medium' | 'low';
@@ -59,7 +60,7 @@ export const NUDGE_RULES: Record<NudgeType, NudgeRule> = {
     title_template: '{{bill_name}} due in {{days}} days',
     body_template:
       '{{bill_name}} ({{amount}} {{currency}}) is due on {{due_date}}. Make sure you have funds available.',
-    action_url: '/bills',
+    action_url: '/office/cash-flow/bills',
     priority: 'medium',
     frequency: 'recurring',
     cooldown_hours: 168, // 7 days
@@ -144,13 +145,27 @@ export const NUDGE_RULES: Record<NudgeType, NudgeRule> = {
       "You've hit {{percentage}}% of your {{goal_name}} goal!",
     body_template:
       "You've saved {{current}} of {{target}} {{currency}} for {{goal_name}}. Keep it up — you're on track to hit it by {{target_date}}.",
-    action_url: '/goals',
+    action_url: '/office',
     priority: 'low',
     frequency: 'once',
     cooldown_hours: 720, // 30 days
     max_per_month: 2,
     enabled_by_default: true,
     evaluation_schedule: 'weekly',
+  },
+
+  value_map_retake: {
+    type: 'value_map_retake',
+    title_template: 'Your CFO wants to learn more',
+    body_template:
+      "I've spotted {{count}} transactions I'm not sure how you feel about. A 2-minute retake sharpens everything.",
+    action_url: '/value-map?mode=personal',
+    priority: 'medium',
+    frequency: 'recurring',
+    cooldown_hours: 336, // 14 days
+    max_per_month: 2,
+    enabled_by_default: true,
+    evaluation_schedule: 'daily',
   },
 };
 
@@ -164,6 +179,7 @@ export const NUDGE_ICONS: Record<NudgeType, string> = {
   upload_reminder: '📤',
   spending_spike: '📈',
   goal_milestone: '🎯',
+  value_map_retake: '🧭',
 };
 
 export const NUDGE_LABELS: Record<NudgeType, string> = {
@@ -176,6 +192,7 @@ export const NUDGE_LABELS: Record<NudgeType, string> = {
   upload_reminder: 'Upload reminders',
   spending_spike: 'Spending spike alerts',
   goal_milestone: 'Goal milestone celebrations',
+  value_map_retake: 'Value Map retake suggestions',
 };
 
 export const PRIORITY_ORDER: Record<NudgePriority, number> = {

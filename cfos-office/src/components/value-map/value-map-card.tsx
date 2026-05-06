@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Undo2, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import { formatAmount, formatDate } from '@/lib/value-map/format'
 import { getFeedback, getMilestoneFeedback } from '@/lib/value-map/feedback'
@@ -16,7 +16,6 @@ import { useTrackEvent } from '@/lib/events/use-track-event'
 const FEEDBACK_DURATION = 5000 // ms
 const CARD_TRANSITION = 250 // ms
 const GATE_DURATION = 1500 // ms — buttons inert for this long
-const HARD_TO_DECIDE_DELAY = 3000 // ms — escape hatch appears after this
 
 
 function contextHint(tx: ValueMapTransaction): string | null {
@@ -36,6 +35,7 @@ interface ValueMapCardProps {
   transactions: ValueMapTransaction[]
   currency: string
   onComplete: (results: ValueMapResult[]) => void
+  onTransactionResult?: (result: ValueMapResult, index: number, total: number) => void
 }
 
 type CardState = 'visible' | 'exiting' | 'feedback' | 'entering'
@@ -79,7 +79,7 @@ function ConfidenceDots({
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCardProps) {
+export function ValueMapCard({ transactions, currency, onComplete, onTransactionResult }: ValueMapCardProps) {
   const trackEvent = useTrackEvent()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [results, setResults] = useState<ValueMapResult[]>([])
@@ -92,7 +92,6 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
 
   // Engagement gate state
   const [canTap, setCanTap] = useState(false)
-  const [showHardToDecide, setShowHardToDecide] = useState(false)
 
   // Timing refs
   const cardShownAt = useRef<number>(0)
@@ -101,7 +100,6 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
   // Timer refs
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const gateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const total = transactions.length
   const tx = transactions[currentIndex]
@@ -121,7 +119,6 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
   useEffect(() => {
     // Reset gate
     setCanTap(false)
-    setShowHardToDecide(false)
     setSelectedQuadrant(null)
     setConfidence(3)
 
@@ -129,13 +126,11 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
     cardShownAt.current = Date.now()
     firstTapAt.current = null
 
-    // Start gate timers
+    // Start gate timer
     gateTimerRef.current = setTimeout(() => setCanTap(true), GATE_DURATION)
-    hardTimerRef.current = setTimeout(() => setShowHardToDecide(true), HARD_TO_DECIDE_DELAY)
 
     return () => {
       if (gateTimerRef.current) clearTimeout(gateTimerRef.current)
-      if (hardTimerRef.current) clearTimeout(hardTimerRef.current)
     }
   }, [currentIndex])
 
@@ -210,6 +205,9 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
     const newResults = [...results, result]
     setResults(newResults)
 
+    // Fire per-transaction callback for reactive comments
+    onTransactionResult?.(result, currentIndex, total)
+
     // Get feedback
     const feedback = getFeedback({
       merchant: tx.merchant,
@@ -246,7 +244,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
         advanceToNext()
       }, FEEDBACK_DURATION)
     }, CARD_TRANSITION)
-  }, [selectedQuadrant, cardState, tx, results, currency, confidence, currentIndex, total, onComplete, advanceToNext])
+  }, [selectedQuadrant, cardState, tx, results, currency, confidence, currentIndex, total, onComplete, onTransactionResult, advanceToNext])
 
   // ── Hard to decide (escape hatch) ──────────────────────────────────────────
 
@@ -269,6 +267,9 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
     const newResults = [...results, result]
     setResults(newResults)
 
+    // Fire per-transaction callback for reactive comments
+    onTransactionResult?.(result, currentIndex, total)
+
     // Skip feedback — advance directly
     if (currentIndex + 1 >= total) {
       onComplete(newResults)
@@ -282,7 +283,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
     setTimeout(() => {
       setCardState('visible')
     }, CARD_TRANSITION)
-  }, [cardState, tx, results, currentIndex, total, onComplete])
+  }, [cardState, tx, results, currentIndex, total, onComplete, onTransactionResult])
 
   // Tap-to-skip: clicking anywhere during feedback advances immediately
   const handleFeedbackTap = useCallback(() => {
@@ -366,7 +367,7 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleFeedbackTap() }}
           >
-            <CfoAvatar size="sm" />
+            <CFOAvatar size={24} />
             <p className="text-sm text-foreground leading-relaxed max-w-xs">
               {feedbackText}
             </p>
@@ -391,6 +392,11 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
             <p className="text-lg font-semibold text-foreground">
               {tx.description ?? tx.merchant ?? 'Transaction'}
             </p>
+            {tx.context && (
+              <p className="text-sm italic text-muted-foreground">
+                {tx.context}
+              </p>
+            )}
             <p className="font-mono text-2xl font-bold text-foreground">
               {formatAmount(tx.amount, currency)}
             </p>
@@ -481,15 +487,19 @@ export function ValueMapCard({ transactions, currency, onComplete }: ValueMapCar
       )}
 
       {/* Hard to decide button */}
-      {cardState === 'visible' && showHardToDecide && !selectedQuadrant && (
-        <div className="px-4 pb-3 flex justify-center">
+      {cardState === 'visible' && !selectedQuadrant && (
+        <div
+          className={cn(
+            'px-4 pb-3 transition-opacity duration-300',
+            !canTap && 'opacity-40 pointer-events-none',
+          )}
+        >
           <Button
             variant="outline"
-            size="sm"
             onClick={handleHardToDecide}
-            className="text-sm text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
+            className="w-full min-h-[56px] rounded-xl text-sm font-medium text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
           >
-            No idea
+            Unsure
           </Button>
         </div>
       )}

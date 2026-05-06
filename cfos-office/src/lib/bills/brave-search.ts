@@ -34,16 +34,26 @@ export async function braveSearch(query: string, count = 8): Promise<BraveSearch
       return null
     }
 
-    const data = await res.json()
-    const results: BraveSearchResult[] = (data.web?.results || []).map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (r: any) => ({
-        title: r.title || '',
-        url: r.url || '',
-        description: r.description || '',
-        age: r.age || undefined,
-      })
-    )
+    // Brave's response is loosely typed at the boundary; we narrow to the four
+    // fields we actually consume from web.results[]. Anything unexpected is
+    // coalesced to '' / undefined below.
+    type BraveApiResponse = {
+      web?: {
+        results?: Array<{
+          title?: string
+          url?: string
+          description?: string
+          age?: string
+        }>
+      }
+    }
+    const data = (await res.json()) as BraveApiResponse
+    const results: BraveSearchResult[] = (data.web?.results ?? []).map((r) => ({
+      title: r.title ?? '',
+      url: r.url ?? '',
+      description: r.description ?? '',
+      age: r.age ?? undefined,
+    }))
 
     return results
   } catch (err) {

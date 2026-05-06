@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Scissors, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { QUADRANTS } from '@/lib/value-map/constants'
 import type { ValueMapResult } from '@/lib/value-map/types'
 
@@ -82,7 +82,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
 
     return (
       <div className="flex flex-col items-center h-full px-4 py-4 gap-5 overflow-y-auto">
-        <CfoAvatar size="sm" />
+        <CFOAvatar size={24} />
 
         {cutItems.length > 0 ? (
           <>

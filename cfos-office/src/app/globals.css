@@ -15,6 +15,59 @@
   --accent-foreground: #F2F2F3;
   --destructive: #EF4444;
   --ring: #E8A84C;
+
+  /* === UI-DIRECTION token system === */
+
+  /* Backgrounds */
+  --bg-base: #0F0F0D;
+  --bg-elevated: #111110;
+  --bg-card: rgba(255,255,255,0.015);
+  --bg-inset: rgba(0,0,0,0.15);
+  --bg-deep: rgba(0,0,0,0.2);
+
+  /* Text */
+  --text-primary: #F5F5F0;
+  --text-secondary: rgba(245,245,240,0.55);
+  --text-tertiary: rgba(245,245,240,0.3);
+  --text-muted: rgba(245,245,240,0.18);
+  --text-ghost: rgba(245,245,240,0.12);
+
+  /* Accent — Gold */
+  --accent-gold: #E8A84C;
+  --accent-gold-soft: rgba(232,168,76,0.5);
+  --accent-gold-bg: rgba(232,168,76,0.06);
+  --accent-gold-border: rgba(232,168,76,0.12);
+
+  /* Semantic */
+  --positive: #22C55E;
+  --negative: #F43F5E;
+  --info: #3B82F6;
+  --accent-cyan: #06B6D4;
+  --accent-purple: #8B5CF6;
+
+  /* Borders */
+  --border-subtle: rgba(255,255,255,0.04);
+  --border-medium: rgba(255,255,255,0.06);
+  --border-visible: rgba(255,255,255,0.07);
+
+  /* Interactive */
+  --tap-highlight: rgba(255,255,255,0.03);
+
+  /* === Office aliases (point to new tokens, keeps existing classes working) === */
+  --office-bg: var(--bg-base);
+  --office-bg-secondary: var(--bg-elevated);
+  --office-bg-tertiary: var(--bg-inset);
+  --office-border: var(--border-medium);
+  --office-border-subtle: var(--border-subtle);
+  --office-text: var(--text-primary);
+  --office-text-secondary: var(--text-secondary);
+  --office-text-muted: var(--text-tertiary);
+  --office-gold: var(--accent-gold);
+  --office-green: var(--positive);
+  --office-red: var(--negative);
+  --office-cyan: var(--accent-cyan);
+  --office-purple: var(--accent-purple);
+  --office-blue: var(--info);
 }
 
 @theme inline {
@@ -35,6 +88,49 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Office fonts — resolve inside (office) layout, fall back to Geist elsewhere */
+  --font-data: var(--font-jetbrains-mono, var(--font-mono));
+  --font-ui: var(--font-dm-sans, var(--font-sans));
+
+  /* UI-DIRECTION token system */
+  --color-bg-base: var(--bg-base);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-card: var(--bg-card);
+  --color-bg-inset: var(--bg-inset);
+  --color-bg-deep: var(--bg-deep);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-muted: var(--text-muted);
+  --color-text-ghost: var(--text-ghost);
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-gold-soft: var(--accent-gold-soft);
+  --color-accent-gold-bg: var(--accent-gold-bg);
+  --color-accent-gold-border: var(--accent-gold-border);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-info: var(--info);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-medium: var(--border-medium);
+  --color-border-visible: var(--border-visible);
+  --color-tap-highlight: var(--tap-highlight);
+
+  /* Office aliases (backwards-compatible) */
+  --color-office-bg: var(--office-bg);
+  --color-office-bg-secondary: var(--office-bg-secondary);
+  --color-office-bg-tertiary: var(--office-bg-tertiary);
+  --color-office-border: var(--office-border);
+  --color-office-border-subtle: var(--office-border-subtle);
+  --color-office-text: var(--office-text);
+  --color-office-text-secondary: var(--office-text-secondary);
+  --color-office-text-muted: var(--office-text-muted);
+  --color-office-gold: var(--office-gold);
+  --color-office-green: var(--office-green);
+  --color-office-red: var(--office-red);
+  --color-office-cyan: var(--office-cyan);
+  --color-office-purple: var(--office-purple);
+  --color-office-blue: var(--office-blue);
 
   /* Custom animations for Demo card exercise */
   --animate-value-feedback: value-feedback 0.4s ease-out forwards;
@@ -57,6 +153,60 @@
   @keyframes value-gate {
     from { width: 0%; }
     to   { width: 100%; }
+  }
+
+  /* Office folder detail stagger animation */
+  --animate-fade-in: fade-in 0.25s ease-out forwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Onboarding typing indicator dots */
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1); }
+}
+
+/* Chat sheet slide-down animation (drops from top) */
+@keyframes sheet-down {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
+.animate-sheet-down {
+  animation: sheet-down 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Theme bridge — maps app tokens to office palette inside the chat sheet */
+.chat-sheet-scope {
+  --card: var(--office-bg-secondary);
+  --card-foreground: var(--office-text);
+  --border: var(--office-border);
+  --foreground: var(--office-text);
+  --muted-foreground: var(--office-text-muted);
+  --input: var(--office-bg-tertiary);
+  --primary: var(--office-gold);
+  --primary-foreground: var(--office-bg);
+  --ring: var(--office-gold);
+  --muted: var(--office-bg-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  [data-chat-sheet],
+  [data-chat-bar] {
+    animation: none !important;
+    transition-duration: 0s !important;
+  }
+  .animate-sheet-down {
+    animation: none !important;
+    transform: translateY(0) !important;
   }
 }
 

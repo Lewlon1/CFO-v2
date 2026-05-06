@@ -26,9 +26,16 @@ const NetWorthTrendChart = dynamic(
 
 type Props = {
   categories: Category[]
+  view?: 'full' | 'assets' | 'liabilities'
 }
 
-export function BalanceSheetClient({ categories }: Props) {
+const VIEW_TITLES: Record<string, { title: string; subtitle: string }> = {
+  full: { title: 'Balance Sheet', subtitle: 'What you own and what you owe' },
+  assets: { title: 'Assets', subtitle: 'Everything you own' },
+  liabilities: { title: 'Liabilities', subtitle: 'Everything you owe' },
+}
+
+export function BalanceSheetClient({ categories, view = 'full' }: Props) {
   const { balanceSheet, isLoading, mutate } = useBalanceSheet()
   const trackEvent = useTrackEvent()
   const viewedRef = useRef(false)
@@ -64,10 +71,12 @@ export function BalanceSheetClient({ categories }: Props) {
 
   const currency = balanceSheet.currency
 
+  const { title, subtitle } = VIEW_TITLES[view]
+
   if (!balanceSheet.has_data) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        <h1 className="text-xl font-semibold text-foreground">Balance Sheet</h1>
+        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
         <EmptyState onUploadClick={scrollToUpload} />
         {showUpload && (
           <div ref={uploadRef} className="rounded-xl border border-border bg-card p-4 md:p-6">
@@ -92,10 +101,8 @@ export function BalanceSheetClient({ categories }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Balance Sheet</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            What you own and what you owe
-          </p>
+          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
         </div>
       </div>
 
@@ -110,18 +117,20 @@ export function BalanceSheetClient({ categories }: Props) {
         currency={currency}
       />
 
-      {/* Allocation + Data gaps */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AllocationDonut
-          allocation={balanceSheet.allocation}
-          totalAssets={balanceSheet.total_assets}
-          currency={currency}
-        />
-        <DataGaps gaps={balanceSheet.data_gaps} />
-      </div>
+      {/* Allocation + Data gaps (full + assets views) */}
+      {view !== 'liabilities' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AllocationDonut
+            allocation={balanceSheet.allocation}
+            totalAssets={balanceSheet.total_assets}
+            currency={currency}
+          />
+          <DataGaps gaps={balanceSheet.data_gaps} />
+        </div>
+      )}
 
-      {/* Assets */}
-      {balanceSheet.asset_groups.length > 0 && (
+      {/* Assets (full + assets views) */}
+      {view !== 'liabilities' && balanceSheet.asset_groups.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Assets</h2>
           <div className="space-y-3">
@@ -132,8 +141,8 @@ export function BalanceSheetClient({ categories }: Props) {
         </section>
       )}
 
-      {/* Liabilities */}
-      {balanceSheet.liability_groups.length > 0 && (
+      {/* Liabilities (full + liabilities views) */}
+      {view !== 'assets' && balanceSheet.liability_groups.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
             Liabilities
@@ -146,8 +155,8 @@ export function BalanceSheetClient({ categories }: Props) {
         </section>
       )}
 
-      {/* Trend */}
-      <NetWorthTrendChart trend={balanceSheet.trend} currency={currency} />
+      {/* Trend (full view only) */}
+      {view === 'full' && <NetWorthTrendChart trend={balanceSheet.trend} currency={currency} />}
 
       {/* Upload zone */}
       <section className="space-y-3">

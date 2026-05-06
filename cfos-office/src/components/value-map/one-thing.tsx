@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 
 const MAX_LENGTH = 200
 
@@ -28,7 +28,7 @@ export function OneThing({ onSubmit, onSkip }: OneThingProps) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center animate-value-feedback">
-      <CfoAvatar size="sm" />
+      <CFOAvatar size={24} />
 
       <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 max-w-sm">
         <p className="text-sm text-foreground leading-relaxed">

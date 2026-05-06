@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useChatContext } from '@/components/chat/ChatProvider'
 import type { ReviewStatus } from '@/app/api/dashboard/summary/route'
 
 type Props = {
@@ -19,15 +20,37 @@ export function ReviewBanner({ reviewStatus, month }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
+  // ChatContext is optional — ReviewBanner may render outside the office layout.
+  // When present, we open the persistent chat sheet rather than navigating to /chat/{id},
+  // because that URL is 301-redirected to /office and the conversation ID would be dropped.
+  let chatCtx: ReturnType<typeof useChatContext> | null = null
+  try {
+    chatCtx = useChatContext()
+  } catch {
+    // Not inside ChatProvider — fall back to router.push('/office')
+  }
+
+  function openConversation(conversationId: string) {
+    if (chatCtx) {
+      chatCtx.loadConversation(conversationId)
+      chatCtx.openSheet()
+    } else {
+      // No chat context — conversation can't be carried via URL (301 redirect drops it).
+      // At least land the user in the office; they can find the conversation in history.
+      router.push('/office')
+    }
+  }
+
   if (reviewStatus.reviewed) {
     if (!reviewStatus.conversation_id) return null
+    const conversationId = reviewStatus.conversation_id
     return (
       <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/50 border border-border text-sm">
         <span className="text-muted-foreground">
           {formatMonthName(month)} reviewed
         </span>
         <button
-          onClick={() => router.push(`/chat/${reviewStatus.conversation_id}`)}
+          onClick={() => openConversation(conversationId)}
           className="text-primary hover:underline font-medium min-h-[44px] min-w-[44px] flex items-center"
         >
           View review
@@ -46,9 +69,9 @@ export function ReviewBanner({ reviewStatus, month }: Props) {
       })
       const data = await res.json()
       if (data.conversationId) {
-        router.push(`/chat/${data.conversationId}`)
+        openConversation(data.conversationId)
       }
-    } catch {
+    } finally {
       setLoading(false)
     }
   }

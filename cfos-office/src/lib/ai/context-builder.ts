@@ -4,6 +4,313 @@ import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
 import { PERSONALITIES } from '@/lib/value-map/constants';
+import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
+import { extractNumbers } from './insight-validator';
+
+const COHORT_LABEL: Record<string, string> = {
+  wave_1: 'Wave 1',
+  wave_1_5: 'Wave 1.5',
+  wave_2: 'Wave 2',
+  wave_3: 'Wave 3',
+  public: 'public launch',
+};
+
+function currencySymbol(currency: string): string {
+  switch (currency.toUpperCase()) {
+    case 'GBP': return '£';
+    case 'EUR': return '€';
+    case 'USD': return '$';
+    default: return currency + ' ';
+  }
+}
+
+function formatMoney(amount: number, currency: string): string {
+  const sym = currencySymbol(currency);
+  const rounded = Number.isInteger(amount) ? amount : Math.round(amount * 100) / 100;
+  const hasCents = !Number.isInteger(rounded);
+  return `${sym}${rounded.toLocaleString('en-GB', {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
+  })}`;
+}
+
+/**
+ * Keys whose string values are NOT merchant names — categories, day names,
+ * prompt copy, structural enums. Anything else at a string position is treated
+ * as a possible merchant for the validator's allowlist.
+ */
+const NON_MERCHANT_KEYS = new Set([
+  'id', 'layer', 'currency', 'template_kind', 'category', 'topCategory',
+  'top2Category', 'outlierDay', 'outlierName', 'narrative_prompt', 'cta_label',
+  'experiment_prompt', 'hypothesis', 'title', 'time_investment', 'reason',
+]);
+
+/**
+ * Walk an arbitrary value tree and harvest every numeric value into `numbers`,
+ * every plausibly-merchant-shaped string into `merchants`. The walk is
+ * intentionally permissive — the validator is the gatekeeper, this just builds
+ * the widest reasonable allowlist.
+ */
+function walkPatternData(
+  node: unknown,
+  numbers: Set<number>,
+  merchants: Set<string>,
+  parentKey: string | null,
+): void {
+  if (node === null || node === undefined) return;
+  if (typeof node === 'number') {
+    if (Number.isFinite(node) && Math.abs(node) >= 1) {
+      const abs = Math.abs(node);
+      numbers.add(Math.round(abs));
+      // Also include the floor for decimals so "29.99" matches both 29 and 30.
+      if (!Number.isInteger(abs)) numbers.add(Math.floor(abs));
+    }
+    return;
+  }
+  if (typeof node === 'string') {
+    if (parentKey !== null && NON_MERCHANT_KEYS.has(parentKey)) return;
+    const trimmed = node.trim();
+    if (trimmed.length >= 2 && !/^\d+(?:\.\d+)?$/.test(trimmed)) {
+      merchants.add(trimmed.toLowerCase());
+    }
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) walkPatternData(item, numbers, merchants, parentKey);
+    return;
+  }
+  if (typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) {
+      walkPatternData(v, numbers, merchants, k);
+    }
+  }
+}
+
+/**
+ * Turn a `PatternResult` into a single QuotableFact whose `numbers` and
+ * `merchants` cover everything the LLM might legitimately cite. The pattern's
+ * `data` shape is heterogeneous (each detector writes its own keys), so we
+ * walk recursively and harvest indiscriminately. The validator's number-
+ * tolerance and merchant-allowlist intersection do the actual gating.
+ *
+ * `currency` is unused here — kept in the signature for future per-pattern
+ * formatted strings if we ever surface them.
+ */
+function factsFromPattern(pattern: PatternResult, _currency: string): QuotableFact[] {
+  const numbers = new Set<number>();
+  const merchants = new Set<string>();
+  walkPatternData(pattern.data, numbers, merchants, null);
+
+  // Numbers that appear in the pre-resolved narrative_prompt template (e.g.
+  // formatCurrency() output) may not be in `data` if the detector derived
+  // them inline. Harvest them too.
+  if (typeof pattern.narrative_prompt === 'string') {
+    for (const n of extractNumbers(pattern.narrative_prompt)) numbers.add(n);
+  }
+
+  if (numbers.size === 0 && merchants.size === 0) return [];
+
+  return [{
+    text: pattern.narrative_prompt,
+    numbers: Array.from(numbers),
+    merchants: Array.from(merchants),
+  }];
+}
+
+export function buildQuotableFacts(payload: InsightPayload): QuotableFact[] {
+  const facts: QuotableFact[] = [];
+
+  // Transaction count is always quotable — frequently cited as "I went through
+  // all 66 of your transactions" etc.
+  facts.push({
+    text: `${payload.transactionCount} transactions`,
+    numbers: [payload.transactionCount],
+    merchants: [],
+  });
+
+  // Stat card values are already formatted correctly by the engine; we trust them
+  // verbatim. Extract numeric components for validation.
+  for (const card of payload.statCards) {
+    const numbers = Array.from(
+      card.value.matchAll(/\d[\d,]*(?:\.\d+)?/g),
+    ).map((m) => Number(m[0].replace(/,/g, ''))).filter((n) => Number.isFinite(n) && n >= 10);
+    facts.push({ text: card.value, numbers, merchants: [] });
+  }
+
+  // Per-pattern canonical facts
+  for (const layer of ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const) {
+    const pattern = payload.layers[layer];
+    if (!pattern) continue;
+    facts.push(...factsFromPattern(pattern, payload.currency));
+  }
+
+  // Experiment savings bands — the existing EXPERIMENT RULES already tell the
+  // LLM to quote these verbatim; we register them as quotable so the validator
+  // doesn't reject them.
+  const experiment = payload.layers.action?.experiment;
+  if (experiment) {
+    facts.push({
+      text: `${formatMoney(experiment.monthly_saving_low, experiment.currency)}–${formatMoney(experiment.monthly_saving_high, experiment.currency)} a month`,
+      numbers: [Math.round(experiment.monthly_saving_low), Math.round(experiment.monthly_saving_high)],
+      merchants: [],
+    });
+    facts.push({
+      text: `${formatMoney(experiment.annual_saving_low, experiment.currency)}–${formatMoney(experiment.annual_saving_high, experiment.currency)} a year`,
+      numbers: [Math.round(experiment.annual_saving_low), Math.round(experiment.annual_saving_high)],
+      merchants: [],
+    });
+  }
+
+  return facts;
+}
+
+/**
+ * Build the anti-hallucination context block for the First Insight conversation.
+ *
+ * The system has deterministically computed patterns, stat cards, and a hook
+ * from the user's transactions. This function assembles those into a prompt
+ * section that STRICTLY constrains Claude to narrate only what's in the
+ * payload — no inventing income, savings rate, surplus, goals, etc.
+ */
+const CAPABILITY_FOCUS: Record<string, string> = {
+  cashflow: 'The user wants to understand where their money goes. Emphasise spending patterns, categories, and cash flow clarity. Make the hook actionable toward tracking and awareness.',
+  values: 'The user wants to understand why they spend the way they do. Connect patterns to behaviour and habits. The hook should invite reflection on whether spending matches what they care about.',
+  networth: 'The user wants to track what they own and owe. Where possible, frame patterns in terms of what they reveal about financial position — recurring costs as liabilities, consistent deposits as assets. Hook toward a net worth conversation.',
+  scenarios: 'The user is weighing a big decision. Frame patterns in terms of financial headroom and optionality. The hook should invite a forward-looking question: "what would it take to..."',
+}
+
+export function buildFirstInsightContext(payload: InsightPayload, selectedCapabilities?: string[]): string {
+  const lines: string[] = [];
+  lines.push('## First insight — data from the system');
+  lines.push('The following patterns were computed deterministically. You MUST narrate ONLY these patterns.');
+  lines.push('');
+  lines.push('STRICT RULES:');
+  lines.push('- Every number you cite must appear verbatim in the QUOTABLE FACTS list below. No estimating.');
+  lines.push('- Do NOT compute ratios, averages, multipliers, time spans, daily rates, or per-month figures yourself — if a derived figure is not listed in QUOTABLE FACTS, do not cite it. Rephrase qualitatively instead ("sharp spike", "a meaningful chunk") without inventing the number.');
+  lines.push('- Do NOT extrapolate (e.g. "across four months" unless the months of data count shown is exactly four). Stick to what the data shows.');
+  lines.push("- You do NOT know the user's income, savings rate, or surplus. Do not mention these concepts.");
+  lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
+  lines.push('- You do NOT know whether their spending is "sustainable" or "affordable" — that requires income.');
+  lines.push('- If a field says "not_available", you must not reference it or imply it.');
+  lines.push("- Do not say \"you spend X% of your income\" — you don't know their income.");
+  lines.push("- Do not say \"you have £X left over\" — you don't know what comes in.");
+  lines.push('- Do not say "your savings rate is..." — you cannot compute this.');
+  lines.push('- You CAN say: "I can see regular deposits" if the income_detected pattern is present.');
+  lines.push("- You CAN say: \"I don't know your income yet\" as part of the hook.");
+  lines.push("- When in doubt: if it's not in the data below, don't say it.");
+  lines.push('');
+  lines.push('### Available data');
+  lines.push(`- Name: ${payload.userName ?? 'unknown'}`);
+  lines.push(`- Country: ${payload.country ?? 'unknown'}`);
+  lines.push(`- Currency: ${payload.currency}`);
+  lines.push(`- Months of data: ${payload.monthCount}`);
+  lines.push(`- Total transactions: ${payload.transactionCount}`);
+  lines.push(`- Value Map completed: ${payload.hasValueMap ? 'yes' : 'no'}`);
+  if (payload.hasValueMap) lines.push(`- Archetype: ${payload.archetype}`);
+  lines.push('');
+  lines.push(`### Discipline score: ${payload.disciplineScore}/100`);
+  if (payload.disciplineScore > 70) {
+    lines.push('This user is financially disciplined. Lead with recognition, not correction. Position yourself as a partner who can automate monitoring and help optimise, not as a teacher finding problems.');
+  } else if (payload.disciplineScore > 40) {
+    lines.push('This user has some financial structure but clear areas for improvement. Balance recognition with honest observations.');
+  } else {
+    lines.push('This user has limited financial structure. Focus on one clear, achievable pattern. Do not overwhelm.');
+  }
+  lines.push('');
+  // Quotable facts — the ONLY strings containing numbers or merchant names
+  // the LLM is permitted to cite. The post-LLM validator rejects narratives
+  // containing any other number >= 10 or any other merchant name.
+  const quotableFacts = buildQuotableFacts(payload);
+  lines.push('### QUOTABLE FACTS — the only numbers/merchants you may cite');
+  lines.push('Each line is a phrase you may echo verbatim in your narrative.');
+  lines.push('You may NOT cite any other number >= 10 or any other merchant name.');
+  lines.push('If you want to mention a figure that is not listed here, rephrase without the figure.');
+  for (const f of quotableFacts) {
+    lines.push(`- "${f.text}"`);
+  }
+  lines.push('');
+
+  if (selectedCapabilities && selectedCapabilities.length > 0) {
+    const focuses = selectedCapabilities
+      .map((id) => CAPABILITY_FOCUS[id])
+      .filter(Boolean)
+    if (focuses.length > 0) {
+      lines.push('### User focus areas (what they said they came for)')
+      lines.push('The user told us what they want from this product. Angle the insight and hook toward these goals:')
+      for (const f of focuses) lines.push(`- ${f}`)
+      lines.push('Do not mention these focus areas by name. Just let them shape what you emphasise and where the hook lands.')
+      lines.push('')
+    }
+  }
+
+  lines.push('### Patterns to narrate (in this order)');
+  lines.push('For each pattern below, follow the instruction. Weave the quotable facts above into prose.');
+  const layerOrder = ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const;
+  const seenPatternIds = new Set<string>();
+  for (const layer of layerOrder) {
+    const pattern = payload.layers[layer];
+    if (!pattern) continue;
+    // A pattern can appear in both hidden_pattern and action (for the experiment
+    // frame). Narrate each pattern's observation only once.
+    if (seenPatternIds.has(pattern.id) && layer === 'action') continue;
+    seenPatternIds.add(pattern.id);
+    lines.push('');
+    lines.push(`#### ${layer.toUpperCase()}`);
+    lines.push(`Pattern: ${pattern.id}`);
+    lines.push(`Instruction: ${pattern.narrative_prompt}`);
+  }
+
+  // Experiment block — only present when a pattern has opted in. Claude must
+  // quote the savings bands verbatim; the UI renders the ExperimentCard
+  // alongside the narrative.
+  const experiment = payload.layers.action?.experiment;
+  if (experiment) {
+    lines.push('');
+    lines.push('#### EXPERIMENT (fold into the hidden_pattern / action paragraph)');
+    lines.push(`- Title: ${experiment.title}`);
+    lines.push(`- Hypothesis: ${experiment.hypothesis}`);
+    lines.push(`- Time investment: ${experiment.time_investment}`);
+    lines.push(`- Monthly saving band: ${experiment.monthly_saving_low}–${experiment.monthly_saving_high} ${experiment.currency}`);
+    lines.push(`- Annual saving band: ${experiment.annual_saving_low}–${experiment.annual_saving_high} ${experiment.currency}`);
+    if (experiment.annual_minutes_saved !== null) {
+      lines.push(`- Annual time saved: ~${Math.round(experiment.annual_minutes_saved / 60)} hours`);
+    }
+    lines.push(`- Template kind: ${experiment.template_kind}`);
+    lines.push(`- Instruction: ${experiment.experiment_prompt}`);
+    lines.push('');
+    lines.push('EXPERIMENT RULES:');
+    lines.push('- Quote the saving band verbatim. Do not pick a single number. Do not invent precision.');
+    lines.push('- Label the figure as an estimate: "roughly", "around", "based on your pattern".');
+    lines.push('- End the paragraph by offering to draft the template ("want me to draft one for you?").');
+    lines.push('- Never use the words "advice" or "advise" — say "suggestion", "nudge", or just what you\'d do.');
+  }
+  lines.push('');
+  lines.push('#### STAT CARDS');
+  lines.push('Emit exactly one [STATS]...[/STATS] block containing these three cards, in this order.');
+  lines.push('Use this literal format (one card per line, label pipe value):');
+  lines.push('[STATS]');
+  for (const card of payload.statCards) {
+    lines.push(`${card.label} | ${card.value}`);
+  }
+  lines.push('[/STATS]');
+  lines.push('');
+  lines.push('#### HOOK');
+  lines.push(payload.hook.prompt_for_claude);
+  lines.push('');
+  lines.push('#### SUGGESTED RESPONSES');
+  lines.push('End the message with an [OPTIONS]...[/OPTIONS] block containing exactly these three responses:');
+  for (const s of payload.suggestedResponses) lines.push(`- ${s}`);
+  lines.push('');
+  lines.push('#### NOT AVAILABLE — do not reference');
+  lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
+  lines.push('- Savings rate (requires income)');
+  lines.push('- Surplus/deficit (requires income)');
+  lines.push('- Any percentage "of income" (requires income)');
+  lines.push('- Goals (not collected yet)');
+  lines.push('- Age, employment status, housing type (not collected yet)');
+  lines.push('- Whether spending is "sustainable" (requires income)');
+  return lines.join('\n');
+}
 
 export async function buildSystemPrompt(
   userId: string,
@@ -66,11 +373,11 @@ export async function buildSystemPrompt(
       .eq('status', 'pending'),
     supabase
       .from('trips')
-      .select('name, destination, start_date, end_date, total_estimated, status, currency')
+      .select('id, name, destination, start_date, end_date, total_estimated, status, currency, updated_at')
       .eq('user_id', userId)
       .in('status', ['planning', 'booked'])
-      .order('start_date', { ascending: true })
-      .limit(3),
+      .is('deleted_at', null)
+      .order('start_date', { ascending: true }),
     supabase
       .from('assets')
       .select('*')
@@ -92,6 +399,24 @@ export async function buildSystemPrompt(
   const goals = goalsResult.status === 'fulfilled' ? goalsResult.value.data : null;
   const actions = actionsResult.status === 'fulfilled' ? actionsResult.value.data : null;
   const trips = tripsResult.status === 'fulfilled' ? tripsResult.value.data : null;
+  // Defensive read-side dedup: collapse rows with the same destination+month, keep most recent.
+  // Protects against any legacy duplicates created before plan_trip's UPSERT path landed.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dedupedTrips: any[] | null = (() => {
+    if (!trips) return trips;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const byKey = new Map<string, any>();
+    for (const t of trips) {
+      const dest = (t.destination ?? t.name ?? '').trim().toLowerCase();
+      const month = t.start_date ? t.start_date.slice(0, 7) : 'no-date';
+      const key = `${dest}|${month}`;
+      const existing = byKey.get(key);
+      if (!existing || (t.updated_at && existing.updated_at && t.updated_at > existing.updated_at)) {
+        byKey.set(key, t);
+      }
+    }
+    return Array.from(byKey.values()).slice(0, 3);
+  })();
   const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
   const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
 
@@ -106,23 +431,128 @@ export async function buildSystemPrompt(
     styleModifier = '\nThe user prefers directness. Be clear and honest, but not harsh.';
   }
 
+  // First Insight mode: when a first_insight_payload is attached, the system
+  // has deterministically computed everything Claude is allowed to say. We
+  // suppress any section that would leak income, surplus, goals, portrait
+  // traits, benchmarks, etc. — the payload is the sole source of truth.
+  const firstInsightPayload = conversationMetadata?.first_insight_payload as InsightPayload | undefined;
+  const isFirstInsight =
+    (conversationType === 'first_insight' || conversationType === 'post_upload') &&
+    !!firstInsightPayload;
+
+  if (isFirstInsight) {
+    const sections = [
+      BASE_PERSONA + styleModifier,
+      buildCurrentDateContext(),
+      buildFirstInsightContext(firstInsightPayload),
+      await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+      buildToolUsageInstructions(),
+    ].filter(Boolean);
+
+    return sections.join('\n\n---\n\n');
+  }
+
   const sections = [
     BASE_PERSONA + styleModifier,
+    buildCurrentDateContext(),
     buildProfileContext(profile),
     buildFinancialContext(snapshots, recurring, profile),
     await getCountryBenchmarks(profile, supabase),
+    getOnboardingResumeContext(profile),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
     buildGoalsContext(goals, actions),
-    buildTripsContext(trips, profile),
+    buildTripsContext(dedupedTrips, profile),
     buildToolUsageInstructions(),
     await getValueMappingContext(userId, supabase),
     await getValueCheckinNudgeContext(userId, supabase, conversationType),
+    await getRetakeSuggestionContext(userId, supabase, conversationType),
+    await getPredictionQualityContext(userId, supabase),
     await buildProfilingContext(userId, supabase),
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
+}
+
+function buildCurrentDateContext(): string {
+  const now = new Date();
+  const iso = now.toISOString().slice(0, 10);
+  const formatted = now.toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  return [
+    '## Current date',
+    `Today is ${formatted} (${iso}).`,
+    '',
+    'When the user mentions a month, season, or quarter without a year, do NOT assume the current year. Ask which year they mean — unless the user has already named the year, the date sits clearly in the future, or the conversation context makes it unambiguous. Never silently default to "the next upcoming May".',
+  ].join('\n');
+}
+
+// ── Onboarding resume context ───────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getOnboardingResumeContext(profile: any): string {
+  // Onboarding complete — no resume context needed
+  if (!profile || profile.onboarding_completed_at) return '';
+
+  // No onboarding progress at all — user never started
+  if (!profile.onboarding_progress) return '';
+
+  // Parse the onboarding state
+  const progress = profile.onboarding_progress as {
+    completedBeats?: string[]
+    data?: {
+      personalityType?: string
+      importBatchId?: string | null
+      selectedCapabilities?: string[]
+    }
+  }
+
+  const completedBeats = progress.completedBeats ?? []
+  const data = progress.data ?? {}
+
+  const parts: string[] = []
+  parts.push('## Onboarding Status')
+  parts.push("The user started onboarding but didn't finish. Here's what they completed:")
+
+  const valueMapDone = completedBeats.includes('value_map') && data.personalityType
+  const csvUploaded = completedBeats.includes('csv_upload') && data.importBatchId
+  const insightSeen = completedBeats.includes('first_insight')
+
+  if (valueMapDone) {
+    parts.push(`- Completed the Value Map exercise (personality type: ${data.personalityType})`)
+  }
+  if (csvUploaded) {
+    parts.push('- Uploaded a bank statement')
+  }
+
+  // Priority 1: They have both Value Map + CSV but never saw the first insight
+  if (valueMapDone && csvUploaded && !insightSeen) {
+    parts.push('')
+    parts.push("IMPORTANT: They completed the Value Map AND uploaded a CSV, but never saw their first insight.")
+    parts.push("Lead with this — it's the hook. Something like: \"I've been going through your statement since we last spoke. Something jumped out.\"")
+    parts.push("Then call the analyse_gap tool to deliver their first Gap insight.")
+    return parts.join('\n')
+  }
+
+  // Priority 2: CSV not uploaded (higher value than Value Map)
+  if (!csvUploaded) {
+    parts.push('')
+    parts.push("They haven't uploaded a bank statement yet. When relevant, encourage it:")
+    parts.push("\"Upload a statement when you're ready — that's when things get interesting.\"")
+    parts.push("This is the single most valuable next step. Mention it once, naturally, then let it go.")
+  }
+
+  // Priority 3: Value Map not done
+  if (!valueMapDone) {
+    parts.push('')
+    parts.push("They haven't completed the Value Map exercise yet. If natural, suggest it:")
+    parts.push("\"We never finished setting up your baseline — want to do that quick categorisation exercise?\"")
+    parts.push("Don't push it. Mention it once, early, then let it go. CSV upload is higher priority.")
+  }
+
+  return parts.join('\n')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,16 +579,54 @@ function buildProfileContext(profile: any): string {
   if (profile.dependents) fields.push(`Dependents: ${profile.dependents}`);
   if (profile.nationality) fields.push(`Nationality: ${profile.nationality}`);
   if (profile.risk_tolerance) fields.push(`Risk tolerance: ${profile.risk_tolerance}`);
+  if (profile.values_ranking) fields.push(`Values ranking: ${JSON.stringify(profile.values_ranking)}`);
+  if (profile.financial_awareness) fields.push(`Financial awareness: ${profile.financial_awareness}`);
+  if (profile.residency_status) fields.push(`Residency status: ${profile.residency_status}`);
+  if (profile.tax_residency_country) fields.push(`Tax residency: ${profile.tax_residency_country}`);
+  if (profile.years_in_country) fields.push(`Years in country: ${profile.years_in_country}`);
+  if (profile.beta_cohort && COHORT_LABEL[profile.beta_cohort]) {
+    fields.push(`Cohort: ${COHORT_LABEL[profile.beta_cohort]} beta tester`);
+  }
 
   if (fields.length === 0) return '';
 
   const completeness = profile.profile_completeness || 0;
-  let completenessNote = `\nProfile completeness: ${completeness}%.`;
-  if (completeness < 50) {
-    completenessNote += ' Many fields are still unknown. Gather more context naturally through conversation.';
+  const completenessNote = `\nProfile completeness: ${completeness}%.`;
+
+  // Build an explicit "already known" list so the LLM never re-asks for populated fields
+  const knownFieldLabels: string[] = [];
+  if (profile.display_name) knownFieldLabels.push('name');
+  if (profile.country) knownFieldLabels.push('country');
+  if (profile.city) knownFieldLabels.push('city');
+  if (profile.primary_currency) knownFieldLabels.push('currency');
+  if (profile.age_range) knownFieldLabels.push('age');
+  if (profile.employment_status) knownFieldLabels.push('employment status');
+  if (profile.net_monthly_income) knownFieldLabels.push('monthly take-home pay');
+  if (profile.gross_salary) knownFieldLabels.push('gross salary');
+  if (profile.pay_frequency) knownFieldLabels.push('pay frequency');
+  if (profile.has_bonus_months) knownFieldLabels.push('bonus months');
+  if (profile.housing_type) knownFieldLabels.push('housing type');
+  if (profile.monthly_rent) knownFieldLabels.push('rent/mortgage amount');
+  if (profile.relationship_status) knownFieldLabels.push('relationship status');
+  if (profile.partner_employment_status) knownFieldLabels.push('partner employment');
+  if (profile.partner_monthly_contribution) knownFieldLabels.push('partner contribution');
+  if (profile.dependents) knownFieldLabels.push('dependents');
+  if (profile.nationality) knownFieldLabels.push('nationality');
+  if (profile.risk_tolerance) knownFieldLabels.push('risk tolerance');
+  if (profile.advice_style) knownFieldLabels.push('advice style');
+  if (profile.spending_triggers) knownFieldLabels.push('spending triggers');
+  if (profile.values_ranking) knownFieldLabels.push('values ranking');
+  if (profile.financial_awareness) knownFieldLabels.push('financial awareness');
+  if (profile.residency_status) knownFieldLabels.push('residency status');
+  if (profile.tax_residency_country) knownFieldLabels.push('tax residency country');
+  if (profile.years_in_country) knownFieldLabels.push('years in country');
+
+  let doNotAskBlock = '';
+  if (knownFieldLabels.length > 0) {
+    doNotAskBlock = `\n\nCRITICAL — You already have: ${knownFieldLabels.join(', ')}. DO NOT ask for any of these again. Use the values above directly. If the user volunteers an update, accept it — but never re-ask.`;
   }
 
-  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}`;
+  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}${doNotAskBlock}`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,7 +646,18 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
     if (latest.total_income) parts.push(`Total income: ${currency} ${latest.total_income}`);
     if (latest.surplus_deficit) parts.push(`Surplus/deficit: ${currency} ${latest.surplus_deficit}`);
     if (latest.spending_by_category && Object.keys(latest.spending_by_category).length > 0) {
-      parts.push(`Spending by category: ${JSON.stringify(latest.spending_by_category)}`);
+      // Filter out null/uncategorised keys so Claude doesn't present "uncategorised"
+      // as a meaningful spending category to the user.
+      const filtered = Object.fromEntries(
+        Object.entries(latest.spending_by_category).filter(([k]) => {
+          if (!k || k === 'null') return false;
+          const lc = k.toLowerCase();
+          return lc !== 'uncategorised' && lc !== 'uncategorized' && lc !== 'unknown' && lc !== 'other';
+        }),
+      );
+      if (Object.keys(filtered).length > 0) {
+        parts.push(`Spending by category: ${JSON.stringify(filtered)}`);
+      }
     }
     if (latest.spending_by_value_category && Object.keys(latest.spending_by_value_category).length > 0) {
       parts.push(`Spending by value category: ${JSON.stringify(latest.spending_by_value_category)}`);
@@ -337,25 +816,58 @@ async function getCountryBenchmarks(
 function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
   const parts: string[] = [];
 
-  // Value Map perceptions (from value_map_sessions table)
-  // IMPORTANT: This is perception data from a SAMPLE exercise, not real spending.
+  // Determine whether this session reflects real behaviour or only the sample exercise.
+  const isPersonalRetake = valueMap?.type === 'personal' || valueMap?.is_real_data === true;
+  const archetypeName = valueMap?.archetype_name as string | undefined;
+  const archetypeSubtitle = valueMap?.archetype_subtitle as string | undefined;
+  const archetypeTraits = Array.isArray(valueMap?.archetype_traits)
+    ? (valueMap.archetype_traits as string[])
+    : [];
+  const shiftNarrative = valueMap?.shift_narrative as string | undefined;
+  const archetypeHistory = Array.isArray(valueMap?.archetype_history)
+    ? (valueMap.archetype_history as Array<{ name?: string; archived_at?: string }>)
+    : [];
+
   if (valueMap) {
-    parts.push('## Value perceptions (from the Value Map sample exercise)');
-    parts.push('');
-    parts.push('IMPORTANT: The data below comes from a short perception exercise where the user');
-    parts.push('classified SAMPLE transactions into Foundation / Investment / Burden / Leak.');
-    parts.push("These are NOT the user's real spending. The numbers below are percentages of");
-    parts.push('sample items the user put in each bucket — they do NOT represent real spending amounts.');
-    parts.push('You have no real transaction data yet until they upload a bank statement.');
-    parts.push('');
-    parts.push('What this tells you about the user:');
-    if (valueMap.personality_type) {
+    if (isPersonalRetake) {
+      parts.push('## Value Map archetype (regenerated from real behaviour)');
+      parts.push('');
+      parts.push("The archetype below was generated from the user's actual transactions,");
+      parts.push('correction signals, and monthly spending trends — not the onboarding sample.');
+      parts.push('Treat it as an up-to-date read on their financial personality.');
+      parts.push('');
+    } else {
+      parts.push('## Value perceptions (from the Value Map sample exercise)');
+      parts.push('');
+      parts.push('IMPORTANT: The data below comes from a short perception exercise where the user');
+      parts.push('classified SAMPLE transactions into Foundation / Investment / Burden / Leak.');
+      parts.push("These are NOT the user's real spending. The numbers below are percentages of");
+      parts.push('sample items the user put in each bucket — they do NOT represent real spending amounts.');
+      parts.push('You have no real transaction data yet until they upload a bank statement.');
+      parts.push('');
+      parts.push('What this tells you about the user:');
+    }
+
+    if (archetypeName) {
+      parts.push(`- Archetype: ${archetypeName}${archetypeSubtitle ? ` — ${archetypeSubtitle}` : ''}`);
+    } else if (valueMap.personality_type) {
       const personality = PERSONALITIES[valueMap.personality_type];
       const displayName = personality?.name ?? valueMap.personality_type;
       parts.push(`- Archetype: ${displayName} — ${personality?.headline ?? 'how they relate to money'}`);
     }
+
+    if (archetypeTraits.length > 0) {
+      parts.push('- Traits:');
+      for (const t of archetypeTraits) {
+        parts.push(`    - ${t}`);
+      }
+    }
+
     if (valueMap.dominant_quadrant) {
-      parts.push(`- Dominant perception lens: ${valueMap.dominant_quadrant} (they put the most sample items in this bucket)`);
+      const lensLabel = isPersonalRetake
+        ? 'Dominant real-data lens'
+        : 'Dominant perception lens (sample items)';
+      parts.push(`- ${lensLabel}: ${valueMap.dominant_quadrant}`);
     }
     if (valueMap.breakdown) {
       const breakdown = valueMap.breakdown as Record<string, { percentage: number; count: number }>;
@@ -364,10 +876,13 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
         .sort((a, b) => b[1].percentage - a[1].percentage)
         .map(([q, v]) => `${q}: ${v.percentage}%`);
       if (parts2.length > 0) {
-        parts.push(`- Perception distribution (sample items, NOT spending): ${parts2.join(', ')}`);
+        const label = isPersonalRetake
+          ? 'Real distribution'
+          : 'Perception distribution (sample items, NOT spending)';
+        parts.push(`- ${label}: ${parts2.join(', ')}`);
       }
     }
-    if (valueMap.merchants_by_quadrant) {
+    if (valueMap.merchants_by_quadrant && !isPersonalRetake) {
       const mbq = valueMap.merchants_by_quadrant as Record<string, string[]>;
       const entries = Object.entries(mbq).filter(([, v]) => v.length > 0);
       if (entries.length > 0) {
@@ -377,13 +892,33 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
         }
       }
     }
+
+    // ── Archetype evolution (shift narrative) ──
+    // Only include when there IS a history AND the latest regeneration was recent-ish.
+    if (shiftNarrative && archetypeHistory.length > 0) {
+      const latestHistory = archetypeHistory[archetypeHistory.length - 1];
+      const previousName = latestHistory?.name ?? 'previous archetype';
+      parts.push('');
+      parts.push('## Archetype evolution');
+      parts.push(`- Previous archetype: ${previousName}`);
+      parts.push(`- What shifted: ${shiftNarrative}`);
+      parts.push('- You can reference this evolution naturally in conversation when it helps.');
+    }
+
     parts.push('');
-    parts.push('USE THIS DATA AS A LENS, NOT AS FACTS:');
-    parts.push('- Say "you see X as a burden" NOT "X is 58% of your spending"');
-    parts.push('- Say "you categorised Y as a leak" NOT "you\'re leaking money on Y"');
-    parts.push('- Do NOT quote the breakdown percentages as if they represent real spending amounts');
-    parts.push('- The merchants/categories listed are from the sample exercise — treat them as indicators');
-    parts.push("  of the user's mental model, not confirmed spending behaviour");
+    if (isPersonalRetake) {
+      parts.push('USE THIS DATA TO PERSONALISE GUIDANCE:');
+      parts.push('- This archetype reflects how the user actually spends, not how they claim to.');
+      parts.push('- Reference specific traits and merchants naturally — do not list them back verbatim.');
+      parts.push('- When spending contradicts a stated value, name it once without judgement.');
+    } else {
+      parts.push('USE THIS DATA AS A LENS, NOT AS FACTS:');
+      parts.push('- Say "you see X as a burden" NOT "X is 58% of your spending"');
+      parts.push('- Say "you categorised Y as a leak" NOT "you\'re leaking money on Y"');
+      parts.push('- Do NOT quote the breakdown percentages as if they represent real spending amounts');
+      parts.push('- The merchants/categories listed are from the sample exercise — treat them as indicators');
+      parts.push("  of the user's mental model, not confirmed spending behaviour");
+    }
   }
 
   // Behavioral traits
@@ -680,6 +1215,84 @@ RULES:
   }
 }
 
+async function getRetakeSuggestionContext(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  conversationType?: string,
+): Promise<string> {
+  // Don't propose a retake right after an upload — insights first.
+  if (conversationType === 'post_upload' || conversationType === 'onboarding') return ''
+
+  try {
+    // Dynamic import avoids circular deps (retake-trigger imports selectRetakeCandidates
+    // which needs the review-queue helper; this context-builder is high-level).
+    const { shouldTriggerRetake } = await import('@/lib/value-map/retake-trigger')
+    const decision = await shouldTriggerRetake(supabase, userId)
+    if (!decision.trigger) return ''
+
+    const topLabel =
+      decision.top_merchants.length > 0
+        ? decision.top_merchants.slice(0, 3).join(', ')
+        : 'several merchants'
+
+    return `## Retake opportunity (CFO-proposed)
+
+The user has ${decision.low_confidence_count} low-confidence transactions in the last 60 days — enough to make a personal Value Map retake meaningful. Uncertain merchants include: ${topLabel}.
+
+If the conversation allows, you can offer a tappable retake CTA. This is distinct from the value check-in: a retake is a deeper, archetype-regenerating exercise that leverages the user's actual spending.
+
+WHEN TO OFFER:
+- When the user asks about their financial personality, values, or "why do you think X about me"
+- When you're about to reference the archetype and notice it might be stale
+- In a monthly review conversation, as a natural follow-up
+- When the user expresses confusion about categorisations
+
+HOW TO OFFER:
+Include this exact CTA block (replace N with the count):
+[CTA:value_map_retake]Retake (${decision.low_confidence_count} transactions)[/CTA]
+
+RULES:
+- Maximum once per conversation. If the user declines, don't re-offer.
+- Never immediately after an upload.
+- Don't lecture about accuracy — just "want to help me sharpen this?"
+- The retake takes 2 minutes.`
+  } catch {
+    return ''
+  }
+}
+
+async function getPredictionQualityContext(
+  userId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+): Promise<string> {
+  try {
+    const { getPredictionMetrics } = await import('@/lib/prediction/metrics')
+    const metrics = await getPredictionMetrics(supabase, userId)
+    if (metrics.total_transactions < 20) return ''
+
+    const predicted = metrics.confirmed_count + metrics.predicted_count
+    const predictedPct = metrics.total_transactions > 0
+      ? Math.round((predicted / metrics.total_transactions) * 100)
+      : 0
+
+    return `## Prediction quality (how confident is the CFO's categorisation?)
+
+- ${predictedPct}% of transactions are confidently categorised (${predicted} of ${metrics.total_transactions})
+- Average confidence: ${metrics.avg_confidence}
+- Merchants the CFO has learned rules for: ${metrics.merchants_learned}
+- Low-confidence transactions: ${metrics.low_confidence_pct}% of the total
+
+USE THIS AS A TRUST CALIBRATOR:
+- If low_confidence_pct is high (>30%), be more tentative when referencing value categories.
+- When you reference a specific transaction's value category, you can implicitly rely on this quality score.
+- If the user challenges a categorisation, acknowledge the uncertainty openly.`
+  } catch {
+    return ''
+  }
+}
+
 async function getValueMappingContext(
   userId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -851,14 +1464,124 @@ Available scenario types:
 
 Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. Always mention the impact on their active goals if any exist.`;
 
-    case 'post_upload':
-      return buildPostUploadPrompt(metadata, snapshots, profile);
+    case 'first_insight':
+    case 'post_upload': {
+      const payload = metadata?.first_insight_payload as InsightPayload | undefined;
+      if (!payload) {
+        // Legacy fallback: rows without a payload (pre-First-Insight-Engine
+        // conversations) still render using the original post-upload prompt.
+        return buildPostUploadPrompt(metadata, snapshots, profile);
+      }
+      return `## Conversation type: First insight
+
+This is your first real conversation with this user after they uploaded transactions.
+${payload.hasValueMap ? 'They have completed the Value Map.' : 'They have NOT done the Value Map.'}
+
+Your goals:
+1. Open with "Right." — you've done the reading, now you're giving your take.
+2. Narrate ONLY the patterns in the First Insight Data section above.
+3. Use actual numbers from the data. Never round aggressively (€1,935 not "about €2,000").
+4. Deliver each layer as a separate thought — the frontend renders these as separate chat bubbles.
+5. Emit the [STATS]...[/STATS] block exactly once, between the numbers layer and the hidden_pattern layer.
+6. End with the hook, then an [OPTIONS]...[/OPTIONS] block with the three suggested responses.
+
+Structure: headline → gap (or spending shape if no VM) → numbers + [STATS] → hidden pattern → one action → hook → [OPTIONS]
+
+Tone:
+- Direct, honest, not preachy.
+- Observe and interpret — don't lecture.
+- If discipline score > 70: lead with recognition; partner tone.
+- Name patterns without judgement ("you shop at 22 stores" not "too many stores").
+- The action must be specific and quantified where possible.
+
+CRITICAL: Do not mention, reference, imply, or compute anything involving income, savings rate, surplus, affordability, or sustainability. You do not have this data. The hook creates the desire to share income — but you must not pretend you already have it.`;
+    }
 
     case 'value_map_complete':
       return buildValueMapCompletePrompt(metadata, snapshots, profile);
 
     case 'bill_optimisation':
       return buildBillOptimisationPrompt(metadata, userId);
+
+    case 'experiment_template': {
+      const kind = (metadata?.template_kind as string | undefined) ?? 'grocery_plan';
+      const title = (metadata?.title as string | undefined) ?? 'your experiment';
+      const hypothesis = (metadata?.hypothesis as string | undefined) ?? '';
+      const timeInvestment = (metadata?.time_investment as string | undefined) ?? '';
+      const monthlyLow = metadata?.monthly_saving_low;
+      const monthlyHigh = metadata?.monthly_saving_high;
+      const annualLow = metadata?.annual_saving_low;
+      const annualHigh = metadata?.annual_saving_high;
+      const annualMinutes = metadata?.annual_minutes_saved;
+      const currency = (metadata?.currency as string | undefined) ?? 'GBP';
+      const symbol = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency === 'USD' ? '$' : `${currency} `;
+      const savingBand = monthlyLow === monthlyHigh
+        ? `${symbol}${monthlyLow} a month (${symbol}${annualLow} a year)`
+        : `${symbol}${monthlyLow}–${symbol}${monthlyHigh} a month (roughly ${symbol}${annualLow}–${symbol}${annualHigh} a year)`;
+      const timeLine =
+        annualMinutes !== undefined && annualMinutes !== null && Number(annualMinutes) > 0
+          ? `\nTime saved: about ${Math.round(Number(annualMinutes) / 60)} hours over the year from fewer trips.`
+          : '';
+
+      const templateSkeletons: Record<string, string> = {
+        grocery_plan:
+          `Draft a 7-day grocery plan the user can paste into their phone's notes app. Include:\n` +
+          `  - A main-shop list grouped by store section (produce, dairy, pantry, frozen).\n` +
+          `  - Two backup meals for low-energy nights so they don't default to convenience runs.\n` +
+          `  - A rule for when it's OK to break the plan (e.g. "fresh fish once a week is fine").\n` +
+          `  - One line at the end: "Try this for one week — I'll ask how it went next time."`,
+        convenience_swap:
+          `Draft a swap plan the user can stick on the fridge. Include:\n` +
+          `  - Which two convenience trips a week to consolidate.\n` +
+          `  - A short "buy on Sunday" list that covers those convenience impulses (milk, snacks, lunch stuff).\n` +
+          `  - A reminder rule ("if I'm about to pop into the corner shop, check the Sunday list first").\n` +
+          `  - One line at the end: "Try this for a fortnight — let me know what tripped you up."`,
+        subscription_audit:
+          `Draft a 3-step cancellation script. Include:\n` +
+          `  - Which duplicate to cancel first (the smallest one is easiest).\n` +
+          `  - Where to go to cancel (account settings link if well-known, otherwise a short phone script).\n` +
+          `  - A one-line recap of what they keep — so they don't feel the loss.\n` +
+          `  - One line at the end: "Want me to track this as an action item?"`,
+      };
+      const skeleton = templateSkeletons[kind] ?? templateSkeletons.grocery_plan;
+
+      return `## Conversation type: Experiment template
+
+The user just tapped "Yes, draft it for me" on the experiment card in the onboarding insight. They want a concrete template for: **${title}**.
+
+Context from the experiment:
+- Hypothesis: ${hypothesis}
+- Time investment: ${timeInvestment}
+- Projected saving (band): ${savingBand}${timeLine}
+
+Your first message MUST:
+1. Open with a single sentence acknowledging the jump: "Right — here's a starting template. Tweak anything that doesn't fit."
+2. Deliver the template in a compact, scannable format (bullets or a short numbered list, not prose paragraphs).
+3. Quote the projected saving band verbatim somewhere in the message — do NOT change the numbers, do NOT pick a single figure. Label it an estimate.
+4. Close with a single offer: "Want me to track this as an action item so we can check in next month?" — if they agree, call the create_action_item tool.
+
+Template skeleton:
+${skeleton}
+
+HARD RULES:
+- Keep the whole response under ~200 words. This is a starter, not a manifesto.
+- Never use the words "advice" or "advise" — say "suggestion", "nudge", or just what you'd do.
+- Do NOT invent numbers beyond what's in the experiment context above.
+- Do NOT ask the user clarifying questions before drafting — draft first, let them tweak.`;
+    }
+
+    case 'chip_opener':
+      return `## Conversation type: First chat after onboarding
+
+The user just completed the Value Map and uploaded transactions. Their first message is from a tappable chip — respond to it directly.
+
+- "Show me where my money's going." → Call get_spending_summary for the most recent month, lead with the single most surprising finding. One paragraph. Then ask one specific follow-up.
+- "Help me sort out my monthly bills." → Surface what they're paying for recurring expenses, ask which one they'd most like to reduce.
+- "I'd like to add another account or card..." → Don't call tools. Explain how to upload, what formats are accepted, what extra value they'll unlock. Three sentences.
+- "I want to plan a trip I've been putting off..." → Don't call tools yet. Ask three questions: where, when, and approximate budget.
+
+For any other opening, follow normal conversation instructions.
+Keep the first response focused — one insight or one question. No lists, no feature tours. Leave them wanting the next turn.`;
 
     default: {
       // Check if this conversation was initiated from a nudge
@@ -1229,8 +1952,8 @@ If they agree (any affirmative — "sure", "go ahead", "let's do it", "let's do 
   1. field: "net_monthly_income", input_type: "currency_amount", label: "What's your monthly take-home pay?", rationale: "Helps me tell you whether your spending patterns are sustainable"
   2. field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What's your housing situation?", rationale: "Housing is usually the biggest lever — I need this to give you meaningful benchmarks"
   3. field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "I'll compare this against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}
-- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for rent exists in your context, use it: "€1,400 rent — roughly in line with typical for Spain."
-- Confirm before moving on: "I'll note €2,800/month take-home — sound right?" Then call the next tool immediately.
+- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
+- Confirm before moving on by quoting the value the user just submitted (e.g. "I'll note that — sound right?"). Then call the next tool immediately.
 
 If they defer ("over time" / "later" / "not now"):
 - Respect it. Do NOT push further in this conversation. The profiling engine picks up future questions across sessions.

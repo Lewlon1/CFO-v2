@@ -25,7 +25,7 @@ export function EmptyState({ variant }: Props) {
           Upload a statement
         </Link>
         <p className="text-xs text-muted-foreground mt-3">
-          Supports: Revolut CSV, Santander, or screenshot of any bank app
+          Supports: CSV, XLSX, PDF, or screenshots from any bank app
         </p>
       </div>
     )

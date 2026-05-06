@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from './normalise-merchant'
 import { CATEGORY_AMBIGUITY } from './context-signals'
-import type { ContextConditions } from '@/lib/parsers/types'
+import { getTimeContext } from '@/lib/utils/time-context'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -35,7 +35,6 @@ export async function applyValueClassification(
     date,
     amount,
     categoryId,
-    contextNote,
   } = params
 
   // 1. Update the transaction
@@ -45,6 +44,8 @@ export async function applyValueClassification(
       value_category: newValue,
       value_confidence: 1.0,
       value_confirmed_by_user: true,
+      prediction_source: 'user_confirmed',
+      confirmed_at: new Date().toISOString(),
     })
     .eq('id', transactionId)
     .eq('user_id', userId)
@@ -61,37 +62,52 @@ export async function applyValueClassification(
       field: 'value_category',
       new_value: newValue,
       description,
-      ...(contextNote ? { context_note: contextNote } : {}),
     },
   })
 
-  // 3. Build contextual rule
-  const contextConditions = deriveContextConditions(date, amount, categoryId)
+  // 3. Upsert value_category_rules (new schema: match_type = 'merchant')
   const normDesc = normaliseMerchant(description)
+  const ambiguity = categoryId ? (CATEGORY_AMBIGUITY[categoryId] ?? 'high') : 'high'
 
-  if (contextConditions) {
-    await supabase.from('value_category_rules').insert({
+  // Always create/update a plain merchant rule
+  await supabase.from('value_category_rules').upsert(
+    {
       user_id: userId,
-      match_type: 'merchant_contains',
+      match_type: 'merchant' as const,
       match_value: normDesc,
       value_category: newValue,
-      confidence: 0.85,
-      source: 'user_classification',
-      context_conditions: contextConditions,
-    })
-  } else {
-    await supabase.from('value_category_rules').upsert(
-      {
-        user_id: userId,
-        match_type: 'merchant_contains',
-        match_value: normDesc,
-        value_category: newValue,
-        confidence: 1.0,
-        source: 'user_explicit',
-        context_conditions: null,
-      },
-      { onConflict: 'user_id,match_type,match_value' }
-    )
+      confidence: 1.0,
+      source: 'correction',
+      last_signal_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' }
+  )
+
+  // For high-ambiguity categories at contextual times, also create a merchant_time rule
+  if (ambiguity !== 'low') {
+    const d = new Date(date)
+    const timeContext = getTimeContext(d)
+    const isContextual = timeContext === 'weekday_late' ||
+      timeContext === 'weekday_evening' ||
+      timeContext === 'weekend_evening'
+
+    if (isContextual) {
+      await supabase.from('value_category_rules').upsert(
+        {
+          user_id: userId,
+          match_type: 'merchant_time' as const,
+          match_value: normDesc,
+          value_category: newValue,
+          confidence: 0.85,
+          time_context: timeContext,
+          source: 'correction',
+          last_signal_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' }
+      )
+    }
   }
 
   // 4. Propagate to similar unconfirmed transactions
@@ -99,7 +115,11 @@ export async function applyValueClassification(
   if (applyToSimilar) {
     const { data: propagated } = await supabase
       .from('transactions')
-      .update({ value_category: newValue, value_confidence: 0.8 })
+      .update({
+        value_category: newValue,
+        value_confidence: 0.8,
+        prediction_source: 'merchant_rule',
+      })
       .eq('user_id', userId)
       .eq('value_confirmed_by_user', false)
       .neq('id', transactionId)
@@ -110,41 +130,4 @@ export async function applyValueClassification(
   }
 
   return { ok: true, propagatedCount }
-}
-
-// ── Contextual rule derivation ────────────────────────────────────────
-
-export function deriveContextConditions(
-  dateStr: string,
-  amount: number,
-  categoryId: string | null
-): ContextConditions {
-  const ambiguity = categoryId ? (CATEGORY_AMBIGUITY[categoryId] ?? 'high') : 'high'
-  if (ambiguity === 'low') return null
-
-  const d = new Date(dateStr)
-  const hour = d.getHours()
-  const dayOfWeek = d.getDay()
-  const isFridayEvening = dayOfWeek === 5 && hour >= 17
-  const isLateNight = hour >= 22 || hour < 5
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-
-  if (!isLateNight && !isFridayEvening && !isWeekend) return null
-
-  const conditions: NonNullable<ContextConditions> = {}
-
-  if (isLateNight || isFridayEvening) {
-    conditions.hour_range = {
-      from: (hour - 2 + 24) % 24,
-      to: (hour + 2) % 24,
-    }
-  }
-
-  if (isFridayEvening) {
-    conditions.day_type = 'friday_evening'
-  } else if (isWeekend) {
-    conditions.day_type = 'weekend'
-  }
-
-  return Object.keys(conditions).length > 0 ? conditions : null
 }

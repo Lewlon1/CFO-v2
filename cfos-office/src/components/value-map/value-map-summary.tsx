@@ -3,20 +3,13 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { ArrowRight, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { CfoAvatar } from '@/components/chat/cfo-avatar'
-import { QUADRANTS, QUADRANT_ORDER, PERSONALITIES } from '@/lib/value-map/constants'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
+import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import { formatAmount } from '@/lib/value-map/format'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { generateObservations } from '@/lib/value-map/observations'
 import type { ValueMapResult, ValueMapTransaction, ValueQuadrant, Observation } from '@/lib/value-map/types'
 import { cn } from '@/lib/utils'
-
-type PreviousIntelligence = {
-  personality_type: string
-  dominant_quadrant: string
-  breakdown: Record<string, { percentage: number; count: number; total: number }>
-  completedAt: string | null
-}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,13 +19,12 @@ interface ValueMapSummaryProps {
   currency: string
   isRealData: boolean
   onContinue: () => void
-  mode?: 'onboarding' | 'retake'
-  previousIntelligence?: PreviousIntelligence | null
+  mode?: 'onboarding'
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ValueMapSummary({ results, transactions, currency, isRealData, onContinue, mode = 'onboarding', previousIntelligence = null }: ValueMapSummaryProps) {
+export function ValueMapSummary({ results, transactions, currency, isRealData, onContinue }: ValueMapSummaryProps) {
   const personalityResult = useMemo(() => calculatePersonality(results), [results])
   const { breakdown } = personalityResult
 
@@ -56,6 +48,12 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
 
+    const dominantQuadrant = (Object.entries(breakdown) as [string, { percentage: number }][])
+      .sort((a, b) => b[1].percentage - a[1].percentage)[0][0]
+    const avgConfidence = decidedResults.length > 0
+      ? Math.round((decidedResults.reduce((sum, r) => sum + r.confidence, 0) / decidedResults.length) * 10) / 10
+      : 3
+
     fetch('/api/value-map/reveal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -69,7 +67,12 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
           deliberation_ms: r.deliberation_ms,
         })),
         currency,
-        userName: 'there', // Profile name not available here; CFO uses neutral address
+        personalityName: personalityResult.name,
+        dominantQuadrant,
+        breakdown: Object.fromEntries(
+          (Object.entries(breakdown) as [string, { percentage: number }][]).map(([k, v]) => [k, v.percentage]),
+        ),
+        avgConfidence,
       }),
       signal: controller.signal,
     })
@@ -147,7 +150,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
       {hasObservations && (
         <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <CfoAvatar size="sm" />
+            <CFOAvatar size={24} />
             <span className="text-sm font-semibold text-[#E8A84C]">Your CFO</span>
           </div>
 
@@ -198,61 +201,6 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
         <Share2 className="h-4 w-4" />
         {sharing ? 'Saving...' : 'Share your result'}
       </button>
-
-      {/* Retake comparison */}
-      {mode === 'retake' && previousIntelligence && (() => {
-        const prevBreakdown = previousIntelligence.breakdown
-        const prevPersonality = PERSONALITIES[previousIntelligence.personality_type]
-        const personalityChanged = previousIntelligence.personality_type !== personalityResult.personality
-        const lastDate = previousIntelligence.completedAt
-          ? new Date(previousIntelligence.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-          : null
-
-        return (
-          <div className="rounded-xl border border-border/50 bg-card/50 p-4 space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">
-              {personalityChanged
-                ? `You were ${prevPersonality?.name ?? previousIntelligence.personality_type.replace(/_/g, ' ')} \u2014 now you\u2019re ${personalityResult.name}`
-                : `Still ${personalityResult.name} \u2014 here\u2019s what shifted`}
-            </h3>
-            {lastDate && (
-              <p className="text-xs text-muted-foreground">
-                Compared to your last Value Map on {lastDate}
-              </p>
-            )}
-
-            {/* Quadrant shift bars */}
-            <div className="space-y-2">
-              {QUADRANT_ORDER.map((qId) => {
-                const newPct = breakdown[qId as ValueQuadrant].percentage
-                const prevPct = prevBreakdown[qId]?.percentage ?? 0
-                const delta = newPct - prevPct
-
-                return (
-                  <div key={qId} className="flex items-center gap-3">
-                    <span className="text-xs w-16 shrink-0" style={{ color: QUADRANTS[qId].colour }}>
-                      {QUADRANTS[qId].name}
-                    </span>
-                    <div className="flex-1 flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-mono w-8 text-right">{prevPct}%</span>
-                      <span className="text-xs text-muted-foreground">&rarr;</span>
-                      <span className="text-xs font-mono font-semibold text-foreground w-8">{newPct}%</span>
-                      {delta !== 0 && (
-                        <span className={cn(
-                          'text-xs font-mono font-semibold',
-                          delta > 0 ? 'text-green-400' : 'text-red-400',
-                        )}>
-                          {delta > 0 ? '+' : ''}{delta}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })()}
 
       {/* Allocation bar */}
       <div className="space-y-2">

@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     .update({ status: 'dismissed', updated_at: new Date().toISOString() })
     .eq('id', bill_id)
     .eq('user_id', user.id)
-    .eq('status', 'detected') // only dismiss detected bills, not tracked ones
+    .neq('status', 'tracked') // don't dismiss tracked bills — allow null or 'detected'
 
   if (error) {
     console.error('[bill-dismiss] Update error:', error)

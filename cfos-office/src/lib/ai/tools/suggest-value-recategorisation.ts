@@ -23,7 +23,7 @@ export function createSuggestValueRecategorisationTool(ctx: ToolContext) {
           .from('value_category_rules')
           .select('match_type, match_value, value_category, confidence')
           .eq('user_id', ctx.userId)
-          .eq('match_type', 'category_id');
+          .eq('match_type', 'category');
 
         const ruleMap = new Map<string, string>();
         for (const rule of rules || []) {
