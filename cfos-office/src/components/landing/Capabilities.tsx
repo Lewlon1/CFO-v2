@@ -97,7 +97,7 @@ export function Capabilities() {
             <article key={cap.index} className="v4-capability">
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-8">
                 <div className="sm:w-24 flex-shrink-0">
-                  <span className="v4-mono text-[11px] tracking-[0.18em]" style={{ color: 'var(--ink-quiet)' }}>
+                  <span className="v4-mono text-[11px] tracking-[0.18em]" style={{ color: 'var(--accent)' }}>
                     {cap.index}
                   </span>
                 </div>

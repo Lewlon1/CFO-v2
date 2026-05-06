@@ -10,7 +10,7 @@ export function Hero() {
 
         <h1 className="v4-serif text-[44px] sm:text-[64px] md:text-[76px] leading-[1.04] tracking-tight font-normal">
           More from your money.{' '}
-          <em className="italic" style={{ color: 'var(--ink-fade)' }}>
+          <em className="italic" style={{ color: 'var(--accent)' }}>
             Less of your time.
           </em>
         </h1>

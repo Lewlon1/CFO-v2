@@ -4,18 +4,18 @@
  * leak into the rest of the app, which remains dark-only.
  */
 
-/* === Default (dark) === */
+/* === Default (dark) — walnut + amber === */
 .landing-v4 {
-  --paper: #0F0F0D;
-  --ink: #F5F2EA;
-  --ink-fade: rgba(245, 242, 234, 0.55);
-  --ink-quiet: rgba(245, 242, 234, 0.32);
-  --rule: rgba(245, 242, 234, 0.10);
-  --card: rgba(245, 242, 234, 0.04);
-  --card-border: rgba(245, 242, 234, 0.08);
+  --paper: #13110D;
+  --ink: #F4EDD9;
+  --ink-fade: rgba(244, 237, 217, 0.60);
+  --ink-quiet: rgba(244, 237, 217, 0.38);
+  --rule: rgba(244, 237, 217, 0.12);
+  --card: rgba(244, 237, 217, 0.04);
+  --card-border: rgba(244, 237, 217, 0.10);
   --accent: #E8A84C;
-  --accent-soft: rgba(232, 168, 76, 0.18);
-  --accent-bg: rgba(232, 168, 76, 0.08);
+  --accent-soft: rgba(232, 168, 76, 0.20);
+  --accent-bg: rgba(232, 168, 76, 0.10);
 
   background: var(--paper);
   color: var(--ink);
@@ -25,30 +25,30 @@
   color-scheme: dark;
 }
 
-/* === Light === */
+/* === Light — vellum + antique brass === */
 .landing-v4[data-theme="light"] {
-  --paper: #F4EFE3;       /* cream */
-  --ink: #1A1814;          /* near-black ink */
-  --ink-fade: rgba(26, 24, 20, 0.62);
-  --ink-quiet: rgba(26, 24, 20, 0.42);
-  --rule: rgba(26, 24, 20, 0.14);
-  --card: rgba(26, 24, 20, 0.03);
-  --card-border: rgba(26, 24, 20, 0.10);
-  --accent: #B7822E;       /* slightly deeper gold for contrast on cream */
-  --accent-soft: rgba(183, 130, 46, 0.20);
-  --accent-bg: rgba(183, 130, 46, 0.10);
+  --paper: #F6F0E1;
+  --ink: #1A1610;
+  --ink-fade: rgba(26, 22, 16, 0.62);
+  --ink-quiet: rgba(26, 22, 16, 0.42);
+  --rule: rgba(26, 22, 16, 0.14);
+  --card: rgba(26, 22, 16, 0.03);
+  --card-border: rgba(26, 22, 16, 0.10);
+  --accent: #A66F1F;
+  --accent-soft: rgba(166, 111, 31, 0.22);
+  --accent-bg: rgba(166, 111, 31, 0.10);
   color-scheme: light;
 }
 
-/* === Inverted callout (Compounding) — flips paper/ink regardless of page theme === */
+/* === Inverted callout (Compounding) — leather wing chair (warmest dark) === */
 .landing-v4 .v4-invert {
-  --paper: #1A1814;
-  --ink: #F5F2EA;
-  --ink-fade: rgba(245, 242, 234, 0.62);
-  --ink-quiet: rgba(245, 242, 234, 0.40);
-  --rule: rgba(245, 242, 234, 0.14);
-  --card: rgba(245, 242, 234, 0.05);
-  --card-border: rgba(245, 242, 234, 0.10);
+  --paper: #1A1610;
+  --ink: #F4EDD9;
+  --ink-fade: rgba(244, 237, 217, 0.62);
+  --ink-quiet: rgba(244, 237, 217, 0.40);
+  --rule: rgba(244, 237, 217, 0.14);
+  --card: rgba(244, 237, 217, 0.05);
+  --card-border: rgba(244, 237, 217, 0.10);
   background: var(--paper);
   color: var(--ink);
 }
@@ -64,13 +64,13 @@
   font-family: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-/* === Section eyebrow (mono uppercase tracking) === */
+/* === Section eyebrow (mono uppercase tracking) — brass chapter tab === */
 .landing-v4 .v4-eyebrow {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ink-fade);
+  color: var(--accent);
 }
 
 /* === Rule line under section headers === */
@@ -80,7 +80,7 @@
   border: 0;
 }
 
-/* === CTA button — primary === */
+/* === CTA button — primary, brass-filled === */
 .landing-v4 .v4-cta {
   display: inline-flex;
   align-items: center;
@@ -89,17 +89,19 @@
   height: 52px;
   padding: 0 28px;
   border-radius: 999px;
-  background: var(--ink);
+  background: var(--accent);
   color: var(--paper);
   font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 16px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  transition: transform 120ms ease, opacity 120ms ease;
+  box-shadow: 0 0 0 0 transparent;
+  transition: transform 120ms ease, box-shadow 180ms ease, opacity 120ms ease;
 }
 .landing-v4 .v4-cta:hover {
   transform: translateY(-1px);
-  opacity: 0.92;
+  box-shadow: 0 0 0 6px var(--accent-bg);
+  opacity: 0.96;
 }
 .landing-v4 .v4-cta:focus-visible {
   outline: 2px solid var(--accent);
