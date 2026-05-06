@@ -57,12 +57,12 @@ export function CompletenessIndicator({
         <p className="text-sm font-medium text-foreground">Profile completeness</p>
         <p className="text-xs text-muted-foreground mt-0.5">
           {percentage < 30
-            ? "I'm just getting to know you. More data means better advice."
+            ? "I'm just getting to know you. More data means I can be more specific."
             : percentage < 60
               ? "Good start — a few more details will sharpen my recommendations."
               : percentage < 90
                 ? "Solid profile. A couple more fields unlock advanced features."
-                : "Comprehensive profile — I can give you my best advice."}
+                : "Comprehensive profile — I've got enough to be useful."}
         </p>
       </div>
     </div>

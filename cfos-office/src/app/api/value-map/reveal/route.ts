@@ -48,10 +48,12 @@ Paragraph 3 — The synthesis: One sentence. A character sketch that captures wh
 Style rules:
 - Second person ("you", "your")
 - Use *italics* (asterisks) sparingly for a single revealing word or phrase
-- Warm but direct — no filler, no platitudes, no generic financial advice
+- Warm but direct — no filler, no platitudes, no generic financial guidance
 - Every sentence must earn its place
 - Total length: 150–220 words
-- Only use the currency symbol ${sym} when referencing a specific amount`
+- Only use the currency symbol ${sym} when referencing a specific amount
+
+VOICE RULE: Never use the words "advice" or "advise" in your output. Use "guidance", "suggestion", or recast the sentence. Your role is to observe, calculate, and educate — not to advise.`
 }
 
 export async function POST(req: Request) {

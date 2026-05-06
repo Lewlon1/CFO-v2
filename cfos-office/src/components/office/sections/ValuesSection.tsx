@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import type { DashboardSummary } from '@/app/api/dashboard/summary/route'
+import { valueCategories } from '@/lib/tokens'
 
 const VALUE_COLORS: Record<string, string> = {
-  foundation: '#22C55E',
-  investment: '#3B82F6',
-  leak: '#F43F5E',
-  burden: '#8B5CF6',
+  foundation: valueCategories.foundation.color,
+  investment: valueCategories.investment.color,
+  leak: valueCategories.leak.color,
+  burden: valueCategories.burden.color,
 }
 
 interface ValuesSectionProps {

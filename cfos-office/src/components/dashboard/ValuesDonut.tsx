@@ -2,7 +2,16 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { VALUE_COLORS, formatCurrency } from '@/lib/constants/dashboard'
+import { valueCategories } from '@/lib/tokens'
 import type { ValueCategorySummary } from '@/app/api/dashboard/summary/route'
+
+const VC_FILL: Record<string, string> = {
+  foundation: valueCategories.foundation.color,
+  investment: valueCategories.investment.color,
+  leak: valueCategories.leak.color,
+  burden: valueCategories.burden.color,
+  no_idea: '#6B7280',
+}
 
 type Props = {
   breakdown: Record<string, ValueCategorySummary>
@@ -18,7 +27,7 @@ export function ValuesDonut({ breakdown, totalSpending, currency = 'EUR' }: Prop
       name: VALUE_COLORS[vc].label,
       value: breakdown[vc].amount,
       pct: breakdown[vc].pct,
-      fill: VALUE_COLORS[vc].fill,
+      fill: VC_FILL[vc],
       vc,
     }))
 

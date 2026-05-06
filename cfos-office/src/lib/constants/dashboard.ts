@@ -13,13 +13,12 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 export const VALUE_COLORS: Record<
   string,
-  { bg: string; text: string; border: string; fill: string; label: string; description: string }
+  { bg: string; text: string; border: string; label: string; description: string }
 > = {
   foundation: {
     bg: 'bg-blue-500/10',
     text: 'text-blue-400',
     border: 'border-blue-500/20',
-    fill: '#3B82F6',
     label: 'Foundation',
     description: 'Essential to daily life',
   },
@@ -27,7 +26,6 @@ export const VALUE_COLORS: Record<
     bg: 'bg-emerald-500/10',
     text: 'text-emerald-400',
     border: 'border-emerald-500/20',
-    fill: '#10B981',
     label: 'Investment',
     description: 'Builds your future',
   },
@@ -35,7 +33,6 @@ export const VALUE_COLORS: Record<
     bg: 'bg-red-500/10',
     text: 'text-red-400',
     border: 'border-red-500/20',
-    fill: '#EF4444',
     label: 'Leak',
     description: 'Drains without return',
   },
@@ -43,7 +40,6 @@ export const VALUE_COLORS: Record<
     bg: 'bg-amber-500/10',
     text: 'text-amber-400',
     border: 'border-amber-500/20',
-    fill: '#F59E0B',
     label: 'Burden',
     description: 'Necessary but resented',
   },
@@ -51,7 +47,6 @@ export const VALUE_COLORS: Record<
     bg: 'bg-gray-500/10',
     text: 'text-gray-400',
     border: 'border-gray-500/20',
-    fill: '#6B7280',
     label: 'No Idea',
     description: 'Not yet classified',
   },
