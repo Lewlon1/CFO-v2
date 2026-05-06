@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
+import { valueCategories } from '@/lib/tokens'
 
 const VALUE_CONFIG = {
-  foundation: { color: '#22C55E', label: 'Foundation', desc: 'Essentials, non-negotiable' },
-  investment: { color: '#3B82F6', label: 'Investment', desc: 'Building future value' },
-  leak: { color: '#F43F5E', label: 'Leak', desc: 'Avoidable, habitual drain' },
-  burden: { color: '#8B5CF6', label: 'Burden', desc: 'Unavoidable but resented' },
+  foundation: { color: valueCategories.foundation.color, label: 'Foundation', desc: 'Essentials, non-negotiable' },
+  investment: { color: valueCategories.investment.color, label: 'Investment', desc: 'Building future value' },
+  leak: { color: valueCategories.leak.color, label: 'Leak', desc: 'Avoidable, habitual drain' },
+  burden: { color: valueCategories.burden.color, label: 'Burden', desc: 'Unavoidable but resented' },
   no_idea: { color: '#F59E0B', label: 'Unsure', desc: 'Not yet classified' },
 } as const
 
@@ -167,14 +168,17 @@ export function OfficeValuesBreakdown() {
             Leaks this month
           </p>
           <div className="flex items-center gap-2 py-2.5 border-b border-[rgba(255,255,255,0.03)]">
-            <div className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px] shrink-0 bg-[rgba(243,63,94,0.1)] text-[#F43F5E]">
+            <div
+              className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px] shrink-0 bg-[rgba(243,63,94,0.1)]"
+              style={{ color: valueCategories.leak.color }}
+            >
               ↻
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-medium">Total leaks</p>
               <p className="font-data text-[8px] text-[rgba(245,245,240,0.22)] mt-[2px]">{leakData.count} transactions</p>
             </div>
-            <span className="font-data text-[12px] font-medium text-[#F43F5E] shrink-0">
+            <span className="font-data text-[12px] font-medium shrink-0" style={{ color: valueCategories.leak.color }}>
               -{formatCurrencyRounded(leakData.amount)}
             </span>
           </div>

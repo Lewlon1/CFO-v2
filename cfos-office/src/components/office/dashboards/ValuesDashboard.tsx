@@ -8,14 +8,15 @@ import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
+import { valueCategories } from '@/lib/tokens'
 
 const ACCENT = '#E8A84C'
 
 const VALUE_META: Record<string, { label: string; color: string; order: number }> = {
-  foundation: { label: 'Foundation', color: '#22C55E', order: 1 },
-  investment: { label: 'Investment', color: '#3B82F6', order: 2 },
-  leak: { label: 'Leak', color: '#F43F5E', order: 3 },
-  burden: { label: 'Burden', color: '#8B5CF6', order: 4 },
+  foundation: { label: 'Foundation', color: valueCategories.foundation.color, order: 1 },
+  investment: { label: 'Investment', color: valueCategories.investment.color, order: 2 },
+  leak: { label: 'Leak', color: valueCategories.leak.color, order: 3 },
+  burden: { label: 'Burden', color: valueCategories.burden.color, order: 4 },
   no_idea: { label: 'Unclassified', color: '#6B7280', order: 5 },
 }
 
