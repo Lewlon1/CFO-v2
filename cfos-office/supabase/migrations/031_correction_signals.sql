@@ -23,23 +23,24 @@ where value_confirmed_by_user = true
 
 -- ── 2. Rebuild value_category_rules ─────────────────────────────────────
 
--- 2a. Preserve existing data
-create temp table _vcr_backup as
-select
-  user_id,
-  match_type,
-  match_value,
-  value_category,
-  confidence,
-  source,
-  context_conditions,
-  created_at
-from public.value_category_rules;
+-- 2a. Rename the existing table out of the way (no temp/backup table — survives
+--     pooler weirdness; data stays put on real disk under a real name).
+--     `if exists` for idempotency in case a prior failed run already renamed it.
+alter table if exists public.value_category_rules
+  rename to value_category_rules_v1_archive;
 
--- 2b. Drop old table (cascades RLS policies, indexes, constraints)
-drop table if exists public.value_category_rules cascade;
+-- Strip auto-named constraints from the archive so the new table can reuse
+-- their names. PG auto-generates `<table>_pkey` etc., which would collide.
+alter table if exists public.value_category_rules_v1_archive
+  drop constraint if exists value_category_rules_pkey,
+  drop constraint if exists value_category_rules_user_id_fkey;
 
--- 2c. Create new table with spec schema
+-- Drop indexes left attached to the archive (their names would collide too).
+drop index if exists public.idx_vcr_user;
+drop index if exists public.idx_vcr_user_match;
+drop index if exists public.uq_value_category_rules_key;
+
+-- 2b. Create new table with spec schema
 create table public.value_category_rules (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid not null references public.user_profiles(id) on delete cascade,
@@ -55,7 +56,7 @@ create table public.value_category_rules (
   source           text not null,
   last_signal_at   timestamptz default now(),
   created_at       timestamptz default now(),
-  updated_at       timestamptz default now(),
+  updated_at       timestamptz default now()
 );
 
 -- Functional unique index (COALESCE can't be inline constraint)
@@ -102,7 +103,7 @@ select
     else coalesce(source, 'category_default')
   end,
   created_at
-from _vcr_backup
+from public.value_category_rules_v1_archive
 where match_type = 'merchant_contains'
   and (context_conditions is null or context_conditions = '{}'::jsonb)
 on conflict (user_id, match_type, match_value, coalesce(time_context, '__none__'))
@@ -122,7 +123,7 @@ select
     else coalesce(source, 'category_default')
   end,
   created_at
-from _vcr_backup
+from public.value_category_rules_v1_archive
 where match_type = 'category_id'
 on conflict (user_id, match_type, match_value, coalesce(time_context, '__none__'))
 do nothing;
@@ -149,14 +150,14 @@ select
     else coalesce(source, 'category_default')
   end,
   created_at
-from _vcr_backup
+from public.value_category_rules_v1_archive
 where match_type = 'merchant_contains'
   and context_conditions is not null
   and context_conditions != '{}'::jsonb
 on conflict (user_id, match_type, match_value, coalesce(time_context, '__none__'))
 do nothing;
 
-drop table _vcr_backup;
+drop table public.value_category_rules_v1_archive;
 
 -- ── 3. Create correction_signals table ──────────────────────────────────
 create table public.correction_signals (
