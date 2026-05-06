@@ -211,3 +211,27 @@ Two strong candidates, in priority order:
 2. **Remove per-bank parsers** (Issues #3, #4, #5). The branch removed `parsePdfTransactions` in `4878e6d` but left the CSV per-bank path wired up. The intended end state is one pipeline; today there are two. An audit-and-remove pass on `src/app/api/upload/route.ts` plus `src/lib/parsers/index.ts` closes the refactor.
 
 Don't touch either until (1) and (2) are planned — they interact (removing the server CSV path means every Revolut/Monzo/Starling upload starts hitting the universal pipeline, whose accuracy under Haiku detection needs its own validation first).
+
+---
+
+## v2.0 — Post-Merge Baseline + Versioning Convention (2026-05-06)
+
+**Type:** Architectural milestone + housekeeping
+**Files touched:** CLAUDE.md, BUILD-STATUS.md, package.json, SESSION-LOG.md
+**Code changes:** none
+
+### What landed
+- UI rebuild (session-25/folder-detail-views-routing-redirects) merged to main
+- Onboarding flow (O1/O2) merged to main
+- Versioning convention established and documented in CLAUDE.md
+- BUILD-STATUS.md updated to reflect v2.0 baseline
+- package.json bumped to 2.0.0
+- main tagged v2.0
+
+### Lessons learned
+- **Two unmerged branches inflated token costs on every Claude Code session.** Going forward: no more than one in-flight branch at a time. If a feature spans multiple sessions, keep it on a single branch and ship in chunks behind a flag rather than forking child branches.
+- **Versioning deferred too long.** Sessions 1–25 lacked version tags, which made retros harder. v2.0 is the right inflection point — old work stays session-numbered, new work is version-tagged.
+- **Documentation drift compounds quietly.** BUILD-STATUS, CLAUDE.md, and main had all diverged before this session. Going forward: any session that changes branch topology or roadmap status updates BUILD-STATUS in the same commit.
+
+### Unblocks
+- Session v2.1 (Phase A) can now be run against a clean main

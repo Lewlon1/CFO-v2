@@ -8,6 +8,43 @@ The product name is **The CFO's Office**. The metaphor: walking into a startup C
 
 ---
 
+## Versioning
+
+The CFO's Office uses MAJOR.MINOR versioning, tied to architectural epochs and shipping milestones — not chronology or session count.
+
+- **MAJOR** — Architectural shifts: new product surface, new monetisation tier, fundamental data model change
+- **MINOR** — Each session that lands a meaningful, deployable change
+- **PATCH** (.x.y) — Hotfixes only, between planned sessions
+
+### Current
+
+- **v2.0** — Office filesystem architecture, onboarding flow merged (current baseline)
+
+### Roadmap
+
+| Version | Description | Status |
+|---|---|---|
+| v2.1 | Phase A — P0 brand & polish fixes | Next |
+| v2.2 | Session 26 — Chat Intelligence | Planned |
+| v2.3 | Session 27 — Folder Fix-Up | Planned |
+| v2.4 | Phase B — Primitive layer expansion | Planned |
+| v2.5 | Phase C — Consumer sweep (inline → primitives) | Planned |
+| v2.6 | Phase D — Mobile/a11y polish | Planned |
+| v2.7 | Phase E — Brand continuity (auth + landing) | Planned |
+| v2.8 | Sessions 28–30 — Confidence / Prediction / Value Map Retake | Designed |
+| v3.0 | Premium tier launch (~August 2026) | Future |
+
+### Conventions
+
+- **Versions ship, sessions don't.** A version exists once its work is merged and deployed. v2.1 does not exist until Phase A is on main.
+- **Skipped sessions still consume version numbers.** If v2.4 ships before v2.3, v2.3 stays reserved.
+- **Each version is git-tagged** on main: `git tag v2.X && git push --tags`
+- **Each version updates `package.json`** to match (write as full semver: `2.1.0`).
+- **Each version gets a `SESSION-LOG.md` entry** with the version as the heading.
+- **Session prompts reference their target version** in the header (e.g. "Session v2.1 — Phase A").
+
+---
+
 ## Repo layout
 
 Source code lives in `cfos-office/`. All file paths in this document (e.g. `lib/...`, `app/...`, `components/...`) are relative to that directory. When Claude Code is invoked from the repo root, prefix paths with `cfos-office/` to access the actual files.
