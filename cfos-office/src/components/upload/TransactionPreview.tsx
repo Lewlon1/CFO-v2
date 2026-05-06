@@ -64,7 +64,7 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
       </div>
 
       {/* Mobile: card list */}
-      <div className="md:hidden space-y-2 max-h-[60vh] overflow-y-auto">
+      <div className="md:hidden space-y-2 max-h-[60dvh] overflow-y-auto">
         {transactions.map((t, i) => {
           const row = rows[i]
           return (
@@ -113,7 +113,7 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
 
       {/* Desktop: table */}
       <div className="hidden md:block rounded-lg border border-border overflow-hidden">
-        <div className="max-h-[50vh] overflow-y-auto">
+        <div className="max-h-[50dvh] overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted sticky top-0">
               <tr>
