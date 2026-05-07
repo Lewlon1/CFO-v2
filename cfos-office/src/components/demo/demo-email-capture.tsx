@@ -124,7 +124,7 @@ export function DemoEmailCapture({
               className={cn(
                 'h-5 w-5 rounded border-2 transition-colors duration-150 flex items-center justify-center',
                 consent
-                  ? 'border-[#E8A84C] bg-[#E8A84C]'
+                  ? 'border-primary bg-primary'
                   : 'border-border bg-transparent',
               )}
             >
@@ -147,7 +147,7 @@ export function DemoEmailCapture({
         <Button
           type="submit"
           disabled={submitting || !email || !name || !consent}
-          className="w-full bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base disabled:opacity-50"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5 text-base disabled:opacity-50"
         >
           {submitting ? 'Joining...' : (
             <>

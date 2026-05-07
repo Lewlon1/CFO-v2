@@ -145,10 +145,10 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
     <div className="flex flex-col gap-6 px-4 py-6 overflow-y-auto">
       {/* Hero: CFO Observations (instant) */}
       {hasObservations && (
-        <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 space-y-3">
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <CfoAvatar size="sm" />
-            <span className="text-sm font-semibold text-[#E8A84C]">Your CFO</span>
+            <span className="text-sm font-semibold text-primary">Your CFO</span>
           </div>
 
           {/* Opus text replaces deterministic bullets when available */}
@@ -180,7 +180,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
       {/* Personality badge — shareable card */}
       <div ref={shareCardRef} className="text-center space-y-2 py-4 px-4 rounded-xl">
         <div className="text-4xl">{personalityResult.emoji}</div>
-        <h2 className="text-xl font-bold text-[#E8A84C]">
+        <h2 className="text-xl font-bold text-primary">
           {personalityResult.name}
         </h2>
         <p className="text-sm text-muted-foreground max-w-xs mx-auto">
@@ -332,7 +332,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
       {/* CTA */}
       <Button
         onClick={onContinue}
-        className="w-full bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-6 text-base"
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 text-base"
       >
         Continue
         <ArrowRight className="ml-2 h-4 w-4" />

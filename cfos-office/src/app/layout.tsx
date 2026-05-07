@@ -1,11 +1,21 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Instrument_Serif, Instrument_Sans, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ThemeBoot } from '@/components/theme/ThemeBoot'
 import './globals.css'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const instrumentSerif = Instrument_Serif({
+  variable: '--font-instrument-serif',
+  weight: '400',
+  style: ['normal', 'italic'],
   subsets: ['latin'],
+  display: 'swap',
+})
+
+const instrumentSans = Instrument_Sans({
+  variable: '--font-instrument-sans',
+  subsets: ['latin'],
+  display: 'swap',
 })
 
 const geistMono = Geist_Mono({
@@ -32,8 +42,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${instrumentSerif.variable} ${instrumentSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <ThemeBoot />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Analytics />

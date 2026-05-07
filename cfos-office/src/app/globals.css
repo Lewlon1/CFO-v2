@@ -1,20 +1,43 @@
 @import "tailwindcss";
 
+/* === Default (dark) — walnut + amber === */
 :root {
-  --background: #0C0C0E;
-  --foreground: #F2F2F3;
-  --card: #16161A;
-  --card-foreground: #F2F2F3;
-  --border: #2A2A30;
-  --input: #1E1E24;
+  --background: #13110D;
+  --foreground: #F4EDD9;
+  --card: #1A1610;
+  --card-foreground: #F4EDD9;
+  --border: rgba(244, 237, 217, 0.12);
+  --input: #1A1610;
   --primary: #E8A84C;
-  --primary-foreground: #0C0C0E;
-  --muted: #1E1E24;
-  --muted-foreground: #8A8A96;
-  --accent: #1E1E24;
-  --accent-foreground: #F2F2F3;
+  --primary-foreground: #13110D;
+  --muted: rgba(244, 237, 217, 0.04);
+  --muted-foreground: rgba(244, 237, 217, 0.60);
+  --accent: rgba(244, 237, 217, 0.06);
+  --accent-foreground: #F4EDD9;
   --destructive: #EF4444;
   --ring: #E8A84C;
+
+  color-scheme: dark;
+}
+
+/* === Light — vellum + antique brass === */
+:root[data-theme="light"] {
+  --background: #F6F0E1;
+  --foreground: #1A1610;
+  --card: #EDE5D2;
+  --card-foreground: #1A1610;
+  --border: rgba(26, 22, 16, 0.14);
+  --input: #EDE5D2;
+  --primary: #A66F1F;
+  --primary-foreground: #F6F0E1;
+  --muted: rgba(26, 22, 16, 0.04);
+  --muted-foreground: rgba(26, 22, 16, 0.62);
+  --accent: rgba(26, 22, 16, 0.06);
+  --accent-foreground: #1A1610;
+  --destructive: #DC2626;
+  --ring: #A66F1F;
+
+  color-scheme: light;
 }
 
 @theme inline {
@@ -33,7 +56,8 @@
   --color-destructive: var(--destructive);
   --color-ring: var(--ring);
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-instrument-sans);
+  --font-serif: var(--font-instrument-serif);
   --font-mono: var(--font-geist-mono);
 
   /* Custom animations for Demo card exercise */
@@ -63,9 +87,31 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 * {
   border-color: var(--border);
+}
+
+/*
+ * Headings default to Instrument Serif site-wide.
+ * Class-based overrides (.font-sans, .font-mono, .v4-serif) win specificity,
+ * so v4 components and any explicit opt-out continue to work.
+ */
+h1, h2, h3 {
+  font-family: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  font-weight: 500;
+}
+
+/*
+ * .eyebrow — small mono brass label, used for "01 — Section name" rhythm.
+ * Mirrors v4's .v4-eyebrow but available globally.
+ */
+.eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--primary);
 }

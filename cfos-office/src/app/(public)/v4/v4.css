@@ -1,19 +1,24 @@
 /*
- * Landing v4 — scoped styles.
- * Everything in this file is namespaced under `.landing-v4` so it cannot
- * leak into the rest of the app, which remains dark-only.
+ * Landing v4 — scoped layout/utilities only.
+ *
+ * Colour tokens now live globally in globals.css and flow from --background /
+ * --foreground / --primary etc. This file only defines the v4-specific
+ * aliases (--paper, --ink, etc.) and visual utilities used by the landing
+ * components. The light/dark switch is handled at the <html> level.
  */
 
-/* === Default (dark) — walnut + amber === */
+/* === Bridge v4 names → global tokens (per-mode, so opacity-derived shades stay accurate) === */
 .landing-v4 {
-  --paper: #13110D;
-  --ink: #F4EDD9;
+  --paper: var(--background);
+  --ink: var(--foreground);
+  --rule: var(--border);
+  --card: var(--muted);
+  --card-border: var(--border);
+  --accent: var(--primary);
+
+  /* Dark-mode shades for ink-fade / ink-quiet / accent overlays */
   --ink-fade: rgba(244, 237, 217, 0.60);
   --ink-quiet: rgba(244, 237, 217, 0.38);
-  --rule: rgba(244, 237, 217, 0.12);
-  --card: rgba(244, 237, 217, 0.04);
-  --card-border: rgba(244, 237, 217, 0.10);
-  --accent: #E8A84C;
   --accent-soft: rgba(232, 168, 76, 0.20);
   --accent-bg: rgba(232, 168, 76, 0.10);
 
@@ -22,22 +27,15 @@
   font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color-scheme: dark;
 }
 
-/* === Light — vellum + antique brass === */
-.landing-v4[data-theme="light"] {
-  --paper: #F6F0E1;
-  --ink: #1A1610;
+/* Light-mode shades — ink-fade/quiet are derived from the dark-foreground hex,
+   so we restate them here in dark-on-cream form. Accent shifts to antique brass overlays. */
+:root[data-theme="light"] .landing-v4 {
   --ink-fade: rgba(26, 22, 16, 0.62);
   --ink-quiet: rgba(26, 22, 16, 0.42);
-  --rule: rgba(26, 22, 16, 0.14);
-  --card: rgba(26, 22, 16, 0.03);
-  --card-border: rgba(26, 22, 16, 0.10);
-  --accent: #A66F1F;
   --accent-soft: rgba(166, 111, 31, 0.22);
   --accent-bg: rgba(166, 111, 31, 0.10);
-  color-scheme: light;
 }
 
 /* === Inverted callout (Compounding) — leather wing chair (warmest dark) === */
@@ -108,7 +106,7 @@
   outline-offset: 3px;
 }
 
-/* === Theme toggle === */
+/* === Theme toggle (v4-styled variant of the global component) === */
 .landing-v4 .v4-toggle {
   display: inline-flex;
   align-items: center;

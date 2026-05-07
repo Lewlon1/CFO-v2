@@ -231,7 +231,7 @@ export function DemoReveal({ reading, personality, userName, country, results, f
       <Button
         onClick={handleSaveCard}
         disabled={saving}
-        className="w-full max-w-sm bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5"
+        className="w-full max-w-sm bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5"
       >
         {saving ? 'Saving...' : (
           <>
@@ -275,7 +275,7 @@ export function DemoReveal({ reading, personality, userName, country, results, f
       {/* ── CTA — shown once hook finishes ── */}
       {done && isAuthenticated && (
         <div className="w-full max-w-sm">
-          <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-5">
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
             <p className="text-sm font-semibold text-foreground mb-1">
               Your CFO has something to tell you
             </p>
@@ -319,7 +319,7 @@ export function DemoReveal({ reading, personality, userName, country, results, f
 
       {done && !isAuthenticated && (
         <div className="w-full max-w-sm">
-          <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-5">
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
             <p className="text-sm font-semibold text-foreground mb-1">
               Want to see what your real spending says?
             </p>

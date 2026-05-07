@@ -7,6 +7,7 @@ import { ProfileCompleteness } from '@/components/app/profile-completeness'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { OfflineBanner } from '@/components/app/OfflineBanner'
 import { SessionTracker } from '@/components/analytics/SessionTracker'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 const navItems = [
   { href: '/chat', label: 'Chat', icon: '💬' },
@@ -85,7 +86,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* User info + logout */}
         <div className="px-3 py-4 border-t border-border space-y-2">
           <p className="px-3 text-xs text-muted-foreground truncate">{user.email}</p>
-          <LogoutButton />
+          <div className="flex items-center justify-between gap-2">
+            <LogoutButton />
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 

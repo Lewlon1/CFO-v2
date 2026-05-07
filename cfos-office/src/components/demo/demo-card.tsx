@@ -51,7 +51,7 @@ function ConfidenceDots({
               'h-10 w-10 rounded-full border-2 transition-all duration-150',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               n <= value
-                ? 'border-[#E8A84C] bg-[#E8A84C]'
+                ? 'border-primary bg-primary'
                 : 'border-border bg-transparent',
             )}
             aria-label={`Confidence ${n} of 5`}
@@ -303,7 +303,7 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
         </div>
         <div className="h-1 w-full rounded-full bg-border overflow-hidden">
           <div
-            className="h-full rounded-full bg-[#E8A84C] transition-all duration-300 ease-out"
+            className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -361,7 +361,7 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
           >
             {/* Engagement gate progress bar */}
             {!canTap && cardState === 'visible' && (
-              <div className="absolute top-0 left-0 h-0.5 bg-[#E8A84C] animate-value-gate" />
+              <div className="absolute top-0 left-0 h-0.5 bg-primary animate-value-gate" />
             )}
 
             <p className="text-lg font-semibold text-foreground">
@@ -437,7 +437,7 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
           <ConfidenceDots value={confidence} onChange={setConfidence} />
           <Button
             onClick={handleConfirm}
-            className="w-full max-w-xs bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-4 text-base"
+            className="w-full max-w-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-4 text-base"
           >
             Next
             <ArrowRight className="ml-1.5 h-4 w-4" />

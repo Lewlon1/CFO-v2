@@ -41,7 +41,7 @@ export function DemoResonanceFeedback({ value, onChange }: DemoResonanceFeedback
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 'active:scale-95',
                 isSelected
-                  ? 'bg-[#E8A84C]/15 ring-2 ring-[#E8A84C] scale-110'
+                  ? 'bg-primary/15 ring-2 ring-primary scale-110'
                   : value !== null
                     ? 'opacity-40 hover:opacity-70'
                     : 'hover:bg-card/80',
