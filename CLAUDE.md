@@ -5,6 +5,56 @@
 A trust-first personal finance advisor that combines chat (Claude via Bedrock) with a structured dashboard to help users understand and optimise their financial lives. Users share data gradually through conversation and CSV uploads, receiving increasingly personalised advice powered by an AI "CFO" that knows their numbers, understands their psychology, and gives honest strategic advice.
 
 The product name is **The CFO's Office**. The metaphor: walking into a startup CFO's office for a chat about your personal finances.
+
+---
+
+## Versioning
+
+The CFO's Office uses MAJOR.MINOR versioning, tied to architectural epochs and shipping milestones — not chronology or session count.
+
+- **MAJOR** — Architectural shifts: new product surface, new monetisation tier, fundamental data model change
+- **MINOR** — Each session that lands a meaningful, deployable change
+- **PATCH** (.x.y) — Hotfixes only, between planned sessions
+
+### Current
+
+- **v2.0** — Office filesystem architecture, onboarding flow merged (current baseline)
+
+### Roadmap
+
+| Version | Description | Status |
+|---|---|---|
+| v2.1 | Phase A — P0 brand & polish fixes | Next |
+| v2.2 | Session 26 — Chat Intelligence | Planned |
+| v2.3 | Session 27 — Folder Fix-Up | Planned |
+| v2.4 | Phase B — Primitive layer expansion | Planned |
+| v2.5 | Phase C — Consumer sweep (inline → primitives) | Planned |
+| v2.6 | Phase D — Mobile/a11y polish | Planned |
+| v2.7 | Phase E — Brand continuity (auth + landing) | Planned |
+| v2.8 | Sessions 28–30 — Confidence / Prediction / Value Map Retake | Designed |
+| v3.0 | Premium tier launch (~August 2026) | Future |
+
+### Conventions
+
+- **Versions ship, sessions don't.** A version exists once its work is merged and deployed. v2.1 does not exist until Phase A is on main.
+- **Skipped sessions still consume version numbers.** If v2.4 ships before v2.3, v2.3 stays reserved.
+- **Each version is git-tagged** on main: `git tag v2.X && git push --tags`
+- **Each version updates `package.json`** to match (write as full semver: `2.1.0`).
+- **Each version gets a `SESSION-LOG.md` entry** with the version as the heading.
+- **Session prompts reference their target version** in the header (e.g. "Session v2.1 — Phase A").
+
+---
+
+## Repo layout
+
+Source code lives in `cfos-office/`. All file paths in this document (e.g. `lib/...`, `app/...`, `components/...`) are relative to that directory. When Claude Code is invoked from the repo root, prefix paths with `cfos-office/` to access the actual files.
+
+Other top-level directories:
+- `docs/audits/` — current audit snapshots (V2 branch state, dead code, component consolidation, lessons learned)
+- `docs/decisions/` — open decision records
+- `docs/design/` — design mockups
+- `docs/archive/` — historical: pre-implementation specs, superseded audits, completed cleanup tracks
+
 ---
 
 ## Architecture
@@ -68,6 +118,10 @@ These are not aspirational. They are implementation constraints.
 
 ## Tech Stack Details
 
+### Package manager
+
+This repo uses **npm**. Do not use pnpm or yarn — they fail on this repo's hoisting expectations. Use `npm ci` for clean installs (lockfile-driven) and `npm run build` / `npm run typecheck` for verification.
+
 ### Bedrock Configuration
 
 ```typescript
@@ -83,10 +137,23 @@ export const bedrock = createAmazonBedrock({
 export const chatModel = bedrock('anthropic.claude-sonnet-4-6-20250514-v1:0');
 ```
 
+### Model Routing
+
+- `chatModel` (Sonnet) — CFO chat, scenario planning, monthly reviews, all user-facing conversation.
+- `analysisModel` (Sonnet) — retained for any analysis calls that need Sonnet quality.
+- `utilityModel` (Haiku) — structured extraction where personality/nuance doesn't matter: transaction categorisation fallback (`lib/categorisation/llm-categoriser.ts`) and post-conversation portrait analysis (`app/api/analyze-conversation/route.ts`). ~¼ the cost of Sonnet at equivalent quality for classification tasks.
+
+Model IDs resolve from `BEDROCK_CLAUDE_MODEL` / `BEDROCK_CLAUDE_UTILITY_MODEL` env vars, falling back to `eu.anthropic.claude-sonnet-4-6` and `eu.anthropic.claude-haiku-4-5` respectively. EU inference profiles only — no data leaves EU.
+
+### Prompt Caching
+
+The chat route system prompt is sent as a system-role message with `providerOptions.bedrock.cachePoint: { type: 'default' }` so it is cached across turns within a 5-minute TTL. First turn writes the cache (~1.25x cost on that segment); subsequent turns read it (~0.1x). Cache hit/write metrics land in `[bedrock-usage]` console logs via `lib/ai/usage-logger.ts`.
+
 ### Environment Variables Required
 
 ```
-# Supabase
+# Supabase — Claude can apply migrations to staging but never to production.
+# All SQL migrations to production require approval by Lewis.
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -95,6 +162,18 @@ SUPABASE_SERVICE_ROLE_KEY=
 AWS_REGION=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+
+# Bedrock model overrides
+BEDROCK_OPUS_MODEL=        # Bedrock model id for archetype generation (value-map/reveal)
+
+# External services
+BRAVE_SEARCH_API_KEY=      # Bill optimisation web search (lib/bills/brave-search.ts)
+RESEND_API_KEY=            # Transactional email + alerting
+
+# Cron + alerting
+CRON_SECRET=               # Bearer token validated by all /api/cron/* handlers
+ALERT_EMAIL=               # Recipient address for error alert webhook
+ALERT_WEBHOOK_URL=         # Resend webhook URL for error alerts
 
 # App
 NEXT_PUBLIC_APP_URL=
@@ -151,16 +230,35 @@ A priority queue that determines which profile questions to ask and when. See th
 - Three input methods: structured (inline components), conversational (Claude function calling), inferred (Claude extracts from natural speech)
 - Confidence thresholds determine auto-save vs confirmation vs explicit ask
 
+### Onboarding completion
+
+A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. Two parallel paths set it:
+
+1. **Modal path** (`POST /api/onboarding/complete`) — fires when the user reaches the `handoff` beat in the onboarding modal and dismisses. Also seeds `financial_portrait` via `seedFromOnboarding`.
+2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from three write sites after a real engagement signal: Value Map session insert (`api/value-map/personal`), transaction import success (`api/upload`), and user message insert (`api/chat`). Stamps the timestamp only; does not seed.
+
+**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND at least one of:
+- a `value_map_sessions` row exists for `profile_id = userId`
+- ≥1 `transactions` row with `user_id = userId AND deleted_at IS NULL`
+- ≥3 `messages` rows with `role='user' AND deleted_at IS NULL`, joined via `conversations.user_id = userId`
+
+The timestamp is a one-way ratchet in the permissive path (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. There is deliberately no wall-clock floor (e.g. "spent ≥60s in app"); anyone who hits one of the three signals has clearly been engaged.
+
 ### The CFO Persona
 
-Direct, knowledgeable, strategic. Knows the user's numbers. Pushes back when needed. Remembers everything. Adjusts tone based on user preference (gentle/direct/blunt). A CFO advises — they don't decide for you.
+Warm, sharp, and conversational — like a smart mate who happens to be brilliant with money. Knows the user's numbers inside out. Pushes back when needed but never lectures. Uses real numbers and tangible comparisons ("that's a weekend in Lisbon every month") instead of financial jargon. Adjusts tone based on user preference (gentle/direct/blunt).
+
+A CFO guides — they don't decide for you.
 
 Key persona rules:
-- Use actual numbers, not generic ranges
+- Use actual numbers and tangible comparisons, never generic ranges or jargon
 - Never lecture — explain once, then move to action
-- When spending contradicts values, name it without judgement
-- Acknowledge limitations honestly (not a licensed advisor, can't do tax)
+- When spending contradicts values, name it once without judgement, then help
+- Acknowledge limitations honestly and specifically (not a licensed adviser, can't do tax)
 - Reference past conversations naturally
+- Never use the product name "The CFO's Office" in conversation — you are "your CFO"
+- Talk like a person, not a product
+- Never say "advice" or "advise" — use "guidance", "suggestion", or just say what you'd do
 
 ---
 
@@ -394,9 +492,20 @@ Validation rules:
 Use for: relationship status, employment details, behavioral observations, preferences.
 
 ### Channel C: Post-Conversation Analysis (Supplementary)
-Edge Function runs after conversation ends. Sends transcript to Claude for behavioral trait extraction. Results written to financial_portrait.
+The post-conversation extractor reads a completed conversation's transcript and writes behavioural traits to `financial_portrait` with `source = 'post_conversation'`. Implementation lives at `lib/ai/portrait-extraction.ts` (Haiku via `utilityModel`).
 
 Use for: spending patterns, behavioral traits, value shifts, contradictions.
+
+**Trigger conditions.** Portrait entries are written from the following sources:
+
+- **`balance_sheet`** — when `updateAssetPortrait()` runs after an asset/liability upsert (`lib/balance-sheet/portrait.ts`).
+- **`gap_analysis`** — when `analyseGap()` runs after Value Map completion or check-in (`lib/analytics/gap-analyser.ts`).
+- **`post_conversation`** — when a previously active conversation transitions to `status = 'completed'` (which happens when a user starts a new conversation or a new monthly review). Both call sites — `app/api/chat/route.ts` and `app/api/review/start/route.ts` — wrap the work in Next.js `after()` so it runs after the response is sent. The daily cron at `/api/cron/portrait-extraction` (06:00 UTC) sweeps any completed conversations from the last 7 days where `analysed_at IS NULL` to catch transient failures. Both paths stamp `conversations.analysed_at` on terminal outcomes (success or "too few messages") so neither double-processes.
+- **`manual_reextraction`** — ad-hoc backfill via `scripts/reextract-portrait.ts`. Outputs SQL inserts to stdout; never auto-applied.
+
+**Failure handling.** Bedrock or DB failures throw out of `extractFromConversation`, leaving `analysed_at` NULL so the cron retries. The throw triggers `sendAlert({ severity: 'critical', event: 'portrait_extraction_after_failed' | 'portrait_extraction_cron_failures' })` via the standard `lib/alerts/notify.ts` webhook. Silent pipeline failures are the failure mode this whole layer exists to prevent — historical context: S-W1.5-11 was triggered by zero `post_conversation` entries existing in prod for three weeks despite 28 completed conversations.
+
+**Operational alarm.** A user with `≥10` user messages and zero portrait entries from `source = 'post_conversation'` is a red flag. Cross-check `llm_usage_log` for `call_type = 'post_conversation_analysis'` rows and `conversations.analysed_at` for unprocessed completed rows to localise the failure.
 
 ---
 
@@ -443,6 +552,32 @@ Error handling, performance, security review, seed user #1 data.
 
 ---
 
+## Mobile-First Design
+
+**This is a mobile-first product.** Chat is the primary interface and most users will be on their phones. Every screen must be fully functional on mobile before adding desktop enhancements.
+
+### Rules
+
+- **Viewport height**: Always use `h-dvh` (dynamic viewport height), never `h-screen`. On iOS Safari, `100vh` doesn't shrink when the URL bar hides — `100dvh` does.
+- **Sidebars are desktop-only**: Use `hidden md:flex` (not `flex md:flex`). The mobile layout is a single full-width column.
+- **Touch targets**: All interactive elements must be at least 44×44px (`min-h-[44px]`, `min-w-[44px]`).
+- **No auto-focus on mobile**: Auto-focusing a textarea pops the keyboard immediately, covering content. Guard with `window.matchMedia('(pointer: fine)')` to focus only on mouse-driven devices.
+- **Input anchored at bottom**: Chat input is always at the bottom of the flex column — never scrolls with content. Achieved via `flex flex-col` on the container with `flex-1 overflow-y-auto` on the messages area.
+- **Overflow discipline**: Chat layout uses `overflow-hidden` so scrolling is scoped to the messages container, not the page.
+- **Safe area insets**: When adding bottom-anchored UI (chat input, tab bars), account for `env(safe-area-inset-bottom)` on iPhone X+.
+
+### Tailwind Pattern
+
+```
+Mobile (base)          → no prefix
+Tablet (768px+)        → md:
+Desktop (1024px+)      → lg:
+```
+
+Write styles for the smallest screen first, then layer in larger-screen overrides.
+
+---
+
 ## Common Pitfalls (Learned from MVP)
 
 1. **Don't let Claude do maths.** It will get cash flow wrong. Every number comes from a query or Edge Function.
@@ -458,3 +593,37 @@ Error handling, performance, security review, seed user #1 data.
 6. **Holiday spending distorts averages.** Tag foreign merchant clusters as holiday spending and show baseline vs holiday spending separately.
 
 7. **Token budget is real.** A fully populated profile + 6 months of snapshots + portrait + goals can easily hit 4000+ tokens of context. Prioritise ruthlessly. Current month data > historical. Active goals > completed.
+
+---
+
+## Known data limitations
+
+### Message audit trail
+
+The `messages.tools_used`, `messages.profile_updates`, `messages.actions_created`,
+and `messages.insights_generated` columns are populated on a forward basis only,
+starting from the deploy of S-W1.5-10 (2026-05-03 — adjust if deploy slips).
+
+Messages created before that date have these four columns as NULL by design — they
+predate the parser fix. The previous parser looked for `tool-call` / `tool-result`
+part types that don't exist in AI SDK v6 UIMessage format, so it silently wrote NULL
+for every assistant message.
+
+When running disclosure analytics across historical conversations, treat pre-cutoff
+messages as data-unavailable, not data-empty. The dedicated tables (`action_items`,
+`user_profiles`, `financial_portrait`, `value_category_rules`, `assets`,
+`liabilities`, `goals`) remain the source of truth for what was actually written.
+The message audit trail exists to reconstruct *when within a conversation* something
+happened.
+
+---
+## Playwright tests
+End-to-end tests live in `cfos-office/tests/onboarding/` (personas, runner, unit tests, and runtime output under `test-output/`).
+`.claude/settings.json` excludes this directory from Claude Code's
+auto-discovery to preserve context budget during normal dev sessions.
+
+When editing a spec or debugging a failing test, explicitly read the file in
+the session prompt's Phase 0 — for example:
+`cat cfos-office/tests/onboarding/runner/playwright-driver.ts`
+
+Deny rules only suppress auto-globbing; explicit reads still work.

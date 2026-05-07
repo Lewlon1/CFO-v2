@@ -6,13 +6,26 @@ export const bedrock = createAmazonBedrock({
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
 })
 
-const chatModelId = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
-// Log the resolved model ID once at module load so cold-start logs always
-// record exactly which Bedrock inference profile is in use. Misconfigured
+export const chatModelId = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6-20250514-v1:0'
+export const utilityModelId =
+  process.env.BEDROCK_CLAUDE_UTILITY_MODEL || 'eu.anthropic.claude-haiku-4-5-20251001-v1:0'
+// Opus is reserved for lifetime-once high-stakes generations: archetype
+// reveal (value-map) and the onboarding wow moment. Same default as the
+// existing demo/reading + value-map/reveal routes already use.
+export const opusModelId = process.env.BEDROCK_OPUS_MODEL || 'eu.anthropic.claude-opus-4-6'
+// Log the resolved model IDs once at module load so cold-start logs always
+// record exactly which Bedrock inference profiles are in use. Misconfigured
 // BEDROCK_CLAUDE_MODEL env vars previously surfaced as an opaque
 // "Something went wrong" in the chat UI (Bedrock 400 ValidationException
 // during streaming); this log makes the next occurrence diagnosable in one
 // step via the Vercel function logs.
-console.log('[bedrock] using model:', chatModelId, 'region:', process.env.AWS_REGION)
+console.log(
+  '[bedrock] chat model:', chatModelId,
+  'utility model:', utilityModelId,
+  'opus model:', opusModelId,
+  'region:', process.env.AWS_REGION,
+)
 export const chatModel = bedrock(chatModelId)
 export const analysisModel = bedrock(chatModelId)
+export const utilityModel = bedrock(utilityModelId)
+export const opusModel = bedrock(opusModelId)

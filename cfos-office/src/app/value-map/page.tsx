@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ValueMapFlow } from '@/components/value-map/value-map-flow'
 
-type Mode = 'onboarding' | 'retake' | 'checkin'
+type Mode = 'onboarding' | 'checkin' | 'personal'
 
 export default async function ValueMapPage({
   searchParams,
@@ -18,7 +18,9 @@ export default async function ValueMapPage({
   const params = await searchParams
   const rawMode = typeof params.mode === 'string' ? params.mode : 'checkin'
   const mode: Mode =
-    rawMode === 'onboarding' || rawMode === 'retake' || rawMode === 'checkin'
+    rawMode === 'onboarding' ||
+    rawMode === 'checkin' ||
+    rawMode === 'personal'
       ? rawMode
       : 'checkin'
 
@@ -29,9 +31,12 @@ export default async function ValueMapPage({
     .single()
   const currency = profile?.primary_currency ?? 'EUR'
 
+  const rawReturn = typeof params.return === 'string' ? params.return : null
+  const returnTo: 'archetype' | null = rawReturn === 'archetype' ? 'archetype' : null
+
   return (
     <div className="h-dvh w-full overflow-hidden bg-background">
-      <ValueMapFlow mode={mode} currency={currency} />
+      <ValueMapFlow mode={mode} currency={currency} returnTo={returnTo} />
     </div>
   )
 }

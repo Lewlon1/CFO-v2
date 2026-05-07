@@ -154,12 +154,14 @@ CRITICAL FORMAT RULES:
 - Remember these are sample scenarios, not real purchases. Say "the Zara scenario" or "calling Zara Foundation" — NOT "your Zara purchase".
 - Interpret what their patterns MEAN about them as a person — don't just list stats.
 - Use natural phrases like "This reads as someone who...", "Interestingly...", "The exception is revealing...", "You're the kind of person who..."
-- End with a personality interpretation, not advice.
+- End with a personality interpretation, not guidance.
 - No bullet points. No headers. No colons introducing lists.
 - No generic filler ("you're a mindful spender", "you think carefully"). Be SPECIFIC.
 - Do not mention AI, algorithms, or data analysis.
 - Use "you/your" when they provided a name, referring to them directly.
-- If timing is invalid (avg first_tap < 1.0s or total elapsed < 30s), return exactly: "INVALID"`
+- If timing is invalid (avg first_tap < 1.0s or total elapsed < 30s), return exactly: "INVALID"
+
+VOICE RULE: Never use the words "advice" or "advise" in your output. Use "guidance", "suggestion", or recast the sentence. Your role is to observe, calculate, and educate — not to advise.`
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

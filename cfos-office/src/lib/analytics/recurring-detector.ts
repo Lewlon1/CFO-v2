@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
+import { matchProvider } from '@/lib/bills/provider-registry'
 
 type TxnRow = {
   id: string
@@ -9,12 +10,31 @@ type TxnRow = {
   category_id: string | null
 }
 
+function detectFrequency(avgGap: number): { frequency: string; billingDay: boolean } {
+  if (avgGap > 3 && avgGap < 10) return { frequency: 'weekly', billingDay: false }
+  if (avgGap >= 10 && avgGap < 20) return { frequency: 'bi-weekly', billingDay: false }
+  if (avgGap >= 25 && avgGap < 38) return { frequency: 'monthly', billingDay: true }
+  if (avgGap >= 50 && avgGap < 75) return { frequency: 'bi-monthly', billingDay: true }
+  if (avgGap >= 80 && avgGap < 105) return { frequency: 'quarterly', billingDay: true }
+  if (avgGap >= 350 && avgGap < 380) return { frequency: 'annual', billingDay: true }
+  return { frequency: 'irregular', billingDay: false }
+}
+
 export async function detectAndFlagRecurring(
   supabase: SupabaseClient,
   userId: string
 ): Promise<void> {
   const sixMonthsAgo = new Date()
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+  // Fetch dismissed names so we can skip them
+  const { data: dismissedRows } = await supabase
+    .from('recurring_expenses')
+    .select('name')
+    .eq('user_id', userId)
+    .eq('status', 'dismissed')
+
+  const dismissedNames = new Set((dismissedRows ?? []).map((r) => r.name))
 
   const { data: txns } = await supabase
     .from('transactions')
@@ -36,6 +56,7 @@ export async function detectAndFlagRecurring(
 
   for (const [normDesc, rows] of groups) {
     if (rows.length < 2) continue
+    if (dismissedNames.has(normDesc)) continue
 
     const months = new Set(rows.map((r) => r.date.slice(0, 7)))
     if (months.size < 2) continue
@@ -49,24 +70,15 @@ export async function detectAndFlagRecurring(
     }
     const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length
 
-    let frequency = 'monthly'
-    let billingDay: number | null = dates[dates.length - 1].getDate()
-
-    if (avgGap > 80 && avgGap < 100) {
-      frequency = 'bi-monthly'
-    } else if (avgGap > 25 && avgGap < 35) {
-      frequency = 'monthly'
-    } else if (avgGap > 55 && avgGap < 75) {
-      frequency = 'bi-monthly'
-    } else if (avgGap > 350 && avgGap < 380) {
-      frequency = 'annual'
-    } else {
-      frequency = 'irregular'
-      billingDay = null
-    }
+    const { frequency, billingDay: hasBillingDay } = detectFrequency(avgGap)
+    const billingDay = hasBillingDay ? dates[dates.length - 1].getDate() : null
 
     const avgAmount = Math.abs(rows.reduce((s, r) => s + r.amount, 0) / rows.length)
     const latestRow = rows[rows.length - 1]
+
+    // Check if this is a known bill provider
+    const providerMatch = matchProvider(latestRow.description)
+    const providerName = providerMatch?.provider.name ?? null
 
     const ids = rows.map((r) => r.id)
     await supabase.from('transactions').update({ is_recurring: true }).in('id', ids)
@@ -83,6 +95,7 @@ export async function detectAndFlagRecurring(
           frequency,
           billing_day: billingDay,
           category_id: latestRow.category_id,
+          provider: providerName,
         },
         { onConflict: 'user_id,name', ignoreDuplicates: false }
       )

@@ -2,20 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Any Bedrock calls for categorisation use the EU inference profile.
 import { createClient } from '@/lib/supabase/server'
-import { detectFormat } from '@/lib/parsers'
-import { parseRevolutCSV } from '@/lib/parsers/revolut'
-import { parseSantanderXLSX } from '@/lib/parsers/santander'
-import { parseMonzoCSV } from '@/lib/parsers/monzo'
-import { parseStarlingCSV } from '@/lib/parsers/starling'
-import { parseHsbcCSV } from '@/lib/parsers/hsbc'
-import { parseBarclaysCSV } from '@/lib/parsers/barclays'
-import { parseGenericCSV, applyColumnMapping } from '@/lib/parsers/generic'
 import { parseScreenshot } from '@/lib/parsers/screenshot'
 import { detectHoldingsMapping } from '@/lib/parsers/holdings-detector'
 import { parseHoldingsCSV } from '@/lib/parsers/holdings-csv'
 import { parseBalanceSheetScreenshot } from '@/lib/parsers/balance-sheet-screenshot'
 import { parseBalanceSheetPDF } from '@/lib/parsers/balance-sheet-pdf'
-import { parsePdfTransactions } from '@/lib/parsers/pdf-transactions'
 import { runBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import type { ConfirmedBalanceSheetImport } from '@/lib/upload/balance-sheet-import'
 import Papa from 'papaparse'
@@ -28,7 +19,10 @@ import { runImportPipeline, type ImportableTransaction } from '@/lib/upload/pipe
 import { refreshMonthlySnapshots, extractAffectedMonths } from '@/lib/analytics/monthly-snapshot'
 import { detectAndFlagRecurring } from '@/lib/analytics/recurring-detector'
 import { detectAndFlagHolidaySpend } from '@/lib/analytics/holiday-detector'
+import { enrichLocation } from '@/lib/analytics/location-enricher'
 import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings'
+import { evaluateValueMapRetake } from '@/lib/nudges/evaluators/value-map-retake'
+import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
 import type {
   Category,
   ValueCategoryRule,
@@ -72,6 +66,9 @@ export async function POST(req: NextRequest) {
 
       // Post-import analytics
       const months = extractAffectedMonths(importTxns.map((t) => t.date))
+      // Enrich location before snapshots so future aggregations can read
+      // location data off the same batch without a second pass.
+      await enrichLocation(supabase, user.id, importBatchId)
       await refreshMonthlySnapshots(supabase, user.id, months)
       await detectAndFlagRecurring(supabase, user.id)
 
@@ -83,8 +80,24 @@ export async function POST(req: NextRequest) {
       const primaryCurrency = profile?.primary_currency ?? 'EUR'
       await detectAndFlagHolidaySpend(supabase, user.id, primaryCurrency, importBatchId)
 
-      // Check for payday (salary deposit) in imported transactions
-      evaluatePaydaySavings(supabase, user.id).catch(() => {})
+      // Check for payday (salary deposit) in imported transactions.
+      // Fire-and-forget: a failure here must not block the import response,
+      // but we want it visible in logs rather than silently swallowed.
+      evaluatePaydaySavings(supabase, user.id).catch((err) => {
+        console.error('[upload] evaluatePaydaySavings failed:', err)
+      })
+
+      // Check if CFO should propose a personal Value Map retake (cooldown-gated)
+      evaluateValueMapRetake(supabase, user.id).catch((err) => {
+        console.error('[upload] evaluateValueMapRetake failed:', err)
+      })
+
+      // Permissive onboarding completion — fire-and-forget.
+      if (stats.imported > 0) {
+        markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
+          console.error('[upload] markOnboardingCompleteIfReady failed:', err)
+        })
+      }
 
       // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
       const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([
@@ -122,18 +135,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result.summary })
     }
 
-    // Apply column mapping → return preview
-    if (body.action === 'apply-mapping') {
-      const result = applyColumnMapping(
-        body.rawRows as Record<string, string>[],
-        body.mapping as Record<string, string>,
-        body.currency ?? 'EUR'
-      )
-      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
-      const preview = await buildPreview(result.transactions, user.id, supabase)
+    // Client-parsed transactions → preview.
+    // This is the universal-parser hot path: the browser parses the
+    // file locally (universal-csv / universal-pdf / ofx / qif) and POSTs
+    // only the ParsedTransaction[] here. The raw file never touches
+    // the server on this branch.
+    if (body.action === 'preview') {
+      const incoming = body.transactions
+      if (!Array.isArray(incoming) || incoming.length === 0) {
+        return NextResponse.json({ error: 'No transactions provided.' }, { status: 400 })
+      }
+      const transactions = incoming as ParsedTransaction[]
+      const preview = await buildPreview(transactions, user.id, supabase)
       return NextResponse.json({ preview, importBatchId: randomUUID() })
     }
 
+    // Legacy 'apply-mapping' action removed: the manual column-mapping
+    // UI it powered is no longer reached — format-detect-client +
+    // repairTemplate now handle column disambiguation automatically.
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }
 
@@ -199,16 +218,12 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  if (isPdf) {
-    const buffer = await file.arrayBuffer()
-    const result = await parsePdfTransactions(buffer, user.id)
-    if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 422 })
-    }
-    const clientBatchId = formData.get('batchId') as string | null
-    const preview = await buildPreview(result.transactions, user.id, supabase)
-    return NextResponse.json({ preview, importBatchId: clientBatchId ?? randomUUID() })
-  }
+  // Transaction PDFs no longer have a server-side branch — the universal
+  // PDF parser handles them client-side (text extraction first, then a
+  // Haiku-vision fallback via /api/extract-pdf-transactions). The wizard
+  // POSTs the parsed transactions back through the JSON `action: 'preview'`
+  // path above. Balance-sheet PDFs still go through the server because
+  // their schema extraction is unrelated to the universal parser.
 
   // ── Balance sheet screenshot branch ──
   if (isImage && isBalanceSheetContext) {
@@ -228,82 +243,73 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  let parseResult: Awaited<ReturnType<typeof parseRevolutCSV>> | null = null
-  let needsColumnMapping = false
-  let columnMappingData: {
-    headers: string[]
-    autoMapping: Record<string, string>
-    rawRows: Record<string, string>[]
-  } | null = null
+  let parseResult: ParseResult | null = null
 
   if (isImage) {
+    // Transaction screenshots (bank-app receipts etc) still go through
+    // the server-side vision parser. Balance-sheet screenshots were
+    // handled higher up.
     const buffer = await file.arrayBuffer()
     const base64 = Buffer.from(buffer).toString('base64')
     const mimeType = file.type || 'image/jpeg'
     const dataUrl = `data:${mimeType};base64,${base64}`
     parseResult = await parseScreenshot(dataUrl, user.id)
-  } else if (isXlsx) {
-    const buffer = await file.arrayBuffer()
-    parseResult = parseSantanderXLSX(buffer)
-  } else {
-    const text = await file.text()
-
-    // Try holdings detection BEFORE transaction detection so a Vanguard
-    // export doesn't get mis-routed into the generic transaction parser.
-    const headerSniff = Papa.parse<Record<string, string>>(text, {
-      header: true,
-      preview: 1,
-    })
-    const headers = headerSniff.meta.fields ?? []
-    const holdingsMapping = detectHoldingsMapping(headers)
-
-    if (holdingsMapping) {
-      const holdingsResult = parseHoldingsCSV(text, holdingsMapping, filename)
-      if (holdingsResult.ok) {
-        return NextResponse.json({
-          type: 'holdings',
-          holdings: holdingsResult.holdings,
-          suggestedAssetName: holdingsResult.suggestedAssetName,
-          suggestedProvider: holdingsResult.suggestedProvider,
-        })
-      }
-      // If holdings detection matched but parsing failed, fall back to an
-      // error rather than silently trying to parse as transactions — the
-      // column shape told us it wasn't a transaction file.
-      return NextResponse.json({ error: holdingsResult.error }, { status: 422 })
-    }
-
-    const format = detectFormat(filename, text)
-    if (format === 'revolut') {
-      parseResult = parseRevolutCSV(text)
-    } else if (format === 'monzo') {
-      parseResult = parseMonzoCSV(text)
-    } else if (format === 'starling') {
-      parseResult = parseStarlingCSV(text)
-    } else if (format === 'hsbc') {
-      parseResult = parseHsbcCSV(text)
-    } else if (format === 'barclays') {
-      parseResult = parseBarclaysCSV(text)
-    } else {
-      const genericResult = parseGenericCSV(text)
-      if ('needsMapping' in genericResult && genericResult.needsMapping) {
-        needsColumnMapping = true
-        columnMappingData = {
-          headers: genericResult.headers,
-          autoMapping: genericResult.autoMapping,
-          rawRows: genericResult.rawRows,
+  } else if (isXlsx || !isPdf) {
+    // CSV / XLSX raw-file uploads no longer have a server branch — the
+    // client uploader parses them via format-detect-client.ts (xlsx
+    // flattened to CSV, Haiku template detection, parseUniversalCSV)
+    // and POSTs the parsed transactions back through JSON
+    // `action: 'preview'` above. A raw multipart CSV/XLSX upload here
+    // implies an out-of-date client; surface loudly rather than fail
+    // silently on per-bank heuristics.
+    //
+    // Holdings CSVs are the one exception: the client short-circuits
+    // holdings detection and POSTs the raw file. Preserve that path.
+    if (!isXlsx) {
+      const text = await file.text()
+      const headerSniff = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        preview: 1,
+      })
+      const headers = headerSniff.meta.fields ?? []
+      const holdingsMapping = detectHoldingsMapping(headers)
+      if (holdingsMapping) {
+        const holdingsResult = parseHoldingsCSV(text, holdingsMapping, filename)
+        if (holdingsResult.ok) {
+          return NextResponse.json({
+            type: 'holdings',
+            holdings: holdingsResult.holdings,
+            suggestedAssetName: holdingsResult.suggestedAssetName,
+            suggestedProvider: holdingsResult.suggestedProvider,
+          })
         }
-      } else {
-        parseResult = genericResult as ParseResult
+        return NextResponse.json({ error: holdingsResult.error }, { status: 422 })
       }
     }
-  }
 
-  if (needsColumnMapping && columnMappingData) {
-    return NextResponse.json({
-      needsColumnMapping: true,
-      ...columnMappingData,
-    })
+    sendAlert({
+      severity: 'warning',
+      event: 'legacy_multipart_upload',
+      user_id: user.id,
+      details: `Raw multipart CSV/XLSX upload hit /api/upload for "${filename}" — client should parse client-side via the universal pipeline.`,
+      metadata: { filename, fileSize: file.size, isXlsx },
+    }).catch(() => {})
+    return NextResponse.json(
+      {
+        error:
+          'Raw CSV/XLSX uploads are no longer handled server-side. Reload the page and upload again — the uploader parses statements client-side.',
+      },
+      { status: 422 },
+    )
+  } else {
+    // PDF transaction uploads come in via the JSON preview path — the
+    // client renders pages and calls /api/extract-pdf-transactions
+    // directly. Raw multipart PDFs here are unexpected (balance-sheet
+    // PDFs were handled higher up).
+    return NextResponse.json(
+      { error: 'Raw PDF uploads are no longer handled server-side. Use the in-browser uploader.' },
+      { status: 422 },
+    )
   }
 
   if (!parseResult) {
@@ -353,7 +359,7 @@ async function buildPreview(
       .eq('is_active', true),
     supabase
       .from('value_category_rules')
-      .select('match_type, match_value, value_category, confidence, source, context_conditions')
+      .select('id, match_type, match_value, value_category, confidence, total_signals, agreement_ratio, avg_amount_low, avg_amount_high, time_context, source, last_signal_at')
       .eq('user_id', userId),
     supabase
       .from('user_merchant_rules')

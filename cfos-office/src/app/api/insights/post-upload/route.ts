@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { analyseGap } from '@/lib/analytics/gap-analyser'
+import { computeFirstInsight } from '@/lib/analytics/insight-engine'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -12,29 +12,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { importBatchId, transactionCount } = await req.json()
+  const { importBatchId } = await req.json()
 
-  // Run gap analysis (pure data comparison, no LLM)
-  const gapResult = await analyseGap(supabase, user.id)
+  // Compute the full first-insight payload (pure data, no LLM)
+  const payload = await computeFirstInsight(supabase, user.id)
 
-  // Create the post_upload conversation with metadata
+  // Create the first_insight conversation with the payload in metadata
   const { data: conversation, error } = await supabase
     .from('conversations')
     .insert({
       user_id: user.id,
-      type: 'post_upload',
+      type: 'first_insight',
       title: 'Your first look',
       metadata: {
-        gap_analysis: gapResult,
+        first_insight_payload: payload,
         import_batch_id: importBatchId ?? null,
-        transaction_count: transactionCount ?? 0,
+        transaction_count: payload.transactionCount,
       },
     })
     .select('id')
     .single()
 
   if (error || !conversation) {
-    console.error('Failed to create post-upload conversation:', error)
+    console.error('Failed to create first-insight conversation:', error)
     return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
   }
 

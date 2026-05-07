@@ -1,13 +1,27 @@
 'use client'
 
-import Link from 'next/link'
 import { Scale } from 'lucide-react'
+import { useChatContext } from '@/components/chat/ChatProvider'
 
 type Props = {
   onUploadClick: () => void
 }
 
 export function EmptyState({ onUploadClick }: Props) {
+  let chatCtx: ReturnType<typeof useChatContext> | null = null
+  try {
+    chatCtx = useChatContext()
+  } catch {
+    // Not inside ChatProvider
+  }
+
+  function handleStartConversation() {
+    if (chatCtx) {
+      chatCtx.startConversation('balance_sheet_setup')
+      chatCtx.setInput("I'd like to set up my balance sheet — what do you need to know?")
+    }
+  }
+
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -21,12 +35,13 @@ export function EmptyState({ onUploadClick }: Props) {
         upload a statement below.
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
-        <Link
-          href="/chat?topic=balance_sheet_setup"
+        <button
+          type="button"
+          onClick={handleStartConversation}
           className="rounded-md bg-primary text-primary-foreground px-5 py-2.5 text-sm font-medium min-h-[44px] inline-flex items-center justify-center"
         >
           Start a conversation
-        </Link>
+        </button>
         <button
           type="button"
           onClick={onUploadClick}

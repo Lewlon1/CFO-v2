@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
+import { extractFromConversation } from '@/lib/ai/portrait-extraction'
+import { sendAlert } from '@/lib/alerts/notify'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -57,21 +60,32 @@ export async function POST(req: NextRequest) {
     .eq('status', 'active')
     .select('id')
 
-  // Fire-and-forget post-conversation analysis for completed conversations
+  // Post-conversation portrait extraction for any conversations we just
+  // marked completed. Wrapped in `after()` so the work survives past the
+  // response (a bare `fetch().catch()` here was killed by Vercel before
+  // landing — see S-W1.5-11). On failure, `analysed_at` stays NULL and the
+  // daily cron at /api/cron/portrait-extraction picks it up.
   if (completedConvs && completedConvs.length > 0) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     for (const conv of completedConvs) {
-      fetch(`${appUrl}/api/analyze-conversation`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          conversation_id: conv.id,
-          user_id: user.id,
-        }),
-      }).catch(() => {})
+      after(async () => {
+        try {
+          const serviceSupabase = createServiceClient()
+          await extractFromConversation(serviceSupabase, {
+            conversationId: conv.id,
+            userId: user.id,
+          })
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.error('[review/start] post-conversation extraction failed:', message)
+          await sendAlert({
+            severity: 'critical',
+            event: 'portrait_extraction_after_failed',
+            user_id: user.id,
+            details: message,
+            metadata: { conversationId: conv.id, callSite: 'review_start_route' },
+          }).catch(() => {})
+        }
+      })
     }
 
     // Stamp reviewed_at on any completed monthly reviews

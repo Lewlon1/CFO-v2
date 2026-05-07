@@ -1,15 +1,21 @@
 import { streamText, generateText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
 import { chatModel } from '@/lib/ai/provider';
+import { logBedrockUsage } from '@/lib/ai/usage-logger';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
 import { createToolbox, type ToolContext } from '@/lib/ai/tools';
 import { sendAlert, wrapToolsWithAlerts } from '@/lib/alerts/notify';
+import { extractMessageAudit } from '@/lib/ai/audit-trail';
+import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete';
+import { extractFromConversation } from '@/lib/ai/portrait-extraction';
+import { createServiceClient } from '@/lib/supabase/service';
 
 export const maxDuration = 60;
 
@@ -40,8 +46,7 @@ export async function POST(req: Request) {
     messages: UIMessage[];
     conversationId: string | null;
     conversationType?: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    conversationMetadata?: Record<string, any>;
+    conversationMetadata?: Record<string, unknown>;
   };
 
   // Validate message length
@@ -57,8 +62,7 @@ export async function POST(req: Request) {
 
   // Fetch existing conversation to get type + metadata (if one exists)
   let conversationType: string | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let conversationMetadata: Record<string, any> | null = null;
+  let conversationMetadata: Record<string, unknown> | null = null;
   if (conversationId) {
     const { data: conv } = await supabase
       .from('conversations')
@@ -68,7 +72,12 @@ export async function POST(req: Request) {
       .single();
     if (conv) {
       conversationType = conv.type ?? undefined;
-      conversationMetadata = conv.metadata ?? null;
+      // metadata is Json | null in the schema; narrow to a plain record so the
+      // downstream prompt builders can index keys without re-asserting.
+      conversationMetadata =
+        conv.metadata && typeof conv.metadata === 'object' && !Array.isArray(conv.metadata)
+          ? (conv.metadata as Record<string, unknown>)
+          : null;
     }
   } else if (requestedType) {
     // New conversation with a specific type (e.g. trip_planning, scenario)
@@ -90,22 +99,34 @@ export async function POST(req: Request) {
       .eq('status', 'active')
       .select('id');
 
-    // Fire-and-forget post-conversation analysis for completed conversations
+    // Post-conversation portrait extraction for any conversations we just
+    // marked completed. Wrapped in `after()` so the work survives past the
+    // streaming response (a bare `fetch().catch()` here was killed by Vercel
+    // before landing — see S-W1.5-11). On failure, `analysed_at` stays NULL
+    // and the daily cron at /api/cron/portrait-extraction picks it up.
     if (completedConvs && completedConvs.length > 0) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
       for (const conv of completedConvs) {
-        fetch(`${appUrl}/api/analyze-conversation`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
-            conversation_id: conv.id,
-            user_id: user.id,
-          }),
-        }).catch(() => {
-          // Fire-and-forget — don't block conversation creation
+        after(async () => {
+          try {
+            // Use a fresh service-role client inside `after()` so the work
+            // doesn't depend on the request's auth cookies still being valid
+            // and isn't gated by RLS on `financial_portrait` / `profiling_queue`.
+            const serviceSupabase = createServiceClient();
+            await extractFromConversation(serviceSupabase, {
+              conversationId: conv.id,
+              userId: user.id,
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[chat] post-conversation extraction failed:', message);
+            await sendAlert({
+              severity: 'critical',
+              event: 'portrait_extraction_after_failed',
+              user_id: user.id,
+              details: message,
+              metadata: { conversationId: conv.id, callSite: 'chat_route' },
+            }).catch(() => {});
+          }
         });
       }
 
@@ -149,6 +170,12 @@ export async function POST(req: Request) {
         role: 'user',
         content: textContent,
       });
+
+      // Permissive onboarding completion — fire-and-forget. Helper itself
+      // enforces the >=3 user-message threshold; no pre-count needed here.
+      markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
+        console.error('[chat] markOnboardingCompleteIfReady failed:', err);
+      });
     }
   }
 
@@ -175,10 +202,24 @@ export async function POST(req: Request) {
   const assistantMessageDbId = crypto.randomUUID();
 
   // Stream response
+  //
+  // The system prompt is passed as a system-role message (rather than the
+  // top-level `system:` param) so we can attach a Bedrock cache point to it
+  // via providerOptions. First turn of a conversation writes the cache
+  // (~1.25x input cost for the cached segment); subsequent turns within the
+  // 5-minute TTL read from cache (~0.1x).
   const result = streamText({
     model: chatModel,
-    system: systemPrompt,
-    messages: modelMessages,
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
+        providerOptions: {
+          bedrock: { cachePoint: { type: 'default' } },
+        },
+      },
+      ...modelMessages,
+    ],
     tools: {
       get_current_date: {
         description:
@@ -218,13 +259,15 @@ export async function POST(req: Request) {
             .upsert(
               {
                 user_id: user.id,
-                match_type: 'category_id',
+                match_type: 'category' as const,
                 match_value: category_slug,
                 value_category,
                 confidence: 1.0,
-                source: 'user_correction_chat',
+                source: 'correction',
+                last_signal_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
               },
-              { onConflict: 'user_id,match_type,match_value' },
+              { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' },
             );
 
           if (ruleError) {
@@ -463,8 +506,27 @@ export async function POST(req: Request) {
       return undefined;
     },
     onFinish: async ({ messages: responseMessages }) => {
-      // Get token usage from the stream result
+      // Get token usage + provider metadata from the stream result
       const usage = await result.usage;
+      const providerMetadata = await result.providerMetadata;
+      const bedrockMeta = (providerMetadata?.bedrock ?? {}) as {
+        usage?: { cacheWriteInputTokens?: number };
+      };
+      const cacheReadTokens = usage?.inputTokenDetails?.cacheReadTokens;
+      const cacheWriteTokens =
+        usage?.inputTokenDetails?.cacheWriteTokens ?? bedrockMeta.usage?.cacheWriteInputTokens;
+
+      logBedrockUsage({
+        callSite: 'chat',
+        model: 'sonnet',
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        cacheCreationTokens: cacheWriteTokens,
+        cacheReadTokens,
+        userId: user.id,
+        conversationId: activeConversationId ?? undefined,
+        timestamp: new Date().toISOString(),
+      });
       // Save assistant response — get the last assistant message for text
       const assistantMsg = responseMessages
         .filter((m) => m.role === 'assistant')
@@ -473,53 +535,14 @@ export async function POST(req: Request) {
       if (assistantMsg) {
         let textContent = extractTextFromParts(assistantMsg);
 
-        // Extract tool metadata from ALL messages. In CoreMessage format
-        // (what onFinish receives), tool calls live in assistant messages
-        // as { type: 'tool-call', toolCallId, toolName, input } parts and
-        // their results live in subsequent tool messages as
-        // { type: 'tool-result', toolCallId, toolName, output } parts.
-        // Match call→result by toolCallId so we only count tools that
-        // actually completed.
-        const toolsUsed: string[] = [];
-        const actionsCreated: Array<{ id: string; title: string }> = [];
-        const profileUpdates: Array<{ field: string }> = [];
-
-        const toolCalls = new Map<string, string>(); // toolCallId → toolName
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const toolResults = new Map<string, any>(); // toolCallId → output
-
-        for (const msg of responseMessages) {
-          if (!msg.parts) continue;
-          for (const part of msg.parts) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const anyPart = part as any;
-
-            if (anyPart.type === 'tool-call' && anyPart.toolName && anyPart.toolCallId) {
-              toolCalls.set(anyPart.toolCallId, anyPart.toolName);
-            }
-            if (anyPart.type === 'tool-result' && anyPart.toolCallId) {
-              toolResults.set(anyPart.toolCallId, anyPart.output ?? anyPart.result);
-            }
-          }
-        }
-
-        for (const [callId, toolName] of toolCalls) {
-          if (!toolResults.has(callId)) continue; // skip tools that didn't complete
-          if (!toolsUsed.includes(toolName)) toolsUsed.push(toolName);
-
-          const out = toolResults.get(callId);
-          if (toolName === 'create_action_item' && out?.success && out?.action_item) {
-            actionsCreated.push({
-              id: out.action_item.id,
-              title: out.action_item.title,
-            });
-          }
-          if (toolName === 'update_user_profile' && out?.saved) {
-            for (const field of out.saved) {
-              profileUpdates.push({ field });
-            }
-          }
-        }
+        // Extract tool metadata. AI SDK v6 represents UIMessage tool parts as
+        // { type: `tool-${toolName}`, state: 'output-available', output: ... }.
+        // The hallucination guard below mutates `toolsUsed` in place when a
+        // forced retry of record_value_classifications recovers — that's why
+        // the const destructure is fine (we never reassign the variable, only
+        // .push() onto the array).
+        const { toolsUsed, profileUpdates, actionsCreated, insightsGenerated } =
+          extractMessageAudit(responseMessages);
 
         // ── Hallucination guard for record_value_classifications ─────────
         // Detect when the model says "saved/got it/etc." in a value-mapping
@@ -590,7 +613,6 @@ export async function POST(req: Request) {
             const matched = retryResults.find(
               (r) => r?.toolName === 'record_value_classifications'
             );
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const out = matched?.output ?? matched?.result;
             if (out?.success) {
               retrySucceeded = true;
@@ -631,6 +653,7 @@ export async function POST(req: Request) {
             tools_used: toolsUsed.length > 0 ? toolsUsed : null,
             actions_created: actionsCreated.length > 0 ? actionsCreated : null,
             profile_updates: profileUpdates.length > 0 ? profileUpdates : null,
+            insights_generated: insightsGenerated.length > 0 ? insightsGenerated : null,
             prompt_tokens: usage?.inputTokens ?? null,
             completion_tokens: usage?.outputTokens ?? null,
           });

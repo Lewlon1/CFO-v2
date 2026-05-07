@@ -4,6 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import { VALUE_COLORS, formatShortMonth } from '@/lib/constants/dashboard'
+import { valueCategories } from '@/lib/tokens'
 import type { TrendMonth } from '@/app/api/dashboard/trends/route'
 
 type Props = {
@@ -75,10 +76,10 @@ export function ValuesTrendChart({ months }: Props) {
               VALUE_COLORS[String(name)]?.label ?? String(name),
             ]}
           />
-          <Area type="monotone" dataKey="foundation" stackId="1" fill={VALUE_COLORS.foundation.fill} stroke={VALUE_COLORS.foundation.fill} fillOpacity={0.7} />
-          <Area type="monotone" dataKey="investment" stackId="1" fill={VALUE_COLORS.investment.fill} stroke={VALUE_COLORS.investment.fill} fillOpacity={0.7} />
-          <Area type="monotone" dataKey="burden" stackId="1" fill={VALUE_COLORS.burden.fill} stroke={VALUE_COLORS.burden.fill} fillOpacity={0.7} />
-          <Area type="monotone" dataKey="leak" stackId="1" fill={VALUE_COLORS.leak.fill} stroke={VALUE_COLORS.leak.fill} fillOpacity={0.7} />
+          <Area type="monotone" dataKey="foundation" stackId="1" fill={valueCategories.foundation.color} stroke={valueCategories.foundation.color} fillOpacity={0.7} />
+          <Area type="monotone" dataKey="investment" stackId="1" fill={valueCategories.investment.color} stroke={valueCategories.investment.color} fillOpacity={0.7} />
+          <Area type="monotone" dataKey="burden" stackId="1" fill={valueCategories.burden.color} stroke={valueCategories.burden.color} fillOpacity={0.7} />
+          <Area type="monotone" dataKey="leak" stackId="1" fill={valueCategories.leak.color} stroke={valueCategories.leak.color} fillOpacity={0.7} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

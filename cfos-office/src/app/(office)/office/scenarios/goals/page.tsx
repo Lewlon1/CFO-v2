@@ -1,0 +1,54 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/supabase/types'
+import { GoalsEmptyStateCTA } from './GoalsEmptyStateCTA'
+import { GoalCard } from './GoalCard'
+
+type Goal = Database['public']['Tables']['goals']['Row']
+
+export default async function GoalsPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: goals } = await supabase
+    .from('goals')
+    .select('*')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+
+  const activeGoals = (goals ?? []).filter((g: Goal) => g.status === 'active')
+  const completedGoals = (goals ?? []).filter((g: Goal) => g.status === 'completed')
+
+  return (
+    <div className="px-3.5 pt-2 pb-24 space-y-4">
+      {activeGoals.length === 0 && completedGoals.length === 0 ? (
+        <div className="rounded-[10px] border border-[rgba(255,255,255,0.04)] bg-bg-deep p-6 text-center space-y-3">
+          <div className="text-3xl" aria-hidden="true">◎</div>
+          <h2 className="text-[13px] font-semibold text-text-primary">No goals yet</h2>
+          <p className="text-[12px] text-text-secondary max-w-sm mx-auto">
+            Tell your CFO about a financial goal and it will track your progress here.
+          </p>
+          <GoalsEmptyStateCTA />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {activeGoals.map((goal: Goal) => (
+            <GoalCard key={goal.id} goal={goal} />
+          ))}
+          {completedGoals.length > 0 && (
+            <>
+              <h2 className="font-data text-[8px] tracking-[0.08em] uppercase text-[rgba(245,245,240,0.25)] pt-3 px-1">
+                Completed
+              </h2>
+              {completedGoals.map((goal: Goal) => (
+                <GoalCard key={goal.id} goal={goal} />
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

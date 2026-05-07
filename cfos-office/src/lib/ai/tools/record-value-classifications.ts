@@ -22,24 +22,14 @@ const classificationSchema = z
     value_category: z
       .enum(['foundation', 'investment', 'burden', 'leak'])
       .describe('The value category the user chose'),
-    context_conditions: z
-      .object({
-        hour_range: z
-          .object({ from: z.number().min(0).max(23), to: z.number().min(0).max(23) })
-          .optional()
-          .describe(
-            'Hour-of-day window when this rule applies. Wraps midnight, e.g. {from:18,to:24} = "6pm onwards".'
-          ),
-        day_type: z
-          .enum(['weekday', 'weekend', 'friday_evening'])
-          .optional(),
-        amount_range: z
-          .object({ min: z.number().optional(), max: z.number().optional() })
-          .optional(),
-      })
+    time_context: z
+      .enum([
+        'weekday_early', 'weekday_midday', 'weekday_evening', 'weekday_late',
+        'weekend_morning', 'weekend_afternoon', 'weekend_evening',
+      ])
       .optional()
       .describe(
-        'Explicit context for when this rule applies. ONLY use with merchant_pattern when the user states a contextual rule like "Aldi after 6pm = leak".'
+        'Time context bucket for when this rule applies. ONLY use with merchant_pattern when the user states a contextual rule like "Aldi in the evening = leak". Map user language to the closest bucket.'
       ),
     apply_to_similar: z
       .boolean()
@@ -73,12 +63,12 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
       'TWO MODES:\n' +
       '1. Specific transaction: pass `transaction_id` (a real UUID from the review queue or ' +
       'context). Use when the user is reviewing one transaction.\n' +
-      '2. Merchant rule: pass `merchant_pattern` (e.g. "Aldi") plus optional `context_conditions` ' +
-      '(e.g. hour_range). Use when the user states a general rule like "Aldi after 6pm = leak". ' +
+      '2. Merchant rule: pass `merchant_pattern` (e.g. "Aldi") plus optional `time_context` ' +
+      '(e.g. "weekday_evening"). Use when the user states a general rule like "Aldi in the evening = leak". ' +
       'NEVER fabricate a transaction_id like "UNKNOWN" — use merchant_pattern instead.\n\n' +
-      'For contextual rules ("Aldi after 6pm = leak, before 6pm = foundation"), call this tool ' +
-      'TWICE — once with hour_range {from:18,to:24} and category=leak, once with ' +
-      'hour_range {from:0,to:18} and category=foundation.',
+      'For contextual rules ("Aldi in the evening = leak, daytime = foundation"), call this tool ' +
+      'TWICE — once with time_context="weekday_evening" and category=leak, once with ' +
+      'time_context="weekday_midday" and category=foundation.',
     inputSchema: z.object({
       classifications: z
         .array(classificationSchema)
@@ -160,24 +150,21 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
         // ── Mode 2: merchant-level rules ──
         for (const c of merchantMode) {
           const normDesc = normaliseMerchant(c.merchant_pattern!)
-          const conditions =
-            c.context_conditions && Object.keys(c.context_conditions).length > 0
-              ? c.context_conditions
-              : null
-
           const { error: ruleErr } = await ctx.supabase
             .from('value_category_rules')
             .upsert(
               {
                 user_id: ctx.userId,
-                match_type: 'merchant_contains',
+                match_type: c.time_context ? 'merchant_time' as const : 'merchant' as const,
                 match_value: normDesc,
                 value_category: c.value_category,
                 confidence: 0.9,
-                source: conditions ? 'user_contextual_rule' : 'user_explicit',
-                context_conditions: conditions,
+                time_context: c.time_context ?? null,
+                source: 'correction',
+                last_signal_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
               },
-              { onConflict: 'user_id,match_type,match_value' }
+              { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' }
             )
 
           if (ruleErr) {

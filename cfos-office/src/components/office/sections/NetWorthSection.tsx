@@ -1,0 +1,51 @@
+'use client'
+
+import Link from 'next/link'
+import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
+
+interface NetWorthSectionProps {
+  totalAssets: number
+  totalLiabilities: number
+  currency?: string
+  hasData: boolean
+}
+
+export function NetWorthSection({ totalAssets, totalLiabilities, currency = 'EUR', hasData }: NetWorthSectionProps) {
+  if (!hasData) {
+    return (
+      <Link
+        href="/office/net-worth/upload"
+        className="flex flex-col items-center gap-3 py-6 text-center w-full"
+      >
+        <p className="text-sm text-text-secondary">
+          Track your assets and debts to see your net worth
+        </p>
+        <span className="text-sm font-medium text-[#06B6D4]">Set up &rarr;</span>
+      </Link>
+    )
+  }
+
+  const netWorth = totalAssets - totalLiabilities
+  const pctAssets = totalAssets > 0 ? (totalAssets / (totalAssets + totalLiabilities)) * 100 : 100
+
+  return (
+    <div className="pt-1">
+      <div className="flex items-baseline gap-1.5">
+        <span className={`font-data text-[18px] font-extrabold tracking-[-0.03em] tabular-nums ${netWorth >= 0 ? 'text-[#06B6D4]' : 'text-[#F43F5E]'}`}>
+          {formatCurrencyRounded(netWorth, currency)}
+        </span>
+        <span className="text-[11px] text-[rgba(245,245,240,0.3)]">net worth</span>
+      </div>
+      {(totalAssets > 0 || totalLiabilities > 0) && (
+        <div className="flex h-[5px] rounded-[3px] overflow-hidden mt-2">
+          <div style={{ flex: pctAssets, background: '#06B6D4' }} />
+          {totalLiabilities > 0 && (
+            <div style={{ flex: 100 - pctAssets, background: '#F43F5E' }} />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default NetWorthSection

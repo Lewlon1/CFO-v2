@@ -3,6 +3,7 @@
 import { UIMessage } from 'ai';
 import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 
 // ── Markdown styling ──────────────────────────────────────────────────────────
@@ -27,14 +28,30 @@ const markdownComponents: Components = {
   code: ({ children }) => <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs font-mono">{children}</code>,
   hr: () => <hr className="my-3 border-border" />,
   blockquote: ({ children }) => <blockquote className="border-l-2 border-border pl-3 italic text-foreground/80 my-1.5">{children}</blockquote>,
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-3 -mx-1">
+      <table className="w-full text-sm border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="border-b border-border">{children}</thead>,
+  tbody: ({ children }) => <tbody className="divide-y divide-border/50">{children}</tbody>,
+  tr: ({ children }) => <tr>{children}</tr>,
+  th: ({ children }) => (
+    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{children}</th>
+  ),
+  td: ({ children }) => (
+    <td className="px-3 py-2 text-sm text-foreground/90 whitespace-nowrap">{children}</td>
+  ),
 };
 import { TappableOptions } from './TappableOptions';
+import { StatCardBlock } from './StatCardBlock';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 import { ScenarioResult } from './ScenarioResult';
 import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
 import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
+import { CfoThinking } from '@/components/brand/CfoThinking';
 import {
   buildActionItemCard,
   buildProfileUpdateCard,
@@ -62,6 +79,25 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 // ── Parsers ────────────────────────────────────────────────────────────────────
+
+const STATS_BLOCK = /\[STATS\]([\s\S]*?)\[\/STATS\]/g;
+
+function extractStats(text: string): {
+  text: string;
+  stats: Array<{ label: string; value: string }>;
+} {
+  const stats: Array<{ label: string; value: string }> = [];
+  const cleaned = text.replace(STATS_BLOCK, (_, body) => {
+    for (const line of String(body).split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const [label, value] = trimmed.split('|').map((s) => s.trim());
+      if (label && value) stats.push({ label, value });
+    }
+    return ''; // strip the block from rendered text
+  });
+  return { text: cleaned, stats };
+}
 
 function parseOptions(content: string): { text: string; options: string[] | null } {
   // Primary: explicit [OPTIONS] blocks. Accept both closed and unclosed forms
@@ -163,13 +199,18 @@ function parseMessageContent(rawContent: string): {
   text: string;
   options: string[] | null;
   cta: { type: string; label: string } | null;
+  stats: Array<{ label: string; value: string }>;
 } {
-  const withOptions = parseOptions(rawContent);
+  // Order matters: extract stats first so the [STATS] block is stripped
+  // before any downstream parsers (or markdown) see it.
+  const withStats = extractStats(rawContent);
+  const withOptions = parseOptions(withStats.text);
   const withCTA = parseCTA(withOptions.text);
   return {
     text: withCTA.text,
     options: withOptions.options,
     cta: withCTA.cta,
+    stats: withStats.stats,
   };
 }
 
@@ -262,10 +303,9 @@ export function MessageList({
                   toolName === 'model_scenario' &&
                   output &&
                   typeof output === 'object' &&
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (output as any).scenario &&
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  !(output as any).error
+                  'scenario' in output &&
+                  (output as { scenario?: unknown }).scenario &&
+                  !('error' in output && (output as { error?: unknown }).error)
                 ) {
                   scenarioResults.push(output);
                 }
@@ -275,16 +315,17 @@ export function MessageList({
                   toolName === 'plan_trip' &&
                   output &&
                   typeof output === 'object' &&
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (output as any).type === 'trip_plan'
+                  (output as { type?: unknown }).type === 'trip_plan'
                 ) {
                   tripPlanResults.push(output);
                 }
 
                 // Saved-item confirmation cards for write tools
                 if (output && typeof output === 'object') {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const o = output as any;
+                  // The downstream card builders expect a record-like shape; the
+                  // tool outputs here are validated server-side against zod schemas
+                  // before reaching the client, so dynamic keying is safe.
+                  const o = output as Record<string, unknown>;
                   if (toolName === 'create_action_item' && o.success && o.action_item) {
                     savedCards.push(buildActionItemCard(o, toolCallId));
                   } else if (
@@ -333,9 +374,9 @@ export function MessageList({
           return acc + (needsSpace ? ' ' : '') + part;
         }, '');
 
-        const { text, options, cta } = message.role === 'assistant'
+        const { text, options, cta, stats } = message.role === 'assistant'
           ? parseMessageContent(rawText)
-          : { text: rawText, options: null, cta: null };
+          : { text: rawText, options: null, cta: null, stats: [] as Array<{ label: string; value: string }> };
 
         return (
           <div
@@ -367,11 +408,16 @@ export function MessageList({
                 }
               >
                 {message.role === 'assistant' ? (
-                  <Markdown components={markdownComponents}>{text}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{text}</Markdown>
                 ) : (
                   <p className="whitespace-pre-wrap">{text}</p>
                 )}
               </div>
+
+              {/* Stat cards from [STATS] block (assistant only) */}
+              {message.role === 'assistant' && stats.length > 0 && (
+                <StatCardBlock cards={stats} />
+              )}
 
               {/* Tappable options */}
               {options && onOptionSelect && (
@@ -438,21 +484,14 @@ export function MessageList({
       {(status === 'submitted' || status === 'streaming') &&
         visibleMessages[visibleMessages.length - 1]?.role !== 'assistant' && (
           <div className="flex justify-start">
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-bold text-[10px] flex-shrink-0">
-                  £
-                </div>
-                <span className="text-xs text-muted-foreground font-medium">
-                  Your CFO
-                </span>
-              </div>
-              <div className="flex gap-1.5 px-3 py-1">
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:0ms]" />
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:150ms]" />
-                <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:300ms]" />
-              </div>
-            </div>
+            <CfoThinking
+              className="px-1 py-1"
+              labels={[
+                'Your CFO is reading this\u2026',
+                'Pulling the right numbers\u2026',
+                'Writing you back\u2026',
+              ]}
+            />
           </div>
         )}
 

@@ -2,8 +2,24 @@
   "regions": ["dub1"],
   "crons": [
     {
+      "path": "/api/cron/portrait-extraction",
+      "schedule": "0 6 * * *"
+    },
+    {
       "path": "/api/cron/daily-bills",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/nudges-daily",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/nudges-weekly",
+      "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/cron/nudges-monthly",
+      "schedule": "0 8 1 * *"
     }
   ]
 }

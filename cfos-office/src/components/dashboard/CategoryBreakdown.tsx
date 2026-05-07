@@ -3,16 +3,18 @@
 import { CATEGORY_COLORS, formatCurrency } from '@/lib/constants/dashboard'
 import type { CategorySummary } from '@/app/api/dashboard/summary/route'
 import * as LucideIcons from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getIcon(name: string): React.ComponentType<any> {
-  // Convert kebab-case to PascalCase
+function getIcon(name: string): LucideIcon {
+  // Convert kebab-case to PascalCase to look up the named export.
   const pascal = name
     .split('-')
     .map(s => s.charAt(0).toUpperCase() + s.slice(1))
     .join('')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (LucideIcons as any)[pascal] ?? LucideIcons.Circle
+  // The lucide-react module is a Record<string, LucideIcon> at runtime; the
+  // namespace cast here is the cleanest way to do a dynamic lookup.
+  const icons = LucideIcons as unknown as Record<string, LucideIcon>
+  return icons[pascal] ?? LucideIcons.Circle
 }
 
 type Props = {

@@ -1,11 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { categoriseByRules } from '@/lib/categorisation/rules-engine'
-import { llmCategorise } from '@/lib/categorisation/llm-categoriser'
+import { llmCategorise, saveLearnedMerchantRules } from '@/lib/categorisation/llm-categoriser'
 import { assignValueCategory } from '@/lib/categorisation/value-categoriser'
-import { extractSignals, type MerchantHistory } from '@/lib/categorisation/context-signals'
+import { extractSignals, CATEGORY_AMBIGUITY, type MerchantHistory } from '@/lib/categorisation/context-signals'
+import { resolveValueCategory, loadUserRules } from '@/lib/prediction/predictor'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { computeCategorizationStats, type CategorizationStats } from '@/lib/categorisation/categorisation-stats'
-import { loadExistingKeys, isDuplicate } from './duplicate-detector'
+import { sendAlert } from '@/lib/alerts/notify'
+import { loadExistingKeys, isDuplicate, computeDedupeHash } from './duplicate-detector'
 import type { ParsedTransaction, Category, ValueCategoryRule, UserMerchantRule, RecurringMatch } from '@/lib/parsers/types'
 import type { CatResult } from '@/lib/categorisation/rules-engine'
 
@@ -27,6 +29,7 @@ type TxnToInsert = ParsedTransaction & {
   confidence: number
   valueCategory: string
   valueConfidence: number
+  valuePredictionSource: string
   needsLLM: boolean
   tier: CatResult['tier']
 }
@@ -58,10 +61,7 @@ export async function runImportPipeline(
       .from('categories')
       .select('id, name, tier, icon, color, examples, default_value_category')
       .eq('is_active', true),
-    supabase
-      .from('value_category_rules')
-      .select('match_type, match_value, value_category, confidence, source, context_conditions')
-      .eq('user_id', opts.userId),
+    loadUserRules(supabase, opts.userId).then(data => ({ data, error: null })),
     supabase
       .from('user_merchant_rules')
       .select('normalised_merchant, category_id, confidence')
@@ -108,6 +108,11 @@ export async function runImportPipeline(
   // Pass 1: rules-based categorisation
   const toInsert: TxnToInsert[] = []
 
+  // Track user category picks from the preview so we can persist them as
+  // user_merchant_rules after the loop. Future imports of the same merchant
+  // will then auto-categorise via the rules engine without LLM fallback.
+  const learnedFromPreview = new Map<string, string>()
+
   for (const txn of transactions) {
     if (opts.skipDuplicates !== false && isDuplicate(txn, existingKeys)) {
       stats.duplicates++
@@ -125,7 +130,7 @@ export async function runImportPipeline(
     if (txn.presetCategoryId !== undefined || txn.presetValueCategory !== undefined) {
       const categoryId = txn.presetCategoryId !== undefined ? txn.presetCategoryId : null
       const valResult = txn.presetValueCategory
-        ? { valueCategory: txn.presetValueCategory, confidence: 1.0 }
+        ? { valueCategory: txn.presetValueCategory, confidence: 1.0, source: 'user_confirmed' as const }
         : assignValueCategory(txn.description, categoryId, userRules, categories, signals, txn.amount)
       toInsert.push({
         ...txn,
@@ -133,9 +138,17 @@ export async function runImportPipeline(
         confidence: 1.0,
         valueCategory: valResult.valueCategory,
         valueConfidence: valResult.confidence,
+        valuePredictionSource: mapSource(valResult.source),
         needsLLM: false,
         tier: 'user_rule',
       })
+      // Capture the pick as a learned merchant rule. Skip empty string (the
+      // user explicitly chose "Uncategorised" — don't lock that in) and skip
+      // when normaliseMerchant returns nothing.
+      if (typeof categoryId === 'string' && categoryId.length > 0) {
+        const normalised = normaliseMerchant(txn.description)
+        if (normalised) learnedFromPreview.set(normalised, categoryId)
+      }
       continue
     }
 
@@ -150,22 +163,40 @@ export async function runImportPipeline(
     const isRecurring = recurringExpenses.some(
       (r) => normaliseMerchant(txn.description) === normaliseMerchant(r.name)
     )
+    // Recurring essentials bypass the predictor — high confidence from structure
+    if (isRecurring && catResult.categoryId) {
+      const cat = categories.find(c => c.id === catResult.categoryId)
+      if (cat?.default_value_category && (CATEGORY_AMBIGUITY[catResult.categoryId] ?? 'high') === 'low') {
+        toInsert.push({
+          ...txn,
+          categoryId: catResult.categoryId,
+          confidence: catResult.confidence,
+          valueCategory: cat.default_value_category,
+          valueConfidence: 0.9,
+          valuePredictionSource: 'recurring_essential',
+          needsLLM: false,
+          tier: catResult.tier,
+        })
+        continue
+      }
+    }
 
-    const valResult = assignValueCategory(
-      txn.description,
-      catResult.categoryId,
+    const valResult = resolveValueCategory(
       userRules,
       categories,
-      { ...signals, is_recurring: isRecurring },
-      txn.amount
+      normaliseMerchant(txn.description),
+      catResult.categoryId,
+      txn.amount,
+      new Date(txn.date)
     )
 
     toInsert.push({
       ...txn,
       categoryId: catResult.categoryId,
       confidence: catResult.confidence,
-      valueCategory: valResult.valueCategory,
+      valueCategory: valResult.value_category ?? 'no_idea',
       valueConfidence: valResult.confidence,
+      valuePredictionSource: mapSource(valResult.source),
       needsLLM: catResult.categoryId === null,
       tier: catResult.tier,
     })
@@ -174,10 +205,17 @@ export async function runImportPipeline(
   // Pass 2: batch LLM for unmatched
   const unmatched = toInsert.filter((t) => t.needsLLM)
   if (unmatched.length > 0) {
+    const unmatchedDescriptions = unmatched.map((t) => t.description)
     const llmResults = await llmCategorise(
-      unmatched.map((t) => t.description),
+      unmatchedDescriptions,
       categories,
       opts.userId
+    )
+    await saveLearnedMerchantRules(
+      supabase,
+      opts.userId,
+      unmatchedDescriptions,
+      llmResults
     )
     for (const result of llmResults) {
       const txn = unmatched[result.index - 1]
@@ -185,25 +223,60 @@ export async function runImportPipeline(
         txn.categoryId = result.category_id
         txn.confidence = result.confidence
         txn.tier = 'keyword' // LLM results tracked separately in stats via needsLLM
-        const signals = extractSignals(
-          { date: txn.date, description: txn.description, amount: txn.amount },
-          merchantHistory,
-          batchSummaries
+        const valResult = resolveValueCategory(
+          userRules,
+          categories,
+          normaliseMerchant(txn.description),
+          txn.categoryId,
+          txn.amount,
+          new Date(txn.date)
         )
-        const valResult = assignValueCategory(
-          txn.description, txn.categoryId, userRules, categories, signals, txn.amount
-        )
-        txn.valueCategory = valResult.valueCategory
+        txn.valueCategory = valResult.value_category ?? 'no_idea'
         txn.valueConfidence = valResult.confidence
+        txn.valuePredictionSource = mapSource(valResult.source)
       }
+    }
+  }
+
+  // Persist user category picks from the preview as merchant rules so the
+  // next import of the same merchant auto-categorises via the rules engine.
+  // Best-effort: a failure here must not block the import.
+  if (learnedFromPreview.size > 0) {
+    const rows = Array.from(learnedFromPreview, ([normalised, categoryId]) => ({
+      user_id: opts.userId,
+      normalised_merchant: normalised,
+      category_id: categoryId,
+      confidence: 1.0,
+      source: 'user_preview',
+    }))
+    const { error: rulesErr } = await supabase
+      .from('user_merchant_rules')
+      .upsert(rows, { onConflict: 'user_id,normalised_merchant', ignoreDuplicates: false })
+    if (rulesErr) {
+      console.error('[pipeline] failed to save user_preview merchant rules', {
+        error: rulesErr,
+        userId: opts.userId,
+        count: rows.length,
+      })
+      void sendAlert({
+        severity: 'critical',
+        event: 'user_merchant_rules_upsert_failed',
+        user_id: opts.userId,
+        details: `upsert of ${rows.length} user_preview merchant rule(s) failed: ${rulesErr.message}`,
+      })
     }
   }
 
   // Compute categorisation stats
   stats.categorisation = computeCategorizationStats(toInsert)
 
-  // Pass 3: insert
+  // Pass 3: insert. The DB unique index on (user_id, dedupe_hash) is partial
+  // (WHERE deleted_at IS NULL AND dedupe_hash IS NOT NULL), which Supabase's
+  // upsert/onConflict can't target — so we INSERT and treat Postgres error
+  // code 23505 (unique_violation) as a duplicate signal. The in-memory pre-check
+  // above is a perf optimisation; this is the dedupe source of truth.
   for (const txn of toInsert) {
+    const dedupeHash = computeDedupeHash(txn.date, txn.amount, txn.description)
     const { error } = await supabase.from('transactions').insert({
       user_id: opts.userId,
       date: txn.date,
@@ -216,17 +289,41 @@ export async function runImportPipeline(
       value_category: txn.valueCategory,
       value_confidence: txn.valueConfidence,
       value_confirmed_by_user: false,
+      prediction_source: txn.valuePredictionSource,
       source: txn.source,
       import_batch_id: opts.importBatchId,
       user_confirmed: false,
+      balance: txn.balance ?? null,
+      dedupe_hash: dedupeHash,
     })
     if (error) {
-      console.error('[pipeline] insert error:', error.message, error.details, error.code)
-      stats.errors++
+      if (error.code === '23505') {
+        stats.duplicates++
+      } else {
+        console.error('[pipeline] insert error:', error.message, error.details, error.code)
+        stats.errors++
+      }
     } else {
       stats.imported++
     }
   }
 
   return stats
+}
+
+/** Map predictor source to the prediction_source column value */
+function mapSource(source: string): string {
+  switch (source) {
+    case 'recurring_essential': return 'recurring_essential'
+    case 'merchant_time': return 'merchant_rule'
+    case 'merchant_amount': return 'merchant_rule'
+    case 'merchant': return 'merchant_rule'
+    case 'category_time': return 'category_rule'
+    case 'category_amount': return 'category_rule'
+    case 'category': return 'category_rule'
+    case 'global': return 'global_rule'
+    case 'user_confirmed': return 'user_confirmed'
+    case 'category_default': return 'category_default'
+    default: return 'category_default'
+  }
 }

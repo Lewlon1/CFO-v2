@@ -69,22 +69,23 @@ export async function analyseGap(
   }
 
   // 0. Detect Value Map completion independently of rule format.
-  //    The VM seeds merchant_contains rules (see /api/value-map/link-session), so
+  //    The VM seeds merchant rules (see /api/value-map/link-session), so
   //    a missing category_id rule set does NOT mean "no VM". Always consult
   //    value_map_results directly before deciding has_value_map.
+  //    Note: value_map_results is keyed by profile_id (same UUID as user_id in auth.users).
   const { data: vmRows } = await supabase
     .from('value_map_results')
     .select('id')
-    .eq('user_id', userId)
+    .eq('profile_id', userId)
     .limit(1)
   const hasValueMap = (vmRows?.length ?? 0) > 0
 
-  // 1. Fetch ALL value category rules for this user (both category_id and merchant_contains).
+  // 1. Fetch ALL value category rules for this user (both category and merchant).
   const { data: rules } = await supabase
     .from('value_category_rules')
     .select('match_type, match_value, value_category, confidence')
     .eq('user_id', userId)
-    .in('match_type', ['category_id', 'merchant_contains'])
+    .in('match_type', ['category', 'merchant'])
 
   if (!rules || rules.length === 0) {
     return { ...empty, has_value_map: hasValueMap }
@@ -92,8 +93,8 @@ export async function analyseGap(
 
   // Split rules by type. Category-level rules come from chat corrections;
   // merchant-level rules come from the Value Map (see /api/value-map/link-session).
-  const categoryRules = rules.filter((r) => r.match_type === 'category_id')
-  const merchantRules = rules.filter((r) => r.match_type === 'merchant_contains')
+  const categoryRules = rules.filter((r) => r.match_type === 'category')
+  const merchantRules = rules.filter((r) => r.match_type === 'merchant')
 
   // 2. Fetch all expense transactions for the window.
   const sinceDate = new Date()
@@ -360,5 +361,38 @@ function buildNarrative(
 
     case 'aligned':
       return `Your ${category} spending aligns with how you see it.`
+  }
+}
+
+// ── Pattern-detector adapter ─────────────────────────────────────────────────
+
+import type { PatternResult } from './insight-types'
+
+export function gapResultToPatternResult(
+  gapResult: Awaited<ReturnType<typeof analyseGap>>
+): PatternResult | null {
+  if (!gapResult.has_value_map) return null
+  const material = gapResult.gaps.filter(
+    (g) => g.gap_severity !== 'low' && g.actual_monthly_spend > 0
+  )
+  if (material.length === 0) return null
+  const biggest = material[0]
+  return {
+    id: 'value_map_gap',
+    score: biggest.gap_severity === 'high' ? 85 : 60,
+    layer: 'gap',
+    requires: ['transactions', 'value_map'],
+    data: {
+      category: biggest.category,
+      stated: biggest.stated_value_category,
+      stated_confidence: biggest.stated_confidence,
+      actual_monthly_spend: Math.round(biggest.actual_monthly_spend),
+      gap_type: biggest.gap_type,
+      narrative: biggest.narrative,
+    },
+    narrative_prompt:
+      `The user labelled ${biggest.category} as ${biggest.stated_value_category} ` +
+      `(confidence ${biggest.stated_confidence}/5). Actual pattern: ${biggest.narrative}. ` +
+      `Name the gap without judgement. Do not moralise.`,
   }
 }
