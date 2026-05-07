@@ -119,6 +119,15 @@ export async function POST(req: NextRequest) {
   let statementPeriodEnd: string | null = null
   let accountCurrency: string | null = null
 
+  // PERF TODO: this loop is sequential — each page waits for Haiku vision
+  // (~6–15s) before starting the next. A typical 5–10 page statement therefore
+  // takes 30–80s wall time. Pages have no inter-dependency for extraction, so
+  // the fix is to run them in parallel with `Promise.all` (or `p-limit` capped
+  // to ~5 concurrent calls). When parallelising, preserve page-order semantics
+  // for the metadata reduction below: `openingBalance`/`statementPeriodStart`
+  // take the first non-null, `closingBalance`/`statementPeriodEnd` take the
+  // last non-null, `accountCurrency` is first non-null. Map results back in
+  // page order before reducing.
   for (let i = 0; i < body.images.length; i++) {
     const dataUrl = body.images[i]
     const base64 = extractBase64(dataUrl)
