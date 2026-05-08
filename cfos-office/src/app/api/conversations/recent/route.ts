@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   // Fetch messages for this conversation (most recent 20)
   const { data: messages } = await supabase
     .from('messages')
-    .select('id, role, content, created_at')
+    .select('id, role, content, created_at, actions_created')
     .eq('conversation_id', conversation.id)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
@@ -62,13 +62,19 @@ export async function GET(req: NextRequest) {
   // Reverse to chronological order
   const orderedMessages = (messages ?? []).reverse()
 
-  // Map to UIMessage format expected by useChat
+  // Map to UIMessage format expected by useChat. Actions are exposed via
+  // metadata so the chat renderer can show inline buttons (e.g. the
+  // onboarding-v2 Value Map action).
   const uiMessages = orderedMessages.map((m) => ({
     id: m.id,
     role: m.role as 'user' | 'assistant',
     content: m.content ?? '',
     createdAt: new Date(m.created_at),
     parts: [{ type: 'text', text: m.content ?? '' }],
+    metadata: {
+      messageDbId: m.id,
+      actions_created: m.actions_created ?? null,
+    },
   }))
 
   return NextResponse.json({

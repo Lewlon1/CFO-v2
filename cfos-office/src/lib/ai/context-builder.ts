@@ -6,6 +6,7 @@ import { assembleReviewContext } from './review-context';
 import { PERSONALITIES } from '@/lib/value-map/constants';
 import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
 import { extractNumbers } from './insight-validator';
+import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -312,11 +313,107 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   return lines.join('\n');
 }
 
+async function buildValueMapBridgeContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any,
+  conversationId: string | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+): Promise<string> {
+  if (!profile) return ''
+  if (profile.onboarding_route !== 'chat') return ''
+  if (profile.value_map_declined_in_chat) return ''
+  const step = profile.onboarding_step as string | null
+  if (
+    step === 'value_map_done' ||
+    step === 'upload_done' ||
+    step === 'archetype_shown' ||
+    step === 'complete'
+  ) {
+    return ''
+  }
+
+  const lines: string[] = [
+    '## VALUE MAP BRIDGE',
+    "Once you have gathered enough context about the user's situation (typically after a few exchanges where they have shared meaningful context about their goal/struggle), suggest the Value Map. Frame it as connecting their stated goal/struggle to their day-to-day spending — that's where the gap usually shows up.",
+    '',
+    'Examples of framing:',
+    "- For wealth-building: \"If we're going to actually move toward [their goal], the leverage is in your day-to-day spending — what's flowing where, and whether it's aligned with what matters.\"",
+    "- For debt clearing: \"Clearing this faster comes down to surplus — what's left after fixed costs. Worth mapping how you actually spend so we can find where surplus could come from.\"",
+    "- For planning: \"To get to [their goal] you need a clear picture of what's leaving the account each month.\"",
+    '',
+    'When you decide to offer it, include this token verbatim somewhere in your response: <ACTION:start_value_map>',
+    'Do not describe the token to the user; the system will render an action button for them.',
+    'If the user declines ("not now", "later", "skip"), do NOT bring up the Value Map again proactively in this conversation. Acknowledge their decision and continue helping them with what they came to discuss.',
+  ]
+
+  // Backstop: if conversation has reached threshold and offer hasn't fired, push for it now.
+  if (conversationId && !profile.value_map_offered_in_chat) {
+    try {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('role', 'user')
+      if ((count ?? 0) >= BRIDGE_USER_MSG_THRESHOLD) {
+        lines.push(
+          '',
+          '## BRIDGE BACKSTOP',
+          'This conversation has reached the point where you should offer the Value Map. Do it in your next response with appropriate framing per the BRIDGE guidance above. Include <ACTION:start_value_map> in your response.',
+        )
+      }
+    } catch (err) {
+      console.error('[bridge-context] message count failed', err)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+function buildOnboardingEntryContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any,
+): string {
+  if (!profile) return ''
+  if (profile.onboarding_route !== 'chat') return ''
+  const struggle = profile.entry_struggle as string | null
+  if (!struggle) return ''
+
+  const labels: Record<string, string> = {
+    dont_know: "I don't know where my money goes",
+    debt:      "I'm carrying debt I want to clear",
+    wealth:    'I want to start building wealth',
+    planning:  "I'm planning for something specific",
+    free_text: '(In their own words — see entry_struggle_text)',
+  }
+  const struggleLabel = labels[struggle] ?? struggle
+  const text = (profile.entry_struggle_text as string | null) || null
+
+  const lines = [
+    '## USER ENTRY CONTEXT',
+    `- Stated struggle: ${struggleLabel}`,
+  ]
+  if (text) {
+    lines.push(`- In their own words: "${text}"`)
+  }
+  lines.push(
+    '- They have not yet completed the Value Map or shared transactions.',
+    '',
+    '## GUIDANCE',
+    '- You do not yet have transaction data, value map results, or income context.',
+    '- Ask clarifying questions before giving any specific advice.',
+    '- Do not assume their income, country, family situation, or risk tolerance.',
+    '- The advisory boundary still applies: observe, calculate, educate. Never recommend specific products or make buy/sell calls.',
+  )
+  return lines.join('\n')
+}
+
 export async function buildSystemPrompt(
   userId: string,
   conversationType?: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  conversationMetadata?: Record<string, any> | null
+  conversationMetadata?: Record<string, any> | null,
+  conversationId?: string | null
 ): Promise<string> {
   const supabase = await createClient();
 
@@ -456,6 +553,8 @@ export async function buildSystemPrompt(
     BASE_PERSONA + styleModifier,
     buildCurrentDateContext(),
     buildProfileContext(profile),
+    buildOnboardingEntryContext(profile),
+    await buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     buildFinancialContext(snapshots, recurring, profile),
     await getCountryBenchmarks(profile, supabase),
     getOnboardingResumeContext(profile),

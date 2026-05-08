@@ -52,6 +52,8 @@ import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
 import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
 import { CfoThinking } from '@/components/brand/CfoThinking';
+import { ValueMapActionButton } from './ValueMapActionButton';
+import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
 import {
   buildActionItemCard,
   buildProfileUpdateCard,
@@ -426,6 +428,19 @@ export function MessageList({
 
               {/* CTA block */}
               {cta && <ChatCTA type={cta.type} label={cta.label} />}
+
+              {/* Onboarding v2 — Value Map action button (only on assistant
+                  messages whose actions_created includes start_value_map) */}
+              {message.role === 'assistant' &&
+                (() => {
+                  const actions = (message.metadata as { actions_created?: unknown } | null)?.actions_created
+                  if (!Array.isArray(actions)) return null
+                  return actions.some(isStartValueMapAction) ? (
+                    <div className="px-3">
+                      <ValueMapActionButton />
+                    </div>
+                  ) : null
+                })()}
 
               {/* Structured input components from tool invocations */}
               {structuredInputs.map((config, i) => (

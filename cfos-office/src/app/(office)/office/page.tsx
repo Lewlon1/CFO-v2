@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateCompleteness } from '@/lib/profile/completeness'
 import { PERSONALITIES } from '@/lib/value-map/constants'
 import { OfficeHomeClient } from './OfficeHomeClient'
+import { OnboardingBanner } from '@/components/office/onboarding-banner'
 
 export default async function OfficePage() {
   const supabase = await createClient()
@@ -105,16 +106,21 @@ export default async function OfficePage() {
     : 0
 
   return (
-    <OfficeHomeClient
-      provenance={provenance}
-      gaps={gaps}
-      archetype={archetype}
-      totalAssets={totalAssets}
-      totalLiabilities={totalLiabilities}
-      hasBalanceSheet={hasBalanceSheet}
-      nextTrip={nextTrip}
-      currency={currency}
-      profileCompleteness={profileCompleteness}
-    />
+    <>
+      <div className="px-4 pt-4">
+        <OnboardingBanner />
+      </div>
+      <OfficeHomeClient
+        provenance={provenance}
+        gaps={gaps}
+        archetype={archetype}
+        totalAssets={totalAssets}
+        totalLiabilities={totalLiabilities}
+        hasBalanceSheet={hasBalanceSheet}
+        nextTrip={nextTrip}
+        currency={currency}
+        profileCompleteness={profileCompleteness}
+      />
+    </>
   )
 }

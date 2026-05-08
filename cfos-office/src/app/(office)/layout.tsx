@@ -13,6 +13,7 @@ import { ChatBar } from '@/components/chat/ChatBar'
 import { ChatSheet } from '@/components/chat/ChatSheet'
 import { NavigationBar } from '@/components/navigation/NavigationBar'
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
+import { ChatOpenerTrigger } from '@/components/onboarding-v2/chat-opener-trigger'
 import { UserAvatarMenu } from '@/components/office/UserAvatarMenu'
 import type { OnboardingState } from '@/lib/onboarding/types'
 import { formatHeaderDate, getGreeting } from '@/lib/utils'
@@ -47,18 +48,20 @@ export default async function OfficeLayout({ children }: { children: React.React
   // Fetch user currency + display name for chat context & header
   let { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, onboarding_progress')
+    .select('primary_currency, display_name, onboarding_completed_at, onboarding_progress, entry_struggle')
     .eq('id', user.id)
     .single()
 
-  // Fallback: if onboarding_progress isn't in schema cache yet, retry without it
+  // Fallback: if newer columns aren't in schema cache yet, retry without them
   if (!profile) {
     const { data: fallback } = await supabase
       .from('user_profiles')
       .select('primary_currency, display_name, onboarding_completed_at')
       .eq('id', user.id)
       .single()
-    if (fallback) profile = { ...fallback, onboarding_progress: null }
+    if (fallback) {
+      profile = { ...fallback, onboarding_progress: null, entry_struggle: null }
+    }
   }
 
   const currency = profile?.primary_currency ?? 'EUR'
@@ -116,7 +119,14 @@ export default async function OfficeLayout({ children }: { children: React.React
         {/* Chat sheet overlay */}
         <ChatSheet />
 
-        {!profile?.onboarding_completed_at && (
+        {/* Reads ?chat=open&conversationId=...[&fto=1] from URL after the
+            onboarding-v2 server action redirects here, opens the drawer,
+            loads the conversation, and triggers free-text opener if needed. */}
+        <ChatOpenerTrigger />
+
+        {/* Old-flow modal — only for users who started under the old flow.
+            New-flow users (entry_struggle set) skip the modal entirely. */}
+        {!profile?.onboarding_completed_at && !profile?.entry_struggle && (
           <OnboardingModal
             initialProgress={profile?.onboarding_progress as OnboardingState | null}
             userName={displayName ?? undefined}
