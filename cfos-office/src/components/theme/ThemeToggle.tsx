@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { Moon, Sun } from 'lucide-react'
 
 type Theme = 'light' | 'dark'
@@ -38,18 +38,6 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps) {
   const theme = useSyncExternalStore(subscribe, readCurrent, getServerSnapshot)
-
-  // Track OS preference changes only when the user has not made an explicit choice.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (localStorage.getItem(STORAGE_KEY)) return
-    const mq = window.matchMedia('(prefers-color-scheme: light)')
-    const onChange = (e: MediaQueryListEvent) => {
-      applyTheme(e.matches ? 'light' : 'dark')
-    }
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
 
   const toggle = useCallback(() => {
     const next: Theme = readCurrent() === 'light' ? 'dark' : 'light'
