@@ -13,7 +13,7 @@ import { CutOrKeep } from './cut-or-keep'
 import { OneThing } from './one-thing'
 import { RetakeImpact } from './retake-impact'
 import { calculatePersonality } from '@/lib/value-map/personalities'
-import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
+import { SAMPLE_TRANSACTIONS, QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import {
   VALUE_MAP_INTRO_HERO,
   VALUE_MAP_INTRO_SUBHEADS,
@@ -572,23 +572,91 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
 
   if (step === 'intro') {
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
-        <CFOAvatar size={48} />
-        <div className="space-y-2 max-w-sm">
-          <h1 className="text-xl font-semibold text-foreground">
-            {VALUE_MAP_INTRO_HERO}
-          </h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {introSubhead}
-          </p>
+      <div className="flex flex-col px-6 pt-10 pb-12 gap-8 overflow-y-auto">
+        {/* Hero */}
+        <div className="flex flex-col items-center text-center gap-6">
+          <CFOAvatar size={48} />
+          <div className="space-y-3 max-w-sm">
+            <h1 className="font-serif text-[28px] leading-[1.15] text-foreground">
+              {VALUE_MAP_INTRO_HERO}
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {introSubhead}
+            </p>
+          </div>
         </div>
-<Button
-          onClick={handleStart}
-          className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
-        >
-          Let&apos;s start
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
+
+        {/* Purpose — three promises */}
+        <div className="space-y-3">
+          <p className="eyebrow">What you get</p>
+          {VALUE_MAP_INTRO_BULLETS.map((bullet) => (
+            <div
+              key={bullet.title}
+              className="rounded-xl border border-border bg-card px-4 py-3"
+            >
+              <h3 className="font-serif text-[17px] leading-[1.25] text-foreground">
+                {bullet.title}
+              </h3>
+              <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
+                {bullet.body}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Category overview — the four quadrants */}
+        <div className="space-y-3">
+          <p className="eyebrow">The four buckets</p>
+          <p className="text-[13px] leading-[1.5] text-muted-foreground">
+            You&apos;ll sort a handful of transactions into one of these. Trust
+            your gut — we can refine later.
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {QUADRANT_ORDER.map((qId) => {
+              const q = QUADRANTS[qId]
+              return (
+                <div
+                  key={q.id}
+                  className="rounded-xl border border-border bg-card px-4 py-3 flex items-start gap-3"
+                >
+                  <span
+                    className="text-2xl leading-none shrink-0"
+                    aria-hidden="true"
+                  >
+                    {q.emoji}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <h3
+                        className="font-serif text-[17px] leading-[1.2]"
+                        style={{ color: q.colour }}
+                      >
+                        {q.name}
+                      </h3>
+                      <span className="font-serif italic text-[13px] text-muted-foreground">
+                        &ldquo;{q.tagline}&rdquo;
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[13px] leading-[1.45] text-muted-foreground">
+                      {q.description}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="flex justify-center pt-2">
+          <Button
+            onClick={handleStart}
+            className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
+          >
+            Let&apos;s start
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
       </div>
     )
   }
