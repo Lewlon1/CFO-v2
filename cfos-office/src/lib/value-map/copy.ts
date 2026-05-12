@@ -36,6 +36,24 @@ export const VALUE_MAP_INTRO_BULLETS: readonly IntroBullet[] = [
   },
 ] as const
 
+// Explainer used on the onboarding Value Map intro. Frames *what* the Value
+// Map is (a different way to look at money) and *why* it works (optimise
+// without sacrificing what matters), before the user sees the four buckets
+// below. Distinct from VALUE_MAP_INTRO_BULLETS — those are product promises
+// used on the demo/marketing surfaces.
+export const VALUE_MAP_INTRO_EXPLAINER: readonly IntroBullet[] = [
+  {
+    title: 'A different way to look at money.',
+    body:
+      'Most budgets ask how much you spend. The Value Map asks what your spending is for — so we can talk about your money in terms of what it means to you, not just numbers.',
+  },
+  {
+    title: 'Save without sacrificing what matters.',
+    body:
+      "Once I know which spending protects your life and which slips through it, I know where to look — and where to leave alone. The room to save lives in the things you won't miss.",
+  },
+] as const
+
 export const VALUE_MAP_DEMO_FOOTNOTE =
   'Takes about 2 minutes. No account needed to see your reading.'
 

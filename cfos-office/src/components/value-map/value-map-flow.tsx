@@ -17,7 +17,7 @@ import { SAMPLE_TRANSACTIONS, QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/
 import {
   VALUE_MAP_INTRO_HERO,
   VALUE_MAP_INTRO_SUBHEADS,
-  VALUE_MAP_INTRO_BULLETS,
+  VALUE_MAP_INTRO_EXPLAINER,
 } from '@/lib/value-map/copy'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
@@ -586,10 +586,11 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
           </div>
         </div>
 
-        {/* Purpose — three promises */}
+        {/* What the Value Map is — frames the unique way of thinking about
+            spending and the no-sacrifice optimisation before the bucket list. */}
         <div className="space-y-3">
-          <p className="eyebrow">What you get</p>
-          {VALUE_MAP_INTRO_BULLETS.map((bullet) => (
+          <p className="eyebrow">The idea</p>
+          {VALUE_MAP_INTRO_EXPLAINER.map((bullet) => (
             <div
               key={bullet.title}
               className="rounded-xl border border-border bg-card px-4 py-3"
