@@ -44,8 +44,14 @@ export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps
   // row variant a label flip) as the post-mount snapshot resolves. Gating
   // the icon/label on a mount flag suppresses the SSR icon entirely and
   // renders the correct one in the first client paint.
+  //
+  // The setState-in-effect pattern is intentional here: this is the canonical
+  // "is this mounted?" hook for matching SSR HTML before hydrating to client
+  // state. It only fires once and the React Compiler can't optimise it away
+  // without breaking the hydration guarantee.
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 

@@ -196,7 +196,7 @@ export function ChatSheet() {
           {/* Close */}
           <button
             onClick={closeSheet}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[rgba(245,245,240,0.4)] hover:text-office-text"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-text-tertiary hover:text-office-text"
             aria-label="Close chat"
           >
             <X size={20} />
@@ -205,7 +205,7 @@ export function ChatSheet() {
 
         {/* Status line */}
         <div className="flex items-center gap-3 px-4 pt-1 pb-2.5 bg-bg-base border-b border-border-medium">
-          <span className="text-[13px] text-[rgba(245,245,240,0.5)] flex-1">Your CFO is online</span>
+          <span className="text-[13px] text-text-secondary flex-1">Your CFO is online</span>
         </div>
 
         {/* Content */}
@@ -241,7 +241,7 @@ export function ChatSheet() {
 
         {/* Drag handle — at bottom */}
         <div className="flex justify-center py-1.5 shrink-0" onClick={closeSheet}>
-          <div className="w-9 h-1 rounded-full bg-[rgba(245,245,240,0.1)] cursor-pointer" />
+          <div className="w-9 h-1 rounded-full bg-card cursor-pointer" />
         </div>
       </div>
     </div>
@@ -266,7 +266,7 @@ function FolderEmptyState({
       >
         {meta.subject}
       </div>
-      <div className="text-[11px] text-[rgba(245,245,240,0.45)] italic mt-0.5">
+      <div className="text-[11px] text-text-secondary italic mt-0.5">
         {meta.subtitle}
       </div>
 
@@ -282,16 +282,16 @@ function FolderEmptyState({
             onClick={() => onFillInput(prompt)}
             className="flex items-center gap-2 text-left px-3 py-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-[10px] hover:border-office-gold transition-colors min-h-[44px]"
           >
-            <span className="text-[10px] text-[rgba(245,245,240,0.25)] font-medium shrink-0 tabular-nums">
+            <span className="text-[10px] text-text-muted font-medium shrink-0 tabular-nums">
               {String(i + 1).padStart(2, '0')}
             </span>
             <span className="flex-1 text-[13px] text-office-text leading-snug">{prompt}</span>
-            <ArrowRight size={12} className="text-[rgba(245,245,240,0.25)] shrink-0" strokeWidth={1.5} />
+            <ArrowRight size={12} className="text-text-muted shrink-0" strokeWidth={1.5} />
           </button>
         ))}
       </div>
 
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(245,245,240,0.25)] mt-5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted mt-5">
         Or ask your own
       </div>
     </div>

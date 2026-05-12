@@ -70,12 +70,12 @@ export default async function OfficeLayout({ children }: { children: React.React
         <CFOAvatar size={48} withOnlineDot />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline" style={{ lineHeight: 1 }}>
-            <span className="font-data text-[9px] font-normal tracking-[0.04em] text-[rgba(245,245,240,0.2)] mr-1.5">
+            <span className="font-data text-[9px] font-normal tracking-[0.04em] text-text-muted mr-1.5">
               THE
             </span>
             <span
               style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 18, fontWeight: 600 }}
-              className="text-[rgba(245,245,240,0.45)]"
+              className="text-text-secondary"
             >
               CFO&apos;s Office
             </span>
@@ -86,7 +86,7 @@ export default async function OfficeLayout({ children }: { children: React.React
           </p>
         </div>
         <div className="text-right shrink-0">
-          <span className="font-data text-[11px] text-[rgba(245,245,240,0.4)]">
+          <span className="font-data text-[11px] text-text-tertiary">
             {formatHeaderDate()}
           </span>
         </div>

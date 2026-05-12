@@ -50,10 +50,10 @@ export function TheGapClient({ gaps, transactionCount, hasValueMap }: TheGapClie
   if (gaps.length === 0) {
     return (
       <div className="px-3.5 pt-4 pb-24">
-        <div className="text-[13px] text-[rgba(245,245,240,0.5)] mb-1.5 leading-[1.6]">
+        <div className="text-[13px] text-text-secondary mb-1.5 leading-[1.6]">
           What you believe about your money vs what the data shows.
         </div>
-        <p className="text-[13px] text-[rgba(245,245,240,0.5)] mt-6 leading-[1.55] max-w-md mx-auto text-center">
+        <p className="text-[13px] text-text-secondary mt-6 leading-[1.55] max-w-md mx-auto text-center">
           {emptyStateMessage(transactionCount, hasValueMap)}
         </p>
       </div>
@@ -62,7 +62,7 @@ export function TheGapClient({ gaps, transactionCount, hasValueMap }: TheGapClie
 
   return (
     <div className="px-3.5 pt-1.5 pb-24">
-      <div className="text-[13px] text-[rgba(245,245,240,0.5)] mb-1.5 leading-[1.6]">
+      <div className="text-[13px] text-text-secondary mb-1.5 leading-[1.6]">
         What you believe about your money vs what the data shows.
       </div>
       <ProvenanceLine text={`Based on Value Map + ${transactionCount} transactions`} />

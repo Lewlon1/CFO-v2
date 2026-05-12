@@ -34,7 +34,7 @@ export function NetWorthSection({ totalAssets, totalLiabilities, currency = 'EUR
         <span className={`font-data text-[18px] font-extrabold tracking-[-0.03em] tabular-nums ${netWorth >= 0 ? 'text-[#06B6D4]' : 'text-[#F43F5E]'}`}>
           {formatCurrencyRounded(netWorth, currency)}
         </span>
-        <span className="text-[11px] text-[rgba(245,245,240,0.3)]">net worth</span>
+        <span className="text-[11px] text-text-tertiary">net worth</span>
       </div>
       {(totalAssets > 0 || totalLiabilities > 0) && (
         <div className="flex h-[5px] rounded-[3px] overflow-hidden mt-2">

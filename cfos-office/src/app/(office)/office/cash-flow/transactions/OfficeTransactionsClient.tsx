@@ -129,7 +129,7 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
       <FilterPills options={filterOptions} activeId={activeFilter} onChange={setActiveFilter} />
 
       {grouped.length === 0 ? (
-        <p className="text-[13px] text-[rgba(245,245,240,0.4)] text-center pt-8">No transactions found</p>
+        <p className="text-[13px] text-text-tertiary text-center pt-8">No transactions found</p>
       ) : (
         grouped.map(([date, txns]) => (
           <div key={date}>
