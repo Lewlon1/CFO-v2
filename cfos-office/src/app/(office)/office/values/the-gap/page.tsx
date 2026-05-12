@@ -22,11 +22,17 @@ export default async function TheGapPage() {
 
   const result = await analyseGap(supabase, user.id, 3)
 
-  // Get transaction count for provenance line
-  const { count } = await supabase
-    .from('transactions')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
+  // Get transaction count + value-map status for accurate empty-state copy
+  const [{ count: transactionCount }, { count: valueMapCount }] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+    supabase
+      .from('value_map_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', user.id),
+  ])
 
   const gaps = result.gaps.map(g => ({
     trait_key: g.category_slug,
@@ -38,5 +44,11 @@ export default async function TheGapPage() {
     confidence: g.stated_confidence,
   }))
 
-  return <TheGapClient gaps={gaps} transactionCount={count ?? 0} />
+  return (
+    <TheGapClient
+      gaps={gaps}
+      transactionCount={transactionCount ?? 0}
+      hasValueMap={(valueMapCount ?? 0) > 0}
+    />
+  )
 }

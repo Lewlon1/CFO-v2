@@ -82,7 +82,10 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
           entry_struggle: entryStruggle ?? null,
         })
         await advanceStep('complete')
-        router.push('/office')
+        // Land on the Gap page so "Show me the gap" actually does — the page
+        // server-fetches analyseGap() and renders the result. The user can
+        // navigate to /office from there via the existing nav.
+        router.push('/office/values/the-gap')
       } catch (err) {
         console.error('[onboarding-v2.archetype] complete failed', err)
         setError('Something went wrong. Please try again.')
