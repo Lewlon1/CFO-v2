@@ -52,39 +52,14 @@ export function OnboardingBannerCard({ variant }: { variant: Variant }) {
   }
 
   return (
-    <div
-      className="px-4 py-3 mb-4 flex items-center gap-3"
-      style={{
-        backgroundColor: '#FBF8F2',
-        border: '1px solid #C9A86A',
-        borderRadius: 12,
-      }}
-    >
-      <p
-        className="flex-1"
-        style={{
-          fontFamily: 'var(--font-instrument-sans, sans-serif)',
-          fontSize: 13.5,
-          lineHeight: 1.4,
-          color: '#1A1612',
-        }}
-      >
+    <div className="px-4 py-3 mb-4 flex items-center gap-3 rounded-xl border border-primary/40 bg-card">
+      <p className="flex-1 font-sans text-[13.5px] leading-[1.4] text-foreground">
         {headline}
       </p>
       <button
         type="button"
         onClick={handleClick}
-        className="shrink-0 transition-colors"
-        style={{
-          minHeight: 40,
-          padding: '8px 14px',
-          borderRadius: 10,
-          backgroundColor: '#1A1612',
-          color: '#F5F1E9',
-          fontFamily: 'var(--font-instrument-sans, sans-serif)',
-          fontSize: 13,
-          fontWeight: 500,
-        }}
+        className="shrink-0 transition-colors min-h-10 px-3.5 py-2 rounded-lg bg-foreground text-background font-sans text-[13px] font-medium"
       >
         {cta}
       </button>
@@ -92,16 +67,7 @@ export function OnboardingBannerCard({ variant }: { variant: Variant }) {
         type="button"
         onClick={handleDismiss}
         aria-label="Dismiss"
-        className="shrink-0 transition-colors"
-        style={{
-          minHeight: 32,
-          minWidth: 32,
-          color: '#8a8276',
-          fontSize: 18,
-          lineHeight: 1,
-          background: 'transparent',
-          border: 'none',
-        }}
+        className="shrink-0 transition-colors min-h-8 min-w-8 text-[18px] leading-none bg-transparent border-none text-muted-foreground hover:text-foreground"
       >
         ×
       </button>

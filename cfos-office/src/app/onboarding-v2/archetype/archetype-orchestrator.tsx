@@ -91,22 +91,9 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
   }
 
   return (
-    <main
-      className="min-h-dvh flex flex-col"
-      style={{ backgroundColor: '#F5F1E9' }}
-    >
+    <main className="min-h-dvh flex flex-col bg-background">
       <div className="flex-1 flex flex-col max-w-[430px] mx-auto w-full px-4 py-6">
-        <p
-          className="uppercase mb-6 text-center"
-          style={{
-            fontFamily: 'var(--font-instrument-sans, sans-serif)',
-            fontSize: 10,
-            letterSpacing: '0.22em',
-            color: '#8a8276',
-          }}
-        >
-          THE CFO&apos;S OFFICE
-        </p>
+        <p className="eyebrow mb-6 text-center">THE CFO&apos;S OFFICE</p>
 
         <div className="flex-1">
           <ArchetypeBeat
@@ -118,12 +105,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
 
         {error && (
           <p
-            className="text-center mb-4"
-            style={{
-              fontFamily: 'var(--font-instrument-sans, sans-serif)',
-              fontSize: 13,
-              color: '#a04040',
-            }}
+            className="text-center mt-6 text-sm text-destructive"
           >
             {error}
           </p>
@@ -133,17 +115,12 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
           type="button"
           onClick={handleContinue}
           disabled={loading || pending}
-          className="w-full mt-6 transition-opacity"
-          style={{
-            minHeight: 48,
-            borderRadius: 12,
-            backgroundColor: loading || pending ? '#D8D2C7' : '#1A1612',
-            color: loading || pending ? '#8a8276' : '#F5F1E9',
-            fontFamily: 'var(--font-instrument-sans, sans-serif)',
-            fontSize: 15,
-            fontWeight: 500,
-            cursor: loading || pending ? 'not-allowed' : 'pointer',
-          }}
+          className={
+            'w-full mt-6 transition-opacity min-h-12 rounded-xl font-sans text-[15px] font-medium ' +
+            (loading || pending
+              ? 'bg-muted text-muted-foreground cursor-not-allowed'
+              : 'bg-foreground text-background cursor-pointer')
+          }
         >
           {pending ? 'Just a moment…' : 'Show me the gap →'}
         </button>

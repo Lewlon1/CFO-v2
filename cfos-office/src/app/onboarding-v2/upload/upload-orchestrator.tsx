@@ -48,10 +48,7 @@ export function UploadOrchestrator() {
   }, [router])
 
   return (
-    <div
-      className="min-h-dvh flex flex-col"
-      style={{ backgroundColor: '#F5F1E9' }}
-    >
+    <div className="min-h-dvh flex flex-col bg-background">
       <div className="flex-1 flex flex-col max-w-[430px] mx-auto w-full px-4 py-6">
         <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden">
           <UploadWizard

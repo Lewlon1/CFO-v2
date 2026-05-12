@@ -39,92 +39,42 @@ export function IntroScreen({ userId, entryStruggle }: Props) {
   }
 
   return (
-    <main
-      className="min-h-dvh flex flex-col px-6 py-10"
-      style={{ backgroundColor: '#F5F1E9' }}
-    >
+    <main className="min-h-dvh flex flex-col px-6 py-10 bg-background">
       <div className="w-full max-w-md mx-auto flex-1 flex flex-col">
-        <p
-          className="uppercase mb-8 text-center"
-          style={{
-            fontFamily: 'var(--font-instrument-sans, sans-serif)',
-            fontSize: 10,
-            letterSpacing: '0.22em',
-            color: '#8a8276',
-          }}
-        >
-          THE CFO&apos;S OFFICE
-        </p>
+        <p className="eyebrow mb-8 text-center">THE CFO&apos;S OFFICE</p>
 
-        <h1
-          className="text-center mb-3"
-          style={{
-            fontFamily: 'var(--font-instrument-serif, serif)',
-            fontSize: 26,
-            lineHeight: 1.18,
-            color: '#1A1612',
-          }}
-        >
+        <h1 className="text-center mb-3 font-serif text-[26px] leading-[1.18] text-foreground">
           {headline}
         </h1>
 
-        <p
-          className="text-center mb-8"
-          style={{
-            fontFamily: 'var(--font-instrument-sans, sans-serif)',
-            fontSize: 13.5,
-            color: '#8a8276',
-          }}
-        >
+        <p className="text-center mb-8 font-sans text-[13.5px] text-muted-foreground">
           Two short steps. About seven minutes total.
         </p>
 
         <div className="space-y-3 mb-6">
           <StepCard
-            icon={<ListChecks size={18} strokeWidth={1.6} color="#1A1612" />}
+            icon={<ListChecks size={18} strokeWidth={1.6} className="text-foreground" />}
             eyebrow="STEP ONE · 5 MIN"
             title="The Value Map"
             body="Five questions, no right answers. Just your read on what matters."
           />
           <StepCard
-            icon={<FileUp size={18} strokeWidth={1.6} color="#1A1612" />}
+            icon={<FileUp size={18} strokeWidth={1.6} className="text-foreground" />}
             eyebrow="STEP TWO · 2 MIN"
             title="A recent statement"
             body="CSV from your bank. Read on your device — never uploaded raw."
           />
         </div>
 
-        <div
-          className="px-4 py-3 mb-8"
-          style={{
-            border: '1px solid #C9A86A',
-            borderRadius: 12,
-            backgroundColor: 'rgba(201, 168, 106, 0.08)',
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'var(--font-instrument-serif, serif)',
-              fontStyle: 'italic',
-              fontSize: 14.5,
-              lineHeight: 1.45,
-              color: '#1A1612',
-            }}
-          >
+        <div className="px-4 py-3 mb-8 rounded-xl border border-primary/40 bg-primary/10">
+          <p className="font-serif italic text-[14.5px] leading-[1.45] text-foreground">
             Then I&apos;ll show you the gap between where your money&apos;s been
             going — and where you&apos;d want it to.
           </p>
         </div>
 
         {error && (
-          <p
-            className="text-center mb-4"
-            style={{
-              fontFamily: 'var(--font-instrument-sans, sans-serif)',
-              fontSize: 13,
-              color: '#a04040',
-            }}
-          >
+          <p className="text-center mb-4 font-sans text-[13px] text-destructive">
             {error}
           </p>
         )}
@@ -133,17 +83,12 @@ export function IntroScreen({ userId, entryStruggle }: Props) {
           type="button"
           onClick={handleContinue}
           disabled={pending}
-          className="w-full transition-opacity"
-          style={{
-            minHeight: 48,
-            borderRadius: 12,
-            backgroundColor: pending ? '#D8D2C7' : '#1A1612',
-            color: pending ? '#8a8276' : '#F5F1E9',
-            fontFamily: 'var(--font-instrument-sans, sans-serif)',
-            fontSize: 15,
-            fontWeight: 500,
-            cursor: pending ? 'not-allowed' : 'pointer',
-          }}
+          className={
+            'w-full transition-opacity min-h-12 rounded-xl font-sans text-[15px] font-medium ' +
+            (pending
+              ? 'bg-muted text-muted-foreground cursor-not-allowed'
+              : 'bg-foreground text-background cursor-pointer')
+          }
         >
           {pending ? 'Just a moment…' : 'Start the Value Map →'}
         </button>
@@ -164,47 +109,17 @@ function StepCard({
   body: string
 }) {
   return (
-    <div
-      className="px-4 py-4"
-      style={{
-        backgroundColor: '#FBF8F2',
-        border: '1px solid #E5DDD0',
-        borderRadius: 12,
-      }}
-    >
+    <div className="px-4 py-4 rounded-xl border border-border bg-card">
       <div className="flex items-center gap-2.5 mb-1.5">
         {icon}
-        <p
-          className="uppercase"
-          style={{
-            fontFamily: 'var(--font-instrument-sans, sans-serif)',
-            fontSize: 10,
-            letterSpacing: '0.18em',
-            color: '#8a8276',
-          }}
-        >
+        <p className="uppercase font-sans text-[10px] tracking-[0.18em] text-muted-foreground">
           {eyebrow}
         </p>
       </div>
-      <h3
-        className="mb-1"
-        style={{
-          fontFamily: 'var(--font-instrument-serif, serif)',
-          fontSize: 19,
-          lineHeight: 1.2,
-          color: '#1A1612',
-        }}
-      >
+      <h3 className="mb-1 font-serif text-[19px] leading-[1.2] text-foreground">
         {title}
       </h3>
-      <p
-        style={{
-          fontFamily: 'var(--font-instrument-sans, sans-serif)',
-          fontSize: 13.5,
-          lineHeight: 1.45,
-          color: '#5e564a',
-        }}
-      >
+      <p className="font-sans text-[13.5px] leading-[1.45] text-muted-foreground">
         {body}
       </p>
     </div>

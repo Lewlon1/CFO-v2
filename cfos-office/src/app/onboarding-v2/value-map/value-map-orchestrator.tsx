@@ -16,10 +16,7 @@ export function ValueMapOrchestrator({ currency }: { currency: string }) {
   const router = useRouter()
 
   return (
-    <div
-      className="min-h-dvh flex flex-col"
-      style={{ backgroundColor: '#F5F1E9' }}
-    >
+    <div className="min-h-dvh flex flex-col bg-background">
       <div className="flex-1 flex flex-col max-w-[430px] mx-auto w-full">
         <ValueMapFlow
           currency={currency}
