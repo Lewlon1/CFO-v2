@@ -55,20 +55,29 @@ export const VALUE_MAP_INTRO_EXPLAINER: readonly IntroBullet[] = [
 ] as const
 
 // How the onboarding Value Map exercise actually works. Sets expectations
-// about (a) sample transactions seeding a baseline, real statements
-// sharpening it over time, and (b) the Unsure escape hatch.
+// about samples seeding a baseline that sharpens with real statements over
+// time. The Unsure entry was previously here; it now lives alongside the
+// quadrants in VALUE_MAP_INTRO_UNSURE_BUCKET since it's conceptually a fifth
+// option, not a mechanics note.
 export const VALUE_MAP_INTRO_HOW: readonly IntroBullet[] = [
   {
     title: "You'll start with samples.",
     body:
       "The transactions on the next screen aren't yours — they're representative examples. Sort them by what they mean to you and I'll build a baseline reading. You can re-do this with your own statements whenever you want, and the reading sharpens every time.",
   },
-  {
-    title: 'Not sure? Tap Unsure.',
-    body:
-      "There's an Unsure button below the four buckets for when nothing fits. Better to skip one than force a category that doesn't feel right.",
-  },
 ] as const
+
+// Fifth "bucket" rendered alongside the four quadrants. Visually de-emphasised
+// vs Foundation/Investment/Burden/Leak — it's the escape hatch, not a
+// category. Copy emphasises that Unsure is a signal in its own right: it
+// tells the CFO where the user is still working things out.
+export const VALUE_MAP_INTRO_UNSURE_BUCKET = {
+  emoji: '❔', // ❔
+  name: 'Unsure',
+  tagline: 'Honestly not sure',
+  description:
+    "Better than forcing a guess. Where you tap Unsure tells me where you're still working things out — and those are some of the most useful things for us to talk about later.",
+} as const
 
 export const VALUE_MAP_DEMO_FOOTNOTE =
   'Takes about 2 minutes. No account needed to see your reading.'

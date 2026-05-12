@@ -19,6 +19,7 @@ import {
   VALUE_MAP_INTRO_SUBHEADS,
   VALUE_MAP_INTRO_EXPLAINER,
   VALUE_MAP_INTRO_HOW,
+  VALUE_MAP_INTRO_UNSURE_BUCKET,
 } from '@/lib/value-map/copy'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
@@ -606,9 +607,9 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
           ))}
         </div>
 
-        {/* Category overview — the four quadrants */}
+        {/* Category overview — four quadrants plus the Unsure escape hatch */}
         <div className="space-y-3">
-          <p className="eyebrow">The four buckets</p>
+          <p className="eyebrow">The buckets</p>
           <p className="text-[13px] leading-[1.5] text-muted-foreground">
             You&apos;ll sort a handful of transactions into one of these. Trust
             your gut — we can refine later.
@@ -646,6 +647,32 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
                 </div>
               )
             })}
+
+            {/* Fifth option — Unsure. Same card layout as the buckets above
+                but de-emphasised: muted heading (no brand colour), dashed
+                border to signal it's the escape hatch rather than a real
+                quadrant. */}
+            <div className="rounded-xl border border-dashed border-border bg-card px-4 py-3 flex items-start gap-3">
+              <span
+                className="text-2xl leading-none shrink-0"
+                aria-hidden="true"
+              >
+                {VALUE_MAP_INTRO_UNSURE_BUCKET.emoji}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <h3 className="font-serif text-[17px] leading-[1.2] text-muted-foreground">
+                    {VALUE_MAP_INTRO_UNSURE_BUCKET.name}
+                  </h3>
+                  <span className="font-serif italic text-[13px] text-muted-foreground">
+                    &ldquo;{VALUE_MAP_INTRO_UNSURE_BUCKET.tagline}&rdquo;
+                  </span>
+                </div>
+                <p className="mt-1 text-[13px] leading-[1.45] text-muted-foreground">
+                  {VALUE_MAP_INTRO_UNSURE_BUCKET.description}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
