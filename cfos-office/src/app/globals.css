@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* === Default (dark) — walnut + amber === */
 :root {
+  color-scheme: dark;
   /* Tailwind / shadcn-style tokens */
   --background: #13110D;
   --foreground: #F4EDD9;

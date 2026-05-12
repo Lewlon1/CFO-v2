@@ -33,6 +33,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
+  colorScheme: 'dark',
 }
 
 export default function RootLayout({
@@ -44,7 +45,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${instrumentSerif.variable} ${instrumentSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`dark ${instrumentSerif.variable} ${instrumentSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
         <ThemeBoot />
