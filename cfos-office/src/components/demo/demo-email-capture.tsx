@@ -129,7 +129,7 @@ export function DemoEmailCapture({
               )}
             >
               {consent && (
-                <svg className="h-2.5 w-2.5 text-black" fill="none" viewBox="0 0 10 8">
+                <svg className="h-2.5 w-2.5 text-primary-foreground" fill="none" viewBox="0 0 10 8">
                   <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}

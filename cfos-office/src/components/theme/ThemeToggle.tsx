@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { Moon, Sun } from 'lucide-react'
 
 type Theme = 'light' | 'dark'
@@ -39,6 +39,16 @@ interface ThemeToggleProps {
 export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps) {
   const theme = useSyncExternalStore(subscribe, readCurrent, getServerSnapshot)
 
+  // SSR/hydration always start with the placeholder 'dark' snapshot — for
+  // light-mode users that produces a one-frame Sun→Moon flicker (and on the
+  // row variant a label flip) as the post-mount snapshot resolves. Gating
+  // the icon/label on a mount flag suppresses the SSR icon entirely and
+  // renders the correct one in the first client paint.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const toggle = useCallback(() => {
     const next: Theme = readCurrent() === 'light' ? 'dark' : 'light'
     applyTheme(next)
@@ -65,11 +75,15 @@ export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps
         }
       >
         <span className="flex items-center gap-3">
-          <Icon size={16} aria-hidden="true" />
-          <span>{isLight ? 'Light mode' : 'Dark mode'}</span>
+          {mounted ? (
+            <Icon size={16} aria-hidden="true" />
+          ) : (
+            <span aria-hidden="true" className="inline-block w-4 h-4" />
+          )}
+          <span>{mounted ? (isLight ? 'Light mode' : 'Dark mode') : 'Theme'}</span>
         </span>
         <span className="text-xs text-muted-foreground">
-          {isLight ? 'Tap to switch to dark' : 'Tap to switch to light'}
+          {mounted ? (isLight ? 'Tap to switch to dark' : 'Tap to switch to light') : ''}
         </span>
       </button>
     )
@@ -85,7 +99,11 @@ export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps
         'inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors'
       }
     >
-      <Icon size={18} aria-hidden="true" />
+      {mounted ? (
+        <Icon size={18} aria-hidden="true" />
+      ) : (
+        <span aria-hidden="true" className="inline-block w-[18px] h-[18px]" />
+      )}
     </button>
   )
 }

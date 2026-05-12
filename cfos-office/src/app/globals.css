@@ -83,14 +83,17 @@
   --card-foreground: #1A1610;
   --border: rgba(26, 22, 16, 0.14);
   --input: #EDE5D2;
-  --primary: #A66F1F;
+  /* Deepened from #A66F1F (≈3.76:1 on cream, fails WCAG AA) to #8C5A18
+     (≈5.0:1 on cream) so eyebrows, .v4-eyebrow and small brass labels
+     pass AA. Dark-mode --primary stays #E8A84C. */
+  --primary: #8C5A18;
   --primary-foreground: #F6F0E1;
   --muted: rgba(26, 22, 16, 0.04);
   --muted-foreground: rgba(26, 22, 16, 0.62);
   --accent: rgba(26, 22, 16, 0.06);
   --accent-foreground: #1A1610;
   --destructive: #DC2626;
-  --ring: #A66F1F;
+  --ring: #8C5A18;
 
   /* UI-DIRECTION — light mode equivalents */
 
@@ -108,11 +111,11 @@
   --text-muted: rgba(26, 22, 16, 0.30);
   --text-ghost: rgba(26, 22, 16, 0.18);
 
-  /* Accent — antique brass */
-  --accent-gold: #A66F1F;
-  --accent-gold-soft: rgba(166, 111, 31, 0.55);
-  --accent-gold-bg: rgba(166, 111, 31, 0.08);
-  --accent-gold-border: rgba(166, 111, 31, 0.20);
+  /* Accent — antique brass (deepened to #8C5A18 for WCAG AA on cream) */
+  --accent-gold: #8C5A18;
+  --accent-gold-soft: rgba(140, 90, 24, 0.55);
+  --accent-gold-bg: rgba(140, 90, 24, 0.08);
+  --accent-gold-border: rgba(140, 90, 24, 0.20);
 
   /* Semantic — slightly deeper for cream contrast */
   --positive: #15803D;

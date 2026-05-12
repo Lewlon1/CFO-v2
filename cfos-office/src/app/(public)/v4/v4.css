@@ -33,9 +33,11 @@
    so we restate them here in dark-on-cream form. Accent shifts to antique brass overlays. */
 :root[data-theme="light"] .landing-v4 {
   --ink-fade: rgba(26, 22, 16, 0.62);
-  --ink-quiet: rgba(26, 22, 16, 0.42);
-  --accent-soft: rgba(166, 111, 31, 0.22);
-  --accent-bg: rgba(166, 111, 31, 0.10);
+  /* Was 0.42 — ≈2.65:1 on cream, fails even large-text AA. Bumped to 0.62
+     so footnotes (Hero) and Capabilities timeLine italics meet AA. */
+  --ink-quiet: rgba(26, 22, 16, 0.62);
+  --accent-soft: rgba(140, 90, 24, 0.22);
+  --accent-bg: rgba(140, 90, 24, 0.10);
 }
 
 /* === Inverted callout (Compounding) — leather wing chair (warmest dark) === */
@@ -47,6 +49,12 @@
   --rule: rgba(244, 237, 217, 0.14);
   --card: rgba(244, 237, 217, 0.05);
   --card-border: rgba(244, 237, 217, 0.10);
+  /* Pin the accent to the dark-mode gold so this always-dark callout uses
+     the high-contrast brass (#E8A84C ≈ 9:1 on the inverted background)
+     regardless of which theme is active outside. Without this, light-mode
+     users see the deeper antique brass on dark — ≈4:1, fails AA. */
+  --accent: #E8A84C;
+  --primary: #E8A84C;
   background: var(--paper);
   color: var(--ink);
 }
