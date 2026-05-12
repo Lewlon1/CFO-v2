@@ -4,18 +4,15 @@ import { createClient } from '@/lib/supabase/server'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
-// level. Without this, stale onboarding progress survives PATCHes to
-// /api/onboarding/progress.
+// level so onboarding-state changes are reflected immediately.
 export const dynamic = 'force-dynamic'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { ChatProvider } from '@/components/chat/ChatProvider'
 import { ChatBar } from '@/components/chat/ChatBar'
 import { ChatSheet } from '@/components/chat/ChatSheet'
 import { NavigationBar } from '@/components/navigation/NavigationBar'
-import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
 import { ChatOpenerTrigger } from '@/components/onboarding-v2/chat-opener-trigger'
 import { UserAvatarMenu } from '@/components/office/UserAvatarMenu'
-import type { OnboardingState } from '@/lib/onboarding/types'
 import { formatHeaderDate, getGreeting } from '@/lib/utils'
 
 const jetbrainsMono = JetBrains_Mono({
@@ -46,32 +43,15 @@ export default async function OfficeLayout({ children }: { children: React.React
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
   // Fetch user currency + display name for chat context & header
-  let { data: profile } = await supabase
+  const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, onboarding_progress, entry_struggle')
+    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle')
     .eq('id', user.id)
     .single()
 
-  // Fallback: if newer columns aren't in schema cache yet, retry without them
-  if (!profile) {
-    const { data: fallback } = await supabase
-      .from('user_profiles')
-      .select('primary_currency, display_name, onboarding_completed_at')
-      .eq('id', user.id)
-      .single()
-    if (fallback) {
-      profile = { ...fallback, onboarding_progress: null, entry_struggle: null }
-    }
-  }
-
-  // Send brand-new users (no v2 entry, no legacy progress, not completed) into
-  // the onboarding-v2 flow. The legacy modal below only fires for users who
-  // were mid-legacy-flow at deploy time (onboarding_progress already populated).
-  if (
-    !profile?.onboarding_completed_at &&
-    !profile?.entry_struggle &&
-    !profile?.onboarding_progress
-  ) {
+  // Any incomplete user without a v2 entry_struggle goes into the v2 flow.
+  // Mid-v2 users (entry_struggle set) and completed users fall through.
+  if (!profile?.onboarding_completed_at && !profile?.entry_struggle) {
     redirect('/onboarding-v2')
   }
 
@@ -134,20 +114,6 @@ export default async function OfficeLayout({ children }: { children: React.React
             onboarding-v2 server action redirects here, opens the drawer,
             loads the conversation, and triggers free-text opener if needed. */}
         <ChatOpenerTrigger />
-
-        {/* Old-flow modal — only for users who were mid-legacy-flow at v2
-            deploy time. The redirect above sends brand-new users (no legacy
-            progress) into the v2 flow; users with entry_struggle set are
-            already on the v2 path. */}
-        {!profile?.onboarding_completed_at &&
-          !profile?.entry_struggle &&
-          profile?.onboarding_progress && (
-            <OnboardingModal
-              initialProgress={profile.onboarding_progress as OnboardingState | null}
-              userName={displayName ?? undefined}
-              currency={currency}
-            />
-          )}
       </ChatProvider>
     </div>
   )
