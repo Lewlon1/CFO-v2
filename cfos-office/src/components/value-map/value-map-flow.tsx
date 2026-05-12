@@ -18,6 +18,7 @@ import {
   VALUE_MAP_INTRO_HERO,
   VALUE_MAP_INTRO_SUBHEADS,
   VALUE_MAP_INTRO_EXPLAINER,
+  VALUE_MAP_INTRO_HOW,
 } from '@/lib/value-map/copy'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
@@ -646,6 +647,25 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
               )
             })}
           </div>
+        </div>
+
+        {/* How the exercise works — sets expectations about samples seeding a
+            baseline + the Unsure escape hatch. */}
+        <div className="space-y-3">
+          <p className="eyebrow">How it works</p>
+          {VALUE_MAP_INTRO_HOW.map((bullet) => (
+            <div
+              key={bullet.title}
+              className="rounded-xl border border-border bg-card px-4 py-3"
+            >
+              <h3 className="font-serif text-[17px] leading-[1.25] text-foreground">
+                {bullet.title}
+              </h3>
+              <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
+                {bullet.body}
+              </p>
+            </div>
+          ))}
         </div>
 
         {/* CTA */}

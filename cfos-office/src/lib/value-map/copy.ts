@@ -54,6 +54,22 @@ export const VALUE_MAP_INTRO_EXPLAINER: readonly IntroBullet[] = [
   },
 ] as const
 
+// How the onboarding Value Map exercise actually works. Sets expectations
+// about (a) sample transactions seeding a baseline, real statements
+// sharpening it over time, and (b) the Unsure escape hatch.
+export const VALUE_MAP_INTRO_HOW: readonly IntroBullet[] = [
+  {
+    title: "You'll start with samples.",
+    body:
+      "The transactions on the next screen aren't yours — they're representative examples. Sort them by what they mean to you and I'll build a baseline reading. You can re-do this with your own statements whenever you want, and the reading sharpens every time.",
+  },
+  {
+    title: 'Not sure? Tap Unsure.',
+    body:
+      "There's an Unsure button below the four buckets for when nothing fits. Better to skip one than force a category that doesn't feel right.",
+  },
+] as const
+
 export const VALUE_MAP_DEMO_FOOTNOTE =
   'Takes about 2 minutes. No account needed to see your reading.'
 
