@@ -13,11 +13,11 @@ export default async function OnboardingV2Page() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('entry_struggle, display_name')
+    .select('entry_struggle, display_name, onboarding_completed_at')
     .eq('id', user.id)
     .single()
 
-  if (profile?.entry_struggle) {
+  if (profile?.onboarding_completed_at || profile?.entry_struggle) {
     redirect('/office')
   }
 

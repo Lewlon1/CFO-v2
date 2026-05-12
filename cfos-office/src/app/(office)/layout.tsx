@@ -64,6 +64,17 @@ export default async function OfficeLayout({ children }: { children: React.React
     }
   }
 
+  // Send brand-new users (no v2 entry, no legacy progress, not completed) into
+  // the onboarding-v2 flow. The legacy modal below only fires for users who
+  // were mid-legacy-flow at deploy time (onboarding_progress already populated).
+  if (
+    !profile?.onboarding_completed_at &&
+    !profile?.entry_struggle &&
+    !profile?.onboarding_progress
+  ) {
+    redirect('/onboarding-v2')
+  }
+
   const currency = profile?.primary_currency ?? 'EUR'
   const displayName = profile?.display_name
     ?? user.user_metadata?.full_name?.split(' ')[0]
@@ -124,15 +135,19 @@ export default async function OfficeLayout({ children }: { children: React.React
             loads the conversation, and triggers free-text opener if needed. */}
         <ChatOpenerTrigger />
 
-        {/* Old-flow modal — only for users who started under the old flow.
-            New-flow users (entry_struggle set) skip the modal entirely. */}
-        {!profile?.onboarding_completed_at && !profile?.entry_struggle && (
-          <OnboardingModal
-            initialProgress={profile?.onboarding_progress as OnboardingState | null}
-            userName={displayName ?? undefined}
-            currency={currency}
-          />
-        )}
+        {/* Old-flow modal — only for users who were mid-legacy-flow at v2
+            deploy time. The redirect above sends brand-new users (no legacy
+            progress) into the v2 flow; users with entry_struggle set are
+            already on the v2 path. */}
+        {!profile?.onboarding_completed_at &&
+          !profile?.entry_struggle &&
+          profile?.onboarding_progress && (
+            <OnboardingModal
+              initialProgress={profile.onboarding_progress as OnboardingState | null}
+              userName={displayName ?? undefined}
+              currency={currency}
+            />
+          )}
       </ChatProvider>
     </div>
   )
