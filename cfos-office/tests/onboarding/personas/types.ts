@@ -1,5 +1,12 @@
 import type { ValueQuadrant, MoneyPersonality, ValueMapResult } from '@/lib/value-map/types'
-import type { OnboardingBeat } from '@/lib/onboarding/types'
+
+// The v1 modal flow defined an OnboardingBeat enum (welcome | framework |
+// value_map | archetype | csv_upload | capabilities | first_insight |
+// handoff). The modal is gone; these persona fixtures still describe the
+// old beat shape and aren't wired to the route-based v2 flow yet. Keep
+// the type as a string alias so the runner type-checks until the fixtures
+// are refactored against v2.
+type OnboardingBeat = string
 
 // ── Scripted Value Map response ─────────────────────────────────────────────
 // Same shape as the runtime ValueMapResult, but merchant + transaction_id are
