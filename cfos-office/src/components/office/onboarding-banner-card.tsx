@@ -36,7 +36,7 @@ export function OnboardingBannerCard({ variant }: { variant: Variant }) {
     variant === 'value_map' ? 'Start the Value Map →' : 'Upload a statement →'
   const target =
     variant === 'value_map'
-      ? '/onboarding-v2/intro'
+      ? '/onboarding-v2/value-map'
       : '/office/cash-flow/upload'
 
   function handleClick() {

@@ -9,9 +9,8 @@ import { advanceStep } from '@/app/onboarding-v2/actions-step'
  * Inline action button rendered under an assistant message whose
  * `actions_created` metadata includes `{ type: 'start_value_map' }`.
  *
- * On click: stamps `onboarding_step = 'intro_shown'` so the chat-route user
- * passes through the same Marcus intro page (with their route-specific
- * headline), then navigates to /onboarding-v2/intro.
+ * On click: stamps `onboarding_step = 'value_map_started'` and navigates
+ * straight to /onboarding-v2/value-map.
  */
 export function ValueMapActionButton() {
   const router = useRouter()
@@ -23,8 +22,8 @@ export function ValueMapActionButton() {
     startTransition(async () => {
       try {
         trackEvent('onboarding_v2.value_map_accepted')
-        await advanceStep('intro_shown')
-        router.push('/onboarding-v2/intro')
+        await advanceStep('value_map_started')
+        router.push('/onboarding-v2/value-map')
       } catch (err) {
         console.error('[ValueMapActionButton] navigation failed', err)
       }

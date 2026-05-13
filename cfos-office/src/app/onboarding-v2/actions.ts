@@ -45,8 +45,8 @@ export async function submitStruggle(
 
   const entryStruggleText = hasOption ? null : trimmedText
 
-  // Marcus path lands on the intro screen — stamp onboarding_step in the
-  // same UPDATE so resume logic sees consistent state immediately.
+  // Marcus path skips straight into the Value Map — stamp value_map_started
+  // in the same UPDATE so resume logic sees consistent state immediately.
   const isMarcus = route === 'value_map'
   const { error: updateErr } = await supabase
     .from('user_profiles')
@@ -55,7 +55,7 @@ export async function submitStruggle(
       entry_struggle_text: entryStruggleText,
       entry_struggle_at: new Date().toISOString(),
       onboarding_route: route,
-      ...(isMarcus ? { onboarding_step: 'intro_shown' } : {}),
+      ...(isMarcus ? { onboarding_step: 'value_map_started' } : {}),
     })
     .eq('id', user.id)
   if (updateErr) {
@@ -65,7 +65,7 @@ export async function submitStruggle(
 
   if (route === 'value_map') {
     return {
-      redirectTo: '/onboarding-v2/intro',
+      redirectTo: '/onboarding-v2/value-map',
       route: 'value_map',
       entryStruggle,
       conversationId: null,
