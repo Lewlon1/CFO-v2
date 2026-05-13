@@ -1,0 +1,8 @@
+Unused dependencies
+* react-dom
+Unused devDependencies
+* @tailwindcss/postcss
+* @types/react-dom
+* tailwindcss
+* tsx
+* typescript

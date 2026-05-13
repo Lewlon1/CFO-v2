@@ -1,0 +1,306 @@
+next.config.ts:70 - default
+vitest.config.ts:4 - default
+scripts/_stub-next-headers.ts:5 - cookies
+src/proxy.ts:4 - proxy
+src/proxy.ts:40 - config
+src/app/layout.tsx:38 - default
+src/app/layout.tsx:26 - metadata
+src/app/layout.tsx:31 - viewport
+src/app/page.tsx:12 - default
+src/app/page.tsx:6 - metadata
+src/lib/tokens.ts:6 - colors
+src/lib/tokens.ts:60 - fonts
+src/app/(auth)/layout.tsx:1 - default
+src/app/(office)/layout.tsx:37 - default
+src/app/(office)/layout.tsx:8 - dynamic
+src/app/onboarding-v2/actions.ts:7 - SubmitStruggleInput (used in module)
+src/app/onboarding-v2/actions.ts:12 - SubmitStruggleResult (used in module)
+src/app/onboarding-v2/page.tsx:7 - default
+src/app/onboarding-v2/page.tsx:5 - dynamic
+src/app/value-map/page.tsx:7 - default
+src/components/brand/CFOAvatar.tsx:47 - default
+src/components/chat/ChatProvider.tsx:45 - ChatContext (used in module)
+src/components/data/index.ts:1 - MetricTile
+src/components/data/index.ts:2 - ValuePill
+src/components/data/index.ts:3 - FolderCard
+src/components/data/index.ts:3 - FolderMetric
+src/components/data/index.ts:5 - MonthSelector
+src/components/data/index.ts:6 - CategoryBar
+src/components/data/index.ts:7 - TransactionRow
+src/components/data/index.ts:8 - FilterPills
+src/components/data/index.ts:9 - ProvenanceLine
+src/components/data/index.ts:10 - FileRow
+src/components/data/index.ts:11 - GapCard
+src/components/data/index.ts:12 - SectionTitle
+src/components/demo/demo-reveal.tsx:20 - PersonalityData (used in module)
+src/components/navigation/NavigationBar.tsx:101 - default
+src/components/office/FolderSection.tsx:81 - default
+src/components/office/UserAvatarMenu.tsx:21 - default
+src/components/ui/button.tsx:6 - ButtonProps (used in module)
+src/lib/ai/audit-trail.ts:4 - CreateActionItemAuditEntry (used in module)
+src/lib/ai/audit-trail.ts:6 - StartValueMapAuditEntry (used in module)
+src/lib/ai/audit-trail.ts:7 - ActionAuditEntry (used in module)
+src/lib/ai/audit-trail.ts:9 - MessageAudit (used in module)
+src/lib/ai/context-builder.ts:183 - buildFirstInsightContext (used in module)
+src/lib/ai/insight-validator.ts:38 - ValidateOptions (used in module)
+src/lib/ai/portrait-extraction.ts:23 - ExtractFromConversationResult (used in module)
+src/lib/ai/portrait-extraction.ts:27 - ExtractFromConversationParams (used in module)
+src/lib/ai/provider.ts:9 - chatModelId (used in module)
+src/lib/ai/provider.ts:15 - opusModelId (used in module)
+src/lib/ai/provider.ts:31 - opusModel
+src/lib/ai/usage-logger.ts:17 - estimateCostUSD
+src/lib/ai/usage-logger.ts:1 - BedrockUsageEvent (used in module)
+src/lib/alerts/notify.ts:1 - AlertSeverity (used in module)
+src/lib/alerts/notify.ts:3 - AlertPayload (used in module)
+src/lib/analytics/categories.ts:33 - isRefundRow
+src/lib/analytics/categories.ts:5 - NEUTRAL_CATEGORY_IDS (used in module)
+src/lib/analytics/gap-analyser.ts:12 - GapSeverity (used in module)
+src/lib/analytics/gap-analyser.ts:14 - CategoryGap (used in module)
+src/lib/analytics/gap-analyser.ts:36 - GapAnalysisSummary (used in module)
+src/lib/analytics/gap-analyser.ts:45 - GapAnalysisResult (used in module)
+src/lib/analytics/insight-engine.ts:151 - assignToLayers (used in module)
+src/lib/analytics/insight-engine.ts:187 - computeStatCards (used in module)
+src/lib/analytics/insight-engine.ts:269 - determineHook (used in module)
+src/lib/analytics/insight-engine.ts:303 - computeDisciplineScore (used in module)
+src/lib/analytics/insight-types.ts:6 - Transaction (used in module)
+src/lib/analytics/insight-types.ts:7 - MonthlySnapshot (used in module)
+src/lib/analytics/insight-types.ts:8 - RecurringExpense (used in module)
+src/lib/analytics/insight-types.ts:9 - ValueMapSession (used in module)
+src/lib/analytics/onboarding-events.ts:36 - useTrackOnboarding
+src/lib/analytics/onboarding-events.ts:5 - OnboardingEventType (used in module)
+src/lib/analytics/onboarding-events.ts:20 - OnboardingEventPayload (used in module)
+src/lib/analytics/pattern-detectors.ts:32 - isExpense
+src/lib/analytics/pattern-detectors.ts:46 - merchantFragmentation (used in module)
+src/lib/analytics/pattern-detectors.ts:128 - transactionSizeDistribution (used in module)
+src/lib/analytics/pattern-detectors.ts:171 - categoryConcentration (used in module)
+src/lib/analytics/pattern-detectors.ts:224 - spendingVelocity (used in module)
+src/lib/analytics/pattern-detectors.ts:295 - recurringExpenseTotal (used in module)
+src/lib/analytics/pattern-detectors.ts:402 - dayOfWeekSkew (used in module)
+src/lib/analytics/pattern-detectors.ts:450 - convenienceVsPlanned (used in module)
+src/lib/analytics/pattern-detectors.ts:555 - incomeDetected (used in module)
+src/lib/analytics/pattern-detectors.ts:631 - valueMapGap (used in module)
+src/lib/analytics/pattern-detectors.ts:643 - geographicSpendingModes (used in module)
+src/lib/analytics/pattern-detectors.ts:757 - monthOverMonthTrend (used in module)
+src/lib/analytics/pattern-detectors.ts:850 - balanceTrajectory (used in module)
+src/lib/analytics/value-shift-detector.ts:5 - ValueDistribution (used in module)
+src/lib/bills/brave-search.ts:1 - BraveSearchResult (used in module)
+src/lib/bills/provider-registry.ts:1 - BillType (used in module)
+src/lib/bills/provider-registry.ts:10 - KnownProvider (used in module)
+src/lib/categorisation/llm-categoriser.ts:10 - LLMCatResult (used in module)
+src/lib/categorisation/normalise-merchant.ts:88 - getMerchantKey
+src/lib/categorisation/rules-engine.ts:10 - RulesContext (used in module)
+src/lib/categorisation/value-categoriser.ts:10 - ValueCatResult (used in module)
+src/lib/categorisation/value-classification.ts:8 - ClassificationParams (used in module)
+src/lib/chat/folder-prompts.ts:10 - FolderChatMeta (used in module)
+src/lib/csv/column-detector.ts:31 - detectColumnMapping
+src/lib/csv/column-detector.ts:50 - isMappingHighConfidence
+src/lib/csv/transform.ts:3 - ColumnMapping (used in module)
+src/lib/csv/transform.ts:5 - TransformedRow (used in module)
+src/lib/demo/transactions.ts:10 - DemoCountry (used in module)
+src/lib/nudges/remap-action-url.ts:19 - RemappedAction (used in module)
+src/lib/nudges/rules.ts:13 - NudgeFrequency (used in module)
+src/lib/nudges/rules.ts:14 - NudgePriority (used in module)
+src/lib/nudges/rules.ts:16 - NudgeRule (used in module)
+src/lib/nudges/rules.ts:172 - NUDGE_ICONS
+src/lib/nudges/rules.ts:185 - NUDGE_LABELS
+src/lib/nudges/rules.ts:198 - PRIORITY_ORDER
+src/lib/onboarding/types.ts:8 - FirstInsightResult (used in module)
+src/lib/onboarding/types.ts:15 - ONBOARDING_BEATS (used in module)
+src/lib/onboarding/types.ts:28 - BeatMessage
+src/lib/onboarding/types.ts:77 - OnboardingState
+src/lib/onboarding/types.ts:87 - OnboardingAction
+src/lib/onboarding-v2/intro-headlines.ts:1 - INTRO_HEADLINES (used in module)
+src/lib/onboarding-v2/labels.ts:10 - STRUGGLE_LABELS
+src/lib/onboarding-v2/openers.ts:9 - FixedOpenerKey
+src/lib/onboarding-v2/types.ts:9 - StartValueMapAction (used in module)
+src/lib/onboarding-v2/types.ts:10 - CreateActionItemAction (used in module)
+src/lib/onboarding-v2/types.ts:12 - MessageAction
+src/lib/parsers/balance-sheet-pdf.ts:28 - BalanceSheetPdfResult (used in module)
+src/lib/parsers/balance-sheet-screenshot.ts:19 - BalanceSheetScreenshotResult (used in module)
+src/lib/parsers/bill-extractor.ts:30 - BillExtraction (used in module)
+src/lib/parsers/bill-extractor.ts:51 - BillExtractionResult (used in module)
+src/lib/parsers/format-detect-client.ts:36 - ClientParseOutcome (used in module)
+src/lib/parsers/holdings-csv.ts:25 - parseLooseNumber (used in module)
+src/lib/parsers/holdings-detector.ts:149 - isHoldingsMappingHighConfidence
+src/lib/parsers/types.ts:6 - ParsedTransactionSource (used in module)
+src/lib/parsers/types.ts:49 - FormatTemplateColumnMapping (used in module)
+src/lib/parsers/types.ts:82 - NormalisedTransaction
+src/lib/parsers/types.ts:86 - StatementMetadata (used in module)
+src/lib/parsers/types.ts:130 - ValueRuleMatchType (used in module)
+src/lib/prediction/predictor.ts:153 - predictValueCategory
+src/lib/profiling/question-registry.ts:3 - InputType (used in module)
+src/lib/profiling/question-registry.ts:11 - SelectOption (used in module)
+src/lib/profiling/question-registry.ts:16 - StructuredInputConfig (used in module)
+src/lib/supabase/types.ts:1 - Json (used in module)
+src/lib/supabase/types.ts:2554 - Tables (used in module)
+src/lib/supabase/types.ts:2583 - TablesInsert
+src/lib/supabase/types.ts:2608 - TablesUpdate
+src/lib/supabase/types.ts:2633 - Enums (used in module)
+src/lib/supabase/types.ts:2650 - CompositeTypes (used in module)
+src/lib/supabase/types.ts:2667 - Constants
+src/lib/upload/balance-sheet-import.ts:30 - ConfirmedHoldingsImport (used in module)
+src/lib/upload/balance-sheet-import.ts:40 - ConfirmedSingleAssetImport (used in module)
+src/lib/upload/balance-sheet-import.ts:54 - ConfirmedLiabilityImport (used in module)
+src/lib/upload/balance-sheet-import.ts:76 - ImportSummary (used in module)
+src/lib/upload/balance-sheet-import.ts:85 - RunBalanceSheetImportResult (used in module)
+src/lib/upload/duplicate-detector.ts:32 - makeKey (used in module)
+src/lib/upload/pipeline.ts:14 - PipelineStats (used in module)
+src/lib/upload/pipeline.ts:21 - PipelineOptions (used in module)
+src/lib/utils/time-context.ts:6 - TimeContext (used in module)
+src/lib/value-map/copy.ts:19 - IntroBullet (used in module)
+src/lib/value-map/copy.ts:141 - GapSketchCopy (used in module)
+src/lib/value-map/feedback.ts:363 - MilestoneContext (used in module)
+src/lib/value-map/regenerate-archetype.ts:21 - RegenerationTrigger (used in module)
+src/lib/value-map/regenerate-archetype.ts:23 - RegenerationResult (used in module)
+src/lib/value-map/retake-candidates.ts:7 - CategoryTier (used in module)
+src/lib/value-map/retake-candidates.ts:9 - RetakeCandidateStats (used in module)
+src/lib/value-map/retake-candidates.ts:16 - RetakeCandidatesResult (used in module)
+tests/onboarding/personas/index.ts:22 - getPersona
+tests/onboarding/personas/index.ts:26 - personaIds
+tests/onboarding/personas/index.ts:11 - PERSONAS (used in module)
+tests/onboarding/personas/types.ts:20 - PersonaProfile (used in module)
+tests/onboarding/personas/types.ts:29 - PersonaCsv (used in module)
+tests/onboarding/personas/types.ts:37 - PersonaExpectations (used in module)
+tests/onboarding/personas/types.ts:79 - ValueMapResult (used in module)
+tests/onboarding/runner/args.ts:1 - CliArgs (used in module)
+tests/onboarding/runner/dev-server.ts:7 - DevServerHandle (used in module)
+tests/onboarding/runner/playwright-driver.ts:18 - DriverOptions (used in module)
+tests/onboarding/runner/playwright-driver.ts:24 - DriverResult (used in module)
+tests/onboarding/runner/preflight.ts:34 - loadDotenvLocal
+src/app/(auth)/login/page.tsx:9 - default
+src/app/(auth)/signup/page.tsx:269 - default
+src/app/(office)/office/OfficeHomeClient.tsx:111 - default
+src/app/(office)/office/page.tsx:7 - default
+src/app/(public)/demo/layout.tsx:20 - default
+src/app/(public)/demo/layout.tsx:3 - metadata
+src/app/(public)/demo/page.tsx:6 - default
+src/app/(public)/privacy/page.tsx:10 - default
+src/app/(public)/privacy/page.tsx:4 - metadata
+src/app/(public)/terms/page.tsx:9 - default
+src/app/(public)/terms/page.tsx:4 - metadata
+src/app/(public)/v4/layout.tsx:11 - default
+src/app/(public)/v4/layout.tsx:5 - metadata
+src/app/(public)/v4/page.tsx:9 - default
+src/app/api/analyze-conversation/route.ts:9 - POST
+src/app/api/balance-sheet/route.ts:151 - GET
+src/app/api/balance-sheet/route.ts:29 - BalanceSheetAssetItem (used in module)
+src/app/api/balance-sheet/route.ts:52 - BalanceSheetLiabilityItem (used in module)
+src/app/api/chat/route.ts:35 - POST
+src/app/api/chat/route.ts:22 - maxDuration
+src/app/api/detect-format/route.ts:101 - POST
+src/app/api/detect-format/route.ts:37 - runtime
+src/app/api/extract-pdf-transactions/route.ts:93 - POST
+src/app/api/extract-pdf-transactions/route.ts:28 - runtime
+src/app/api/extract-pdf-transactions/route.ts:29 - maxDuration
+src/app/api/nudges/route.ts:4 - GET
+src/app/api/nudges/route.ts:49 - PATCH
+src/app/api/upload/route.ts:39 - POST
+src/app/onboarding-v2/archetype/page.tsx:10 - default
+src/app/onboarding-v2/archetype/page.tsx:8 - dynamic
+src/app/onboarding-v2/intro/page.tsx:9 - default
+src/app/onboarding-v2/intro/page.tsx:7 - dynamic
+src/app/onboarding-v2/upload/page.tsx:9 - default
+src/app/onboarding-v2/upload/page.tsx:7 - dynamic
+src/app/onboarding-v2/value-map/page.tsx:9 - default
+src/app/onboarding-v2/value-map/page.tsx:7 - dynamic
+src/components/office/dashboards/Briefing.tsx:43 - default
+src/components/office/dashboards/CashFlowDashboard.tsx:325 - default
+src/components/office/dashboards/DetailHeader.tsx:44 - default
+src/components/office/dashboards/DrillDownRow.tsx:37 - default
+src/components/office/dashboards/NetWorthDashboard.tsx:345 - default
+src/components/office/dashboards/ScenariosDashboard.tsx:312 - default
+src/components/office/dashboards/ValuesDashboard.tsx:289 - default
+src/components/office/sections/CashFlowSection.tsx:70 - default
+src/components/office/sections/NetWorthSection.tsx:51 - default
+src/components/office/sections/ScenariosSection.tsx:43 - default
+src/components/office/sections/ValuesSection.tsx:74 - default
+src/lib/ai/tools/get-value-review-queue.ts:51 - ReviewIndividualTransaction (used in module)
+src/lib/ai/tools/index.ts:28 - createToolbox
+src/lib/ai/tools/index.ts:26 - ToolContext (used in module)
+src/app/(office)/office/cash-flow/page.tsx:4 - default
+src/app/(office)/office/inbox/page.tsx:52 - default
+src/app/(office)/office/net-worth/page.tsx:6 - default
+src/app/(office)/office/net-worth/page.tsx:4 - dynamic
+src/app/(office)/office/scenarios/page.tsx:11 - default
+src/app/(office)/office/scenarios/page.tsx:9 - dynamic
+src/app/(office)/office/settings/page.tsx:5 - default
+src/app/(office)/office/values/page.tsx:17 - default
+src/app/(office)/office/values/page.tsx:5 - dynamic
+src/app/api/account/consent/route.ts:8 - POST
+src/app/api/account/consent/route.ts:51 - GET
+src/app/api/account/delete/route.ts:9 - POST
+src/app/api/account/export/route.ts:7 - GET
+src/app/api/analytics/event/route.ts:4 - POST
+src/app/api/analytics/feedback/route.ts:4 - POST
+src/app/api/balance-sheet/holdings/route.ts:26 - GET
+src/app/api/balance-sheet/holdings/route.ts:4 - HoldingRow (used in module)
+src/app/api/bills/confirm/route.ts:25 - POST
+src/app/api/bills/delete/route.ts:4 - POST
+src/app/api/bills/dismiss/route.ts:4 - POST
+src/app/api/bills/history/route.ts:4 - GET
+src/app/api/bills/promote/route.ts:5 - POST
+src/app/api/bills/start-conversation/route.ts:4 - POST
+src/app/api/bills/upload/route.ts:14 - POST
+src/app/api/chat/undo/route.ts:188 - POST
+src/app/api/conversations/recent/route.ts:4 - GET
+src/app/api/corrections/signal/route.ts:10 - POST
+src/app/api/cron/daily-bills/route.ts:4 - GET
+src/app/api/cron/nudges-daily/route.ts:13 - GET
+src/app/api/cron/nudges-daily/route.ts:11 - maxDuration
+src/app/api/cron/nudges-monthly/route.ts:9 - GET
+src/app/api/cron/nudges-monthly/route.ts:7 - maxDuration
+src/app/api/cron/nudges-weekly/route.ts:9 - GET
+src/app/api/cron/nudges-weekly/route.ts:7 - maxDuration
+src/app/api/cron/portrait-extraction/route.ts:18 - GET
+src/app/api/cron/portrait-extraction/route.ts:6 - maxDuration
+src/app/api/dashboard/summary/route.ts:91 - GET
+src/app/api/dashboard/trends/route.ts:16 - GET
+src/app/api/demo/reading/route.ts:301 - POST
+src/app/api/demo/reading/route.ts:9 - maxDuration
+src/app/api/demo/session/route.ts:6 - POST
+src/app/api/demo/session/route.ts:111 - PATCH
+src/app/api/demo/signup/route.ts:15 - POST
+src/app/api/goals/delete/route.ts:9 - POST
+src/app/api/goals/delete/route.ts:4 - dynamic
+src/app/api/insights/post-upload/route.ts:5 - POST
+src/app/api/insights/value-map-complete/route.ts:4 - POST
+src/app/api/onboarding/complete/route.ts:6 - POST
+src/app/api/onboarding/generate-archetype/route.ts:81 - POST
+src/app/api/onboarding-v2/free-text-opener/route.ts:7 - POST
+src/app/api/onboarding-v2/free-text-opener/route.ts:5 - maxDuration
+src/app/api/profile/delete-data/route.ts:13 - POST
+src/app/api/profile/update/route.ts:15 - POST
+src/app/api/review/start/route.ts:7 - POST
+src/app/api/value-map/checkin/route.ts:7 - GET
+src/app/api/value-map/link-session/route.ts:14 - POST
+src/app/api/value-map/personal/route.ts:40 - GET
+src/app/api/value-map/personal/route.ts:94 - POST
+src/app/api/value-map/regenerate/route.ts:5 - POST
+src/app/api/value-map/reveal/route.ts:59 - POST
+src/app/(office)/office/cash-flow/bills/page.tsx:4 - default
+src/app/(office)/office/cash-flow/monthly-overview/page.tsx:3 - default
+src/app/(office)/office/cash-flow/optimise/page.tsx:4 - default
+src/app/(office)/office/cash-flow/patterns/page.tsx:4 - default
+src/app/(office)/office/cash-flow/spending-breakdown/page.tsx:4 - default
+src/app/(office)/office/cash-flow/transactions/page.tsx:17 - default
+src/app/(office)/office/cash-flow/trends/page.tsx:4 - default
+src/app/(office)/office/cash-flow/upload/page.tsx:5 - default
+src/app/(office)/office/net-worth/assets/page.tsx:5 - default
+src/app/(office)/office/net-worth/balance-sheet/page.tsx:5 - default
+src/app/(office)/office/net-worth/liabilities/page.tsx:5 - default
+src/app/(office)/office/net-worth/upload/page.tsx:5 - default
+src/app/(office)/office/scenarios/goals/page.tsx:9 - default
+src/app/(office)/office/scenarios/trips/page.tsx:4 - default
+src/app/(office)/office/scenarios/what-if/page.tsx:4 - default
+src/app/(office)/office/values/archetype/page.tsx:6 - default
+src/app/(office)/office/values/archetype/page.tsx:4 - dynamic
+src/app/(office)/office/values/export/page.tsx:3 - default
+src/app/(office)/office/values/portrait/page.tsx:4 - default
+src/app/(office)/office/values/the-gap/page.tsx:18 - default
+src/app/(office)/office/values/value-split/page.tsx:3 - default
+src/app/api/profile/export/profile/route.ts:26 - GET
+src/app/api/profile/export/transactions/route.ts:11 - GET
+src/app/api/profile/portrait/feedback/route.ts:4 - POST
+src/app/api/profile/traits/dismiss/route.ts:3 - POST
+src/app/api/value-map/checkin/save/route.ts:17 - POST
+src/app/api/value-map/personal/impact/route.ts:12 - GET
