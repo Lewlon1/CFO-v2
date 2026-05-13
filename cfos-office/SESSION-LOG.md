@@ -9,6 +9,17 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-13 — Session 01: Silence diagnosis
+
+**Branch:** `investigation/silence-2026-04-24-nervous-shannon` (read-only; re-base off `claude/nervous-shannon-750502`. An earlier `investigation/silence-2026-04-24` was pushed off `main` and left in place on origin for reference.)
+**Output:** `audit/silence-diagnosis.md`
+**Verdict:** Behavioural. Nothing is broken. Proceed with the refactor plan.
+**Key learning:** "The cliff" framing hid the taper — usage had collapsed to a single user from April 17 onward, and April 24 was the trailing wisp of that user's last session (1+1 message). The cliff was the tail of a slope.
+**Surprise:** Three users have signed in since the silence began (May 2/6/7) without sending any message — one even completed a Value Map retake on May 6. They're coming back; chat isn't pulling them.
+**Follow-up flagged (non-blocker):** The nudges cron has produced zero rows in 23 days. Plausible with all-dormant users, but worth a ~30-min verification that the cron is actually firing in production.
+
+---
+
 ## v2.1 — Phase A: P0 Brand & Polish — 2026-05-06
 
 **Branch:** `claude/laughing-ardinghelli-42b13c`
