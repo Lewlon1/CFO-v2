@@ -9,6 +9,57 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session 05 — Tier 2 cleanup (verified-orphan deletions + migration backfill) — 2026-05-13
+
+**Branch:** `claude/cleanup-tier-1-deletions-fkQwc`
+**Scope:** Verify CODE-MAP.md's Tier 2 candidate list against the codebase before deleting anything, then ship only what survived verification. Plus one Tier 3 metadata-only migration to reconcile the production `schema_migrations` tracker with the four migrations that landed on prod schema-wise but were never recorded.
+
+### Headline
+
+CODE-MAP listed 23 Tier 2 candidates. **20 of 23 were false positives — i.e., live code.** Only 3 deletions shipped. The verification pass and the audit-drift findings are documented in full at `docs/audits/2026-05-13-tier-2-phase-0.md`.
+
+### Verified-orphan deletions (3)
+
+1. `cfos-office/src/lib/analytics/onboarding-events.ts` — zero references anywhere in `src/`.
+2. `cfos-office/src/app/api/analyze-conversation/route.ts` (+ dir) — zero fetch/import callers; only self-reference is its own console log.
+3. `cfos-office/src/app/api/value-map/regenerate/route.ts` (+ dir) — zero callers. The shared library `@/lib/value-map/regenerate-archetype` it imported is still in active use by `api/value-map/personal/route.ts`; the orphan was only the route handler.
+
+### What did NOT ship (false-positive analysis)
+
+- **12 analytics functions in `pattern-detectors.ts`** — all registered in `PATTERN_LIBRARY` (lines 961–974) and iterated by `insight-engine.ts:120` from `computeFirstInsight`, which fires on every CSV upload via `/api/insights/post-upload`. knip-style "unused export" detection missed the library-dispatch pattern.
+- **8 of 10 "orphan" API routes** — `/api/dashboard/summary`, `/api/dashboard/trends`, `/api/bills/history`, `/api/value-map/personal/impact`, `/api/balance-sheet`, `/api/balance-sheet/holdings`, `/api/profile/export/profile`, `/api/profile/export/transactions` are all consumed by SWR hooks, click handlers, or `useDashboardData`. None should have been on the candidate list.
+- **2 non-canonical EmptyState variants** — `dashboard/EmptyState.tsx` and `balance-sheet/EmptyState.tsx`. Initially flagged orphan by absolute-path grep; the build broke because both are consumed by sibling `*Client.tsx` components via relative-path imports (`./EmptyState`). Restored from HEAD. Audit method now requires grepping sibling-relative paths alongside aliases.
+- **`merchant_category_map` table drop** — deferred to BACKLOG. `value-map-flow.tsx:357` reads from it at signup; dropping requires a read-site refactor, which is real code work, not cleanup.
+
+### Migration 043 — production tracker backfill
+
+`cfos-office/supabase/migrations/043_backfill_schema_migrations.sql` inserts the four versions `038–041` into `supabase_migrations.schema_migrations` on production. Verified via Supabase MCP read on prod (`iccelmjenljanqrhhzdv`):
+- prod tops out at `037_beta_cohort`
+- the underlying schema changes (e.g. `conversations.analysed_at`, `active_experiments` table) are already present
+- so the migrations *were* applied; only the tracker rows are missing
+
+Inserts are gated by `ON CONFLICT (version) DO NOTHING` for idempotency. Applied to staging via MCP (no-op there — staging already has the rows). **Awaiting prod apply** — Lewis only, after merge.
+
+### Verification
+
+- `npm run build` clean (after EmptyState restoration on the second pass).
+- `npm test` 176/176 passing.
+- `npm run lint` 23 errors / 29 warnings — matches Session 03 baseline. No errors introduced or removed on net by this session's changes (one error file went away with the deleted `onboarding-events.ts`, one came back with the restored `balance-sheet/EmptyState.tsx`).
+- Dev-server browser walkthrough not attempted (no browser available in sandbox).
+
+### Lessons / audit method updates
+
+1. **knip and absolute-path grep miss real references.** PATTERN_LIBRARY-style dynamic dispatch, sibling-relative imports, and string-literal fetches inside SWR hooks all look like "unused" to those tools. Future audits must run all three searches before flagging a candidate.
+2. **The build is the audit's safety net.** I shipped two false-positive deletions that the build caught immediately — without running `npm run build`, those would have hit main as broken code. Re-running build after every meaningful deletion cluster is non-negotiable.
+3. **The candidate list itself can be wrong, even from a reasonable-looking audit doc.** CODE-MAP came in pre-pasted by Lewis and was treated as input; a fresh verification pass changed the verdict on 20 of 23 items. Document the audit findings (Phase 0 doc) so the *next* session can pick up cold and know what's actually orphan vs. what's been re-verified as live.
+
+### Follow-ups
+
+- `BACKLOG.md` (new, repo-root) captures `merchant_category_map` refactor, `ValuePill.tsx` Tier 1 leftover, prod apply of `042` + `043`, and Tier 3 work.
+- Future Tier 2 passes should grep for `fetch.*['"\`][^'"]*api/<path>`, `useSWR.*<path>`, sibling-relative imports `\\./<Name>`, and library-array-dispatch (`PATTERN_LIBRARY` style) before flagging an orphan.
+
+---
+
 ## 2026-05-13 — Session 01: Silence diagnosis
 
 **Branch:** `investigation/silence-2026-04-24-nervous-shannon` (read-only; re-base off `claude/nervous-shannon-750502`. An earlier `investigation/silence-2026-04-24` was pushed off `main` and left in place on origin for reference.)
