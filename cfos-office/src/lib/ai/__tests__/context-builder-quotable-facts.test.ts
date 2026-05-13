@@ -26,6 +26,7 @@ const BASE: InsightPayload = {
     suggested_response: '',
   },
   suggestedResponses: [],
+  userIntent: null,
 };
 
 function allNumbers(facts: ReturnType<typeof buildQuotableFacts>): Set<number> {

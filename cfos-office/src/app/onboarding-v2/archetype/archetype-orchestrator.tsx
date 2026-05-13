@@ -16,8 +16,10 @@ type Props = {
 /**
  * Marcus archetype reveal. Mirrors the modal's archetype-generation
  * fetch (POST /api/onboarding/generate-archetype) and renders the same
- * <ArchetypeBeat> presentation, with a "Show me the gap" CTA that
- * advances onboarding_step to 'complete' and lands the user in /office.
+ * <ArchetypeBeat> presentation, with a CTA that advances onboarding_step
+ * to 'complete', creates (or reuses) a first_insight conversation, and
+ * lands the user in chat where the CFO opens with a goal-aware wow
+ * moment grounded in their actual transaction data.
  */
 export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) {
   const router = useRouter()
@@ -82,10 +84,33 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
           entry_struggle: entryStruggle ?? null,
         })
         await advanceStep('complete')
-        // Land on the Gap page so "Show me the gap" actually does — the page
-        // server-fetches analyseGap() and renders the result. The user can
-        // navigate to /office from there via the existing nav.
-        router.push('/office/values/the-gap')
+
+        // Materialise (or reuse) a first_insight conversation and land the
+        // user in chat where the CFO opens with a goal-aware wow moment.
+        // The endpoint is idempotent — safe to call even if a prior step
+        // already created one.
+        let conversationId: string | null = null
+        try {
+          const res = await fetch('/api/insights/post-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          })
+          if (res.ok) {
+            const data = await res.json()
+            conversationId = data?.conversationId ?? null
+          } else {
+            console.error('[onboarding-v2.archetype] post-upload returned', res.status)
+          }
+        } catch (insightErr) {
+          // Network/server failure shouldn't strand the user — fall through
+          // to a chat-without-conversation landing.
+          console.error('[onboarding-v2.archetype] post-upload failed', insightErr)
+        }
+
+        const destination = conversationId
+          ? `/office?chat=open&conversationId=${conversationId}`
+          : '/office?chat=open'
+        router.push(destination)
       } catch (err) {
         console.error('[onboarding-v2.archetype] complete failed', err)
         setError('Something went wrong. Please try again.')
@@ -125,7 +150,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
               : 'bg-foreground text-background cursor-pointer')
           }
         >
-          {pending ? 'Just a moment…' : 'Show me the gap →'}
+          {pending ? 'Just a moment…' : 'See what I found →'}
         </button>
       </div>
     </main>

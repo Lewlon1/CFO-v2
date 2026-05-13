@@ -190,7 +190,12 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   lines.push('- Do NOT compute ratios, averages, multipliers, time spans, daily rates, or per-month figures yourself — if a derived figure is not listed in QUOTABLE FACTS, do not cite it. Rephrase qualitatively instead ("sharp spike", "a meaningful chunk") without inventing the number.');
   lines.push('- Do NOT extrapolate (e.g. "across four months" unless the months of data count shown is exactly four). Stick to what the data shows.');
   lines.push("- You do NOT know the user's income, savings rate, or surplus. Do not mention these concepts.");
-  lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
+  if (payload.userIntent) {
+    lines.push("- You DO know the user's stated goal (see STATED GOAL below). Reference it naturally — don't list it back at them.");
+    lines.push("- You do NOT know the user's age, employment, or housing type. Do not reference them.");
+  } else {
+    lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
+  }
   lines.push('- You do NOT know whether their spending is "sustainable" or "affordable" — that requires income.');
   lines.push('- If a field says "not_available", you must not reference it or imply it.');
   lines.push("- Do not say \"you spend X% of your income\" — you don't know their income.");
@@ -218,6 +223,43 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
     lines.push('This user has limited financial structure. Focus on one clear, achievable pattern. Do not overwhelm.');
   }
   lines.push('');
+  // Stated goal — when the user has told us what they want from this product,
+  // anchor the wow moment to it rather than narrating in the abstract.
+  if (payload.userIntent) {
+    const intent = payload.userIntent;
+    lines.push('### STATED GOAL');
+    if (intent.source === 'goal' && intent.goalName) {
+      lines.push(`- The user has set a goal: "${intent.goalName}".`);
+      if (intent.text && intent.text !== intent.goalName) {
+        lines.push(`- In their own words: "${intent.text}"`);
+      }
+    } else if (intent.source === 'entry_struggle') {
+      const struggleLabels: Record<string, string> = {
+        wealth:    "I want to start building wealth",
+        debt:      "I'm carrying debt I want to clear",
+        planning:  "I'm planning for something specific",
+        free_text: "(see their own words below)",
+      };
+      const label = intent.struggleType ? struggleLabels[intent.struggleType] : null;
+      if (label) lines.push(`- At onboarding the user said: "${label}"`);
+      if (intent.text) lines.push(`- In their own words: "${intent.text}"`);
+    }
+    lines.push('');
+    lines.push('FRAME THE WOW MOMENT THROUGH THIS GOAL:');
+    lines.push('- Open by acknowledging the goal in one short line — paraphrase it, do not quote it back verbatim.');
+    lines.push('- Then make the insight land *against* that goal. The leverage is in their day-to-day pattern — what\'s flowing where, and whether it\'s aligned with what they came here for.');
+    lines.push('- Pick ONE specific number from the QUOTABLE FACTS list and tie it to the goal. Specifics over abstractions.');
+    if (payload.userIntent.struggleType === 'wealth' ||
+        (payload.userIntent.text ?? '').toLowerCase().includes('wealth') ||
+        (payload.userIntent.text ?? '').toLowerCase().includes('grow')) {
+      lines.push('- Wealth-building framing: "If we\'re going to actually move toward this, the leverage is in your day-to-day spending — what\'s flowing where, and whether it\'s aligned with what matters."');
+    } else if (payload.userIntent.struggleType === 'debt') {
+      lines.push('- Debt framing: clearing it faster comes down to surplus — what\'s left after fixed costs. Point at where surplus could come from in their pattern.');
+    } else if (payload.userIntent.struggleType === 'planning') {
+      lines.push('- Planning framing: to get there, they need a clear picture of what\'s leaving the account each month. The pattern below is that picture.');
+    }
+    lines.push('');
+  }
   // Quotable facts — the ONLY strings containing numbers or merchant names
   // the LLM is permitted to cite. The post-LLM validator rejects narratives
   // containing any other number >= 10 or any other merchant name.
@@ -307,7 +349,9 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   lines.push('- Savings rate (requires income)');
   lines.push('- Surplus/deficit (requires income)');
   lines.push('- Any percentage "of income" (requires income)');
-  lines.push('- Goals (not collected yet)');
+  if (!payload.userIntent) {
+    lines.push('- Goals (not collected yet)');
+  }
   lines.push('- Age, employment status, housing type (not collected yet)');
   lines.push('- Whether spending is "sustainable" (requires income)');
   return lines.join('\n');
