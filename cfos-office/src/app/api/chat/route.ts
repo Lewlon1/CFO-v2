@@ -7,6 +7,7 @@ import { after } from 'next/server';
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
 import { chatModel } from '@/lib/ai/provider';
 import { logBedrockUsage } from '@/lib/ai/usage-logger';
+import { logToolCall } from '@/lib/observability/llm-usage-log';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
@@ -529,6 +530,22 @@ export async function POST(req: Request) {
     },
     toolChoice: 'auto',
     stopWhen: stepCountIs(5),
+    onStepFinish: ({ toolCalls, usage }) => {
+      if (!toolCalls || toolCalls.length === 0) return;
+      const toolsInStep = toolCalls.length;
+      for (const call of toolCalls) {
+        void logToolCall({
+          userId: user.id,
+          toolName: call.toolName,
+          model: 'claude-sonnet-4-6',
+          conversationId: activeConversationId,
+          messageId: assistantMessageDbId,
+          stepInputTokens: usage?.inputTokens,
+          stepOutputTokens: usage?.outputTokens,
+          toolsInStep,
+        });
+      }
+    },
   });
 
   return result.toUIMessageStreamResponse({
