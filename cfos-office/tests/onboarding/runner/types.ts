@@ -1,3 +1,5 @@
+import type { OnboardingStage } from '../personas/types'
+
 export type LayerStatus = 'pass' | 'fail' | 'skip'
 
 export interface HardRuleResult {
@@ -21,8 +23,13 @@ export interface JudgeOutput {
   raw: unknown
 }
 
-export interface CapturedBeat {
-  beat: string
+/**
+ * A single milestone the driver hit during a persona walk. The screenshot
+ * file (if captured) is named after the stage; the network responses block
+ * is reserved for future use — currently empty.
+ */
+export interface CapturedStage {
+  stage: OnboardingStage
   screenshotPath: string | null
   networkResponses: {
     path: string
@@ -49,11 +56,10 @@ export interface PersonaRunResult {
     llm: LayerStatus
     visual: LayerStatus
   }
-  beatsCompleted: string[]
-  beatsSkipped: string[]
+  stagesCompleted: OnboardingStage[]
   functionalErrors: string[]
   dbState: DbStateSnapshot | null
-  beats: CapturedBeat[]
+  stages: CapturedStage[]
   consoleErrors: string[]
   captured: {
     archetype?: unknown

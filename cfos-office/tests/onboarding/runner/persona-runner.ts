@@ -25,11 +25,10 @@ export async function runPersona(
     finishedAt: '',
     durationMs: 0,
     layers: { functional: 'skip', llm: 'skip', visual: 'skip' },
-    beatsCompleted: [],
-    beatsSkipped: [],
+    stagesCompleted: [],
     functionalErrors: [],
     dbState: null,
-    beats: [],
+    stages: [],
     consoleErrors: [],
     captured: {},
     judge: {},
@@ -45,10 +44,10 @@ export async function runPersona(
     const driverOut = await runPersonaInBrowser(persona, user, {
       baseUrl: ctx.devServerUrl,
       outputDir: personaOutputDir,
+      admin,
     })
-    result.beats = driverOut.beats
-    result.beatsCompleted = driverOut.beatsCompleted
-    result.beatsSkipped = driverOut.beatsSkipped
+    result.stages = driverOut.stages
+    result.stagesCompleted = driverOut.stagesCompleted
     result.consoleErrors = driverOut.consoleErrors
     result.functionalErrors.push(...driverOut.errors)
     if (driverOut.capturedArchetype !== null) result.captured.archetype = driverOut.capturedArchetype
@@ -80,9 +79,11 @@ export async function runPersona(
     }
 
     // Functional + Visual layer status
-    const beatsMatch = persona.expectations.beatsCompleted.every((b) => result.beatsCompleted.includes(b))
-    result.layers.functional = (beatsMatch && result.functionalErrors.length === 0) ? 'pass' : 'fail'
-    result.layers.visual = result.beats.filter((b) => b.screenshotPath).length > 0 ? 'pass' : 'fail'
+    const stagesMatch = persona.expectations.stagesCompleted.every((s) =>
+      result.stagesCompleted.includes(s),
+    )
+    result.layers.functional = (stagesMatch && result.functionalErrors.length === 0) ? 'pass' : 'fail'
+    result.layers.visual = result.stages.filter((s) => s.screenshotPath).length > 0 ? 'pass' : 'fail'
 
     // LLM judge layer
     if (!ctx.skipJudge && persona.expectations.likertDimensions.length > 0) {
@@ -124,12 +125,11 @@ export async function runPersona(
       if (result.judge.archetype || result.judge.insight) {
         result.layers.llm = failures.length === 0 ? 'pass' : 'fail'
       } else {
-        // No outputs captured — can't judge
         result.layers.llm = 'fail'
         result.hardRuleFailures.push('No LLM outputs captured (flow never produced archetype or insight)')
       }
     } else {
-      result.layers.llm = persona.expectations.likertDimensions.length === 0 ? 'skip' : 'skip'
+      result.layers.llm = 'skip'
     }
   } catch (e) {
     result.error = `Persona runner crashed: ${String(e instanceof Error ? e.stack ?? e.message : e)}`

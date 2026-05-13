@@ -1,12 +1,20 @@
 import type { Persona } from './types'
 
-// Minimum-engagement path. User taps Skip on Value Map and CSV upload.
-// Reducer auto-skips archetype (no personalityType) and first_insight
-// (no importBatchId). Result: functional-only test, no LLM output generated.
+// Chat-first path — wealth struggle.
+//
+// In v1 this persona tested the modal's reducer auto-skip behaviour when the
+// user declined the Value Map. v2 has no reducer and no auto-skip: a user who
+// picks anything other than "I don't know where my money goes" goes straight
+// into a chat conversation, where the CFO opens with the pre-canned
+// wealth-building opener. The Value Map can be offered later via the
+// chat-bridge action button, but that's a separate journey.
+//
+// This persona therefore now covers: "wealth struggle → straight to chat,
+// no value-map, no upload, no archetype."
 
 export const skipValueMap: Persona = {
   id: 'skip-value-map',
-  label: 'Skip path — Value Map declined',
+  label: 'Chat-first — Wealth struggle',
   profile: {
     displayName: 'Casey',
     country: 'GB',
@@ -15,16 +23,12 @@ export const skipValueMap: Persona = {
   },
   valueMapResponses: null,
   csv: null,
-  skipBeats: ['value_map', 'csv_upload'],
   expectations: {
-    archetype: {
-      expectedQuadrant: 'foundation',
-      personalityId: 'truth_teller',
-    },
-    beatsCompleted: ['welcome', 'framework', 'value_map', 'csv_upload', 'capabilities', 'handoff'],
-    beatsSkipped: ['archetype', 'first_insight'],
+    entryStruggle: 'wealth',
+    archetype: null,
+    stagesCompleted: ['struggle_submitted', 'chat_opener'],
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
+      user_profiles: { entry_struggle: 'wealth', onboarding_route: 'chat' },
       transactions: { countBetween: [0, 0] },
     },
     likertDimensions: [],

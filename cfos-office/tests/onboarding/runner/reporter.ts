@@ -29,11 +29,11 @@ function escapeHtml(s: string): string {
 }
 
 function personaSection(p: PersonaRunResult, outputRoot: string): string {
-  const imgs = p.beats
-    .filter((b) => b.screenshotPath)
-    .map((b) => {
-      const rel = path.relative(outputRoot, b.screenshotPath!)
-      return `<figure><img src="${escapeHtml(rel)}" alt="${escapeHtml(b.beat)}"><figcaption>${escapeHtml(b.beat)}</figcaption></figure>`
+  const imgs = p.stages
+    .filter((s) => s.screenshotPath)
+    .map((s) => {
+      const rel = path.relative(outputRoot, s.screenshotPath!)
+      return `<figure><img src="${escapeHtml(rel)}" alt="${escapeHtml(s.stage)}"><figcaption>${escapeHtml(s.stage)}</figcaption></figure>`
     })
     .join('')
 
