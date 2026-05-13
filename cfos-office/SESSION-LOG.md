@@ -60,6 +60,47 @@ Inserts are gated by `ON CONFLICT (version) DO NOTHING` for idempotency. Applied
 
 ---
 
+## Session 04 — Constitution v1.1 + CLAUDE.md alignment — 2026-05-13
+
+**Branch:** `claude/cleanup-tier-1-deletions-fkQwc`
+**Scope:** Documentation only. CFO-CONSTITUTION.md v1.0 landed and v1.1 deltas applied in the same commit. CLAUDE.md aligned to actual architecture. No code, no migrations, no prompt files touched.
+
+### Constitution changes (v1.0 → v1.1)
+
+- §2 first-person reversed (strict rule; exception clause removed)
+- §2 tangible-comparison framing added
+- §2 voice tunability codified (direct/blunt/gentle)
+- §2 + §4 "advice"/"advise" prohibition added
+- §4 named-third-party prohibition strengthened (MoneySavingExpert, Finanztest)
+- §4 closing example switched to "That sits outside the remit"
+- §5 "honour the user's exact terms" added
+- §6 calibration-to-user-state paragraph added
+- §7 pushback vs correction distinguished
+- §9.D / §9.G / §9.H rewritten to remove first-person; A, B, C, E, F untouched
+- §10 version bumped to 1.1; version history section added
+
+### CLAUDE.md changes
+
+- Added `## CFO Constitution` section near the top pointing at `CFO-CONSTITUTION.md`
+- `Background: Supabase Edge Functions + pg_cron` → `Background: Vercel cron (cfos-office/vercel.json → /api/cron/*)`
+- File Structure cron listing replaced with the 5 actual routes (`portrait-extraction`, `daily-bills`, `nudges-daily`, `nudges-weekly`, `nudges-monthly`) and their schedules
+- Assembly Order updated from 7 stale layers to the 18 sections actually concatenated in `context-builder.ts:buildSystemPrompt()`
+
+### Out-of-scope drift flagged for a later pass
+
+- Line 76 still says "Claude never does arithmetic… All numbers are computed by Edge Functions or SQL queries…". The actual computers are TypeScript tools in `cfos-office/src/lib/ai/tools/`. Phrase reads ambiguously and isn't blocking v1.1 — leave for a future doc pass.
+- A handful of v1.0 CFO-quoted examples in §2 ("Phrases the CFO uses", Hedging is forbidden) used first person ("I don't have enough data to say"). Rewrote those minimally to align with the v1.1 strict rule — these aren't on the prompt's Find/Replace list but the rule explicitly forbids first person in CFO speech.
+
+### Surprise
+
+v1.0 did not exist on any branch when this session started — Lewis had drafted it off-repo. Landed it and v1.1 in a single commit per his call. Means the diff against main looks like a fresh document, not an edit; the v1.1 deltas only show up by reading the version history.
+
+### Next
+
+Session 06 rewrites `lib/ai/system-prompt.ts` against the Constitution. Reads Constitution + CLAUDE.md end-to-end as input. The CFO Constitution section in CLAUDE.md is the entry point.
+
+---
+
 ## 2026-05-13 — Session 01: Silence diagnosis
 
 **Branch:** `investigation/silence-2026-04-24-nervous-shannon` (read-only; re-base off `claude/nervous-shannon-750502`. An earlier `investigation/silence-2026-04-24` was pushed off `main` and left in place on origin for reference.)
