@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { loadCurrentBudget, loadAverageDiscretionary } from './helpers';
+import { recomputeGoal } from '@/lib/goals/recompute';
 
 const LONG_TRIP_DAYS = 56; // 8 weeks
 
@@ -230,14 +231,17 @@ export function createPlanTripTool(ctx: ToolContext) {
           notes: input.notes || null,
         };
 
+        // Pace/on_track are deliberately omitted here — they're set by the
+        // shared recompute pass below so trip-linked goals and CFO-created
+        // goals use the same surplus-vs-required formula. feasibilityRating
+        // (used by funding_plan) is a finer trip-specific classification
+        // that lives only in the response payload.
         const goalPayload = {
           user_id: ctx.userId,
           name: `Trip: ${input.destination}`,
           description: `Savings goal for ${input.name}`,
           target_amount: Math.round(userShare),
           target_date: input.start_date || null,
-          monthly_required_saving: Math.round(monthlySavingRequired),
-          on_track: feasibilityRating !== 'unrealistic',
           priority: 'medium' as const,
           status: 'active' as const,
         };
@@ -308,6 +312,17 @@ export function createPlanTripTool(ctx: ToolContext) {
             return { error: 'Trip record failed to save, but your savings goal was created. Please try again.' };
           }
           tripId = trip.id;
+        }
+
+        // Set pace/on_track via the shared recompute. For new goals (no
+        // contributions yet) this writes the initial pace; for existing goals
+        // with logged contributions it picks up the current_amount derived
+        // from SUM(contributions). Failure here is non-fatal — the goal exists
+        // and will be picked up by the next login-time recompute.
+        try {
+          await recomputeGoal(ctx.supabase, ctx.userId, goalId);
+        } catch (recomputeErr) {
+          console.error('[tool:plan_trip] post-create recompute failed:', recomputeErr);
         }
 
         return {

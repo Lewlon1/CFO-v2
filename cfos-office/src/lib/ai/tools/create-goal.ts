@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
-import { loadCurrentBudget, loadAverageDiscretionary } from './helpers';
+import { computePaceAndOnTrack } from '@/lib/goals/pace';
+import { logContribution } from '@/lib/goals/contributions';
 
 export function createCreateGoalTool(ctx: ToolContext) {
   return {
@@ -45,36 +46,12 @@ export function createCreateGoalTool(ctx: ToolContext) {
     }) => {
       try {
         const saved = current_amount ?? 0;
-        const remaining = target_amount - saved;
 
-        // Compute monthly required saving if we have a target date
-        let monthlySaving: number | null = null;
-        if (target_date) {
-          const now = new Date();
-          const target = new Date(target_date);
-          const monthsLeft =
-            (target.getFullYear() - now.getFullYear()) * 12 +
-            (target.getMonth() - now.getMonth());
-          if (monthsLeft > 0) {
-            monthlySaving = Math.round(remaining / monthsLeft);
-          }
-        }
-
-        // Check feasibility against current surplus
-        let onTrack: boolean | null = null;
-        if (monthlySaving != null) {
-          const [budget, avgDiscretionary] = await Promise.all([
-            loadCurrentBudget(ctx),
-            loadAverageDiscretionary(ctx),
-          ]);
-
-          if (budget.netIncome != null) {
-            const totalIncome = budget.netIncome + budget.partnerContribution;
-            const discretionary = avgDiscretionary ?? 0;
-            const surplus = totalIncome - budget.fixedCosts - discretionary;
-            onTrack = surplus >= monthlySaving;
-          }
-        }
+        const pace = await computePaceAndOnTrack(ctx, {
+          current_amount: saved,
+          target_amount,
+          target_date: target_date ?? null,
+        });
 
         const { data, error } = await ctx.supabase
           .from('goals')
@@ -85,8 +62,8 @@ export function createCreateGoalTool(ctx: ToolContext) {
             target_amount: Math.round(target_amount),
             current_amount: Math.round(saved),
             target_date: target_date || null,
-            monthly_required_saving: monthlySaving,
-            on_track: onTrack,
+            monthly_required_saving: pace.monthly_required_saving,
+            on_track: pace.on_track,
             priority: priority || 'medium',
             status: 'active',
           })
@@ -96,6 +73,24 @@ export function createCreateGoalTool(ctx: ToolContext) {
         if (error) {
           console.error('[tool:create_goal] DB error:', error);
           return { error: 'Could not create the goal. Please try again.' };
+        }
+
+        // Seed contribution row — the immutable starting point. Keeps the
+        // invariant current_amount = SUM(contributions) post-recompute.
+        // Failure here is logged but not fatal: the goal row already has a
+        // correct current_amount, and the defensive guard in the recompute
+        // SQL function protects it from being zeroed on the next pass.
+        if (saved > 0) {
+          try {
+            await logContribution(ctx.supabase, ctx.userId, {
+              goalId: data.id,
+              amount: Math.round(saved),
+              kind: 'seed',
+              note: 'Starting amount when goal was created',
+            });
+          } catch (seedErr) {
+            console.error('[tool:create_goal] seed contribution failed:', seedErr);
+          }
         }
 
         return {

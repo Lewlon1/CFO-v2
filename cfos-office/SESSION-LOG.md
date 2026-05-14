@@ -9,6 +9,52 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 10: Goal progress engine
+
+**Branch:** `feature/goal-progress-engine`
+**Scope:** Turn `goals.current_amount`, `monthly_required_saving`, and `on_track` from write-once snapshots into derived, live values. Add a manual-contribution ledger, a chat tool + UI affordance to log contributions, a shared pace/on-track function, a server-side recompute engine, and a once-per-session login-time recompute. Transaction-to-goal matching deliberately deferred (BACKLOG).
+
+### What changed
+- **`cfos-office/supabase/migrations/044_goal_contributions.sql`** (new) — `goal_contributions` table with `kind` ('seed' | 'manual'), CHECK `amount <> 0`, soft-delete + GDPR columns, partial unique index on `(goal_id) WHERE kind='seed' AND deleted_at IS NULL`, RLS policies mirroring `goals`. Adds `user_profiles.goals_last_synced_at`. Adds `public.recompute_goal_current_amount(p_goal_id uuid)` plpgsql function that performs the atomic SUM-in-UPDATE with a defensive guard against zeroing a non-zero `current_amount` when no contributions exist. Idempotent seed backfill for existing goals with `current_amount > 0`.
+- **`cfos-office/src/lib/goals/pace.ts`** (new) — `computePaceAndOnTrack(ctx, input)` lifted verbatim from `create-goal.ts:50-77`. Reuses `loadCurrentBudget` and `loadAverageDiscretionary` from the existing tool helpers — no duplication.
+- **`cfos-office/src/lib/goals/recompute.ts`** (new) — `recomputeGoal(supabase, userId, goalId)` and `recomputeUserGoals(supabase, userId)`. Per-goal flow: RPC the plpgsql function, then compute pace via the shared function against post-update `current_amount`, then write `monthly_required_saving` / `on_track`, then stamp `goals_last_synced_at`. Returns a derived `is_overdue` flag (not stored). Single `console.info('[goals-recompute]', {userId, goalsTouched, durationMs})` for observability.
+- **`cfos-office/src/lib/goals/contributions.ts`** (new) — `logContribution(supabase, userId, input)`. Single shared write path used by the chat tool, the UI affordance, and create-goal's seed path. Inserts the row, then triggers `recomputeGoal` so the caller gets fresh state back.
+- **`cfos-office/src/lib/ai/tools/log-contribution.ts`** (new) — `log_contribution` Claude tool. Schema requires a `goal_id` (the CFO resolves user references like "Japan" to the right goal before calling; ambiguity → ask). Negative amounts permitted. Returns updated goal state for the CFO to interpret with specific numbers.
+- **`cfos-office/src/lib/ai/tools/create-goal.ts`** — inline pace/on-track logic replaced with a call to the shared function. After insert, if `saved > 0`, writes a `kind='seed'` contribution row via `logContribution`. Seed-insert failure is logged but non-fatal; the defensive guard in the recompute SQL protects `current_amount`.
+- **`cfos-office/src/lib/ai/tools/plan-trip.ts`** — goalPayload no longer carries `monthly_required_saving` or `on_track`; the shared `recomputeGoal` sets them after the goal insert/update. Aligns trip-linked goals with the surplus-vs-required formula the rest of the system uses. The trip's funding_plan response retains its finer-grained `feasibilityRating` for trip-specific UI.
+- **`cfos-office/src/lib/ai/tools/index.ts`** — registered `log_contribution`.
+- **`cfos-office/src/app/api/goals/contributions/route.ts`** (new) — POST endpoint backing the UI affordance. Auth → validate (non-zero amount, optional note ≤500 chars) → confirm goal ownership + active status → `logContribution` → return contribution + recomputed goal.
+- **`cfos-office/src/app/(office)/office/scenarios/goals/GoalCard.tsx`** — inline log-contribution form (amount + optional note, fronted by a `+` button). Progress bar clamps at 0 via `Math.max(0, current)`. "Behind starting point" caption when `current < 0`. Existing delete affordance preserved; mutually exclusive with the contribution form.
+- **`cfos-office/src/lib/nudges/evaluators/goal-milestone.ts`** — skips milestone evaluation when `current_amount < 0` (prevents celebratory nudges on a goal that's gone backwards).
+- **`cfos-office/src/app/(office)/layout.tsx`** — existing profile SELECT extended with `goals_last_synced_at`. If null or > 30 minutes old, `recomputeUserGoals` fires via `next/server` `after()` (proven pattern, already used in 5 routes). Wrapped in try/catch — failure logs server-side, never blocks render.
+- **`audit/session-10-phase-0.md`** (new) — Phase 0 ground-truth doc capturing the extraction targets and decisions.
+- **`BACKLOG.md`** — two new entries: Session 11 contribution-affordance integration; deferred transaction-to-goal matching investigation.
+
+### Verdicts
+- `current_amount` is now derived: `COALESCE(SUM(active contributions for goal), 0)`. The seed (the user's "what have you put away?" answer at goal creation) is the first contribution row with `kind='seed'`. Existing prod/staging goals are seeded via the idempotent backfill in the migration.
+- Pace and on/off-track logic lives in one place (`computePaceAndOnTrack`) called by `create_goal`, `plan_trip`, and the recompute engine. No drift between creators and the recompute is now structurally possible.
+- The atomic SUM-in-UPDATE plpgsql function eliminates the read-then-write race between concurrent tabs. The defensive guard means a failed seed insert (or a missed backfill row) doesn't silently zero a goal.
+- The recompute fires once per session via the `(office)` layout `after()` hook — 30-minute TTL, zero blocking work added to layout render, no extra DB trip (folded into the existing profile SELECT).
+- Manual contributions only. Transaction-to-goal matching scoped out and noted in BACKLOG.
+- Negative contributions allowed (CHECK `amount <> 0`); UI/nudges clamp at zero, DB stores the true sum — honest accounting.
+
+### Staging verification
+- Migration 044 applied to CFO Staging by Lewis (the connected Supabase MCP in this session belonged to a different project, so the migration was applied via dashboard / CLI).
+- Post-migration sanity script (one-off, not committed) confirmed: table reachable, RLS RPC callable and idempotent, unique partial seed index enforces (caught a `23505` on duplicate), `user_profiles.goals_last_synced_at` present, manual contribution flows end-to-end through the recompute (`2000 + 7 = 2007`), probe cleanup via soft-delete restores `current_amount`.
+- Post-migration backfill caught 3 goals that were created via the old `create-goal.ts` code path between migration apply time and Session 10 deploy — they now have correctly-amounted `kind='seed'` rows. The idempotent backfill SQL is in the migration; re-running it (or just letting the script's bootstrap step run) is safe.
+- Build / lint / 175 tests all pass.
+
+### Surprises
+- `plan-trip.ts` had a different `on_track` formula (`feasibilityRating !== 'unrealistic'`) than `create-goal.ts` (surplus-vs-required). Without aligning the two, the first post-deploy recompute would have silently shifted trip-goal semantics. Caught during planning; both creators now share the same function. Verification step 9 exists specifically to confirm.
+- The recompute interacts with existing display surfaces (`GoalCard`, `TripsClient`, milestone nudges, model-scenario math) that all read `current_amount` as a stored value. With negative-contribution support, every consumer had to be checked — the UI gets a clamp + "behind starting point" caption; the milestone evaluator skips negatives; the scenario math is unaffected (it reads target/current as numbers and the negative case is mathematically valid for "months to reach target").
+
+### Next
+- Lewis applies migration 044 to CFO Staging via the staging Supabase project, then runs the verification steps from the plan against real data (existing goal seed-row backfill, login recompute, chat + UI contribution flows, negative contribution behaviour, plan-trip alignment, overdue handling, silent-failure mode, concurrent recompute race, `get_advisors` clean).
+- Session 11 integrates the contribution affordance into the home goals surface (already drafted; integration is the small follow-up).
+- Session 13 (action items ranking) and Sessions 11/12/14 are unblocked.
+
+---
+
 ## 2026-05-14 — Session 09: Goal persistence in onboarding
 
 **Branch:** `feature/goal-persistence-onboarding`
