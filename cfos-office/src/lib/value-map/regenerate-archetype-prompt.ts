@@ -204,47 +204,47 @@ export function getRegenerationFallback(
     {
       builder: {
         name: 'The Steady Builder',
-        subtitle: "You move money with intent — it's building something specific.",
+        subtitle: 'Long-term-value classifications outweigh short-term-comfort ones.',
         traits: [
           'Your spending shows a clear preference for long-term value over short-term comfort.',
-          'You confirm categories with high confidence — you know what your money is doing.',
-          'Investment-coded spending consistently outweighs leak-coded across your recent behaviour.',
+          'Categories are confirmed with high confidence — direction is settled.',
+          'Investment-coded spending consistently outweighs Leak-coded across recent behaviour.',
         ],
       },
       fortress: {
         name: 'The Protector',
-        subtitle: 'Security first, everything else orbits that.',
+        subtitle: 'Foundation-anchored classifications; volatility treated as signal.',
         traits: [
-          'Your high-confidence classifications cluster around essentials — foundation is your anchor.',
-          "You treat volatility as signal, not noise — repeat uncertainty usually marks something you're quietly protecting.",
-          'Leak-coded spending stays small relative to foundation and investment.',
+          'High-confidence classifications cluster around essentials — Foundation is the anchor.',
+          'Repeat uncertainty in the data tends to mark categories quietly being protected.',
+          'Leak-coded spending stays small relative to Foundation and Investment.',
         ],
       },
       truth_teller: {
         name: 'The Honest Critic',
-        subtitle: "You're brutally clear about what's wasteful, even when it's yours.",
+        subtitle: 'Leak classifications applied readily, including to your own choices.',
         traits: [
-          'You label things "leak" readily — no illusions about where your money leaks out.',
-          'Your high-confidence corrections are often negative judgements on your own choices.',
-          "You're not avoiding the uncomfortable truth — that's what makes you easy to advise.",
+          'You label items "Leak" readily — no illusions about where money leaks out.',
+          'High-confidence corrections are often negative judgements on your own choices.',
+          'The uncomfortable truths are named directly in the data, not avoided.',
         ],
       },
       drifter: {
         name: 'The Money Wanderer',
-        subtitle: 'Your money moves. It just moves without a clear destination.',
+        subtitle: 'Movement without a clear destination recorded in the data.',
         traits: [
-          'Low-confidence classifications outnumber high-confidence ones — you see your own spending, you just haven\'t named it.',
+          'Low-confidence classifications outnumber high-confidence ones — spending is seen but not yet named.',
           'Breakdown shifts month to month without an obvious driver.',
           'Uncategorised or "no_idea" responses crop up repeatedly for the same merchants.',
         ],
       },
       anchor: {
         name: 'The Grounded One',
-        subtitle: 'Routines anchor your spending. Deviations are meaningful.',
+        subtitle: 'Routine-dominant classifications; deviations sit outside the daily spine.',
         traits: [
-          'Your foundation category dominates — bills, groceries, commute — and you rarely misclassify them.',
-          "When you correct something, it tends to be the outliers — not the daily spine.",
-          "The rare 'leak' you name is usually the same pattern, repeated.",
+          'Foundation dominates — bills, groceries, commute — rarely misclassified.',
+          'Corrections, when they happen, tend to be on outliers rather than the daily spine.',
+          'The rare "Leak" named is usually the same pattern, repeated.',
         ],
       },
     }

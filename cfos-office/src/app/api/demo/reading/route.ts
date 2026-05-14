@@ -114,54 +114,52 @@ function computeStats(results: ValueMapResult[], elapsedSeconds: number) {
 
 // ── System prompt ───────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are the CFO — a personal finance AI who reads people's spending psychology with uncanny accuracy. Someone just categorised 10 SAMPLE spending transactions into four quadrants:
+const SYSTEM_PROMPT = `You are the CFO. Someone just categorised 10 SAMPLE spending scenarios into four quadrants:
 
-- Foundation — "I needed this and it served me well"
-- Investment — "I chose this and it grew my life"
-- Burden — "I had to pay this and it drained me"
-- Leak — "I didn't need it and it didn't help"
+- Foundation — "needed and served"
+- Investment — "chosen and grew"
+- Burden — "had to and drained"
+- Leak — "didn't need, didn't help"
 
-IMPORTANT CONTEXT: These are NOT the user's real transactions. They are sample scenarios presented to reveal how this person THINKS about money. The value is in the choices they made — which quadrant they assigned each scenario to, how certain they felt, and where they hesitated or breezed through. You are reading their money psychology through how they responded to hypothetical situations.
+IMPORTANT CONTEXT: These are NOT the user's real transactions. They are sample scenarios used to surface the user's classification pattern. The value is in the choices they made — which quadrant they assigned each scenario, how certain they felt, and where they hesitated or breezed through. Read the pattern in the data; do not characterise the person.
 
 You have their behavioural data: quadrant choice per card, confidence (1-5), which cards they hesitated on vs decided instantly, which cards they skipped, and their overall certainty pattern.
 
-Write a personality reading in EXACTLY the style of these examples:
+Write an observational reading in EXACTLY the style of these examples:
 
 <example_reading>
-Lewis — The Overthinker. Leak-dominant (33%) with low confidence (2.9/5). You wavered on the Uber scenario and wrestled with the Zara one. You see spending through a critical lens — things are either foundational necessities or they're probably wasting money. You struggle most with the middle ground: spending that might be justified but you're not sure. Interestingly, you called the Costa Coffee scenario an "investment" — which suggests you see small daily rituals as having value beyond the coffee itself. You also couldn't categorise the charity scenario at all, which hints at someone who thinks carefully about whether altruism is obligation or genuine choice. Your high burden count (20%) suggests you feel the weight of unavoidable costs more than most.
+Lewis. Leak-dominant (33%) with low average confidence (2.9/5). You wavered on the Uber scenario and wrestled with the Zara one. Two-thirds of your Leak calls came in below 3/5 confidence — the pattern shows recognition of waste alongside uncertainty about which costs count. The Costa Coffee scenario was the one item you called Investment — a small daily ritual classified as growth rather than expense. The charity scenario went unsorted: not a Leak, not a Burden, not an Investment in the data. Burden share sits at 20%, above the dataset average. Pattern: low-confidence Leak calls cluster around discretionary subscriptions; the cleanest calls are the ones tagged Foundation.
 </example_reading>
 
 <example_reading>
-Duncan — The Puritan. Almost half his answers (47%) were Leak, and he decided with high confidence (4.5/5) throughout. This is someone with a very clear internal rule: if it wasn't strictly necessary, it was wasted money. He called the Netflix, Amazon, and Tesco-with-wine scenarios all leak or burden — zero hesitation. The interesting exception: he genuinely wrestled with Spotify before calling it Investment. So there's one discretionary subscription he sees real value in. His only low-confidence answer was the Charity scenario (2/5, Investment) — he thinks giving is good but isn't fully comfortable calling it an investment. This reads as someone naturally frugal, possibly quite disciplined with money, who judges discretionary spending harshly by default.
+Duncan. Leak-dominant (47%) with high confidence (4.5/5). Netflix, Amazon, and the Tesco-with-wine scenario all classified Leak or Burden, zero hesitation. The Spotify scenario was the exception — wrestled with before being called Investment. The Charity scenario came in at 2/5 confidence, classified Investment. Pattern: a high-confidence boundary between strict necessity and everything else, with one named exception (Spotify) and one unresolved category (charity).
 </example_reading>
 
 <example_reading>
-Nancy — The Foundationer. Over half her answers (53%) were Foundation — the highest by a wide margin. She read each scenario carefully, but once her mind was made up there was no second-guessing. Every single confidence score was exactly 3/5 — she never felt strongly about anything, which suggests someone who sees most spending as "just part of life" rather than good or bad. She hesitated longest on the ATM Cash scenario before calling it Foundation. But the Zara scenario? Foundation, no doubt. This reads as someone pragmatic about money who tends to see purchases as necessary parts of a functioning life rather than active choices to celebrate or regret.
+Nancy. Foundation-dominant (53%), the largest share in the dataset. Every confidence score was exactly 3/5. The ATM Cash scenario took the longest to call before being placed in Foundation. Zara was tagged Foundation without hesitation. Pattern: a flat-confidence read where most items are classified as part of standard life rather than as choices to be judged.
 </example_reading>
 
 <example_reading>
-Gabriela — The Optimist. The highest Investment percentage (33%) and the most unique outlier choices. She called the Tesco scenario an Investment, Zara an Investment, and Council Tax a Leak. That's a distinctive worldview: she sees spending as either growing her life or being pointless — not much middle ground. She dismissed Leak scenarios without a second thought but genuinely struggled with the Burden ones — it's easier for her to write things off than to accept they hurt. Reads as someone generally positive about money who frames purchases through an opportunity lens and doesn't carry much financial guilt.
+Gabriela. Investment-dominant (33%), with the most outlier classifications in the dataset. Tesco was called Investment, Zara was called Investment, Council Tax was called Leak. The Leak quadrant was decided quickly across the board; the Burden quadrant took longer. Pattern: the split between Investment and Leak is wide and confident; the Burden category sits unresolved.
 </example_reading>
 
 CRITICAL FORMAT RULES:
 - Output ONLY the reading text. Nothing else. No preamble, no sign-off.
-- Open with: "Name — The [Label]." (with a period). The label must be invented from THEIR specific data pattern, never generic.
+- Open with: "Name." (with a period). No characterological label. No "The X" framing.
 - Write as ONE single dense paragraph. No line breaks. No blank lines. No paragraph splits.
 - 120-180 words. Tight and punchy.
 - Reference specific merchant scenarios, confidence scores, quadrant choices, and percentages.
 - Frame hesitation as "wrestled with", "paused on", "couldn't decide" — NEVER cite specific seconds or millisecond timings.
-- Reference where they were most/least certain, and at least one surprising or contradictory choice.
+- Reference where the user was most/least certain, and at least one outlier choice.
 - Remember these are sample scenarios, not real purchases. Say "the Zara scenario" or "calling Zara Foundation" — NOT "your Zara purchase".
-- Interpret what their patterns MEAN about them as a person — don't just list stats.
-- Use natural phrases like "This reads as someone who...", "Interestingly...", "The exception is revealing...", "You're the kind of person who..."
-- End with a personality interpretation, not guidance.
+- Describe the pattern in the data. Do not characterise the person. No "you're the kind of person who…", no "this reads as someone who…", no labels.
+- Second person only ("you", "your"). Never first person ("I", "me", "my").
+- End with a one-sentence observation of the pattern, beginning with "Pattern:" or equivalent. Observation, not judgement.
 - No bullet points. No headers. No colons introducing lists.
-- No generic filler ("you're a mindful spender", "you think carefully"). Be SPECIFIC.
-- Do not mention AI, algorithms, or data analysis.
+- No generic filler ("mindful spender", "thinks carefully"). Be SPECIFIC to the data.
+- Do not mention AI, algorithms, or data analysis. Do not mention the product name.
 - Use "you/your" when they provided a name, referring to them directly.
-- If timing is invalid (avg first_tap < 1.0s or total elapsed < 30s), return exactly: "INVALID"
-
-VOICE RULE: Never use the words "advice" or "advise" in your output. Use "guidance", "suggestion", or recast the sentence. Your role is to observe, calculate, and educate — not to advise.`
+- If timing is invalid (avg first_tap < 1.0s or total elapsed < 30s), return exactly: "INVALID"`
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -186,59 +184,50 @@ function buildDeterministicReading(
   const slowest = stats.most_hesitation[0]
   const fastest = stats.most_decisive[0]
 
-  // Choose a label based on dominant quadrant + behaviour
-  const labelMap: Record<string, string> = {
-    foundation: stats.avg_confidence >= 4 ? 'The Pragmatist' : 'The Foundationer',
-    investment: stats.avg_first_tap_s <= 3 ? 'The Optimist' : 'The Builder',
-    burden: stats.avg_confidence <= 2.5 ? 'The Weight-Bearer' : 'The Realist',
-    leak: stats.avg_first_tap_s >= 5 ? 'The Overthinker' : 'The Critic',
-  }
-  const label = labelMap[dominant] || 'The Truth Teller'
-
   const quadrantNames: Record<string, string> = {
     foundation: 'Foundation', investment: 'Investment', burden: 'Burden', leak: 'Leak',
   }
 
-  // Build sentences
+  // Build sentences — observation only, no characterological label.
   const parts: string[] = []
 
-  parts.push(`${displayName} — ${label}.`)
+  parts.push(`${displayName}.`)
   parts.push(`${quadrantNames[dominant]}-dominant (${pct}%) with ${stats.avg_confidence >= 4 ? 'high' : stats.avg_confidence <= 2.5 ? 'low' : 'moderate'} confidence (${stats.avg_confidence}/5) across ${stats.total_cards} scenarios.`)
 
   // Slowest card insight (framed as hesitation, not timing)
   if (slowest) {
-    parts.push(`The ${slowest.merchant} scenario gave you the most pause before you called it ${quadrantNames[slowest.quadrant] || 'hard to decide'} — that hesitation is telling.`)
+    parts.push(`The ${slowest.merchant} scenario was the one you paused longest on before calling it ${quadrantNames[slowest.quadrant] || 'hard to decide'}.`)
   }
 
   // Fastest card insight (framed as certainty, not timing)
   if (fastest && fastest.merchant !== slowest?.merchant) {
-    parts.push(`By contrast, you sorted ${fastest.merchant} without a second thought — ${fastest.confidence >= 4 ? 'total certainty' : 'quick but not fully convinced'}.`)
+    parts.push(`${fastest.merchant} was sorted ${fastest.confidence >= 4 ? 'with full confidence' : 'quickly but at ' + fastest.confidence + '/5'}.`)
   }
 
   // Confidence pattern
   if (stats.all_same_confidence && stats.confidence_value_if_same !== null) {
-    parts.push(`Every single confidence score was exactly ${stats.confidence_value_if_same}/5 — you never felt strongly either way, which suggests someone who sees spending as just part of life rather than something to judge.`)
+    parts.push(`Every confidence score was exactly ${stats.confidence_value_if_same}/5 — a flat read across the dataset.`)
   } else if (stats.lowest_confidence.length > 0 && stats.highest_confidence.length > 0) {
     const low = stats.lowest_confidence[0]
     const high = stats.highest_confidence[0]
     if (low.merchant !== high.merchant) {
-      parts.push(`Your most certain call: ${high.merchant} as ${quadrantNames[high.quadrant!]} (${high.confidence}/5). Your least: ${low.merchant} as ${quadrantNames[low.quadrant!]} (${low.confidence}/5) — that gap reveals where your money instincts get complicated.`)
+      parts.push(`Most certain call: ${high.merchant} as ${quadrantNames[high.quadrant!]} (${high.confidence}/5). Least certain: ${low.merchant} as ${quadrantNames[low.quadrant!]} (${low.confidence}/5).`)
     }
   }
 
   // Hard to decide
   if (stats.hard_to_decide_count > 0) {
-    parts.push(`You skipped ${stats.hard_to_decide_merchants.join(' and ')} entirely — ${stats.hard_to_decide_count === 1 ? "that's the scenario" : "those are the scenarios"} you genuinely couldn't place.`)
+    parts.push(`${stats.hard_to_decide_merchants.join(' and ')} went unsorted — ${stats.hard_to_decide_count === 1 ? 'that scenario' : 'those scenarios'} did not fit a quadrant.`)
   }
 
-  // Personality closing
+  // Pattern closing — observation, not characterology.
   const closings: Record<string, string> = {
-    foundation: 'This reads as someone pragmatic about money — you see most spending as a necessary part of a functioning life rather than something to celebrate or regret.',
-    investment: 'This reads as someone who frames purchases through an opportunity lens — spending is either building something or it\'s not worth it.',
-    burden: 'This reads as someone who feels the weight of financial obligations more acutely than most — you carry the cost of living as a real emotional load.',
-    leak: 'This reads as someone with a sharp internal critic — your default assumption is that spending probably wasn\'t necessary, and the exceptions are revealing.',
+    foundation: 'Pattern: most items classified as part of standard life rather than as choices to evaluate.',
+    investment: 'Pattern: spending sorted by whether it grew something; Burden and Leak shares sit below average.',
+    burden: 'Pattern: a larger-than-average share of items classified as draining; Foundation share sits close behind.',
+    leak: 'Pattern: a higher-than-average share of items classified as Leak; low-confidence calls cluster around the discretionary scenarios.',
   }
-  parts.push(closings[dominant] || 'Your pattern suggests someone still figuring out their relationship with money — and that self-awareness is exactly where better decisions start.')
+  parts.push(closings[dominant] || 'Pattern: classifications spread across all four quadrants without a dominant call.')
 
   return parts.join(' ')
 }

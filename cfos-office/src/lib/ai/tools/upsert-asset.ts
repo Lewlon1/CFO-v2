@@ -25,7 +25,7 @@ WHEN TO CALL: When the user mentions a balance, account, investment, pension pot
 VALID FIELDS:
 - asset_id: string (UUID) — optional. Omit for new assets. Include to update existing.
 - asset_type: string — REQUIRED for new assets. One of: 'savings', 'stocks', 'bonds', 'pension', 'crypto', 'property', 'other'
-- name: string — REQUIRED for new assets. Human-readable label. Examples: "Cash savings", "Vanguard S&S ISA", "Workplace Pension", "Bitcoin", "Flat in Gràcia"
+- name: string — REQUIRED for new assets. Human-readable label using the user's exact terms for it. Examples (generic): "Cash savings", "Stocks & shares account", "Workplace pension", "Bitcoin holding", "Flat in Gràcia". When the user names a specific platform or product ("my Vanguard S&S ISA"), pass their exact wording — that's the user's own term, not a recommendation.
 - provider: string — optional. Platform or institution name.
 - currency: string — optional. ISO 4217 code e.g. 'EUR', 'GBP'. Defaults to user's primary_currency.
 - current_value: number — the current total value/balance.

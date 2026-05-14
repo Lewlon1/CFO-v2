@@ -9,6 +9,49 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 06: system-prompt.ts rewrite (the unlock)
+
+**Branch:** `claude/system-prompt-rewrite-upAGL`
+**Scope:** BASE_PERSONA + 18 downstream layers + 5 sibling prompt files, all re-derived from `CFO-CONSTITUTION.md` v1.1. No tool, schema, UI, or data-layer changes.
+
+### What changed
+- **`cfos-office/src/lib/ai/system-prompt.ts`** — BASE_PERSONA rewritten fresh from the Constitution. ~80 lines of prose (down from 101) plus the UI-load-bearing format protocols block. New sections: explicit knowledge hierarchy, pushback-vs-correction split, distress/legal/tax decline lines, the "— C." sign-off rule. First-person prohibition strengthened (no "I"/"me"/"my" anywhere in CFO speech). "advice"/"advise" prohibition lifted out of value-map/reveal/route.ts L56 (which now relies on BASE_PERSONA's central rule). Legacy preserved in-file as `BASE_PERSONA_LEGACY` — unused at runtime — pending Phase 4 cutover after the §9 suite runs with Bedrock creds.
+- **`cfos-office/src/lib/ai/context-builder.ts`** — voice register strings at L565–573 rewritten to Constitution v1.1 §2 (direct/blunt/gentle). All 18 layers swept for first-person, "advice"/"advise", named third-party services, characterological framing. Specific edits: `buildOnboardingEntryContext` flipped from "ask first" to "answer first, ask second" per §8; `buildBalanceSheetContext` / `ADVISORY_BOUNDARIES` no longer name MoneySavingExpert/Finanztest/NerdWallet (§4); `buildToolUsageInstructions` gained one sign-off cue; "killjoy", "sharp mate", "celebrate it briefly" all gone.
+- **`cfos-office/src/lib/onboarding/archetype-prompt.ts`** — 5 `FALLBACK_ARCHETYPES` subtitles rewritten from characterological ("Your money moves without a plan") to observational ("No long-term plan recorded yet"). Rule block at L171 reframed to forbid characterological labels.
+- **`cfos-office/src/lib/value-map/regenerate-archetype-prompt.ts`** — fallback subtitles and traits aligned: "brutally clear", "easy to advise" out; observational equivalents in.
+- **`cfos-office/src/app/api/value-map/reveal/route.ts`** — "character sketch" framing dropped; sign-off added; redundant advice/advise VOICE RULE deleted (BASE_PERSONA owns it).
+- **`cfos-office/src/app/api/demo/reading/route.ts`** — largest single rewrite. The 4 `<example_reading>` few-shots were teaching the model the voice the Constitution forbids. All four rewritten as observational ("Lewis." not "Lewis — The Overthinker."). The deterministic-fallback label map ("The Pragmatist"/"The Optimist"/"The Overthinker"/"The Critic"...) and its flattering closing line removed and replaced with non-labelling, pattern-only output.
+- **`cfos-office/src/lib/onboarding-v2/free-text-opener-prompt.ts`** — 3 voice fixes: "no advice yet" → "observation only", forbidden phrase "Got it" out of fallback, first-person stripped.
+- **`cfos-office/src/app/api/chat/route.ts`** — single first-person fix on the post-failure user-facing string at L707.
+- **`cfos-office/src/lib/ai/tools/upsert-asset.ts`** — asset name example list edited to clarify that "Vanguard S&S ISA" appears only when echoing the user's exact term, never as a CFO-side recommendation.
+- **`cfos-office/scripts/test-prompts.ts`** — new file. §9 acceptance harness for all 8 reference exchanges. Mirrors chat route's Bedrock prompt caching (`providerOptions.bedrock.cachePoint`). Substring/regex checks per case. Up to 3 attempts per case. Wired as `npm run test:prompts`.
+- **`audit/06-prompts-full.md`** — new file. Completes the 5 files time-boxed in `audit/06-prompts.md`. Catalogues 14 net-new contradictions + 2 net-new Constitutional gaps.
+- **`BACKLOG.md`** — 5 Constitution v1.2 candidates documented.
+
+### Verification (this session, in this sandbox)
+- `npm run lint` — clean on all modified files (pre-existing warnings unchanged, no new ones)
+- `npm test` — 175/175 vitest tests pass
+- `npm run build` — clean Next build, all routes compile, TypeScript clean (15s)
+- `grep '— C\.' src/lib/ai/system-prompt.ts` — sign-off rule present
+- `grep -nE 'Vanguard|MoneySavingExpert|Finanztest|NerdWallet|\bISA\b'` across all prompt files — only matches are the prohibition itself (L38 of system-prompt.ts, L1040 of context-builder.ts) plus generic test fixtures
+- `grep -nE 'killjoy|sharp mate|celebrate it briefly|character sketch|uncanny accuracy'` — zero matches
+
+### Deferred
+- **`npm run test:prompts` run with Bedrock credentials.** The §9 acceptance suite needs `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION` (or `.env.local`) to call Bedrock. Sandbox has none. **Action for Lewis:** run locally and report the pass count. Acceptance is ≥7/8 — failures become v1.2 candidates per the plan.
+- **Manual smoke test on dev server** — 6 cases from the plan (fresh onboarding, post-upload, bad-month, NVDA decline, monthly review, pushback). Same Bedrock-credentials blocker.
+- **`BASE_PERSONA_LEGACY` deletion** — Phase 4 cutover. Deliberately left in place until the §9 suite passes and smoke completes. Single-commit removal once Lewis confirms.
+
+### Surprise
+The `demo/reading/route.ts` few-shot example readings were doing more work than the system instructions. The model was learning the voice from "Lewis — The Overthinker." style examples regardless of what the rules said. Constitution v1.2 candidate filed (§10) to make this an explicit maintenance rule.
+
+### BASE_PERSONA size
+Target 60–80 lines of body content; landed at ~95 lines including the UI-load-bearing format protocols (`[OPTIONS]…[/OPTIONS]`, sign-off, tangible-comparison subsection). The format protocols alone are ~20 unavoidable lines. Trade-off: keep the operational protocols inline (avoid a second layer) at the cost of being over budget on the persona-only target. Net result: 224 lines total (BASE_PERSONA + LEGACY) until Phase 4 deletes ~115 lines.
+
+### Next
+Phase 4 cutover after §9 suite + smoke. Then Session 07.
+
+---
+
 ## 2026-05-14 — Session 07: PR #38 verification
 
 **Branch:** `consolidation/v2.2`

@@ -170,14 +170,14 @@ Generate a JSON object with this exact structure:
 
 ## Rules
 
-- Write as the CFO speaking directly to ${userName} — "you" not "they"
+- Write as the CFO speaking directly to ${userName} — "you" not "they". Second person only; never use first person ("I", "me", "my")
 - Every trait MUST reference a specific merchant name or confidence pattern from the data above
-- When referencing timing, ALWAYS use qualitative language only — never mention seconds, milliseconds, or any specific numbers. Use phrases like "that one took some thought", "you were very clear on that", "I noticed you hesitated", "that came to you instantly", "that one required a lot of consideration"
+- When referencing timing, ALWAYS use qualitative language only — never mention seconds, milliseconds, or any specific numbers. Use phrases like "that one took some thought", "you were very clear on that", "you hesitated", "that came to you instantly", "that one required a lot of consideration"
 - Name TENSIONS, not summaries. "You called Netflix Foundation with 5/5 confidence but clearly had to think about your gym membership" is better than "You value entertainment"
-- The archetype name should be evocative and unique (not "The Spender" or "The Saver" — think "The Reluctant Architect" or "The Comfortable Drifter")
-- The subtitle should reveal something non-obvious — a contradiction, a blind spot, or an unconscious pattern
+- The archetype name and subtitle should be observational — describe the pattern shown in the data, never a characterological label or judgement. "No long-term plan recorded yet" is observational; "your money moves without a plan" is characterological.
+- The subtitle should reveal something non-obvious — a contradiction in the data, a blind spot, or an unnamed pattern. State it as observation, not as judgement of the person.
 - Keep each trait to 1-2 sentences maximum
-- Do NOT give financial advice. Observe and name patterns only.
+- Do NOT prescribe actions. Observe and name patterns only. Never use the words "advice" or "advise".
 - Respond with ONLY the JSON object, no other text.`
 }
 
@@ -186,55 +186,55 @@ Generate a JSON object with this exact structure:
 const FALLBACK_ARCHETYPES: Record<string, ArchetypeResult> = {
   builder: {
     archetype_name: 'The Builder',
-    archetype_subtitle: 'You invest in growth — the question is whether the foundation is keeping up',
+    archetype_subtitle: 'Investment-heavy classifications; Foundation share to verify',
     traits: [
-      'Your Investment category dominated — you see money as a tool for building something better.',
-      'High confidence on growth-oriented spending tells me you know where you want to go.',
-      "The test now is whether your Foundation spending is solid enough to support what you're building.",
+      'Investment was your dominant quadrant — growth-oriented spending classified with intent.',
+      'Confidence on Investment calls ran high; the pattern shows clear direction.',
+      'Foundation share sits below the average across the dataset — worth confirming against real transactions.',
     ],
     certainty_areas: ['growth spending', 'self-investment'],
     conflict_areas: ['essentials', 'recurring costs'],
   },
   fortress: {
     archetype_name: 'The Fortress',
-    archetype_subtitle: "Your essentials are locked down — but safety can become its own kind of cage",
+    archetype_subtitle: 'Foundation-dominant classifications; cash holdings to confirm',
     traits: [
-      'Foundation dominated your choices — the bills, the groceries, the non-negotiables.',
-      'High confidence across essentials tells me you take stability seriously.',
-      "Worth asking: are some of these Foundation costs actually habits you've stopped questioning?",
+      'Foundation dominated your choices — bills, groceries, non-negotiables.',
+      'Confidence across essentials ran high; stability is rated highly.',
+      'Discretionary and subscription items sit unsorted or low-confidence — those are the ones to review.',
     ],
     certainty_areas: ['essential spending', 'bills'],
     conflict_areas: ['discretionary', 'subscriptions'],
   },
   truth_teller: {
     archetype_name: 'The Balancer',
-    archetype_subtitle: 'Spread evenly across every quadrant — balanced, or just undecided?',
+    archetype_subtitle: 'Even split across four quadrants; no dominant pattern yet',
     traits: [
       'No single quadrant dominated — your spending is distributed across all four categories.',
-      'That balance could mean you have a clear, intentional relationship with money.',
-      'Or it could mean nothing stands out yet. Your real data will tell us which.',
+      'The split is even enough that real transaction data will be needed to read the pattern.',
+      'Confidence ran moderate across the board — no single category stood out as a strong call.',
     ],
     certainty_areas: ['overall awareness'],
     conflict_areas: ['prioritisation', 'trade-offs'],
   },
   drifter: {
     archetype_name: 'The Drifter',
-    archetype_subtitle: 'Your money moves without a plan — and part of you already knows it',
+    archetype_subtitle: 'No long-term plan recorded yet; Leak share above average',
     traits: [
-      'Leak spending featured heavily — small, frequent costs that add up.',
-      'The pattern suggests impulse rather than intention in your discretionary spending.',
-      'The good news: awareness is the first step. Naming these as Leaks means you see the pattern.',
+      'Leak was your largest quadrant — small, frequent items that add up.',
+      'Discretionary classifications shifted between categories, with low average confidence.',
+      'Subscriptions and impulse-coded merchants are the cluster to review first against real transactions.',
     ],
     certainty_areas: ['essentials'],
     conflict_areas: ['impulse spending', 'subscriptions'],
   },
   anchor: {
     archetype_name: 'The Anchor',
-    archetype_subtitle: "Carrying weight you didn't choose — some of it might be lighter than you think",
+    archetype_subtitle: 'Burden-heavy classifications; review which costs are renegotiable',
     traits: [
-      'Burden spending was heavy in your choices — costs that feel necessary but draining.',
-      'That weight is real, but not all of it is permanent.',
-      'The question is which Burdens can be renegotiated, and which you need to accept and plan around.',
+      'Burden dominated — costs classified as necessary but draining.',
+      'Several Burden items may be renegotiable; the upload will surface which.',
+      'Foundation share sits close to Burden share — the line between essential and resented is thin here.',
     ],
     certainty_areas: ['unavoidable costs'],
     conflict_areas: ['burden vs foundation', 'renegotiable costs'],

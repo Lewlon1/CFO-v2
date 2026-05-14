@@ -704,7 +704,7 @@ export async function POST(req: Request) {
             // Safety net: append a clarifying line to the persisted message
             // so the user is never silently lied to.
             textContent +=
-              '\n\n_(Note: I had trouble persisting that classification — please rephrase and try again.)_';
+              '\n\n_(Note: that classification didn\'t persist — rephrase and try again.)_';
           }
         }
         // ── end hallucination guard ──────────────────────────────────────
