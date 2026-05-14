@@ -41,6 +41,7 @@ export const colors = {
 } as const;
 
 export const folderColors = {
+  goals: '#D4A24C',
   cashflow: '#22C55E',
   values: '#E8A84C',
   networth: '#06B6D4',
