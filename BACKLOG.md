@@ -127,9 +127,9 @@ Session 03's Tier 1 list named three v2.4 primitives for deletion (`MetricTile.t
 
 ---
 
-## Goal-derive-and-confirm fold-in to Constitution v1.3 — PROPOSED
+## Goal-derive-and-confirm fold-in to the Constitution — PROPOSED (deferred past v1.3)
 
-Session 09 introduced goal derive-and-confirm as new CFO behaviour at the start of every onboarding journey. The behaviour currently lives as an onboarding-context prompt-layer fragment ([`buildGoalDeriveConfirmContext()` in `cfos-office/src/lib/ai/context-builder.ts`](cfos-office/src/lib/ai/context-builder.ts)) and a dedicated assembly branch for `conversationType='onboarding_goal_chat'`. It belongs in the Constitution proper, not just a layered fragment, but Session 12 owns the goal-awareness Constitution work and the v1.3 bump.
+Session 09 introduced goal derive-and-confirm as new CFO behaviour at the start of every onboarding journey. The behaviour currently lives as an onboarding-context prompt-layer fragment ([`buildGoalDeriveConfirmContext()` in `cfos-office/src/lib/ai/context-builder.ts`](cfos-office/src/lib/ai/context-builder.ts)) and a dedicated assembly branch for `conversationType='onboarding_goal_chat'`. It belongs in the Constitution proper, not just a layered fragment. Session 12 landed v1.3 (goal-awareness steady-state + no-goal protocol) but deliberately did **not** fold derive-and-confirm in — that was out of Session 12's scope. Carries forward to the next Constitution bump.
 
 **Proposed for Session 12 (Constitution v1.3):**
 - §3 should describe the CFO deriving a goal from minimal signals (entry struggle + free-text) and confirming with the user as a canonical first-meeting move — observe → calculate → educate → and now, at first contact, **derive**.
@@ -163,4 +163,27 @@ Session 10 deliberately stopped at manual contributions. Auto-detecting savings-
 This is its own multi-week project, not a bolt-on. It depends on Session 10's `goal_contributions` table being live (which it now is) — auto-detected matches would write to the same ledger as manual logs, just with a different `kind` value (e.g. `kind='auto_match'`).
 
 **Out of any current session's scope.** Surfaces if/when the manual-contribution path proves too high-friction for users and we have data showing the categorisation work would be worth it. Until then, manual is the mechanism.
+
+---
+
+## §9 harness env-loader (`test:prompts`) — DEFERRED (Session 12)
+
+[`cfos-office/scripts/test-prompts.ts`](cfos-office/scripts/test-prompts.ts) cannot be invoked via `npm run test:prompts` alone — Bedrock instantiates with `region: undefined` and the run fails immediately. The §9 harness is the persona regression net (now 9 cases as of Session 12), so this friction is load-bearing.
+
+**Symptom:** `npm run test:prompts` errors out on first model call unless env vars are pre-sourced.
+
+**Cause:** ESM hoists `import { chatModel } from '../src/lib/ai/provider'` at [test-prompts.ts:35](cfos-office/scripts/test-prompts.ts) above the manual `.env.local` reader at lines 18–32. [`provider.ts:3-7`](cfos-office/src/lib/ai/provider.ts) calls `createAmazonBedrock({ region: process.env.AWS_REGION!, ... })` at module load time, with stale (undefined) env.
+
+**Workaround (current):**
+
+```bash
+cd cfos-office && set -a && source .env.local && set +a && npm run test:prompts
+```
+
+**Candidate fixes (in increasing order of robustness and blast radius):**
+1. **npm-script `--env-file`** — change `test:prompts` to `node --env-file=.env.local --import tsx/esm scripts/test-prompts.ts` (Node 20.6+). One file touched; no API changes. Smallest defensible move.
+2. **`dotenv-cli`** — add as devDep; script becomes `dotenv -e .env.local -- tsx scripts/test-prompts.ts`. Adds a dependency.
+3. **Lazy Bedrock client construction in `provider.ts`** — defer `createAmazonBedrock(...)` until first model call. Removes the load-order dependency for any future caller of `chatModel`/`utilityModel`/`opusModel`. Most robust, but touches every consumer of those exports (or stays API-stable via a Proxy, which trades clarity for compatibility).
+
+Session 12 chose to defer the fix to keep scope tight. Pick this up in any session that touches `provider.ts` or before the harness moves to CI. Lazy construction is the long-term right answer; the npm-script `--env-file` is the small fast move if the harness moves to CI urgently.
 

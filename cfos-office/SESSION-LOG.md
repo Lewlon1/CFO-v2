@@ -9,6 +9,43 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 12: CFO goal-awareness (Constitution v1.2 → v1.3)
+
+**Branch:** `feature/goal-aware-office` (stays open for Session 14; single PR after Session 14 lands)
+**Scope:** Constitution v1.3 (goal-awareness section + §9.I no-goal exchange), derived BASE_PERSONA mini-section, context-builder no-goal marker driven by Session 11's `getPrimaryGoal` signal, §9 harness extended to a 9th case. No UI. No schema. No prod DB.
+
+### What changed
+- **`CFO-CONSTITUTION.md`** — bumped header to v1.3. Added a `### Goal-awareness` sub-section to §3 (placed between the "serve one job" closing sentence and "Allocation questions"): steady-state framing rule (goal as lens, sometimes foregrounded, often just shaping framing) + per-conversation no-goal protocol (surface once, invite a target — deposit, buffer, trip — proceed with what's there; do not raise again) + cross-reference to the wow-moment as untouched + §7 distress override. Added `### I. No active goal` as the 9th canonical reference exchange in §9 (after §9.H). Added v1.3 entry to §10 version history.
+- **`cfos-office/src/lib/ai/system-prompt.ts`** — bumped leading comment from "v1.1 (Session 06)" to "v1.3 (Session 12)" (also closes the v1.1/v1.2 drift Session 06 left). Added a `## Goal-awareness` mini-section to BASE_PERSONA between "What you do" and "What you do not do", derived from Constitution §3 — same two-paragraph shape: steady-state lens + per-conversation no-goal surfacing + distress override.
+- **`cfos-office/src/lib/ai/context-builder.ts`** — imported `getPrimaryGoal, type PrimaryGoal` from `@/lib/goals/primary-goal`. Added `getPrimaryGoal(supabase, userId)` as the 11th element of the existing `Promise.allSettled` batch in `buildSystemPrompt`. Destructured `primaryGoalResult` and reduced to `primaryGoal: PrimaryGoal | null` with rejected-promise → null fallback. Extended `buildGoalsContext(goals, actions)` signature to `(goals, actions, primaryGoal)` and rewrote: the `## Active goals` heading is now **always** emitted; `primaryGoal == null` → "No active goal set."; primary present + multi-goal data → existing per-goal listing; primary present + multi-goal fetch failed → defensive single-line render of the primary. The old "return empty string when both empty" exit removed — the section is always present.
+- **`cfos-office/scripts/test-prompts.ts`** — extended `Case.id` literal union with `'9I'`. Added `NO_GOAL_BLOCK` mock context (mirrors the exact `"No active goal set."` string `buildGoalsContext` now emits, so the contract is tested end-to-end). Appended case `9I: No-goal prompting` with checks for: surfaces absence of goal (regex on "goal" + a "not set" variant), engages with available data (any of the surplus/income/spend numbers), invites goal-setting (verb + target/deposit/buffer/trip), does not refuse to engage, no first-person, signs off. Updated run banner to "9 reference exchanges". Exit gate (`failed.length > 1`) untouched — produces ≥8/9 with 9 cases.
+- **`audit/session-12-phase-0.md`** (new) — Phase 0 ground-truth: Constitution intersection map, harness structure summary, goal-context-today (silent no-goal state), Session 11 helper reuse target, env-loader bug confirmed and scoped out.
+- **`BACKLOG.md`** — updated the "Goal-derive-and-confirm fold-in" entry to reflect that Session 12 deferred it past v1.3. Added a new "§9 harness env-loader (`test:prompts`) — DEFERRED (Session 12)" entry with symptom, cause, workaround, and three candidate fixes.
+
+### Verdicts
+- The "does this user have a goal" signal is now single-sourced: `getPrimaryGoal` drives both the home Goals card (Session 11) and the chat prompt's no-goal marker (Session 12). The existing multi-goal display fetch stays in place — hybrid keeps display capability while centralising the boolean.
+- §9 harness re-run: **9/9 PASS** on first complete pass (9D needed 1 retry on a flaky "no buy/sell call" check, recovered cleanly). Cache hit rate 10% of input tokens, ~32k in / 1.3k out total. Original 8 hold; 9I converges with the §9.I Constitution draft — no `§9.I` rewrite required.
+- The "No active goal set." string in the prompt is now load-bearing: it's what the CFO acts on. Silence-in-silence-out is closed.
+- Distress-overrides-no-goal codified in both Constitution and BASE_PERSONA so a no-goal user in crisis still gets §7 treatment, not a goal-setting prompt.
+
+### Staging verification
+- **Done in this session:** `npx tsc --noEmit` clean; `npm test` clean (19 files, 182 tests); `npm run build` clean (full Next.js production build, all 60+ routes compile); `npm run test:prompts` (via `set -a && source .env.local && set +a && …` workaround) **9/9 PASS**.
+- **Deferred to Lewis on staging (authenticated walkthrough):**
+  - Goal-set user: chat references the active goal naturally (name, pace, on/off-track), not recited every turn.
+  - No-goal user (or one temporarily set `status='paused'` in CFO Staging): chat surfaces the absence **once** in the first response, engages with available data, does **not** repeat the prompt in same-conversation follow-ups.
+  - Distress + no-goal: the distress protocol overrides — no goal prompt in that exchange.
+
+### Surprises
+- The §9 harness run cleared 9/9 on the first complete pass — the §9.I Constitution draft and the harness 9I checks converged immediately. No iteration loop was needed. This is partly because the v1.2 → v1.3 change was additive (no existing rule was rewritten), partly because the BASE_PERSONA mini-section was derived literally from the Constitution prose with no improvisation.
+- `getPrimaryGoal` slotted into `Promise.allSettled` cleanly even though it returns `PrimaryGoal | null` directly instead of the `{ data, error }` shape of every other element. `Promise.allSettled` doesn't care — `result.value` is whatever the promise resolved to.
+- The existing `buildGoalsContext` had a quirky shape: it returned an empty string when both goals and actions were empty, *or* an actions-only block when actions existed but goals didn't (no `## Active goals` heading). The Session 12 rewrite incidentally fixes that — the heading is always present now, which is the right shape for any caller reading the prompt.
+
+### Next on branch
+- Session 14: folder reframes + palette validation (the brass `#D4A24C` from Session 11 needs the full five-colour validation). May also relocate `/office/scenarios/goals → /office/goals` since Goals is now top-level.
+- After Session 14 lands: one combined PR for Sessions 11 + 12 + 14 off `feature/goal-aware-office`.
+
+---
+
 ## 2026-05-14 — Session 11: Home goals surface
 
 **Branch:** `feature/goal-aware-office` (stays open for Sessions 12 + 14; single PR after Session 14 lands)
