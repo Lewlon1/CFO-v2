@@ -24,7 +24,12 @@ export async function evaluateGoalMilestones(
   const milestones = [25, 50, 75, 100];
 
   for (const goal of goals) {
-    const percentage = Math.round(((goal.current_amount ?? 0) / goal.target_amount) * 100);
+    const currentAmount = goal.current_amount ?? 0;
+    // Negative balances (from withdrawal contributions) skip milestone
+    // evaluation — a "you're behind your starting point" goal shouldn't
+    // trigger a celebratory milestone nudge.
+    if (currentAmount < 0) continue;
+    const percentage = Math.round((currentAmount / goal.target_amount) * 100);
 
     const crossedMilestone = milestones.filter(m => percentage >= m).pop();
     if (!crossedMilestone) continue;

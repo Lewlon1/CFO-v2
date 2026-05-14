@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
+import { recomputeIfStale } from '@/lib/goals/recompute'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
@@ -43,10 +45,12 @@ export default async function OfficeLayout({ children }: { children: React.React
 
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
-  // Fetch user currency + display name for chat context & header
+  // Fetch user currency + display name for chat context & header.
+  // goals_last_synced_at is folded into the same SELECT to avoid a second DB
+  // trip — it's read below to decide whether to fire a per-session recompute.
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step')
+    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step, goals_last_synced_at')
     .eq('id', user.id)
     .single()
 
@@ -92,6 +96,22 @@ export default async function OfficeLayout({ children }: { children: React.React
     ?? user.user_metadata?.full_name?.split(' ')[0]
     ?? user.email?.split('@')[0]
     ?? null
+
+  // Once-per-session goal recompute. Runs fire-and-forget after the response
+  // is sent so it never blocks render. 30-minute TTL gate (in recomputeIfStale)
+  // is well within the "up to one session's staleness is acceptable"
+  // tolerance. Errors are logged but invisible to the user — they see
+  // last-known numbers if a recompute fails.
+  const userId = user.id
+  const lastSyncedIso = profile?.goals_last_synced_at ?? null
+  after(async () => {
+    try {
+      const recomputeClient = await createClient()
+      await recomputeIfStale(recomputeClient, userId, lastSyncedIso)
+    } catch (err) {
+      console.error('[goals-recompute] failed:', err)
+    }
+  })
 
   return (
     <div

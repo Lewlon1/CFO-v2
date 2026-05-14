@@ -146,4 +146,21 @@ Every other write tool ([`create_action_item`, `update_user_profile`, `upsert_as
 
 **Proposed:** add a `goal_create` builder to [`savedCardBuilders.ts`](cfos-office/src/components/chat/savedCardBuilders.ts) that renders the goal name, target amount, target date, and starting amount. Wire it into the switch in [`MessageList.tsx`](cfos-office/src/components/chat/MessageList.tsx) at the same place the other write-tool cards are dispatched.
 
+---
+
+## Goal contribution affordance — surface in Session 11's home goals section — PROPOSED
+
+Session 10 added a "log contribution" affordance to [`GoalCard.tsx`](cfos-office/src/app/(office)/office/scenarios/goals/GoalCard.tsx) on the scenarios/goals page. Session 11 (home goals surface) is already drafted and will surface goal progress in the office home view. The contribution affordance built in Session 10 is the natural action for the home goal card / folder detail to expose — the user shouldn't have to navigate to the scenarios page to log a deposit.
+
+**Proposed for Session 11:** integrate the existing inline log-contribution form (or extract it into a reusable component first) on whatever goal-display surface Session 11 introduces. The write path through [`POST /api/goals/contributions`](cfos-office/src/app/api/goals/contributions/route.ts) is already shared — no backend work needed, just the UI hook-up.
+
+---
+
+## Transaction-to-goal matching — DEFERRED INVESTIGATION
+
+Session 10 deliberately stopped at manual contributions. Auto-detecting savings-deposit transactions as goal contributions was scoped out — building it requires a `savings_transfer` categorisation on `transactions` (which does not currently exist as a transaction-level tag), an opt-in heuristic for matching transfers to specific goals, and a UX for users to confirm/correct matches before they post to the contribution ledger.
+
+This is its own multi-week project, not a bolt-on. It depends on Session 10's `goal_contributions` table being live (which it now is) — auto-detected matches would write to the same ledger as manual logs, just with a different `kind` value (e.g. `kind='auto_match'`).
+
+**Out of any current session's scope.** Surfaces if/when the manual-contribution path proves too high-friction for users and we have data showing the categorisation work would be worth it. Until then, manual is the mechanism.
 
