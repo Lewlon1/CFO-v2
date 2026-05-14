@@ -1,40 +1,37 @@
 import type { Persona } from './types'
-import { builderClassic } from './builder-classic'
 
-// Completes Value Map (Builder archetype) but skips CSV upload.
-// Reducer auto-skips first_insight (no importBatchId).
+// Chat-first path — debt struggle.
+//
+// In v1 this persona tested the modal's reducer auto-skip behaviour when
+// the user uploaded no CSV. v2 has no reducer and no auto-skip; in the
+// Marcus path the upload step is mandatory. Users with a clear goal
+// (debt clearance here) skip Value Map and upload by virtue of picking a
+// non-"dont_know" struggle, which routes them straight into chat with
+// the debt-clearance opener.
+//
+// This persona therefore now covers: "debt struggle → straight to chat,
+// no value-map, no upload, no archetype." It uses a different struggle
+// than skip-value-map so the suite exercises both chat-first openers.
 
 export const skipCsvUpload: Persona = {
   id: 'skip-csv-upload',
-  label: 'Skip path — CSV upload declined',
+  label: 'Chat-first — Debt struggle',
   profile: {
     displayName: 'Morgan',
     country: 'GB',
     city: 'Cardiff',
     currency: 'GBP',
   },
-  valueMapResponses: builderClassic.valueMapResponses,
+  valueMapResponses: null,
   csv: null,
-  skipBeats: ['csv_upload'],
   expectations: {
-    archetype: {
-      expectedQuadrant: 'investment',
-      personalityId: 'builder',
-    },
-    beatsCompleted: ['welcome', 'framework', 'value_map', 'archetype', 'csv_upload', 'capabilities', 'handoff'],
-    beatsSkipped: ['first_insight'],
+    entryStruggle: 'debt',
+    archetype: null,
+    stagesCompleted: ['struggle_submitted', 'chat_opener'],
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { entry_struggle: 'debt', onboarding_route: 'chat' },
       transactions: { countBetween: [0, 0] },
     },
-    hardRules: {
-      bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
-      archetype: {
-        mustReferenceQuadrant: 'investment',
-        mustMentionOneOf: ['invest', 'grow', 'build', 'intentional'],
-      },
-    },
-    likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit'],
+    likertDimensions: [],
   },
 }

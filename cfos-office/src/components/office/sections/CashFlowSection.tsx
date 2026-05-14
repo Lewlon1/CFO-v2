@@ -51,7 +51,7 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFl
         <span className="font-data text-[18px] font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
           {formatCurrencyRounded(total_spending, currency)}
         </span>
-        <span className="text-[11px] text-[rgba(245,245,240,0.3)]">spent</span>
+        <span className="text-[11px] text-text-tertiary">spent</span>
         {delta != null && Math.abs(delta) >= 1 && (
           <span
             className="text-[11px] ml-auto"

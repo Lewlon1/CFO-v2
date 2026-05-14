@@ -16,10 +16,10 @@ const markdownComponents: Components = {
   ol: ({ children }) => <ol className="my-1.5 pl-5 list-decimal space-y-0.5">{children}</ol>,
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
   strong: ({ children }) => <strong className="font-medium text-foreground">{children}</strong>,
-  em: ({ children }) => <em className="italic">{children}</em>,
-  h1: ({ children }) => <h1 className="text-base font-semibold text-foreground mt-3 mb-1.5 first:mt-0">{children}</h1>,
-  h2: ({ children }) => <h2 className="text-sm font-semibold text-foreground mt-3 mb-1.5 first:mt-0">{children}</h2>,
-  h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground mt-2 mb-1 first:mt-0">{children}</h3>,
+  em: ({ children }) => <em className="font-serif italic">{children}</em>,
+  h1: ({ children }) => <h1 className="text-base text-foreground mt-3 mb-1.5 first:mt-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-sm text-foreground mt-3 mb-1.5 first:mt-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-sm text-foreground mt-2 mb-1 first:mt-0">{children}</h3>,
   a: ({ children, href }) => (
     <a href={href} className="text-primary hover:underline" target={href?.startsWith('http') ? '_blank' : undefined} rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}>
       {children}
@@ -52,6 +52,8 @@ import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
 import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
 import { CfoThinking } from '@/components/brand/CfoThinking';
+import { ValueMapActionButton } from './ValueMapActionButton';
+import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
 import {
   buildActionItemCard,
   buildProfileUpdateCard,
@@ -403,7 +405,7 @@ export function MessageList({
               <div
                 className={
                   message.role === 'user'
-                    ? 'text-sm text-foreground'
+                    ? 'text-sm text-foreground font-sans'
                     : 'text-sm text-foreground/90 px-3 break-words'
                 }
               >
@@ -426,6 +428,19 @@ export function MessageList({
 
               {/* CTA block */}
               {cta && <ChatCTA type={cta.type} label={cta.label} />}
+
+              {/* Onboarding v2 — Value Map action button (only on assistant
+                  messages whose actions_created includes start_value_map) */}
+              {message.role === 'assistant' &&
+                (() => {
+                  const actions = (message.metadata as { actions_created?: unknown } | null)?.actions_created
+                  if (!Array.isArray(actions)) return null
+                  return actions.some(isStartValueMapAction) ? (
+                    <div className="px-3">
+                      <ValueMapActionButton />
+                    </div>
+                  ) : null
+                })()}
 
               {/* Structured input components from tool invocations */}
               {structuredInputs.map((config, i) => (

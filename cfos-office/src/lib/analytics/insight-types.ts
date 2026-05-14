@@ -26,7 +26,12 @@ export type DataDependency =
   | 'income'
   | 'goals';
 
-export const BLOCKED_AT_FIRST_INSIGHT: DataDependency[] = ['income', 'goals'];
+// Patterns whose dependencies are blocked at first-insight time are skipped
+// even if the data exists. We keep 'income' blocked because we never have
+// reliable income at first insight. 'goals' used to be blocked too, but we
+// now surface a user's stated intent (entry_struggle / goals row) so
+// goal-aware patterns can run when there's something to anchor to.
+export const BLOCKED_AT_FIRST_INSIGHT: DataDependency[] = ['income'];
 
 // Deterministic experiment attached to a pattern — every number here is
 // computed in the detector. Claude quotes the bands verbatim; the UI renders
@@ -86,6 +91,24 @@ export interface Hook {
   suggested_response: string;
 }
 
+export type UserIntentSource = 'goal' | 'entry_struggle' | 'portrait';
+export type UserIntentStruggleType =
+  | 'wealth'
+  | 'debt'
+  | 'planning'
+  | 'free_text'
+  | 'dont_know';
+
+export interface UserIntent {
+  source: UserIntentSource;
+  /** When source = 'entry_struggle', the picked option id. */
+  struggleType?: UserIntentStruggleType;
+  /** Free-text the user wrote (entry_struggle_text or goal description). */
+  text?: string;
+  /** Short label used when source = 'goal'. */
+  goalName?: string;
+}
+
 export interface InsightPayload {
   version: 1;
   userName: string | null;
@@ -101,6 +124,13 @@ export interface InsightPayload {
   statCards: StatCard[];
   hook: Hook;
   suggestedResponses: string[];
+  /**
+   * What the user has told us they want from this product, resolved from the
+   * highest-signal source available. Used to frame the wow moment in chat.
+   * Null when nothing is known yet (e.g. a Marcus journey with entry_struggle
+   * = 'dont_know' and no goals row).
+   */
+  userIntent: UserIntent | null;
   computedAt: string;
 }
 

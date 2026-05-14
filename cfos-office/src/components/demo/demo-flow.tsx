@@ -237,7 +237,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
           <Button
             onClick={handleStart}
             disabled={!country}
-            className="w-full bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base disabled:opacity-40"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5 text-base disabled:opacity-40"
           >
             Start your Value Map
             <ArrowRight className="ml-1.5 h-4 w-4" />
@@ -287,7 +287,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
 
         <Button
           onClick={handleStartExercise}
-          className="w-full max-w-sm bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base"
+          className="w-full max-w-sm bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5 text-base"
         >
           Let&apos;s go
           <ArrowRight className="ml-1.5 h-4 w-4" />

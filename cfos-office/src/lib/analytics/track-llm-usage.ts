@@ -12,7 +12,9 @@ interface LLMUsageParams {
     | 'balance_sheet_pdf_parse'
     | 'pdf_transaction_parse'
     | 'format_detection'
-    | 'pdf_vision_extraction';
+    | 'pdf_vision_extraction'
+    | 'onboarding_v2_free_text_opener'
+    | 'onboarding_v2_value_map_decline';
   model: string;
   inputTokens?: number;
   outputTokens?: number;

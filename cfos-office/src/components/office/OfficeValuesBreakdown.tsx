@@ -116,7 +116,7 @@ export function OfficeValuesBreakdown() {
             <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <span className="font-data text-[11px] text-[rgba(245,245,240,0.6)] min-w-[70px] text-center">{monthLabel}</span>
+        <span className="font-data text-[11px] text-text-secondary min-w-[70px] text-center">{monthLabel}</span>
         <button
           onClick={() => idx > 0 && setMonth(months[idx - 1])}
           className="w-7 h-7 rounded-[6px] bg-[rgba(255,255,255,0.04)] flex items-center justify-center"
@@ -133,7 +133,7 @@ export function OfficeValuesBreakdown() {
 
       {/* Summary text */}
       {dominantLabel && (
-        <p className="text-[13px] text-center text-[rgba(245,245,240,0.55)] mb-3.5 leading-[1.5]">
+        <p className="text-[13px] text-center text-text-secondary mb-3.5 leading-[1.5]">
           Your money is mostly <span style={{ color: VALUE_CONFIG[segments[0].key].color }}>{dominantLabel}</span>.
           {segments.find(s => s.key === 'leak') && (
             <> But {segments.find(s => s.key === 'leak')!.pct.toFixed(0)}% goes to things you&apos;d cut if you could.</>
@@ -147,7 +147,7 @@ export function OfficeValuesBreakdown() {
           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: VALUE_CONFIG[seg.key].color }} />
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-semibold">{VALUE_CONFIG[seg.key].label}</p>
-            <p className="text-[10px] text-[rgba(245,245,240,0.3)] mt-[1px]">{VALUE_CONFIG[seg.key].desc}</p>
+            <p className="text-[10px] text-text-tertiary mt-[1px]">{VALUE_CONFIG[seg.key].desc}</p>
           </div>
           <span className="font-data text-[13px] font-medium shrink-0" style={{ color: VALUE_CONFIG[seg.key].color }}>
             {seg.pct.toFixed(0)}%
@@ -156,15 +156,15 @@ export function OfficeValuesBreakdown() {
       ))}
 
       {/* Provenance */}
-      <div className="flex items-center gap-[3px] font-data text-[7px] text-[rgba(245,245,240,0.14)] mt-2.5">
-        <span className="w-[3px] h-[3px] rounded-full bg-[rgba(245,245,240,0.1)]" />
+      <div className="flex items-center gap-[3px] font-data text-[7px] text-text-ghost mt-2.5">
+        <span className="w-[3px] h-[3px] rounded-full bg-card" />
         {summary.transaction_count} transactions
       </div>
 
       {/* Top leaks summary */}
       {hasLeaks && (
         <>
-          <p className="text-[10px] font-bold text-[rgba(245,245,240,0.25)] tracking-[0.04em] uppercase mt-4 mb-1.5">
+          <p className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mt-4 mb-1.5">
             Leaks this month
           </p>
           <div className="flex items-center gap-2 py-2.5 border-b border-[rgba(255,255,255,0.03)]">
@@ -176,7 +176,7 @@ export function OfficeValuesBreakdown() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-medium">Total leaks</p>
-              <p className="font-data text-[8px] text-[rgba(245,245,240,0.22)] mt-[2px]">{leakData.count} transactions</p>
+              <p className="font-data text-[8px] text-text-muted mt-[2px]">{leakData.count} transactions</p>
             </div>
             <span className="font-data text-[12px] font-medium shrink-0" style={{ color: valueCategories.leak.color }}>
               -{formatCurrencyRounded(leakData.amount)}
@@ -188,7 +188,7 @@ export function OfficeValuesBreakdown() {
       {/* Unsure summary */}
       {hasUnsure && (
         <>
-          <p className="text-[10px] font-bold text-[rgba(245,245,240,0.25)] tracking-[0.04em] uppercase mt-4 mb-1.5">
+          <p className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mt-4 mb-1.5">
             Unsure this month
           </p>
           <div className="flex items-center gap-2 py-2.5 border-b border-[rgba(255,255,255,0.03)]">
@@ -197,7 +197,7 @@ export function OfficeValuesBreakdown() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-medium">Not yet classified</p>
-              <p className="font-data text-[8px] text-[rgba(245,245,240,0.22)] mt-[2px]">{unsureData.count} transactions</p>
+              <p className="font-data text-[8px] text-text-muted mt-[2px]">{unsureData.count} transactions</p>
             </div>
             <span className="font-data text-[12px] font-medium text-[#F59E0B] shrink-0">
               -{formatCurrencyRounded(unsureData.amount)}

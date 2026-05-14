@@ -14,7 +14,7 @@ export function ChatBar() {
         aria-label="Open chat"
       >
         <div className="flex-1 flex items-center h-10 px-3 rounded-[10px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-          <span className="text-[13px] text-[rgba(245,245,240,0.2)]">Ask your CFO&hellip;</span>
+          <span className="text-[13px] text-text-muted">Ask your CFO&hellip;</span>
         </div>
         <div className="w-7 h-7 flex items-center justify-center rounded-full bg-[rgba(232,168,76,0.15)] shrink-0">
           <Send size={14} className="text-accent-gold" />

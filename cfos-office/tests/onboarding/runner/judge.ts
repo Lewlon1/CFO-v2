@@ -115,13 +115,17 @@ Return JSON ONLY in this exact shape, nothing else:
 }`
 
 function buildPersonaBlock(persona: Persona): string {
+  // archetype is null for chat-first personas, but those personas don't run
+  // the LLM judge (their likertDimensions is empty), so we never reach here
+  // without an archetype. Fall back to '(none)' defensively.
+  const archetype = persona.expectations.archetype
   return [
     `id: ${persona.id}`,
     `label: ${persona.label}`,
     `country: ${persona.profile.country}`,
     `currency: ${persona.profile.currency}`,
-    `target_archetype: ${persona.expectations.archetype.personalityId}`,
-    `target_dominant_quadrant: ${persona.expectations.archetype.expectedQuadrant}`,
+    `target_archetype: ${archetype?.personalityId ?? '(none)'}`,
+    `target_dominant_quadrant: ${archetype?.expectedQuadrant ?? '(none)'}`,
   ].join('\n')
 }
 

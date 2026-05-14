@@ -44,7 +44,7 @@ function MonthSelector({ months, current, onChange }: {
           <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      <span className="font-data text-[11px] text-[rgba(245,245,240,0.6)] min-w-[70px] text-center">{label}</span>
+      <span className="font-data text-[11px] text-text-secondary min-w-[70px] text-center">{label}</span>
       <button
         onClick={() => canNext && onChange(months[idx - 1])}
         className="w-7 h-7 rounded-[6px] bg-[rgba(255,255,255,0.04)] flex items-center justify-center"
@@ -111,33 +111,33 @@ export function OfficeMonthlyOverview() {
       {/* Metric grid */}
       <div className="grid grid-cols-2 gap-1.5 mb-1.5">
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
-          <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">Income</p>
+          <p className="text-[9px] text-text-tertiary mb-[3px]">Income</p>
           <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-[#22C55E]">{formatCurrencyRounded(total_income)}</p>
           <p className="font-data text-[8px] mt-[2px]" style={{ color: 'rgba(34,197,94,0.5)' }}>+0% vs prev</p>
         </div>
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
-          <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">Spent</p>
+          <p className="text-[9px] text-text-tertiary mb-[3px]">Spent</p>
           <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-text-primary">{formatCurrencyRounded(total_spending)}</p>
           {vsPct != null && <p className="font-data text-[8px] mt-[2px]" style={{ color: vsPctColor }}>{vsPctText}</p>}
         </div>
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
-          <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">{surplus_deficit >= 0 ? 'Surplus' : 'Deficit'}</p>
+          <p className="text-[9px] text-text-tertiary mb-[3px]">{surplus_deficit >= 0 ? 'Surplus' : 'Deficit'}</p>
           <p className={`font-data text-[16px] font-extrabold tracking-[-0.03em] ${surplus_deficit >= 0 ? 'text-[#22C55E]' : 'text-[#F43F5E]'}`}>{formatCurrencyRounded(surplus_deficit)}</p>
         </div>
         <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
-          <p className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">Transactions</p>
+          <p className="text-[9px] text-text-tertiary mb-[3px]">Transactions</p>
           <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-text-primary">{transaction_count}</p>
         </div>
       </div>
 
       {/* Provenance */}
-      <div className="flex items-center gap-[3px] font-data text-[7px] text-[rgba(245,245,240,0.14)] mt-1 mb-3">
-        <span className="w-[3px] h-[3px] rounded-full bg-[rgba(245,245,240,0.1)]" />
+      <div className="flex items-center gap-[3px] font-data text-[7px] text-text-ghost mt-1 mb-3">
+        <span className="w-[3px] h-[3px] rounded-full bg-card" />
         {transaction_count} transactions
       </div>
 
       {/* Weekly spending bar chart */}
-      <p className="text-[10px] font-bold text-[rgba(245,245,240,0.25)] tracking-[0.04em] uppercase mb-1.5">Weekly spending</p>
+      <p className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mb-1.5">Weekly spending</p>
       <div className="relative h-[70px] mb-1">
         <div className="flex items-end gap-1 h-full relative z-[2]">
           {barRatios.map((r, i) => (
@@ -172,7 +172,7 @@ export function OfficeMonthlyOverview() {
       </div>
 
       {/* Category breakdown */}
-      <p className="text-[10px] font-bold text-[rgba(245,245,240,0.25)] tracking-[0.04em] uppercase mt-3.5 mb-1.5">By category</p>
+      <p className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mt-3.5 mb-1.5">By category</p>
       {categories.map(([slug, cat]) => (
         <div key={slug} className="flex items-center gap-2 py-2 border-b border-[rgba(255,255,255,0.03)]">
           <span className="text-[13px] w-4 text-center shrink-0">{iconToEmoji(cat.icon)}</span>
@@ -190,7 +190,7 @@ export function OfficeMonthlyOverview() {
           </div>
           <div className="text-right shrink-0">
             <p className="font-data text-[11px] font-medium">{formatCurrencyRounded(cat.amount)}</p>
-            <p className="font-data text-[8px] text-[rgba(245,245,240,0.3)]">{cat.pct?.toFixed(1) ?? '0'}%</p>
+            <p className="font-data text-[8px] text-text-tertiary">{cat.pct?.toFixed(1) ?? '0'}%</p>
           </div>
         </div>
       ))}

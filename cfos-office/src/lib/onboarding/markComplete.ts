@@ -16,8 +16,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  *       (c) three or more non-deleted role='user' messages
  *           via conversations.user_id
  *
- * Does NOT seed financial_portrait — that is the modal path's job
- * (see /api/onboarding/complete + lib/onboarding/profile-seeder).
+ * Does NOT seed financial_portrait. Portrait traits are written by the
+ * route-based onboarding-v2 archetype endpoint and by the post-conversation
+ * extraction pipeline (see lib/ai/portrait-extraction.ts).
  */
 export async function markOnboardingCompleteIfReady(
   supabase: SupabaseClient,

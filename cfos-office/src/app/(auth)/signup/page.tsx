@@ -139,7 +139,7 @@ function SignupForm() {
       }
     }
 
-    router.push('/dashboard')
+    router.push('/onboarding-v2')
     router.refresh()
   }
 

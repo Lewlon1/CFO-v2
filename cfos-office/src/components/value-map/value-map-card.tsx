@@ -5,6 +5,7 @@ import { Undo2, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
+import { VALUE_MAP_INTRO_UNSURE_BUCKET } from '@/lib/value-map/copy'
 import { formatAmount, formatDate } from '@/lib/value-map/format'
 import { getFeedback, getMilestoneFeedback } from '@/lib/value-map/feedback'
 import type { ValueMapTransaction, ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
@@ -499,6 +500,9 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
             onClick={handleHardToDecide}
             className="w-full min-h-[56px] rounded-xl text-sm font-medium text-muted-foreground border-border/60 hover:text-foreground hover:border-border"
           >
+            <span className="text-base" role="img" aria-hidden>
+              {VALUE_MAP_INTRO_UNSURE_BUCKET.emoji}
+            </span>
             Unsure
           </Button>
         </div>

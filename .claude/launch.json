@@ -5,7 +5,8 @@
       "name": "cfos-office (Next.js dev)",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": ["-c", "cd /Users/lewislonsdale/Documents/CFO-V2/cfos-office && PATH=/usr/local/bin:/usr/bin:/bin exec node node_modules/.bin/next dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

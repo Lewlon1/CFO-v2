@@ -55,7 +55,7 @@ export function FolderSection({
         }}
       >
         {/* Subtitle */}
-        <p className="px-[14px] pt-[14px] text-[10px] text-[rgba(245,245,240,0.3)]">{subtitle}</p>
+        <p className="px-[14px] pt-[14px] text-[10px] text-text-tertiary">{subtitle}</p>
 
         {/* Content */}
         <div className="px-[14px] pb-[14px]">

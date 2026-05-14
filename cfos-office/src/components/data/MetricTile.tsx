@@ -14,7 +14,7 @@ export function MetricTile({ label, value, color, trend, trendColor }: MetricTil
       className="rounded-lg p-2.5"
       style={{ backgroundColor: 'rgba(0,0,0,0.15)' }}
     >
-      <div className="text-[9px] text-[rgba(245,245,240,0.3)] mb-[3px]">
+      <div className="text-[9px] text-text-tertiary mb-[3px]">
         {label}
       </div>
       <div

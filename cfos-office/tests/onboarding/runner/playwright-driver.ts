@@ -1,33 +1,29 @@
 import { chromium, type Browser, type Page } from 'playwright'
 import path from 'node:path'
-import type { Persona, PersonaValueMapResponse } from '../personas/types'
+import type { Persona, PersonaValueMapResponse, OnboardingStage } from '../personas/types'
 import type { TestUser } from './user-factory'
-import type { CapturedBeat } from './types'
-
-const BEAT_ORDER = [
-  'welcome',
-  'framework',
-  'value_map',
-  'archetype',
-  'csv_upload',
-  'capabilities',
-  'first_insight',
-  'handoff',
-] as const
+import type { CapturedStage } from './types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface DriverOptions {
   baseUrl: string
   outputDir: string
   headless?: boolean
+  /**
+   * Admin Supabase client used to poll for the first assistant message in
+   * the first-insight conversation (Marcus path). The chat content is
+   * delivered via streaming AI SDK; polling messages is more robust than
+   * scraping DOM mid-stream.
+   */
+  admin: SupabaseClient
 }
 
 export interface DriverResult {
-  beats: CapturedBeat[]
+  stages: CapturedStage[]
   capturedArchetype: unknown | null
   capturedInsight: unknown | null
   consoleErrors: string[]
-  beatsCompleted: string[]
-  beatsSkipped: string[]
+  stagesCompleted: OnboardingStage[]
   errors: string[]
 }
 
@@ -37,12 +33,11 @@ export async function runPersonaInBrowser(
   opts: DriverOptions,
 ): Promise<DriverResult> {
   const result: DriverResult = {
-    beats: [],
+    stages: [],
     capturedArchetype: null,
     capturedInsight: null,
     consoleErrors: [],
-    beatsCompleted: [],
-    beatsSkipped: [],
+    stagesCompleted: [],
     errors: [],
   }
 
@@ -63,22 +58,22 @@ export async function runPersonaInBrowser(
       result.consoleErrors.push(`PageError: ${err.message}`)
     })
 
-    // Capture API responses from the onboarding endpoints
+    // Capture API responses. The archetype is still served by a dedicated
+    // route in v2. First-insight content is delivered via streaming chat —
+    // we capture that via DB polling later.
     page.on('response', async (res) => {
       const url = res.url()
       try {
         if (url.includes('/api/onboarding/generate-archetype')) {
           result.capturedArchetype = await res.json()
-        } else if (url.includes('/api/onboarding/generate-insight')) {
-          result.capturedInsight = await res.json()
         }
       } catch {
-        // Ignore non-JSON or in-flight parse errors
+        // Ignore non-JSON / in-flight parse errors
       }
     })
 
     await signIn(page, opts.baseUrl, user, opts.outputDir)
-    await runOnboarding(page, persona, opts, result)
+    await runOnboarding(page, persona, user, opts, result)
 
     await context.close()
   } catch (e) {
@@ -96,13 +91,11 @@ async function signIn(page: Page, baseUrl: string, user: TestUser, outputDir: st
   await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' })
   await page.fill('input[type="email"]', user.email)
   await page.fill('input[type="password"]', user.password)
-
   await page.click('button[type="submit"]:has-text("Sign in")')
 
   try {
     await page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 20_000 })
   } catch (e) {
-    // Capture the login page state for diagnosis — likely an error banner
     try {
       await page.screenshot({ path: `${outputDir}/_error-at-signin.png`, fullPage: true })
     } catch {}
@@ -110,285 +103,270 @@ async function signIn(page: Page, baseUrl: string, user: TestUser, outputDir: st
     throw new Error(`Sign-in redirect timed out. Page text snippet: ${(pageText ?? '').slice(0, 500)}`)
   }
 
-  // Navigate explicitly to /office to ensure the onboarding modal mounts
-  if (!page.url().includes('/office')) {
-    await page.goto(`${baseUrl}/office`, { waitUntil: 'domcontentloaded' })
+  // The office layout redirects fresh users to /onboarding-v2 when neither
+  // onboarding_completed_at nor entry_struggle is set. If we didn't land
+  // there automatically, navigate explicitly.
+  if (!page.url().includes('/onboarding-v2')) {
+    await page.goto(`${baseUrl}/onboarding-v2`, { waitUntil: 'domcontentloaded' })
   }
 }
 
-// ── Onboarding walkthrough ──────────────────────────────────────────────────
+// ── Walk dispatch ───────────────────────────────────────────────────────────
 
 async function runOnboarding(
   page: Page,
   persona: Persona,
+  user: TestUser,
   opts: DriverOptions,
   result: DriverResult,
 ): Promise<void> {
-  // Wait for the onboarding modal header ("First Meeting")
-  await page.waitForSelector('text=/First Meeting/i', { timeout: 30_000 })
+  // Struggle screen renders the headline "what brought you in?" — wait for it
+  await page.waitForSelector('text=/what brought you in/i', { timeout: 30_000 })
 
-  for (const beat of BEAT_ORDER) {
-    // Auto-skipped beats (by reducer) — don't attempt to drive
-    if (persona.expectations.beatsSkipped.includes(beat)) {
-      result.beatsSkipped.push(beat)
-      continue
-    }
+  await driveStage(page, 'struggle_submitted', persona, opts, result, async () => {
+    await submitStruggle(page, persona)
+  })
 
-    try {
-      await driveBeat(page, beat, persona, opts, result)
-      result.beatsCompleted.push(beat)
-    } catch (e) {
-      result.errors.push(`Beat ${beat} failed: ${String(e instanceof Error ? e.message : e)}`)
-      try {
-        const errShot = path.join(opts.outputDir, `_error-at-${beat}.png`)
-        await page.screenshot({ path: errShot, fullPage: true })
-      } catch {}
-      break
-    }
+  const isMarcus = persona.expectations.entryStruggle === 'dont_know'
+  if (isMarcus) {
+    await runMarcusPath(page, persona, user, opts, result)
+  } else {
+    await runChatFirstPath(page, persona, user, opts, result)
   }
 }
 
-async function driveBeat(
+// ── Stage helper ────────────────────────────────────────────────────────────
+
+async function driveStage(
   page: Page,
-  beat: string,
+  stage: OnboardingStage,
+  _persona: Persona,
+  opts: DriverOptions,
+  result: DriverResult,
+  body: () => Promise<void>,
+): Promise<void> {
+  const shotPath = path.join(opts.outputDir, `${stage}.png`)
+  const record: CapturedStage = { stage, screenshotPath: null, networkResponses: [] }
+  try {
+    await body()
+    try {
+      await page.screenshot({ path: shotPath, fullPage: false })
+      record.screenshotPath = shotPath
+    } catch {}
+    result.stages.push(record)
+    result.stagesCompleted.push(stage)
+  } catch (e) {
+    result.errors.push(`Stage ${stage} failed: ${String(e instanceof Error ? e.message : e)}`)
+    try {
+      const errShot = path.join(opts.outputDir, `_error-at-${stage}.png`)
+      await page.screenshot({ path: errShot, fullPage: true })
+    } catch {}
+    throw e
+  }
+}
+
+// ── Struggle submission ─────────────────────────────────────────────────────
+
+const STRUGGLE_OPTION_LABEL: Record<string, string> = {
+  dont_know: "I don't know where my money goes",
+  debt:      "I'm carrying debt I want to clear",
+  wealth:    'I want to start building wealth',
+  planning:  "I'm planning for something specific",
+}
+
+async function submitStruggle(page: Page, persona: Persona): Promise<void> {
+  const struggle = persona.expectations.entryStruggle
+  if (struggle === 'free_text') {
+    const text = persona.expectations.entryStruggleText
+    if (!text) throw new Error(`Persona ${persona.id}: entryStruggle is free_text but no entryStruggleText set`)
+    await page.fill('textarea', text)
+  } else {
+    const label = STRUGGLE_OPTION_LABEL[struggle]
+    if (!label) throw new Error(`Persona ${persona.id}: unknown entryStruggle "${struggle}"`)
+    await page.click(`button:has-text(${JSON.stringify(label)})`)
+  }
+  await page.click('button:has-text("Continue")')
+}
+
+// ── Marcus path: value-map → upload → archetype → chat ──────────────────────
+
+async function runMarcusPath(
+  page: Page,
   persona: Persona,
+  user: TestUser,
   opts: DriverOptions,
   result: DriverResult,
 ): Promise<void> {
-  const shot = path.join(opts.outputDir, `${beat}.png`)
-  const beatRecord: CapturedBeat = { beat, screenshotPath: null, networkResponses: [] }
+  // value_map
+  await driveStage(page, 'value_map_done', persona, opts, result, async () => {
+    await page.waitForURL(/\/onboarding-v2\/value-map/, { timeout: 30_000 })
+    await waitForValueMapIntro(page)
+    await page.click('button:has-text("Let\'s start")')
 
-  switch (beat) {
-    case 'welcome': {
-      // Auto-advances through 3 text messages then shows "Let's go"
-      await page.waitForSelector("button:has-text(\"Let's go\")", { timeout: 30_000 })
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-      await page.click("button:has-text(\"Let's go\")")
-      break
+    if (!persona.valueMapResponses) {
+      throw new Error(`Persona ${persona.id} is on Marcus path but has no valueMapResponses`)
+    }
+    for (const response of persona.valueMapResponses) {
+      await tapValueMapCard(page, response)
     }
 
-    case 'framework': {
-      await page.waitForSelector("button:has-text(\"Let's do it\")", { timeout: 30_000 })
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-      await page.click("button:has-text(\"Let's do it\")")
-      break
+    // After the 10th card the flow transitions to the summary screen
+    await page.waitForSelector('button:has-text("Continue")', { timeout: 20_000 })
+    await page.click('button:has-text("Continue")')
+    // ValueMapFlow.onComplete fires → /onboarding-v2/upload
+    await page.waitForURL(/\/onboarding-v2\/upload/, { timeout: 30_000 })
+  })
+
+  // upload
+  await driveStage(page, 'upload_done', persona, opts, result, async () => {
+    if (!persona.csv) {
+      throw new Error(`Persona ${persona.id} is on Marcus path but has no CSV — the v2 upload step is mandatory`)
     }
+    await page.waitForSelector('input[type="file"]', { timeout: 30_000, state: 'attached' })
+    const csvBuf = Buffer.from(persona.csv.contentBase64, 'base64')
+    await page.setInputFiles('input[type="file"]', [{
+      name: persona.csv.filename,
+      mimeType: persona.csv.filename.endsWith('.xlsx')
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'text/csv',
+      buffer: csvBuf,
+    }])
+    // UploadWizard runs in autoImport mode; once import succeeds the
+    // orchestrator calls advanceStep('upload_done') then router.push('/archetype').
+    await page.waitForURL(/\/onboarding-v2\/archetype/, { timeout: 90_000 })
+  })
 
-    case 'value_map': {
-      // Value Map has an intro screen with "I'm ready" or similar; click through
-      await waitForValueMapActive(page)
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
+  // archetype
+  await driveStage(page, 'archetype_shown', persona, opts, result, async () => {
+    // The orchestrator fires POST /api/onboarding/generate-archetype on mount.
+    // Capture handler is already wired; we just wait for the CTA to enable.
+    await page.waitForSelector('button:has-text("See what I found")', { timeout: 90_000 })
+    await page.click('button:has-text("See what I found")')
+    // Lands at /office?chat=open&conversationId=<id>; ChatOpenerTrigger strips
+    // the query params after handling.
+    await page.waitForURL(/\/office(\?|$)/, { timeout: 30_000 })
+  })
 
-      if (persona.skipBeats.includes('value_map')) {
-        // Tap "Skip for now"
-        await clickAnyOf(page, [
-          'button:has-text("Skip for now")',
-          'button:has-text("Skip")',
-        ])
-        break
-      }
-
-      if (!persona.valueMapResponses) {
-        throw new Error('Persona has no valueMapResponses but is not configured to skip value_map')
-      }
-
-      for (const response of persona.valueMapResponses) {
-        await tapValueMapCard(page, response)
-      }
-
-      // After the 10th card, ValueMapFlow auto-fires onComplete → reducer
-      // advances to `archetype` beat. No button click needed.
-      break
+  // complete: first-insight conversation has been created and is being
+  // delivered via the chat sheet. Poll for the assistant message.
+  await driveStage(page, 'complete', persona, opts, result, async () => {
+    const insight = await pollFirstInsightAssistantMessage(opts.admin, user.id, 90_000)
+    if (insight) {
+      result.capturedInsight = insight
     }
+  })
+}
 
-    case 'archetype': {
-      // Wait for archetype card to finish loading (up to 45s for LLM)
-      await page.waitForSelector('text=/archetype|You see|You spend|Your money|You keep/i', { timeout: 50_000 })
-      // Dwell time enforced by the app (MIN_ARCHETYPE_DWELL_MS = 20000).
-      // The "Upload" button should eventually appear.
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-      await page.waitForSelector('button:has-text("Upload")', { timeout: 45_000 })
-      await clickAnyOf(page, [
-        'button:has-text("Upload a statement")',
-        'button:has-text("Upload")',
-      ])
-      break
+// ── Chat-first path: struggle → chat ────────────────────────────────────────
+
+async function runChatFirstPath(
+  page: Page,
+  _persona: Persona,
+  user: TestUser,
+  opts: DriverOptions,
+  result: DriverResult,
+): Promise<void> {
+  await driveStage(page, 'chat_opener', _persona, opts, result, async () => {
+    // The server action creates a conversation and redirects to
+    // /office?chat=open&conversationId=<id>[&fto=1]. ChatOpenerTrigger
+    // handles the opener (for free_text) and strips the params.
+    await page.waitForURL(/\/office(\?|$)/, { timeout: 30_000 })
+    // Poll for the first assistant message in the conversation — this is
+    // either the pre-canned opener (debt/wealth/planning) or the LLM-
+    // generated free-text opener.
+    const opener = await pollFirstAssistantMessage(opts.admin, user.id, 60_000, 'onboarding_v2_chat')
+    if (opener) {
+      result.capturedInsight = opener
     }
-
-    case 'csv_upload': {
-      // Wait for the upload UI to render — either a file input or the skip button
-      await page.waitForSelector('input[type="file"], button:has-text("do this later"), button:has-text("Skip")', { timeout: 30_000, state: 'attached' })
-      // Extra time for the embed reveal animation
-      await page.waitForTimeout(800)
-
-      if (persona.skipBeats.includes('csv_upload') || !persona.csv) {
-        await page.screenshot({ path: shot, fullPage: false })
-        beatRecord.screenshotPath = shot
-        await clickAnyOf(page, [
-          'button:has-text("do this later")',
-          'button:has-text("Skip")',
-          'button:has-text("Not now")',
-          'button:has-text("Maybe later")',
-        ])
-        break
-      }
-
-      // Attach CSV via file input
-      const csvBuf = Buffer.from(persona.csv.contentBase64, 'base64')
-      await page.setInputFiles('input[type="file"]', [{
-        name: persona.csv.filename,
-        mimeType: persona.csv.filename.endsWith('.xlsx')
-          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          : 'text/csv',
-        buffer: csvBuf,
-      }])
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-
-      // Wait for the beat to advance — capabilities copy appears
-      await page.waitForSelector('text=/brought you to the office|focus on first/i', { timeout: 60_000 })
-      break
-    }
-
-    case 'capabilities': {
-      // Wait for the capability picker to render (not just the preceding text message)
-      await page.waitForSelector('button:has-text("Where my money")', { timeout: 30_000 })
-      await page.waitForTimeout(500)
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-
-      // Pick the first 2 capability options
-      const capabilityLabels = ['Where my money', 'Understanding my', 'Tracking what', 'Planning big']
-      let tappedCount = 0
-      for (const label of capabilityLabels) {
-        if (tappedCount >= 2) break
-        const btn = page.locator(`button:has-text("${label}")`).first()
-        if (await btn.count() > 0) {
-          try {
-            await btn.click({ timeout: 3000 })
-            tappedCount++
-            await page.waitForTimeout(200)
-          } catch {}
-        }
-      }
-
-      // Continue appears only after ≥1 selection
-      await clickAnyOf(page, [
-        'button:has-text("Continue")',
-        'button:has-text("Done")',
-        'button:has-text("Next")',
-      ])
-      break
-    }
-
-    case 'first_insight': {
-      // Insight narration can take up to 70s. We detect completion by the
-      // rating scale appearing ("Does it resonate?" + 5 emoji buttons).
-      try {
-        await page.waitForSelector('button[aria-label="Impressive"]', { timeout: 70_000 })
-      } catch {
-        await page.screenshot({ path: shot, fullPage: false })
-        beatRecord.screenshotPath = shot
-        throw new Error('first_insight never rendered rating UI — likely no CSV data or insight generation stuck (possible product bug: reducer fails to skip first_insight when csv_upload is skipped mid-session)')
-      }
-
-      await page.waitForTimeout(1000)
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-
-      // Pick "Impressive" (4/5).
-      await page.click('button[aria-label="Impressive"]')
-      // Rating triggers handleInsightRate → completeBeat after 600ms delay.
-      break
-    }
-
-    case 'handoff': {
-      await page.waitForSelector('button:has-text("Enter the Office")', { timeout: 30_000 })
-      await page.screenshot({ path: shot, fullPage: false })
-      beatRecord.screenshotPath = shot
-      await clickAnyOf(page, ['button:has-text("Enter the Office")'])
-      await page.waitForURL(/\/office/, { timeout: 15_000 })
-      // Allow the refresh/navigation to complete
-      await page.waitForTimeout(1000)
-      break
-    }
-  }
-
-  result.beats.push(beatRecord)
+  })
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-async function clickAnyOf(page: Page, selectors: string[]): Promise<void> {
-  for (const sel of selectors) {
-    const loc = page.locator(sel).first()
-    if (await loc.count() > 0) {
-      try {
-        await loc.click({ timeout: 5000 })
-        return
-      } catch {
-        // Try the next
-      }
-    }
-  }
-  throw new Error(`None of selectors clickable: ${selectors.join(' | ')}`)
-}
-
-async function waitForValueMapActive(page: Page): Promise<void> {
-  // The Value Map shows an intro screen first with a "Let's start" button.
+async function waitForValueMapIntro(page: Page): Promise<void> {
+  // The Value Map intro renders a "Let's start" CTA. Don't proceed until
+  // it's mounted, with a couple of retries for the redirect/race window.
   for (let attempt = 0; attempt < 4; attempt++) {
-    const hasCard = await page.locator('text=/How do you feel about this spend/i').count()
-    if (hasCard > 0) return
-
-    const introBtn = page.locator([
-      'button:has-text("Let\'s start")',
-      'button:has-text("start")',
-      'button:has-text("Start")',
-      'button:has-text("Begin")',
-      'button:has-text("I\'m ready")',
-    ].join(', ')).first()
-    if (await introBtn.count() > 0) {
-      try {
-        await introBtn.click({ timeout: 3000 })
-      } catch {}
-    }
-    await page.waitForTimeout(1500)
+    const btn = page.locator('button:has-text("Let\'s start")').first()
+    if (await btn.count() > 0) return
+    await page.waitForTimeout(1000)
   }
-
-  await page.waitForSelector('text=/How do you feel about this spend/i', { timeout: 15_000 })
+  await page.waitForSelector('button:has-text("Let\'s start")', { timeout: 15_000 })
 }
 
 async function tapValueMapCard(page: Page, response: PersonaValueMapResponse): Promise<void> {
   // Wait for the quadrant question to appear for the current card
   await page.waitForSelector('text=/How do you feel about this spend/i', { timeout: 15_000 })
 
-  // There's a 1.5s gate before buttons become tappable — wait it out
+  // There's a ~1.5s gate before buttons become tappable — wait it out
   await page.waitForTimeout(1700)
 
   if (response.hardToDecide || response.quadrant === null) {
-    // "Unsure" button is visible alongside the quadrants once the 1.5s gate clears
+    // "Unsure" button appears once the gate clears
     await page.waitForSelector('button:has-text("Unsure")', { timeout: 8_000 })
     await page.click('button:has-text("Unsure")')
   } else {
     const quadrantLabel = response.quadrant.charAt(0).toUpperCase() + response.quadrant.slice(1)
-    // Quadrant buttons contain the label as text
     await page.click(`button:has-text("${quadrantLabel}")`)
 
-    // Confidence: use aria-labelled dot matching the desired value
+    // Confidence dots are labelled "Confidence N of 5"
     await page.waitForSelector('button[aria-label*="Confidence"]', { timeout: 5000 })
     const confidenceBtn = page.locator(`button[aria-label="Confidence ${response.confidence} of 5"]`).first()
     if (await confidenceBtn.count() > 0) {
       await confidenceBtn.click()
     }
-
-    // Confirm
     await page.click('button:has-text("Next")')
   }
 
-  // Card transition + feedback — wait for next card or summary
   await page.waitForTimeout(500)
+}
+
+// ── DB-driven chat capture ─────────────────────────────────────────────────
+
+/**
+ * Poll the messages table for the first assistant message in the user's
+ * first_insight conversation. Returns the message row or null on timeout.
+ */
+async function pollFirstInsightAssistantMessage(
+  admin: SupabaseClient,
+  userId: string,
+  timeoutMs: number,
+): Promise<unknown | null> {
+  return pollFirstAssistantMessage(admin, userId, timeoutMs, 'first_insight')
+}
+
+async function pollFirstAssistantMessage(
+  admin: SupabaseClient,
+  userId: string,
+  timeoutMs: number,
+  conversationType: string,
+): Promise<unknown | null> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const { data: conv } = await admin
+      .from('conversations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('type', conversationType)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (conv?.id) {
+      const { data: msgs } = await admin
+        .from('messages')
+        .select('id, content, role, created_at')
+        .eq('conversation_id', conv.id)
+        .eq('role', 'assistant')
+        .order('created_at', { ascending: true })
+        .limit(1)
+
+      if (msgs && msgs.length > 0 && msgs[0].content) {
+        return { conversationType, content: msgs[0].content, messageId: msgs[0].id }
+      }
+    }
+
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+  return null
 }

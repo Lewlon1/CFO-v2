@@ -4,17 +4,15 @@ import { createClient } from '@/lib/supabase/server'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
-// level. Without this, stale onboarding progress survives PATCHes to
-// /api/onboarding/progress.
+// level so onboarding-state changes are reflected immediately.
 export const dynamic = 'force-dynamic'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { ChatProvider } from '@/components/chat/ChatProvider'
 import { ChatBar } from '@/components/chat/ChatBar'
 import { ChatSheet } from '@/components/chat/ChatSheet'
 import { NavigationBar } from '@/components/navigation/NavigationBar'
-import { OnboardingModal } from '@/components/onboarding/OnboardingModal'
+import { ChatOpenerTrigger } from '@/components/onboarding-v2/chat-opener-trigger'
 import { UserAvatarMenu } from '@/components/office/UserAvatarMenu'
-import type { OnboardingState } from '@/lib/onboarding/types'
 import { formatHeaderDate, getGreeting } from '@/lib/utils'
 
 const jetbrainsMono = JetBrains_Mono({
@@ -45,20 +43,16 @@ export default async function OfficeLayout({ children }: { children: React.React
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
   // Fetch user currency + display name for chat context & header
-  let { data: profile } = await supabase
+  const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, onboarding_progress')
+    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle')
     .eq('id', user.id)
     .single()
 
-  // Fallback: if onboarding_progress isn't in schema cache yet, retry without it
-  if (!profile) {
-    const { data: fallback } = await supabase
-      .from('user_profiles')
-      .select('primary_currency, display_name, onboarding_completed_at')
-      .eq('id', user.id)
-      .single()
-    if (fallback) profile = { ...fallback, onboarding_progress: null }
+  // Any incomplete user without a v2 entry_struggle goes into the v2 flow.
+  // Mid-v2 users (entry_struggle set) and completed users fall through.
+  if (!profile?.onboarding_completed_at && !profile?.entry_struggle) {
+    redirect('/onboarding-v2')
   }
 
   const currency = profile?.primary_currency ?? 'EUR'
@@ -76,12 +70,12 @@ export default async function OfficeLayout({ children }: { children: React.React
         <CFOAvatar size={48} withOnlineDot />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline" style={{ lineHeight: 1 }}>
-            <span className="font-data text-[9px] font-normal tracking-[0.04em] text-[rgba(245,245,240,0.2)] mr-1.5">
+            <span className="font-data text-[9px] font-normal tracking-[0.04em] text-text-muted mr-1.5">
               THE
             </span>
             <span
               style={{ fontFamily: 'var(--font-cormorant), serif', fontSize: 18, fontWeight: 600 }}
-              className="text-[rgba(245,245,240,0.45)]"
+              className="text-text-secondary"
             >
               CFO&apos;s Office
             </span>
@@ -92,7 +86,7 @@ export default async function OfficeLayout({ children }: { children: React.React
           </p>
         </div>
         <div className="text-right shrink-0">
-          <span className="font-data text-[11px] text-[rgba(245,245,240,0.4)]">
+          <span className="font-data text-[11px] text-text-tertiary">
             {formatHeaderDate()}
           </span>
         </div>
@@ -116,13 +110,10 @@ export default async function OfficeLayout({ children }: { children: React.React
         {/* Chat sheet overlay */}
         <ChatSheet />
 
-        {!profile?.onboarding_completed_at && (
-          <OnboardingModal
-            initialProgress={profile?.onboarding_progress as OnboardingState | null}
-            userName={displayName ?? undefined}
-            currency={currency}
-          />
-        )}
+        {/* Reads ?chat=open&conversationId=...[&fto=1] from URL after the
+            onboarding-v2 server action redirects here, opens the drawer,
+            loads the conversation, and triggers free-text opener if needed. */}
+        <ChatOpenerTrigger />
       </ChatProvider>
     </div>
   )
