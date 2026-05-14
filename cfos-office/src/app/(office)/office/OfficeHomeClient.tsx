@@ -7,8 +7,11 @@ import { CashFlowSection } from '@/components/office/sections/CashFlowSection'
 import { ValuesSection } from '@/components/office/sections/ValuesSection'
 import { NetWorthSection } from '@/components/office/sections/NetWorthSection'
 import { ScenariosSection } from '@/components/office/sections/ScenariosSection'
+import { GoalsSection } from '@/components/office/sections/GoalsSection'
 import { InboxRow } from '@/components/office/InboxRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+import { folderColors } from '@/lib/tokens'
+import type { PrimaryGoal } from '@/lib/goals/primary-goal'
 
 interface OfficeHomeClientProps {
   provenance?: { source: string | null; uploadDate: string | null }
@@ -20,6 +23,7 @@ interface OfficeHomeClientProps {
   nextTrip: { name: string; start_date: string; end_date: string; total_estimated: number | null; currency: string } | null
   currency: string
   profileCompleteness: number
+  primaryGoal: PrimaryGoal | null
 }
 
 export function OfficeHomeClient({
@@ -32,6 +36,7 @@ export function OfficeHomeClient({
   nextTrip,
   currency,
   profileCompleteness,
+  primaryGoal,
 }: OfficeHomeClientProps) {
   const { summary, isLoading } = useDashboardData()
   const trackEvent = useTrackEvent()
@@ -41,10 +46,28 @@ export function OfficeHomeClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const goalsSubtitle = (() => {
+    if (!primaryGoal) return 'Not yet set'
+    if (!primaryGoal.target_amount || primaryGoal.target_amount <= 0) return primaryGoal.name
+    const current = Math.max(0, primaryGoal.current_amount ?? 0)
+    const pct = Math.min(100, Math.round((current / primaryGoal.target_amount) * 100))
+    return `${primaryGoal.name} · ${pct}%`
+  })()
+
   return (
     <div className="px-3.5 pt-2 pb-6">
       {/* Inbox row — shows when there are unread nudges */}
       <InboxRow />
+
+      <FolderSection
+        icon="◎"
+        label="Goals"
+        subtitle={goalsSubtitle}
+        accentColor={folderColors.goals}
+        openHref="/office/scenarios/goals"
+      >
+        <GoalsSection goal={primaryGoal} currency={currency} />
+      </FolderSection>
 
       <FolderSection
         icon="$"

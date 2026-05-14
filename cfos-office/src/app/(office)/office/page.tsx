@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { calculateCompleteness } from '@/lib/profile/completeness'
 import { PERSONALITIES } from '@/lib/value-map/constants'
+import { getPrimaryGoal } from '@/lib/goals/primary-goal'
 import { OfficeHomeClient } from './OfficeHomeClient'
 import { OnboardingBanner } from '@/components/office/onboarding-banner'
 
@@ -19,6 +20,7 @@ export default async function OfficePage() {
     liabilitiesResult,
     tripResult,
     profileResult,
+    primaryGoal,
   ] = await Promise.all([
     // Provenance: most common source + latest upload date
     supabase
@@ -76,6 +78,9 @@ export default async function OfficePage() {
       .select('*')
       .eq('id', user.id)
       .single(),
+
+    // Primary goal (Session 11)
+    getPrimaryGoal(supabase, user.id),
   ])
 
   const provenance = provenanceResult.data?.[0]
@@ -120,6 +125,7 @@ export default async function OfficePage() {
         nextTrip={nextTrip}
         currency={currency}
         profileCompleteness={profileCompleteness}
+        primaryGoal={primaryGoal}
       />
     </>
   )
