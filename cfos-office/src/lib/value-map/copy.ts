@@ -36,6 +36,49 @@ export const VALUE_MAP_INTRO_BULLETS: readonly IntroBullet[] = [
   },
 ] as const
 
+// Explainer used on the onboarding Value Map intro. Frames *what* the Value
+// Map is (a different way to look at money) and *why* it works (optimise
+// without sacrificing what matters), before the user sees the four buckets
+// below. Distinct from VALUE_MAP_INTRO_BULLETS — those are product promises
+// used on the demo/marketing surfaces.
+export const VALUE_MAP_INTRO_EXPLAINER: readonly IntroBullet[] = [
+  {
+    title: 'A different way to look at money.',
+    body:
+      'Most budgets ask how much you spend. The Value Map asks what your spending is for — so we can talk about your money in terms of what it means to you, not just numbers.',
+  },
+  {
+    title: 'Save without sacrificing what matters.',
+    body:
+      "Once I know which spending protects your life and which slips through it, I know where to look — and where to leave alone. The room to save lives in the things you won't miss.",
+  },
+] as const
+
+// How the onboarding Value Map exercise actually works. Sets expectations
+// about samples seeding a baseline that sharpens with real statements over
+// time. The Unsure entry was previously here; it now lives alongside the
+// quadrants in VALUE_MAP_INTRO_UNSURE_BUCKET since it's conceptually a fifth
+// option, not a mechanics note.
+export const VALUE_MAP_INTRO_HOW: readonly IntroBullet[] = [
+  {
+    title: "You'll start with samples.",
+    body:
+      "The transactions on the next screen aren't yours — they're representative examples. Sort them by what they mean to you and I'll build a baseline reading. You can re-do this with your own statements whenever you want, and the reading sharpens every time.",
+  },
+] as const
+
+// Fifth "bucket" rendered alongside the four quadrants. Visually de-emphasised
+// vs Foundation/Investment/Burden/Leak — it's the escape hatch, not a
+// category. Copy emphasises that Unsure is a signal in its own right: it
+// tells the CFO where the user is still working things out.
+export const VALUE_MAP_INTRO_UNSURE_BUCKET = {
+  emoji: '❔', // ❔
+  name: 'Unsure',
+  tagline: 'Honestly not sure',
+  description:
+    "Better than forcing a guess. Where you tap Unsure tells me where you're still working things out — and those are some of the most useful things for us to talk about later.",
+} as const
+
 export const VALUE_MAP_DEMO_FOOTNOTE =
   'Takes about 2 minutes. No account needed to see your reading.'
 

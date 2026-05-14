@@ -12,7 +12,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { importBatchId } = await req.json()
+  // Body is optional — onboarding-v2 archetype calls this with no payload.
+  let importBatchId: string | null = null
+  try {
+    const body = await req.json()
+    importBatchId = body?.importBatchId ?? null
+  } catch {
+    // No JSON body — that's fine.
+  }
+
+  // Idempotency: if a usable first_insight conversation already exists for
+  // this user, return it instead of creating a duplicate. This makes the
+  // endpoint safe to call from the onboarding-v2 archetype screen even if
+  // a previous upload step already created one.
+  const { data: existing } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('type', 'first_insight')
+    .neq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existing?.id) {
+    return NextResponse.json({ conversationId: existing.id, reused: true })
+  }
 
   // Compute the full first-insight payload (pure data, no LLM)
   const payload = await computeFirstInsight(supabase, user.id)
@@ -26,7 +51,7 @@ export async function POST(req: Request) {
       title: 'Your first look',
       metadata: {
         first_insight_payload: payload,
-        import_batch_id: importBatchId ?? null,
+        import_batch_id: importBatchId,
         transaction_count: payload.transactionCount,
       },
     })

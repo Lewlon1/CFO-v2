@@ -6,6 +6,7 @@ import { assembleReviewContext } from './review-context';
 import { PERSONALITIES } from '@/lib/value-map/constants';
 import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
 import { extractNumbers } from './insight-validator';
+import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -189,7 +190,12 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   lines.push('- Do NOT compute ratios, averages, multipliers, time spans, daily rates, or per-month figures yourself — if a derived figure is not listed in QUOTABLE FACTS, do not cite it. Rephrase qualitatively instead ("sharp spike", "a meaningful chunk") without inventing the number.');
   lines.push('- Do NOT extrapolate (e.g. "across four months" unless the months of data count shown is exactly four). Stick to what the data shows.');
   lines.push("- You do NOT know the user's income, savings rate, or surplus. Do not mention these concepts.");
-  lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
+  if (payload.userIntent) {
+    lines.push("- You DO know the user's stated goal (see STATED GOAL below). Reference it naturally — don't list it back at them.");
+    lines.push("- You do NOT know the user's age, employment, or housing type. Do not reference them.");
+  } else {
+    lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
+  }
   lines.push('- You do NOT know whether their spending is "sustainable" or "affordable" — that requires income.');
   lines.push('- If a field says "not_available", you must not reference it or imply it.');
   lines.push("- Do not say \"you spend X% of your income\" — you don't know their income.");
@@ -217,6 +223,43 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
     lines.push('This user has limited financial structure. Focus on one clear, achievable pattern. Do not overwhelm.');
   }
   lines.push('');
+  // Stated goal — when the user has told us what they want from this product,
+  // anchor the wow moment to it rather than narrating in the abstract.
+  if (payload.userIntent) {
+    const intent = payload.userIntent;
+    lines.push('### STATED GOAL');
+    if (intent.source === 'goal' && intent.goalName) {
+      lines.push(`- The user has set a goal: "${intent.goalName}".`);
+      if (intent.text && intent.text !== intent.goalName) {
+        lines.push(`- In their own words: "${intent.text}"`);
+      }
+    } else if (intent.source === 'entry_struggle') {
+      const struggleLabels: Record<string, string> = {
+        wealth:    "I want to start building wealth",
+        debt:      "I'm carrying debt I want to clear",
+        planning:  "I'm planning for something specific",
+        free_text: "(see their own words below)",
+      };
+      const label = intent.struggleType ? struggleLabels[intent.struggleType] : null;
+      if (label) lines.push(`- At onboarding the user said: "${label}"`);
+      if (intent.text) lines.push(`- In their own words: "${intent.text}"`);
+    }
+    lines.push('');
+    lines.push('FRAME THE WOW MOMENT THROUGH THIS GOAL:');
+    lines.push('- Open by acknowledging the goal in one short line — paraphrase it, do not quote it back verbatim.');
+    lines.push('- Then make the insight land *against* that goal. The leverage is in their day-to-day pattern — what\'s flowing where, and whether it\'s aligned with what they came here for.');
+    lines.push('- Pick ONE specific number from the QUOTABLE FACTS list and tie it to the goal. Specifics over abstractions.');
+    if (payload.userIntent.struggleType === 'wealth' ||
+        (payload.userIntent.text ?? '').toLowerCase().includes('wealth') ||
+        (payload.userIntent.text ?? '').toLowerCase().includes('grow')) {
+      lines.push('- Wealth-building framing: "If we\'re going to actually move toward this, the leverage is in your day-to-day spending — what\'s flowing where, and whether it\'s aligned with what matters."');
+    } else if (payload.userIntent.struggleType === 'debt') {
+      lines.push('- Debt framing: clearing it faster comes down to surplus — what\'s left after fixed costs. Point at where surplus could come from in their pattern.');
+    } else if (payload.userIntent.struggleType === 'planning') {
+      lines.push('- Planning framing: to get there, they need a clear picture of what\'s leaving the account each month. The pattern below is that picture.');
+    }
+    lines.push('');
+  }
   // Quotable facts — the ONLY strings containing numbers or merchant names
   // the LLM is permitted to cite. The post-LLM validator rejects narratives
   // containing any other number >= 10 or any other merchant name.
@@ -306,17 +349,115 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   lines.push('- Savings rate (requires income)');
   lines.push('- Surplus/deficit (requires income)');
   lines.push('- Any percentage "of income" (requires income)');
-  lines.push('- Goals (not collected yet)');
+  if (!payload.userIntent) {
+    lines.push('- Goals (not collected yet)');
+  }
   lines.push('- Age, employment status, housing type (not collected yet)');
   lines.push('- Whether spending is "sustainable" (requires income)');
   return lines.join('\n');
+}
+
+async function buildValueMapBridgeContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any,
+  conversationId: string | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+): Promise<string> {
+  if (!profile) return ''
+  if (profile.onboarding_route !== 'chat') return ''
+  if (profile.value_map_declined_in_chat) return ''
+  const step = profile.onboarding_step as string | null
+  if (
+    step === 'value_map_done' ||
+    step === 'upload_done' ||
+    step === 'archetype_shown' ||
+    step === 'complete'
+  ) {
+    return ''
+  }
+
+  const lines: string[] = [
+    '## VALUE MAP BRIDGE',
+    "Once you have gathered enough context about the user's situation (typically after a few exchanges where they have shared meaningful context about their goal/struggle), suggest the Value Map. Frame it as connecting their stated goal/struggle to their day-to-day spending — that's where the gap usually shows up.",
+    '',
+    'Examples of framing:',
+    "- For wealth-building: \"If we're going to actually move toward [their goal], the leverage is in your day-to-day spending — what's flowing where, and whether it's aligned with what matters.\"",
+    "- For debt clearing: \"Clearing this faster comes down to surplus — what's left after fixed costs. Worth mapping how you actually spend so we can find where surplus could come from.\"",
+    "- For planning: \"To get to [their goal] you need a clear picture of what's leaving the account each month.\"",
+    '',
+    'When you decide to offer it, include this token verbatim somewhere in your response: <ACTION:start_value_map>',
+    'Do not describe the token to the user; the system will render an action button for them.',
+    'If the user declines ("not now", "later", "skip"), do NOT bring up the Value Map again proactively in this conversation. Acknowledge their decision and continue helping them with what they came to discuss.',
+  ]
+
+  // Backstop: if conversation has reached threshold and offer hasn't fired, push for it now.
+  if (conversationId && !profile.value_map_offered_in_chat) {
+    try {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('role', 'user')
+      if ((count ?? 0) >= BRIDGE_USER_MSG_THRESHOLD) {
+        lines.push(
+          '',
+          '## BRIDGE BACKSTOP',
+          'This conversation has reached the point where you should offer the Value Map. Do it in your next response with appropriate framing per the BRIDGE guidance above. Include <ACTION:start_value_map> in your response.',
+        )
+      }
+    } catch (err) {
+      console.error('[bridge-context] message count failed', err)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+function buildOnboardingEntryContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any,
+): string {
+  if (!profile) return ''
+  if (profile.onboarding_route !== 'chat') return ''
+  const struggle = profile.entry_struggle as string | null
+  if (!struggle) return ''
+
+  const labels: Record<string, string> = {
+    dont_know: "I don't know where my money goes",
+    debt:      "I'm carrying debt I want to clear",
+    wealth:    'I want to start building wealth',
+    planning:  "I'm planning for something specific",
+    free_text: '(In their own words — see entry_struggle_text)',
+  }
+  const struggleLabel = labels[struggle] ?? struggle
+  const text = (profile.entry_struggle_text as string | null) || null
+
+  const lines = [
+    '## USER ENTRY CONTEXT',
+    `- Stated struggle: ${struggleLabel}`,
+  ]
+  if (text) {
+    lines.push(`- In their own words: "${text}"`)
+  }
+  lines.push(
+    '- They have not yet completed the Value Map or shared transactions.',
+    '',
+    '## GUIDANCE',
+    '- You do not yet have transaction data, value map results, or income context.',
+    '- Ask clarifying questions before giving any specific advice.',
+    '- Do not assume their income, country, family situation, or risk tolerance.',
+    '- The advisory boundary still applies: observe, calculate, educate. Never recommend specific products or make buy/sell calls.',
+  )
+  return lines.join('\n')
 }
 
 export async function buildSystemPrompt(
   userId: string,
   conversationType?: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  conversationMetadata?: Record<string, any> | null
+  conversationMetadata?: Record<string, any> | null,
+  conversationId?: string | null
 ): Promise<string> {
   const supabase = await createClient();
 
@@ -456,9 +597,10 @@ export async function buildSystemPrompt(
     BASE_PERSONA + styleModifier,
     buildCurrentDateContext(),
     buildProfileContext(profile),
+    buildOnboardingEntryContext(profile),
+    await buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     buildFinancialContext(snapshots, recurring, profile),
     await getCountryBenchmarks(profile, supabase),
-    getOnboardingResumeContext(profile),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
@@ -487,72 +629,6 @@ function buildCurrentDateContext(): string {
     '',
     'When the user mentions a month, season, or quarter without a year, do NOT assume the current year. Ask which year they mean — unless the user has already named the year, the date sits clearly in the future, or the conversation context makes it unambiguous. Never silently default to "the next upcoming May".',
   ].join('\n');
-}
-
-// ── Onboarding resume context ───────────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getOnboardingResumeContext(profile: any): string {
-  // Onboarding complete — no resume context needed
-  if (!profile || profile.onboarding_completed_at) return '';
-
-  // No onboarding progress at all — user never started
-  if (!profile.onboarding_progress) return '';
-
-  // Parse the onboarding state
-  const progress = profile.onboarding_progress as {
-    completedBeats?: string[]
-    data?: {
-      personalityType?: string
-      importBatchId?: string | null
-      selectedCapabilities?: string[]
-    }
-  }
-
-  const completedBeats = progress.completedBeats ?? []
-  const data = progress.data ?? {}
-
-  const parts: string[] = []
-  parts.push('## Onboarding Status')
-  parts.push("The user started onboarding but didn't finish. Here's what they completed:")
-
-  const valueMapDone = completedBeats.includes('value_map') && data.personalityType
-  const csvUploaded = completedBeats.includes('csv_upload') && data.importBatchId
-  const insightSeen = completedBeats.includes('first_insight')
-
-  if (valueMapDone) {
-    parts.push(`- Completed the Value Map exercise (personality type: ${data.personalityType})`)
-  }
-  if (csvUploaded) {
-    parts.push('- Uploaded a bank statement')
-  }
-
-  // Priority 1: They have both Value Map + CSV but never saw the first insight
-  if (valueMapDone && csvUploaded && !insightSeen) {
-    parts.push('')
-    parts.push("IMPORTANT: They completed the Value Map AND uploaded a CSV, but never saw their first insight.")
-    parts.push("Lead with this — it's the hook. Something like: \"I've been going through your statement since we last spoke. Something jumped out.\"")
-    parts.push("Then call the analyse_gap tool to deliver their first Gap insight.")
-    return parts.join('\n')
-  }
-
-  // Priority 2: CSV not uploaded (higher value than Value Map)
-  if (!csvUploaded) {
-    parts.push('')
-    parts.push("They haven't uploaded a bank statement yet. When relevant, encourage it:")
-    parts.push("\"Upload a statement when you're ready — that's when things get interesting.\"")
-    parts.push("This is the single most valuable next step. Mention it once, naturally, then let it go.")
-  }
-
-  // Priority 3: Value Map not done
-  if (!valueMapDone) {
-    parts.push('')
-    parts.push("They haven't completed the Value Map exercise yet. If natural, suggest it:")
-    parts.push("\"We never finished setting up your baseline — want to do that quick categorisation exercise?\"")
-    parts.push("Don't push it. Mention it once, early, then let it go. CSV upload is higher priority.")
-  }
-
-  return parts.join('\n')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

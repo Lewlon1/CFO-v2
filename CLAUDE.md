@@ -8,6 +8,12 @@ The product name is **The CFO's Office**. The metaphor: walking into a startup C
 
 ---
 
+## CFO Constitution
+
+`CFO-CONSTITUTION.md` is the source document for the CFO's identity, voice, capabilities, and boundaries. All system prompts in `cfos-office/src/lib/ai/` derive from it. When prompts and the Constitution conflict, the Constitution wins and the prompt is rewritten. Read the Constitution before any prompt change.
+
+---
+
 ## Versioning
 
 The CFO's Office uses MAJOR.MINOR versioning, tied to architectural epochs and shipping milestones — not chronology or session count.
@@ -65,7 +71,7 @@ Auth:      Supabase Auth (email + Google OAuth)
 Database:  Supabase PostgreSQL with RLS
 Storage:   Supabase Storage (CSV uploads, bill images)
 Chat:      Vercel AI SDK (@ai-sdk/amazon-bedrock) → Claude Sonnet 4.6
-Background: Supabase Edge Functions + pg_cron
+Background: Vercel cron (cfos-office/vercel.json → /api/cron/*)
 Styling:   Tailwind CSS
 ```
 
@@ -270,8 +276,11 @@ Key persona rules:
     /chat/route.ts                    # Vercel AI SDK chat handler with Bedrock
     /upload/route.ts                  # CSV upload + parse + categorise
     /tools/[tool]/route.ts            # Claude function call execution
-    /cron/daily/route.ts              # Daily nudge check
-    /cron/monthly/route.ts            # Monthly snapshot generation
+    /cron/portrait-extraction/route.ts # Daily 06:00 UTC sweep of completed conversations
+    /cron/daily-bills/route.ts        # Daily 08:00 UTC bill monitoring
+    /cron/nudges-daily/route.ts       # Daily 07:00 UTC nudge evaluation
+    /cron/nudges-weekly/route.ts      # Monday 08:00 UTC weekly nudges
+    /cron/nudges-monthly/route.ts     # 1st of month 08:00 UTC monthly snapshot
   /(public)
     /demo/page.tsx                    # Value Map (pre-signup)
     /demo/result/page.tsx             # Value Map personality result
@@ -365,14 +374,27 @@ The system prompt is assembled dynamically per conversation. See `lib/ai/context
 
 ### Assembly Order
 
+Assembled in `lib/ai/context-builder.ts:buildSystemPrompt()`. Sections joined with `\n\n---\n\n`; empty sections are filtered out before joining.
+
 ```
-1. Base CFO persona (always included, ~300 tokens)
-2. Profile context — what we know about this user (~200 tokens)
-3. Financial summary — system-computed numbers (~400 tokens)
-4. Financial portrait — behavioral traits + Value Map (~300 tokens)
-5. Goals and action items (~200 tokens)
-6. Profiling questions — what to ask if natural (~150 tokens)
-7. Conversation type instructions (~200 tokens)
+ 1. Base persona + style modifier      (system-prompt.ts: BASE_PERSONA)
+ 2. Current date context
+ 3. Profile context
+ 4. Onboarding entry context
+ 5. Value Map bridge context
+ 6. Financial context
+ 7. Country benchmarks
+ 8. Conversation instructions
+ 9. Portrait context
+10. Balance sheet context
+11. Goals context
+12. Trips context
+13. Tool usage instructions
+14. Value mapping context
+15. Value check-in nudge context
+16. Retake suggestion context
+17. Prediction quality context
+18. Profiling context
 ```
 
 ### Critical Instructions in System Prompt

@@ -1,9 +1,15 @@
 import type { UIMessage } from 'ai';
 
+// Legacy action shape from `create_action_item` tool outputs.
+export type CreateActionItemAuditEntry = { id: string; title: string };
+// New shape emitted by chat-route action markers (e.g. `<ACTION:start_value_map>`).
+export type StartValueMapAuditEntry = { type: 'start_value_map' };
+export type ActionAuditEntry = CreateActionItemAuditEntry | StartValueMapAuditEntry;
+
 export type MessageAudit = {
   toolsUsed: string[];
   profileUpdates: Array<{ field: string }>;
-  actionsCreated: Array<{ id: string; title: string }>;
+  actionsCreated: ActionAuditEntry[];
   insightsGenerated: Array<{ tool: string; output: unknown }>;
 };
 
@@ -29,7 +35,7 @@ function isStructuredOutput(out: unknown): out is Record<string, unknown> {
 export function extractMessageAudit(responseMessages: UIMessage[]): MessageAudit {
   const toolsUsed: string[] = [];
   const profileUpdates: Array<{ field: string }> = [];
-  const actionsCreated: Array<{ id: string; title: string }> = [];
+  const actionsCreated: ActionAuditEntry[] = [];
   const insightsGenerated: Array<{ tool: string; output: unknown }> = [];
 
   for (const msg of responseMessages) {

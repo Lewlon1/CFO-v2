@@ -9,6 +9,137 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 07: PR #38 verification
+
+**Branch:** `consolidation/v2.2`
+**Verdict:** GO-WITH-FIXES — safe to merge to main
+**Output:** `audit/pr-38-verification.md`
+
+- Onboarding v2 end-to-end: PASS (with 2 in-session fixes)
+- Theme system + dark default: PASS
+- Tool-call logging (Session 02 Phase 3 fold-in): PASS — 4 distinct tools, multi-step attribution verified
+- Deliberate-break test: PASS — chat survives logging failure; revert clean; logging resumes
+- Existing-user regression: PASS — office home + 4 folders + The Gap + settings all clean
+
+**Fixes applied in-session (on `consolidation/v2.2`):**
+- `e4eea1e` — `fix(chat): auto-trigger wow moment for server-created first_insight convos`. The headline product change in PR #38 was silently broken: `ChatOpenerTrigger` called `loadConversation()` which ignored the conversation's `type`, so `pendingTriggerRef` was never set and the wow-moment LLM call never fired. Users would land in an empty chat sheet. Fix: `loadConversation` now reads the type from `/api/conversations/recent` and queues the auto-trigger when type ∈ `AUTO_TRIGGER_TYPES` and the conversation has zero messages. A nonce forces the `useEffect` to re-evaluate after the async ref-set.
+- `defe971` — `fix(tests): align onboarding driver with current Value Map → Upload flow`. Test-only fix: the Value Map summary screen is unreachable in onboarding mode (handleExerciseComplete sets readyToFinish=true directly), so the driver's wait for "Continue" was an obsolete artefact. Also bumped post-archetype assistant-message poll from 90s → 150s.
+
+**Deferred defects:**
+- `console.error` in `logToolCall`'s catch block doesn't show in dev log (Turbopack/Node stderr handling). Non-blocking — chat-survival and zero-row-inserted evidence is sufficient for the safety claim. Investigate separately.
+- Tier 1 dead-code cleanup deferred from PR #38 (would have deleted `/v4` page) — pending separate PR.
+
+**Wow-moment output captured for Session 06:** yes — verbatim in `audit/pr-38-verification.md` Phase 1 section. Confirmed Constitution v1.1 drift (first-person everywhere, no "— C." sign-off).
+
+**Surprise:** the "Show me the gap" button label this whole verification was supposed to test no longer exists — superseded by "See what I found →" routing to the wow moment instead of the gap page. The gap page itself works perfectly when reached directly via `/office/values/the-gap`.
+
+**Operational note:** Turbopack does NOT HMR server-side library files like `lib/observability/llm-usage-log.ts`. A full dev-server restart is required for changes to take effect. Worth a future investigation — affects fast feedback on backend-touching changes.
+
+---
+
+## Session 05 — Tier 2 cleanup (verified-orphan deletions + migration backfill) — 2026-05-13
+
+**Branch:** `claude/cleanup-tier-1-deletions-fkQwc`
+**Scope:** Verify CODE-MAP.md's Tier 2 candidate list against the codebase before deleting anything, then ship only what survived verification. Plus one Tier 3 metadata-only migration to reconcile the production `schema_migrations` tracker with the four migrations that landed on prod schema-wise but were never recorded.
+
+### Headline
+
+CODE-MAP listed 23 Tier 2 candidates. **20 of 23 were false positives — i.e., live code.** Only 3 deletions shipped. The verification pass and the audit-drift findings are documented in full at `docs/audits/2026-05-13-tier-2-phase-0.md`.
+
+### Verified-orphan deletions (3)
+
+1. `cfos-office/src/lib/analytics/onboarding-events.ts` — zero references anywhere in `src/`.
+2. `cfos-office/src/app/api/analyze-conversation/route.ts` (+ dir) — zero fetch/import callers; only self-reference is its own console log.
+3. `cfos-office/src/app/api/value-map/regenerate/route.ts` (+ dir) — zero callers. The shared library `@/lib/value-map/regenerate-archetype` it imported is still in active use by `api/value-map/personal/route.ts`; the orphan was only the route handler.
+
+### What did NOT ship (false-positive analysis)
+
+- **12 analytics functions in `pattern-detectors.ts`** — all registered in `PATTERN_LIBRARY` (lines 961–974) and iterated by `insight-engine.ts:120` from `computeFirstInsight`, which fires on every CSV upload via `/api/insights/post-upload`. knip-style "unused export" detection missed the library-dispatch pattern.
+- **8 of 10 "orphan" API routes** — `/api/dashboard/summary`, `/api/dashboard/trends`, `/api/bills/history`, `/api/value-map/personal/impact`, `/api/balance-sheet`, `/api/balance-sheet/holdings`, `/api/profile/export/profile`, `/api/profile/export/transactions` are all consumed by SWR hooks, click handlers, or `useDashboardData`. None should have been on the candidate list.
+- **2 non-canonical EmptyState variants** — `dashboard/EmptyState.tsx` and `balance-sheet/EmptyState.tsx`. Initially flagged orphan by absolute-path grep; the build broke because both are consumed by sibling `*Client.tsx` components via relative-path imports (`./EmptyState`). Restored from HEAD. Audit method now requires grepping sibling-relative paths alongside aliases.
+- **`merchant_category_map` table drop** — deferred to BACKLOG. `value-map-flow.tsx:357` reads from it at signup; dropping requires a read-site refactor, which is real code work, not cleanup.
+
+### Migration 043 — production tracker backfill
+
+`cfos-office/supabase/migrations/043_backfill_schema_migrations.sql` inserts the four versions `038–041` into `supabase_migrations.schema_migrations` on production. Verified via Supabase MCP read on prod (`iccelmjenljanqrhhzdv`):
+- prod tops out at `037_beta_cohort`
+- the underlying schema changes (e.g. `conversations.analysed_at`, `active_experiments` table) are already present
+- so the migrations *were* applied; only the tracker rows are missing
+
+Inserts are gated by `ON CONFLICT (version) DO NOTHING` for idempotency. Applied to staging via MCP (no-op there — staging already has the rows). **Awaiting prod apply** — Lewis only, after merge.
+
+### Verification
+
+- `npm run build` clean (after EmptyState restoration on the second pass).
+- `npm test` 176/176 passing.
+- `npm run lint` 23 errors / 29 warnings — matches Session 03 baseline. No errors introduced or removed on net by this session's changes (one error file went away with the deleted `onboarding-events.ts`, one came back with the restored `balance-sheet/EmptyState.tsx`).
+- Dev-server browser walkthrough not attempted (no browser available in sandbox).
+
+### Lessons / audit method updates
+
+1. **knip and absolute-path grep miss real references.** PATTERN_LIBRARY-style dynamic dispatch, sibling-relative imports, and string-literal fetches inside SWR hooks all look like "unused" to those tools. Future audits must run all three searches before flagging a candidate.
+2. **The build is the audit's safety net.** I shipped two false-positive deletions that the build caught immediately — without running `npm run build`, those would have hit main as broken code. Re-running build after every meaningful deletion cluster is non-negotiable.
+3. **The candidate list itself can be wrong, even from a reasonable-looking audit doc.** CODE-MAP came in pre-pasted by Lewis and was treated as input; a fresh verification pass changed the verdict on 20 of 23 items. Document the audit findings (Phase 0 doc) so the *next* session can pick up cold and know what's actually orphan vs. what's been re-verified as live.
+
+### Follow-ups
+
+- `BACKLOG.md` (new, repo-root) captures `merchant_category_map` refactor, `ValuePill.tsx` Tier 1 leftover, prod apply of `042` + `043`, and Tier 3 work.
+- Future Tier 2 passes should grep for `fetch.*['"\`][^'"]*api/<path>`, `useSWR.*<path>`, sibling-relative imports `\\./<Name>`, and library-array-dispatch (`PATTERN_LIBRARY` style) before flagging an orphan.
+
+---
+
+## Session 04 — Constitution v1.1 + CLAUDE.md alignment — 2026-05-13
+
+**Branch:** `claude/cleanup-tier-1-deletions-fkQwc`
+**Scope:** Documentation only. CFO-CONSTITUTION.md v1.0 landed and v1.1 deltas applied in the same commit. CLAUDE.md aligned to actual architecture. No code, no migrations, no prompt files touched.
+
+### Constitution changes (v1.0 → v1.1)
+
+- §2 first-person reversed (strict rule; exception clause removed)
+- §2 tangible-comparison framing added
+- §2 voice tunability codified (direct/blunt/gentle)
+- §2 + §4 "advice"/"advise" prohibition added
+- §4 named-third-party prohibition strengthened (MoneySavingExpert, Finanztest)
+- §4 closing example switched to "That sits outside the remit"
+- §5 "honour the user's exact terms" added
+- §6 calibration-to-user-state paragraph added
+- §7 pushback vs correction distinguished
+- §9.D / §9.G / §9.H rewritten to remove first-person; A, B, C, E, F untouched
+- §10 version bumped to 1.1; version history section added
+
+### CLAUDE.md changes
+
+- Added `## CFO Constitution` section near the top pointing at `CFO-CONSTITUTION.md`
+- `Background: Supabase Edge Functions + pg_cron` → `Background: Vercel cron (cfos-office/vercel.json → /api/cron/*)`
+- File Structure cron listing replaced with the 5 actual routes (`portrait-extraction`, `daily-bills`, `nudges-daily`, `nudges-weekly`, `nudges-monthly`) and their schedules
+- Assembly Order updated from 7 stale layers to the 18 sections actually concatenated in `context-builder.ts:buildSystemPrompt()`
+
+### Out-of-scope drift flagged for a later pass
+
+- Line 76 still says "Claude never does arithmetic… All numbers are computed by Edge Functions or SQL queries…". The actual computers are TypeScript tools in `cfos-office/src/lib/ai/tools/`. Phrase reads ambiguously and isn't blocking v1.1 — leave for a future doc pass.
+- A handful of v1.0 CFO-quoted examples in §2 ("Phrases the CFO uses", Hedging is forbidden) used first person ("I don't have enough data to say"). Rewrote those minimally to align with the v1.1 strict rule — these aren't on the prompt's Find/Replace list but the rule explicitly forbids first person in CFO speech.
+
+### Surprise
+
+v1.0 did not exist on any branch when this session started — Lewis had drafted it off-repo. Landed it and v1.1 in a single commit per his call. Means the diff against main looks like a fresh document, not an edit; the v1.1 deltas only show up by reading the version history.
+
+### Next
+
+Session 06 rewrites `lib/ai/system-prompt.ts` against the Constitution. Reads Constitution + CLAUDE.md end-to-end as input. The CFO Constitution section in CLAUDE.md is the entry point.
+
+---
+
+## 2026-05-13 — Session 01: Silence diagnosis
+
+**Branch:** `investigation/silence-2026-04-24-nervous-shannon` (read-only; re-base off `claude/nervous-shannon-750502`. An earlier `investigation/silence-2026-04-24` was pushed off `main` and left in place on origin for reference.)
+**Output:** `audit/silence-diagnosis.md`
+**Verdict:** Behavioural. Nothing is broken. Proceed with the refactor plan.
+**Key learning:** "The cliff" framing hid the taper — usage had collapsed to a single user from April 17 onward, and April 24 was the trailing wisp of that user's last session (1+1 message). The cliff was the tail of a slope.
+**Surprise:** Three users have signed in since the silence began (May 2/6/7) without sending any message — one even completed a Value Map retake on May 6. They're coming back; chat isn't pulling them.
+**Follow-up flagged (non-blocker):** The nudges cron has produced zero rows in 23 days. Plausible with all-dormant users, but worth a ~30-min verification that the cron is actually firing in production.
+
+---
+
 ## v2.1 — Phase A: P0 Brand & Polish — 2026-05-06
 
 **Branch:** `claude/laughing-ardinghelli-42b13c`

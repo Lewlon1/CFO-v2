@@ -1,42 +1,47 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* === Default (dark) — walnut + amber === */
 :root {
-  --background: #0C0C0E;
-  --foreground: #F2F2F3;
-  --card: #16161A;
-  --card-foreground: #F2F2F3;
-  --border: #2A2A30;
-  --input: #1E1E24;
+  color-scheme: dark;
+  /* Tailwind / shadcn-style tokens */
+  --background: #13110D;
+  --foreground: #F4EDD9;
+  --card: #1A1610;
+  --card-foreground: #F4EDD9;
+  --border: rgba(244, 237, 217, 0.12);
+  --input: #1A1610;
   --primary: #E8A84C;
-  --primary-foreground: #0C0C0E;
-  --muted: #1E1E24;
-  --muted-foreground: #8A8A96;
-  --accent: #1E1E24;
-  --accent-foreground: #F2F2F3;
+  --primary-foreground: #13110D;
+  --muted: rgba(244, 237, 217, 0.04);
+  --muted-foreground: rgba(244, 237, 217, 0.60);
+  --accent: rgba(244, 237, 217, 0.06);
+  --accent-foreground: #F4EDD9;
   --destructive: #EF4444;
   --ring: #E8A84C;
 
-  /* === UI-DIRECTION token system === */
+  /* === UI-DIRECTION token system (used by the (office) folder UI) === */
 
   /* Backgrounds */
-  --bg-base: #0F0F0D;
-  --bg-elevated: #111110;
-  --bg-card: rgba(255,255,255,0.015);
-  --bg-inset: rgba(0,0,0,0.15);
-  --bg-deep: rgba(0,0,0,0.2);
+  --bg-base: #13110D;
+  --bg-elevated: #1A1610;
+  --bg-card: rgba(244, 237, 217, 0.015);
+  --bg-inset: rgba(0, 0, 0, 0.15);
+  --bg-deep: rgba(0, 0, 0, 0.2);
 
   /* Text */
-  --text-primary: #F5F5F0;
-  --text-secondary: rgba(245,245,240,0.55);
-  --text-tertiary: rgba(245,245,240,0.3);
-  --text-muted: rgba(245,245,240,0.18);
-  --text-ghost: rgba(245,245,240,0.12);
+  --text-primary: #F4EDD9;
+  --text-secondary: rgba(244, 237, 217, 0.55);
+  --text-tertiary: rgba(244, 237, 217, 0.3);
+  --text-muted: rgba(244, 237, 217, 0.18);
+  --text-ghost: rgba(244, 237, 217, 0.12);
 
   /* Accent — Gold */
   --accent-gold: #E8A84C;
-  --accent-gold-soft: rgba(232,168,76,0.5);
-  --accent-gold-bg: rgba(232,168,76,0.06);
-  --accent-gold-border: rgba(232,168,76,0.12);
+  --accent-gold-soft: rgba(232, 168, 76, 0.5);
+  --accent-gold-bg: rgba(232, 168, 76, 0.06);
+  --accent-gold-border: rgba(232, 168, 76, 0.12);
 
   /* Semantic */
   --positive: #22C55E;
@@ -46,12 +51,12 @@
   --accent-purple: #8B5CF6;
 
   /* Borders */
-  --border-subtle: rgba(255,255,255,0.04);
-  --border-medium: rgba(255,255,255,0.06);
-  --border-visible: rgba(255,255,255,0.07);
+  --border-subtle: rgba(244, 237, 217, 0.04);
+  --border-medium: rgba(244, 237, 217, 0.06);
+  --border-visible: rgba(244, 237, 217, 0.07);
 
   /* Interactive */
-  --tap-highlight: rgba(255,255,255,0.03);
+  --tap-highlight: rgba(244, 237, 217, 0.03);
 
   /* === Office aliases (point to new tokens, keeps existing classes working) === */
   --office-bg: var(--bg-base);
@@ -68,6 +73,69 @@
   --office-cyan: var(--accent-cyan);
   --office-purple: var(--accent-purple);
   --office-blue: var(--info);
+
+  color-scheme: dark;
+}
+
+/* === Light — vellum + antique brass === */
+:root[data-theme="light"] {
+  /* Tailwind / shadcn-style tokens */
+  --background: #F6F0E1;
+  --foreground: #1A1610;
+  --card: #EDE5D2;
+  --card-foreground: #1A1610;
+  --border: rgba(26, 22, 16, 0.14);
+  --input: #EDE5D2;
+  /* Deepened from #A66F1F (≈3.76:1 on cream, fails WCAG AA) to #8C5A18
+     (≈5.0:1 on cream) so eyebrows, .v4-eyebrow and small brass labels
+     pass AA. Dark-mode --primary stays #E8A84C. */
+  --primary: #8C5A18;
+  --primary-foreground: #F6F0E1;
+  --muted: rgba(26, 22, 16, 0.04);
+  --muted-foreground: rgba(26, 22, 16, 0.62);
+  --accent: rgba(26, 22, 16, 0.06);
+  --accent-foreground: #1A1610;
+  --destructive: #DC2626;
+  --ring: #8C5A18;
+
+  /* UI-DIRECTION — light mode equivalents */
+
+  /* Backgrounds */
+  --bg-base: #F6F0E1;
+  --bg-elevated: #EDE5D2;
+  --bg-card: rgba(26, 22, 16, 0.015);
+  --bg-inset: rgba(0, 0, 0, 0.04);
+  --bg-deep: rgba(0, 0, 0, 0.06);
+
+  /* Text */
+  --text-primary: #1A1610;
+  --text-secondary: rgba(26, 22, 16, 0.62);
+  --text-tertiary: rgba(26, 22, 16, 0.42);
+  --text-muted: rgba(26, 22, 16, 0.30);
+  --text-ghost: rgba(26, 22, 16, 0.18);
+
+  /* Accent — antique brass (deepened to #8C5A18 for WCAG AA on cream) */
+  --accent-gold: #8C5A18;
+  --accent-gold-soft: rgba(140, 90, 24, 0.55);
+  --accent-gold-bg: rgba(140, 90, 24, 0.08);
+  --accent-gold-border: rgba(140, 90, 24, 0.20);
+
+  /* Semantic — slightly deeper for cream contrast */
+  --positive: #15803D;
+  --negative: #B91C1C;
+  --info: #1D4ED8;
+  --accent-cyan: #0E7490;
+  --accent-purple: #6D28D9;
+
+  /* Borders */
+  --border-subtle: rgba(26, 22, 16, 0.08);
+  --border-medium: rgba(26, 22, 16, 0.12);
+  --border-visible: rgba(26, 22, 16, 0.18);
+
+  /* Interactive */
+  --tap-highlight: rgba(26, 22, 16, 0.04);
+
+  color-scheme: light;
 }
 
 @theme inline {
@@ -86,7 +154,8 @@
   --color-destructive: var(--destructive);
   --color-ring: var(--ring);
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-instrument-sans);
+  --font-serif: var(--font-instrument-serif);
   --font-mono: var(--font-geist-mono);
 
   /* Office fonts — resolve inside (office) layout, fall back to Geist elsewhere */
@@ -213,9 +282,31 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 * {
   border-color: var(--border);
+}
+
+/*
+ * Headings default to Instrument Serif site-wide.
+ * Class-based overrides (.font-sans, .font-mono, .v4-serif) win specificity,
+ * so v4 components and any explicit opt-out continue to work.
+ */
+h1, h2, h3 {
+  font-family: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  font-weight: 500;
+}
+
+/*
+ * .eyebrow — small mono brass label, used for "01 — Section name" rhythm.
+ * Mirrors v4's .v4-eyebrow but available globally.
+ */
+.eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--primary);
 }

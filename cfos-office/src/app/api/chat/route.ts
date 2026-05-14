@@ -7,6 +7,7 @@ import { after } from 'next/server';
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
 import { chatModel } from '@/lib/ai/provider';
 import { logBedrockUsage } from '@/lib/ai/usage-logger';
+import { logToolCall } from '@/lib/observability/llm-usage-log';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
@@ -16,6 +17,8 @@ import { extractMessageAudit } from '@/lib/ai/audit-trail';
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete';
 import { extractFromConversation } from '@/lib/ai/portrait-extraction';
 import { createServiceClient } from '@/lib/supabase/service';
+import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-classifier';
+import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
 
 export const maxDuration = 60;
 
@@ -84,9 +87,6 @@ export async function POST(req: Request) {
     conversationType = requestedType;
     conversationMetadata = requestedMetadata ?? null;
   }
-
-  // Build dynamic system prompt
-  const systemPrompt = await buildSystemPrompt(user.id, conversationType, conversationMetadata);
 
   // Create or reuse conversation
   let activeConversationId = conversationId;
@@ -179,18 +179,52 @@ export async function POST(req: Request) {
     }
   }
 
-  // Fetch user currency for tool context
-  const { data: profileForCurrency } = await supabase
+  // Fetch user profile (currency for tool context + onboarding-v2 bridge state)
+  const { data: profileForChat } = await supabase
     .from('user_profiles')
-    .select('primary_currency')
+    .select('primary_currency, onboarding_route, value_map_offered_in_chat, value_map_declined_in_chat')
     .eq('id', user.id)
     .single();
+
+  // Onboarding v2 — Value Map decline classifier.
+  // Synchronous Haiku call before the assistant streams so the system prompt
+  // reflects the just-flipped declined flag and we don't keep pushing the
+  // offer in the next response.
+  if (
+    profileForChat?.onboarding_route === 'chat' &&
+    profileForChat?.value_map_offered_in_chat === true &&
+    profileForChat?.value_map_declined_in_chat === false &&
+    lastUserMessage?.role === 'user'
+  ) {
+    const lastUserText = extractTextFromParts(lastUserMessage);
+    if (lastUserText && !lastUserText.startsWith('[System:')) {
+      const declined = await classifyValueMapDecline(lastUserText, user.id);
+      if (declined) {
+        await supabase
+          .from('user_profiles')
+          .update({ value_map_declined_in_chat: true })
+          .eq('id', user.id);
+        // Reflect locally so the system prompt below sees the new state.
+        profileForChat.value_map_declined_in_chat = true;
+      }
+    }
+  }
+
+  // Build dynamic system prompt — after activeConversationId is known AND
+  // after the decline classifier has potentially flipped the declined flag,
+  // so the bridge context section reflects current state.
+  const systemPrompt = await buildSystemPrompt(
+    user.id,
+    conversationType,
+    conversationMetadata,
+    activeConversationId,
+  );
 
   const toolCtx: ToolContext = {
     supabase,
     userId: user.id,
     conversationId: activeConversationId!,
-    currency: profileForCurrency?.primary_currency || 'EUR',
+    currency: profileForChat?.primary_currency || 'EUR',
   };
 
   const toolbox = wrapToolsWithAlerts(createToolbox(toolCtx), user.id);
@@ -496,6 +530,22 @@ export async function POST(req: Request) {
     },
     toolChoice: 'auto',
     stopWhen: stepCountIs(5),
+    onStepFinish: ({ toolCalls, usage }) => {
+      if (!toolCalls || toolCalls.length === 0) return;
+      const toolsInStep = toolCalls.length;
+      for (const call of toolCalls) {
+        void logToolCall({
+          userId: user.id,
+          toolName: call.toolName,
+          model: 'claude-sonnet-4-6',
+          conversationId: activeConversationId,
+          messageId: assistantMessageDbId,
+          stepInputTokens: usage?.inputTokens,
+          stepOutputTokens: usage?.outputTokens,
+          toolsInStep,
+        });
+      }
+    },
   });
 
   return result.toUIMessageStreamResponse({
@@ -543,6 +593,22 @@ export async function POST(req: Request) {
         // .push() onto the array).
         const { toolsUsed, profileUpdates, actionsCreated, insightsGenerated } =
           extractMessageAudit(responseMessages);
+
+        // Onboarding v2 — Value Map action emission.
+        // The system prompt instructs the model to include a literal
+        // `<ACTION:start_value_map>` token when offering the Value Map. We
+        // strip the marker from the displayed text and persist a structured
+        // action so the chat UI can render an inline button.
+        if (textContent && hasStartValueMapAction(textContent)) {
+          textContent = stripActionMarkers(textContent);
+          actionsCreated.push({ type: 'start_value_map' });
+          // Flip the offered-in-chat ratchet (idempotent on conflict).
+          await supabase
+            .from('user_profiles')
+            .update({ value_map_offered_in_chat: true })
+            .eq('id', user.id)
+            .eq('value_map_offered_in_chat', false);
+        }
 
         // ── Hallucination guard for record_value_classifications ─────────
         // Detect when the model says "saved/got it/etc." in a value-mapping

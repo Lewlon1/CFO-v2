@@ -13,7 +13,7 @@ interface MonthSelectorProps {
 }
 
 export function MonthSelector({ label, onPrev, onNext }: MonthSelectorProps) {
-  const chevronBtn = 'w-7 h-7 rounded-[6px] flex items-center justify-center text-[rgba(245,245,240,0.3)]'
+  const chevronBtn = 'w-7 h-7 rounded-[6px] flex items-center justify-center text-text-tertiary'
   return (
     <div className="flex items-center justify-center gap-3.5 mb-3">
       <button
@@ -25,7 +25,7 @@ export function MonthSelector({ label, onPrev, onNext }: MonthSelectorProps) {
           <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      <span className="font-data text-[11px] text-[rgba(245,245,240,0.6)] min-w-[70px] text-center">
+      <span className="font-data text-[11px] text-text-secondary min-w-[70px] text-center">
         {label}
       </span>
       <button
@@ -74,7 +74,7 @@ export function CategoryBar({ icon, name, amount, percentage, barWidth, color = 
       </div>
       <div className="text-right shrink-0">
         <div className="font-data text-[11px] font-medium">{amount}</div>
-        <div className="font-data text-[8px] text-[rgba(245,245,240,0.3)]">{percentage}</div>
+        <div className="font-data text-[8px] text-text-tertiary">{percentage}</div>
       </div>
     </div>
   )
@@ -112,7 +112,7 @@ export function TransactionRow({
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[12px] font-medium truncate">{merchant}</div>
-        <div className="font-data text-[8px] text-[rgba(245,245,240,0.22)] mt-[2px]">
+        <div className="font-data text-[8px] text-text-muted mt-[2px]">
           {time} · {category}
         </div>
       </div>
@@ -143,7 +143,7 @@ export function FilterPills({ options, activeId, onChange }: FilterPillsProps) {
           className={`font-data text-[9px] py-[5px] px-[9px] rounded-xl whitespace-nowrap cursor-pointer transition-colors ${
             opt.id === activeId
               ? 'bg-[rgba(255,255,255,0.06)] text-[#F5F5F0]'
-              : 'bg-transparent text-[rgba(245,245,240,0.4)]'
+              : 'bg-transparent text-text-tertiary'
           }`}
           style={{ border: `1px solid ${opt.id === activeId ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}` }}
         >
@@ -163,8 +163,8 @@ interface ProvenanceLineProps {
 
 export function ProvenanceLine({ text }: ProvenanceLineProps) {
   return (
-    <div className="font-data text-[7px] text-[rgba(245,245,240,0.14)] flex items-center gap-[3px] mt-1">
-      <div className="w-[3px] h-[3px] rounded-full bg-[rgba(245,245,240,0.1)]" />
+    <div className="font-data text-[7px] text-text-ghost flex items-center gap-[3px] mt-1">
+      <div className="w-[3px] h-[3px] rounded-full bg-card" />
       {text}
     </div>
   )
@@ -193,9 +193,9 @@ export function FileRow({ icon, label, type, color, onClick }: FileRowProps) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[12px] font-semibold">{label}</div>
-        <div className="font-data text-[8px] text-[rgba(245,245,240,0.25)] mt-[1px]">{type}</div>
+        <div className="font-data text-[8px] text-text-muted mt-[1px]">{type}</div>
       </div>
-      <div className="text-[rgba(245,245,240,0.12)] text-[13px]">&rsaquo;</div>
+      <div className="text-text-ghost text-[13px]">&rsaquo;</div>
     </div>
   )
 }
@@ -223,10 +223,10 @@ export function GapCard({ belief, reality, status }: GapCardProps) {
       className="rounded-[10px] p-3 mb-2"
       style={{ backgroundColor: s.cardBg, border: '1px solid rgba(255,255,255,0.04)' }}
     >
-      <div className="text-[11px] text-[rgba(245,245,240,0.45)] mb-[5px] leading-[1.5]">
+      <div className="text-[11px] text-text-secondary mb-[5px] leading-[1.5]">
         {belief}
       </div>
-      <div className="text-[12px] leading-[1.55] text-[rgba(245,245,240,0.7)]">
+      <div className="text-[12px] leading-[1.55] text-foreground">
         {reality}
       </div>
       <span
@@ -244,7 +244,7 @@ export function GapCard({ belief, reality, status }: GapCardProps) {
 // ============================================================
 export function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10px] font-bold text-[rgba(245,245,240,0.25)] tracking-[0.04em] uppercase mt-3 mb-1.5">
+    <div className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mt-3 mb-1.5">
       {children}
     </div>
   )

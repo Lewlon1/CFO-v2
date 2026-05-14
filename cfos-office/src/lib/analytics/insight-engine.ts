@@ -3,7 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   InsightPayload, DataDependency, PatternResult, StatCard, Hook,
-  DetectorContext, InsightLayer,
+  DetectorContext, InsightLayer, UserIntent, UserIntentStruggleType,
 } from './insight-types';
 import { BLOCKED_AT_FIRST_INSIGHT } from './insight-types';
 import {
@@ -85,13 +85,16 @@ export async function computeFirstInsight(
   supabase: SupabaseClient,
   userId: string
 ): Promise<InsightPayload> {
-  const [profile, transactions, snapshots, recurring, valueMap] = await Promise.all([
+  const [profile, transactions, snapshots, recurring, valueMap, goals] = await Promise.all([
     loadProfile(supabase, userId),
     loadTransactions(supabase, userId),
     loadSnapshots(supabase, userId),
     loadRecurring(supabase, userId),
     loadValueMap(supabase, userId),
+    loadActiveGoals(supabase, userId),
   ]);
+
+  const userIntent = resolveUserIntent(profile, goals);
 
   const country = profile?.country ?? null;
   const currency = resolveUserCurrency(
@@ -144,8 +147,55 @@ export async function computeFirstInsight(
     statCards,
     hook,
     suggestedResponses,
+    userIntent,
     computedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Resolve the user's stated intent from the highest-signal source available.
+ * Precedence:
+ *   1. An active row in `goals` — the user has explicitly told us a goal,
+ *      either via Claude's create_goal tool or via the goals page.
+ *   2. `entry_struggle` set to anything other than 'dont_know' — they picked
+ *      a struggle category at the onboarding-v2 entry screen.
+ *   3. `entry_struggle = 'free_text'` with text content.
+ *   4. null — we have nothing to anchor the wow moment to.
+ */
+function resolveUserIntent(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goals: any[],
+): UserIntent | null {
+  if (Array.isArray(goals) && goals.length > 0) {
+    const top = goals[0];
+    return {
+      source: 'goal',
+      goalName: top.name ?? undefined,
+      text: top.description ?? top.name ?? undefined,
+    };
+  }
+
+  const struggle = (profile?.entry_struggle ?? null) as string | null;
+  const struggleText = (profile?.entry_struggle_text ?? null) as string | null;
+
+  if (struggle === 'wealth' || struggle === 'debt' || struggle === 'planning') {
+    return {
+      source: 'entry_struggle',
+      struggleType: struggle as UserIntentStruggleType,
+    };
+  }
+
+  if (struggle === 'free_text' && struggleText && struggleText.trim().length > 0) {
+    return {
+      source: 'entry_struggle',
+      struggleType: 'free_text',
+      text: struggleText.trim(),
+    };
+  }
+
+  return null;
 }
 
 export function assignToLayers(
@@ -420,6 +470,17 @@ async function loadRecurring(s: SupabaseClient, userId: string) {
   const { data } = await s
     .from('recurring_expenses').select('*')
     .eq('user_id', userId);
+  return data ?? [];
+}
+
+async function loadActiveGoals(s: SupabaseClient, userId: string) {
+  const { data } = await s
+    .from('goals')
+    .select('id, name, description, target_amount, target_date, priority, created_at')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
   return data ?? [];
 }
 

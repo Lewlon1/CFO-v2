@@ -11,6 +11,20 @@ interface GapItem {
 interface TheGapClientProps {
   gaps: GapItem[]
   transactionCount: number
+  hasValueMap: boolean
+}
+
+function emptyStateMessage(transactionCount: number, hasValueMap: boolean): string {
+  if (!hasValueMap && transactionCount === 0) {
+    return 'Complete the Value Map and upload a statement to see your Gap analysis.'
+  }
+  if (!hasValueMap) {
+    return 'Complete the Value Map to see your Gap analysis — sort a few sample transactions so I know what each line of your spending means to you.'
+  }
+  if (transactionCount === 0) {
+    return 'Upload a recent bank statement to see your Gap. Once I have your real spending, I can compare it against the Value Map you just completed.'
+  }
+  return "Nothing's diverging yet — your money is moving the way you said it should. I'll surface a Gap here as soon as something drifts."
 }
 
 function parseGapValue(value: string): { belief: string; reality: string; status: 'aligned' | 'gap' | 'eliminated' | 'partial' } {
@@ -32,15 +46,15 @@ function parseGapValue(value: string): { belief: string; reality: string; status
   }
 }
 
-export function TheGapClient({ gaps, transactionCount }: TheGapClientProps) {
+export function TheGapClient({ gaps, transactionCount, hasValueMap }: TheGapClientProps) {
   if (gaps.length === 0) {
     return (
       <div className="px-3.5 pt-4 pb-24">
-        <div className="text-[13px] text-[rgba(245,245,240,0.5)] mb-1.5 leading-[1.6]">
+        <div className="text-[13px] text-text-secondary mb-1.5 leading-[1.6]">
           What you believe about your money vs what the data shows.
         </div>
-        <p className="text-[12px] text-[rgba(245,245,240,0.3)] mt-6 text-center">
-          Complete the Value Map and upload a statement to see your Gap analysis.
+        <p className="text-[13px] text-text-secondary mt-6 leading-[1.55] max-w-md mx-auto text-center">
+          {emptyStateMessage(transactionCount, hasValueMap)}
         </p>
       </div>
     )
@@ -48,7 +62,7 @@ export function TheGapClient({ gaps, transactionCount }: TheGapClientProps) {
 
   return (
     <div className="px-3.5 pt-1.5 pb-24">
-      <div className="text-[13px] text-[rgba(245,245,240,0.5)] mb-1.5 leading-[1.6]">
+      <div className="text-[13px] text-text-secondary mb-1.5 leading-[1.6]">
         What you believe about your money vs what the data shows.
       </div>
       <ProvenanceLine text={`Based on Value Map + ${transactionCount} transactions`} />

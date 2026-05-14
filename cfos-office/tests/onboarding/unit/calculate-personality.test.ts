@@ -28,11 +28,13 @@ describe('persona scripted Value Map responses produce expected archetype', () =
   // Iterates registry — new personas automatically get coverage as added.
   for (const persona of PERSONAS) {
     if (!persona.valueMapResponses) continue // skip personas that skip Value Map
+    const archetype = persona.expectations.archetype
+    if (!archetype) continue // chat-first personas never reach the archetype reveal
 
-    it(`${persona.id}: calculatePersonality returns ${persona.expectations.archetype.personalityId}`, () => {
+    it(`${persona.id}: calculatePersonality returns ${archetype.personalityId}`, () => {
       const results = scriptedToResults(persona)
       const out = calculatePersonality(results)
-      expect(out.personality).toBe(persona.expectations.archetype.personalityId)
+      expect(out.personality).toBe(archetype.personalityId)
     })
   }
 

@@ -1,6 +1,10 @@
 # Onboarding Test Suite
 
-On-demand automated tests for the post-signup onboarding flow. Drives 8 curated personas through the UI via Playwright, grades LLM output, captures screenshots.
+On-demand automated tests for the post-signup onboarding-v2 flow. Drives 8 curated personas through the UI via Playwright, grades LLM output, captures screenshots.
+
+The suite covers both onboarding-v2 paths:
+- **Marcus path** (entry struggle = "I don't know where my money goes") — struggle → value-map → upload → archetype → chat with first-insight
+- **Chat-first path** (entry struggle = wealth/debt/planning/free_text) — struggle → chat with pre-canned or LLM-generated opener
 
 ## Run
 
@@ -24,16 +28,16 @@ npm run test:onboarding -- --concurrency 1           # serial (default 2)
 
 ## Personas
 
-| ID | Archetype | Purpose |
-|---|---|---|
-| `builder-classic` | Builder | Standard Builder — investment-focused spending |
-| `fortress-saver` | Fortress | Thrifty, foundation-heavy |
-| `truth-teller-balanced` | Truth Teller | Balanced across quadrants |
-| `drifter-expat` | Drifter | Lewis-style expat, EUR, high dining/subs |
-| `anchor-debt` | Anchor | Debt-heavy burden profile |
-| `skip-value-map` | — | User skips Value Map (asserts auto-skip logic) |
-| `skip-csv-upload` | Builder | User skips CSV upload (asserts auto-skip logic) |
-| `time-saver-expert` | Builder | Advice-averse high-income expert |
+| ID | Path | Archetype | Purpose |
+|---|---|---|---|
+| `builder-classic` | Marcus | Builder | Standard Builder — investment-focused spending |
+| `fortress-saver` | Marcus | Fortress | Thrifty, foundation-heavy |
+| `truth-teller-balanced` | Marcus | Truth Teller | Balanced across quadrants |
+| `drifter-expat` | Marcus | Drifter | Lewis-style expat, EUR, high dining/subs |
+| `anchor-debt` | Marcus | Anchor | Debt-heavy burden profile |
+| `time-saver-expert` | Marcus | Builder | Advice-averse high-income expert |
+| `skip-value-map` | Chat-first | — | Wealth struggle → straight to chat opener |
+| `skip-csv-upload` | Chat-first | — | Debt struggle → straight to chat opener |
 
 ## See also
 

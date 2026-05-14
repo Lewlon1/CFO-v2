@@ -31,7 +31,7 @@ export function FolderCard({ icon, name, color, subtitle, href, children }: Fold
           borderLeft: `2px solid ${color}33`,
         }}
       >
-        <div className="text-[10px] text-[rgba(245,245,240,0.3)] mb-2.5">
+        <div className="text-[10px] text-text-tertiary mb-2.5">
           {subtitle}
         </div>
 
@@ -61,7 +61,7 @@ export function FolderMetric({ value, label, color }: { value: string; label: st
       >
         {value}
       </span>
-      <span className="text-[11px] text-[rgba(245,245,240,0.3)]">{label}</span>
+      <span className="text-[11px] text-text-tertiary">{label}</span>
     </div>
   )
 }

@@ -78,14 +78,13 @@ export const anchorDebt: Persona = {
     contentBase64: csvBase64,
     expectedBank: 'revolut',
   },
-  skipBeats: [],
   expectations: {
+    entryStruggle: 'dont_know',
     archetype: {
       expectedQuadrant: 'burden',
       personalityId: 'anchor',
     },
-    beatsCompleted: ['welcome', 'framework', 'value_map', 'archetype', 'csv_upload', 'capabilities', 'first_insight', 'handoff'],
-    beatsSkipped: [],
+    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
     dbAfterHandoff: {
       /* primary_currency collected post-onboarding in chat, not asserted here */
       financial_portrait: { archetype_name: 'exists' },

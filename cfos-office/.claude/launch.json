@@ -5,7 +5,15 @@
       "name": "cfos-office (Next.js dev)",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "cfos-office worktree (Next.js dev)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "--port", "3457"],
+      "port": 3457,
+      "autoPort": false
     }
   ]
 }

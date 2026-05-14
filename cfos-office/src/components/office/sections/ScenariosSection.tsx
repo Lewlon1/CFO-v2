@@ -34,7 +34,7 @@ export function ScenariosSection({ nextTrip, currency = 'EUR' }: ScenariosSectio
         <span className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-[#F43F5E]">
           {formatCurrencyRounded(nextTrip.total_estimated ?? 0, nextTrip.currency || currency)}
         </span>
-        <span className="text-[11px] text-[rgba(245,245,240,0.3)]">{nextTrip.name} target</span>
+        <span className="text-[11px] text-text-tertiary">{nextTrip.name} target</span>
       </div>
     </div>
   )

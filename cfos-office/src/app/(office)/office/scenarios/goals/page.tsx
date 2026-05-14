@@ -39,7 +39,7 @@ export default async function GoalsPage() {
           ))}
           {completedGoals.length > 0 && (
             <>
-              <h2 className="font-data text-[8px] tracking-[0.08em] uppercase text-[rgba(245,245,240,0.25)] pt-3 px-1">
+              <h2 className="font-data text-[8px] tracking-[0.08em] uppercase text-text-muted pt-3 px-1">
                 Completed
               </h2>
               {completedGoals.map((goal: Goal) => (

@@ -15,6 +15,24 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 
+// Conversation types that should fire an auto-trigger when loaded with zero
+// messages. Shared between `startConversation` (new conversation, client-side)
+// and `loadConversation` (existing conversation, e.g. one created server-side
+// by archetype-orchestrator + materialised via /api/insights/post-upload).
+const AUTO_TRIGGER_TYPES = [
+  'first_insight',
+  'post_upload',
+  'value_map_complete',
+  'monthly_review',
+  'bill_optimisation',
+  'nudge_initiated',
+  'onboarding',
+  'onboarding_no_vm',
+  'value_checkin_done',
+  'chip_opener',
+  'experiment_template',
+] as const
+
 // ── Context shape ─────────────────────────────────────────────────────────────
 
 interface ChatContextValue {
@@ -171,6 +189,12 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     type: string
     metadata?: Record<string, string>
   } | null>(null)
+  // Bumped whenever pendingTriggerRef is set in an async path (e.g.
+  // loadConversation's fetch .then()). Acts as a useEffect dependency so
+  // the auto-trigger evaluates again after the ref is populated. Without
+  // this, setting pendingTriggerRef inside a promise resolution doesn't
+  // cause a re-render, so the effect never re-runs and the trigger is lost.
+  const [pendingTriggerNonce, setPendingTriggerNonce] = useState(0)
 
   useEffect(() => {
     const pending = pendingTriggerRef.current
@@ -218,7 +242,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     }
 
     sendMessage({ text: trigger })
-  }, [messages.length, status, sendMessage])
+  }, [messages.length, status, sendMessage, pendingTriggerNonce])
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -244,20 +268,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       setInput('')
 
       // If this is a typed conversation that needs auto-trigger, queue it
-      const autoTriggerTypes = [
-        'first_insight',
-        'post_upload',
-        'value_map_complete',
-        'monthly_review',
-        'bill_optimisation',
-        'nudge_initiated',
-        'onboarding',
-        'onboarding_no_vm',
-        'value_checkin_done',
-        'chip_opener',
-        'experiment_template',
-      ]
-      if (type && autoTriggerTypes.includes(type)) {
+      if (type && (AUTO_TRIGGER_TYPES as readonly string[]).includes(type)) {
         pendingTriggerRef.current = { type, metadata }
       }
 
@@ -280,8 +291,29 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       fetch(`/api/conversations/recent?id=${id}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
-          if (data?.messages) {
-            setMessages(data.messages)
+          const msgs = data?.messages ?? []
+          if (msgs) {
+            setMessages(msgs)
+          }
+
+          // If this is a typed conversation with no messages yet (e.g. a
+          // first_insight conversation just created by the archetype
+          // orchestrator), queue the auto-trigger so the CFO opens it.
+          // Skipping when there are already messages avoids re-triggering
+          // on subsequent loads from the conversation list.
+          const convType = data?.conversation?.type as string | undefined
+          const convMetadata = data?.conversation?.metadata as
+            | Record<string, string>
+            | undefined
+          if (
+            convType &&
+            (AUTO_TRIGGER_TYPES as readonly string[]).includes(convType) &&
+            msgs.length === 0
+          ) {
+            conversationTypeRef.current = convType
+            conversationMetadataRef.current = convMetadata
+            pendingTriggerRef.current = { type: convType, metadata: convMetadata }
+            setPendingTriggerNonce((n) => n + 1)
           }
         })
         .catch((err) => {

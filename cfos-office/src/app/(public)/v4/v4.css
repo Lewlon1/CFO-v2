@@ -1,0 +1,169 @@
+/*
+ * Landing v4 — scoped layout/utilities only.
+ *
+ * Colour tokens now live globally in globals.css and flow from --background /
+ * --foreground / --primary etc. This file only defines the v4-specific
+ * aliases (--paper, --ink, etc.) and visual utilities used by the landing
+ * components. The light/dark switch is handled at the <html> level.
+ */
+
+/* === Bridge v4 names → global tokens (per-mode, so opacity-derived shades stay accurate) === */
+.landing-v4 {
+  --paper: var(--background);
+  --ink: var(--foreground);
+  --rule: var(--border);
+  --card: var(--muted);
+  --card-border: var(--border);
+  --accent: var(--primary);
+
+  /* Dark-mode shades for ink-fade / ink-quiet / accent overlays */
+  --ink-fade: rgba(244, 237, 217, 0.60);
+  --ink-quiet: rgba(244, 237, 217, 0.38);
+  --accent-soft: rgba(232, 168, 76, 0.20);
+  --accent-bg: rgba(232, 168, 76, 0.10);
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light-mode shades — ink-fade/quiet are derived from the dark-foreground hex,
+   so we restate them here in dark-on-cream form. Accent shifts to antique brass overlays. */
+:root[data-theme="light"] .landing-v4 {
+  --ink-fade: rgba(26, 22, 16, 0.62);
+  /* Was 0.42 — ≈2.65:1 on cream, fails even large-text AA. Bumped to 0.62
+     so footnotes (Hero) and Capabilities timeLine italics meet AA. */
+  --ink-quiet: rgba(26, 22, 16, 0.62);
+  --accent-soft: rgba(140, 90, 24, 0.22);
+  --accent-bg: rgba(140, 90, 24, 0.10);
+}
+
+/* === Inverted callout (Compounding) — leather wing chair (warmest dark) === */
+.landing-v4 .v4-invert {
+  --paper: #1A1610;
+  --ink: #F4EDD9;
+  --ink-fade: rgba(244, 237, 217, 0.62);
+  --ink-quiet: rgba(244, 237, 217, 0.40);
+  --rule: rgba(244, 237, 217, 0.14);
+  --card: rgba(244, 237, 217, 0.05);
+  --card-border: rgba(244, 237, 217, 0.10);
+  /* Pin the accent to the dark-mode gold so this always-dark callout uses
+     the high-contrast brass (#E8A84C ≈ 9:1 on the inverted background)
+     regardless of which theme is active outside. Without this, light-mode
+     users see the deeper antique brass on dark — ≈4:1, fails AA. */
+  --accent: #E8A84C;
+  --primary: #E8A84C;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* === Scoped font utilities — don't touch global Tailwind theme === */
+.landing-v4 .v4-serif {
+  font-family: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+}
+.landing-v4 .v4-sans {
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+.landing-v4 .v4-mono {
+  font-family: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* === Section eyebrow (mono uppercase tracking) — brass chapter tab === */
+.landing-v4 .v4-eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* === Rule line under section headers === */
+.landing-v4 .v4-rule {
+  height: 1px;
+  background: var(--rule);
+  border: 0;
+}
+
+/* === CTA button — primary, brass-filled === */
+.landing-v4 .v4-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 52px;
+  padding: 0 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+  font-family: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  box-shadow: 0 0 0 0 transparent;
+  transition: transform 120ms ease, box-shadow 180ms ease, opacity 120ms ease;
+}
+.landing-v4 .v4-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 6px var(--accent-bg);
+  opacity: 0.96;
+}
+.landing-v4 .v4-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* === Theme toggle (v4-styled variant of the global component) === */
+.landing-v4 .v4-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--ink-fade);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.landing-v4 .v4-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-quiet);
+}
+.landing-v4 .v4-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* === Capability card === */
+.landing-v4 .v4-capability {
+  border-top: 1px solid var(--rule);
+  padding: 32px 0;
+}
+.landing-v4 .v4-capability:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+
+/* === Journey strip === */
+.landing-v4 .v4-journey {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-fade);
+}
+
+/* === Smooth theme transition === */
+.landing-v4,
+.landing-v4 * {
+  transition-property: background-color, color, border-color;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-v4,
+  .landing-v4 * {
+    transition: none;
+  }
+}
