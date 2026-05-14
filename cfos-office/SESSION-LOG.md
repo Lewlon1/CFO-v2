@@ -9,6 +9,49 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 11: Home goals surface
+
+**Branch:** `feature/goal-aware-office` (stays open for Sessions 12 + 14; single PR after Session 14 lands)
+**Scope:** Goals as the first folder on the office home, with a state-dependent goals section that reads Session 10's progress numbers. No schema, no prompt changes, no routing changes — pure UI surface.
+
+### What changed
+- **`cfos-office/src/lib/goals/primary-goal.ts`** (new) — `getPrimaryGoal(supabase, userId)` returns the active goal to feature on the home, or null. Sort is highest `priority` (`high → medium → low → null`) then `created_at DESC`. Active-only contract: completed goals return null and still appear in the detail view. Session 12 imports this same function for CFO prompt context — the "does this user have a goal" signal lives in one place to prevent drift.
+- **`cfos-office/src/lib/goals/primary-goal.test.ts`** (new) — 7 vitest cases covering empty input, single goal, priority order, tiebreak by recency, null-priority handling, supabase error surface.
+- **`cfos-office/src/lib/tokens.ts`** — `folderColors.goals = '#D4A24C'` (provisional brass). Distinct from Values' `#E8A84C`. Session 14 to validate the five-colour palette.
+- **`cfos-office/src/components/office/sections/GoalsSection.tsx`** (new) — server component receiving `goal: PrimaryGoal | null`. Goal-exists branch: large `current` numeric, `of target`, right-aligned %, then on/off-track pill + `${monthly_required_saving}/mo needed`. NaN-safe — no progress % rendered when `target_amount` is null or ≤ 0. Negative `current_amount` clamps at 0 for display (matches existing `GoalCard` behaviour). No-goal branch delegates to `<GoalsEmptyState>`.
+- **`cfos-office/src/components/office/sections/GoalsEmptyState.tsx`** (new) — client wrapper (required because it embeds the existing `<GoalsEmptyStateCTA>` which calls `useChatContext()`). Headline `No goal set.` / body `Your CFO can't advise on a destination you haven't named.` / button `Chat with your CFO`. The CTA reuses the existing `GoalsEmptyStateCTA` verbatim — single source of truth for goal creation outside onboarding.
+- **`cfos-office/src/app/(office)/office/page.tsx`** — adds `getPrimaryGoal(supabase, user.id)` to the existing 7-way `Promise.all` (now 8-way), passes `primaryGoal` to `<OfficeHomeClient>`.
+- **`cfos-office/src/app/(office)/office/OfficeHomeClient.tsx`** — accepts new `primaryGoal: PrimaryGoal | null` prop. Computes a NaN-safe `goalsSubtitle` (`${goal.name} · ${pct}%` when target > 0, else just `goal.name`; `Not yet set` when null — parity with Values' `Not yet profiled`). Renders a fifth `<FolderSection icon="◎" label="Goals" accentColor={folderColors.goals} openHref="/office/scenarios/goals">` as the **first** folder, before Cash Flow. The four existing folders are unchanged.
+- **`audit/session-11-phase-0.md`** (new) — ground truth + locked microcopy + risk register (R1 first-render staleness, R2 priority laxness, R3 onboarding overlap, R4 completed-only goals, R5 theme contrast).
+
+### Verdicts
+- Goal data flows: server-side `getPrimaryGoal` → server `Promise.all` → client `OfficeHomeClient` → server `GoalsSection` → either inline progress or `<GoalsEmptyState>`. Single read, no waterfall.
+- Primary-goal selection: highest priority wins; equal priority → newest. No `is_primary` flag, no schema change, no RPC. Matches the existing codebase pattern (fetch + TS sort, as `recompute.ts` and `scenarios/goals/page.tsx` already do).
+- Non-blocking confirmed in code: no modal, no redirect, no overlay. The no-goal state is a card with a CTA; all four other folders remain reachable via the standard FolderSection links.
+- Detail view: routes to existing `/office/scenarios/goals` (unchanged). Session 14 may relocate.
+- CTA: reuses existing `GoalsEmptyStateCTA` (primes `"I'd like to set a financial goal"`, opens chat sheet). The flow that already worked for the goals page empty state now works identically from the home card.
+- Brass `#D4A24C` is provisional — Session 14 owns the full palette validation.
+
+### Staging verification
+- **Done in this session:** `npm run build` clean (full app builds, all 60+ routes compile); `npm test` clean (19 files, 182 tests including the 7 new `primary-goal` cases); `npm run lint` shows only pre-existing warnings (none in the new files); dev server serves `/office` cleanly (307 → `/login` for unauthenticated request, no compile errors).
+- **Deferred to Lewis on staging (requires authenticated walkthrough):**
+  - User with one active goal: home Goals card renders live numbers; tap-through to detail view works.
+  - User with multiple active goals: primary selection matches priority + recency rule (the only failure mode single-goal users mask).
+  - User with no active goal: prompt + CTA renders; all four other folders reachable; CTA primes the chat sheet; creating a goal flips the card to the progress state on next render.
+  - Theme toggle (light + dark): `#D4A24C` contrast across both states.
+
+### Surprises
+- The `npm` scripts in this repo don't include a `typecheck` task (CLAUDE.md references `npm run typecheck` but the script is absent). `next build` performs the full type check during compilation, so the workflow still works — adjusted Phase 3 to rely on the build for type-level verification.
+- `npx tsc --noEmit` falls back to the system tsc (which errors) because no local `tsc` binary is in `node_modules/.bin`. Same conclusion: rely on `next build` for type verification or add an explicit `typecheck: "tsc --noEmit"` script in a future session.
+- The existing `GoalsEmptyStateCTA` already did exactly what the home no-goal CTA needed (set chat input, open sheet). Saved building a new chat-priming mechanism — single source of truth for goal-creation outside onboarding.
+
+### Next on branch
+- Session 12: CFO goal-awareness — imports `getPrimaryGoal()` for prompt context so the CFO can reference the active goal naturally.
+- Session 14: folder palette validation + folder reframes; may also relocate `/office/scenarios/goals` → `/office/goals` since Goals is now top-level.
+- One PR after Session 14 lands.
+
+---
+
 ## 2026-05-14 — Session 10: Goal progress engine
 
 **Branch:** `feature/goal-progress-engine`
