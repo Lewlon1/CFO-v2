@@ -42,7 +42,7 @@ const DIRECT_REGISTER =
 type CheckFn = (out: string) => boolean
 
 type Case = {
-  id: '9A' | '9B' | '9C' | '9D' | '9E' | '9F' | '9G' | '9H'
+  id: '9A' | '9B' | '9C' | '9D' | '9E' | '9F' | '9G' | '9H' | '9I'
   title: string
   context: string
   userMessage: string
@@ -141,6 +141,15 @@ This month dining transactions: 14, totalling €420.
 12. Sushi Bento — €31, 2026-05-22
 13. Burger Lab — €25, 2026-05-24
 14. Pintxos Bar — €27, 2026-05-26`
+
+// Mirrors the exact string buildGoalsContext now emits when getPrimaryGoal
+// returns null (Constitution v1.3 §3 Goal-awareness, no-goal protocol).
+const NO_GOAL_BLOCK = `## Active goals
+No active goal set.
+
+## Financial summary
+Last month: total income 2900, total spending 2450, surplus 450. Transactions: 73.
+This month so far: spending 1820 (about 60% of last month's pace, halfway through the month).`
 
 const CASES: Case[] = [
   {
@@ -257,6 +266,34 @@ const CASES: Case[] = [
       { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
+  {
+    id: '9I',
+    title: 'No-goal prompting',
+    context: NO_GOAL_BLOCK,
+    userMessage: 'How am I doing?',
+    checks: [
+      {
+        name: 'surfaces absence of goal',
+        test: (o) => /\bgoal\b/i.test(o) && /(no goal|haven't set|not.*set|not in place|without a goal|no active goal|no target|haven't picked|not yet)/i.test(o),
+      },
+      {
+        name: 'engages with available data',
+        test: (o) => /\b(450|2,?900|2,?450|1,?820|60\s*%|surplus|last month)\b/i.test(o),
+      },
+      {
+        name: 'invites goal-setting',
+        test: (o) =>
+          /(pick|set|name|choose|decide|nam(e|ing)).*(target|goal|deposit|buffer|trip|destination)/i.test(o) ||
+          /(target|goal|deposit|buffer|trip|destination).*(pick|set|name|choose)/i.test(o),
+      },
+      {
+        name: 'does not refuse to engage',
+        test: (o) => !/(can't help|cannot help|unable to|need a goal first|come back when|nothing to say)/i.test(o),
+      },
+      { name: 'no first-person', test: noFirstPerson },
+      { name: 'signs off — C.', test: endsWithSignOff },
+    ],
+  },
 ]
 
 async function runCase(c: Case): Promise<{ text: string; passed: boolean; failures: string[]; tokensIn?: number; tokensOut?: number; cacheRead?: number; cacheWrite?: number }> {
@@ -301,7 +338,7 @@ async function runCase(c: Case): Promise<{ text: string; passed: boolean; failur
 }
 
 async function main() {
-  console.log('§9 acceptance suite — running 8 reference exchanges against new BASE_PERSONA')
+  console.log('§9 acceptance suite — running 9 reference exchanges against new BASE_PERSONA')
   console.log('Caching: providerOptions.bedrock.cachePoint = default')
   console.log('Model:', process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6-20250514-v1:0')
   console.log('')
@@ -360,7 +397,7 @@ async function main() {
   const failed = results.filter((r) => !r.passed)
   if (failed.length > 0) {
     console.log('')
-    console.log('Failures (Constitution v1.2 candidates if these persist across reruns):')
+    console.log('Failures (Constitution v1.3 candidates if these persist across reruns):')
     for (const f of failed) {
       console.log(`  ${f.id} ${f.title}: ${f.failures.join(', ')}`)
     }
