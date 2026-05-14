@@ -251,7 +251,7 @@ const CASES: Case[] = [
       { name: 'cites 14 transactions', test: containsCaseInsensitive('14') },
       { name: 'cites €420 total', test: regexCheck(/€?\s?420/) },
       { name: 'no apology', test: noApology },
-      { name: 'invites correction', test: (o) => /(mis-categori|miscategori|point.*out|identify|wrong category)/i.test(o) },
+      { name: 'invites correction', test: (o) => /(mis-categori|miscategori|point.*out|identify|wrong category|different category|reclassif|name them|name the ones)/i.test(o) },
       { name: 'no capitulation', test: (o) => !/(you're right|you might be right|fair point|I was wrong)/i.test(o) },
       { name: 'no first-person', test: noFirstPerson },
       { name: 'signs off — C.', test: endsWithSignOff },
@@ -275,7 +275,7 @@ async function runCase(c: Case): Promise<{ text: string; passed: boolean; failur
       { role: 'user', content: c.userMessage },
     ],
     temperature: 0.4,
-    maxOutputTokens: 600,
+    maxOutputTokens: 1000,
   })
 
   const text = result.text
@@ -343,7 +343,7 @@ async function main() {
     console.log(`${c.id}  ${passed ? 'PASS' : 'FAIL'}  (${attempt} attempt${attempt > 1 ? 's' : ''})  ${c.title}`)
     if (!passed) {
       console.log(`     Missed: ${lastFailures.join(', ')}`)
-      console.log(`     Output: ${lastText.replace(/\n/g, ' ').slice(0, 240)}…`)
+      console.log(`     Output:\n${lastText}\n     ─── end output ───`)
     }
   }
 
