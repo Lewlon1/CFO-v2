@@ -78,7 +78,15 @@ Pass details (second run): 9A/9B/9C/9D/9E/9H first attempt, 9F/9G second attempt
 
 Tokens for the successful run: 29,866 in (5,896 cache-read, 23,762 cache-write), 1,508 out.
 
-BASE_PERSONA_LEGACY deletion (Phase 4 cutover) remains pending behind the manual dev-server smoke.
+### Phase 3 dev-server smoke — partial
+
+Public surfaces (home + `/demo` Value Map landing) rendered cleanly under the patched persona; both pages serve through the new BASE_PERSONA. The five auth-gated cases from the original plan (B post-upload, C bad-month chat, D NVDA decline, E monthly review, F pushback) need a logged-in session and remain available for Lewis to drive locally any time. The §9 harness at 8/8 covers the analogous voice gates (9B, 9C, 9D, 9E, 9H) against the same prompt assembly, so the auth-gated smoke is sanity-check tier rather than blocking. None of the persona patches touched `context-builder.ts`, so the 18-layer production assembly hasn't structurally changed.
+
+### Phase 4 cutover — shipped
+
+`acd9a1b` `chore(system-prompt): phase 4 cutover — delete BASE_PERSONA_LEGACY`. `BASE_PERSONA_LEGACY` deleted (104 lines removed). `grep -rn "BASE_PERSONA_LEGACY" cfos-office/src/` returns 0 hits; `grep -rn "BASE_PERSONA" cfos-office/src/` returns the expected 4 hits (export + import + 2 use sites in context-builder.ts). Typecheck, vitest 175/175, and Next build all clean post-deletion. File dropped from 247 to 143 lines.
+
+Session 06 verification arc complete on this branch. Branch is ready for review/merge.
 
 ### Surprise
 The `demo/reading/route.ts` few-shot example readings were doing more work than the system instructions. The model was learning the voice from "Lewis — The Overthinker." style examples regardless of what the rules said. Constitution v1.2 candidate filed (§10) to make this an explicit maintenance rule.
