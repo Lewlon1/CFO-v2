@@ -28,6 +28,7 @@ const AUTO_TRIGGER_TYPES = [
   'nudge_initiated',
   'onboarding',
   'onboarding_no_vm',
+  'onboarding_goal_chat',
   'value_checkin_done',
   'chip_opener',
   'experiment_template',
@@ -213,6 +214,13 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     } else if (type === 'onboarding_no_vm') {
       trigger =
         '[System: New user who signed up directly. Welcome them briefly, then suggest the Value Map as a quick way to get started — "a 2-minute exercise that helps me understand how you think about money." You MUST include this exact markdown link in your response: [Try the Value Map](/demo). If they want to skip it, that is fine.]'
+    } else if (type === 'onboarding_goal_chat') {
+      // The user has just submitted their entry struggle and walked into the
+      // office. Per the goal-derive-and-confirm task in the system prompt,
+      // open with either a draft proposal (if the struggle gives enough
+      // signal) or a single clarifying question (if it doesn't).
+      trigger =
+        '[System: The user has just walked into your office for the first time and shared what brought them in (see "Your task in this conversation" in the system prompt for the exact wording). Open this conversation per the derive-and-confirm task. If the signal is specific enough to draft a goal directly, draft it: name the goal, propose a target amount, propose a target date, present as one concrete proposal. If the signal is too vague, ask exactly one clarifying question that turns the direction into a target. Maximum 2-3 sentences. Sign off with "— C." on its own line.]'
     } else if (type === 'value_map_complete') {
       trigger =
         '[System: Value Map just completed. Deliver your Gap analysis — compare their stated values with their actual spending now.]'

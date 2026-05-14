@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { CHAT_OPENERS } from '@/lib/onboarding-v2/openers'
 import type { StruggleOptionId } from '@/lib/onboarding-v2/labels'
 
 export type SubmitStruggleInput = {
@@ -12,6 +11,10 @@ export type SubmitStruggleInput = {
 export type SubmitStruggleResult = {
   redirectTo: string
   // Client uses these to fire telemetry after the redirect resolves.
+  // `route` reflects the *downstream* journey the user is on (Marcus
+  // value-map vs chat-only) — it no longer tracks the immediate next page,
+  // because every user now lands in /office for the goal-derive-and-confirm
+  // beat regardless of struggle.
   route: 'value_map' | 'chat'
   entryStruggle: 'dont_know' | 'debt' | 'wealth' | 'planning' | 'free_text'
   conversationId: string | null
@@ -42,12 +45,8 @@ export async function submitStruggle(
 
   const route: 'value_map' | 'chat' =
     entryStruggle === 'dont_know' ? 'value_map' : 'chat'
-
   const entryStruggleText = hasOption ? null : trimmedText
 
-  // Marcus path skips straight into the Value Map — stamp value_map_started
-  // in the same UPDATE so resume logic sees consistent state immediately.
-  const isMarcus = route === 'value_map'
   const { error: updateErr } = await supabase
     .from('user_profiles')
     .update({
@@ -55,7 +54,7 @@ export async function submitStruggle(
       entry_struggle_text: entryStruggleText,
       entry_struggle_at: new Date().toISOString(),
       onboarding_route: route,
-      ...(isMarcus ? { onboarding_step: 'value_map_started' } : {}),
+      onboarding_step: 'goal_chat_started',
     })
     .eq('id', user.id)
   if (updateErr) {
@@ -63,22 +62,16 @@ export async function submitStruggle(
     throw new Error('Failed to save entry struggle')
   }
 
-  if (route === 'value_map') {
-    return {
-      redirectTo: '/onboarding-v2/value-map',
-      route: 'value_map',
-      entryStruggle,
-      conversationId: null,
-      freeTextLength: hasText ? trimmedText.length : null,
-    }
-  }
-
+  // Create the goal-derive-and-confirm conversation. The CFO opens it via
+  // the auto-trigger registered for type='onboarding_goal_chat' in
+  // ChatProvider, which fires when the conversation loads with no messages.
   const { data: conv, error: convErr } = await supabase
     .from('conversations')
     .insert({
       user_id: user.id,
-      title: 'New conversation',
-      type: 'onboarding_v2_chat',
+      title: 'Setting your first goal',
+      type: 'onboarding_goal_chat',
+      status: 'active',
       metadata: {
         entry_struggle: entryStruggle,
         ...(entryStruggleText ? { entry_struggle_text: entryStruggleText } : {}),
@@ -91,43 +84,11 @@ export async function submitStruggle(
     throw new Error('Failed to create conversation')
   }
 
-  if (entryStruggle === 'free_text') {
-    const { error: msgErr } = await supabase.from('messages').insert({
-      conversation_id: conv.id,
-      user_id: user.id,
-      role: 'user',
-      content: trimmedText,
-    })
-    if (msgErr) {
-      console.error('[onboarding-v2] user message insert failed', msgErr)
-      throw new Error('Failed to save first message')
-    }
-    return {
-      redirectTo: `/office?chat=open&conversationId=${conv.id}&fto=1`,
-      route: 'chat',
-      entryStruggle,
-      conversationId: conv.id,
-      freeTextLength: trimmedText.length,
-    }
-  }
-
-  const opener =
-    CHAT_OPENERS[entryStruggle as 'debt' | 'wealth' | 'planning']
-  const { error: msgErr } = await supabase.from('messages').insert({
-    conversation_id: conv.id,
-    user_id: user.id,
-    role: 'assistant',
-    content: opener,
-  })
-  if (msgErr) {
-    console.error('[onboarding-v2] opener message insert failed', msgErr)
-    throw new Error('Failed to save opener message')
-  }
   return {
     redirectTo: `/office?chat=open&conversationId=${conv.id}`,
-    route: 'chat',
+    route,
     entryStruggle,
     conversationId: conv.id,
-    freeTextLength: null,
+    freeTextLength: hasText ? trimmedText.length : null,
   }
 }

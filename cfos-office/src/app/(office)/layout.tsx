@@ -12,6 +12,7 @@ import { ChatBar } from '@/components/chat/ChatBar'
 import { ChatSheet } from '@/components/chat/ChatSheet'
 import { NavigationBar } from '@/components/navigation/NavigationBar'
 import { ChatOpenerTrigger } from '@/components/onboarding-v2/chat-opener-trigger'
+import { GoalBeatWatcher } from '@/components/onboarding-v2/goal-beat-watcher'
 import { UserAvatarMenu } from '@/components/office/UserAvatarMenu'
 import { formatHeaderDate, getGreeting } from '@/lib/utils'
 
@@ -45,7 +46,7 @@ export default async function OfficeLayout({ children }: { children: React.React
   // Fetch user currency + display name for chat context & header
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle')
+    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step')
     .eq('id', user.id)
     .single()
 
@@ -53,6 +54,37 @@ export default async function OfficeLayout({ children }: { children: React.React
   // Mid-v2 users (entry_struggle set) and completed users fall through.
   if (!profile?.onboarding_completed_at && !profile?.entry_struggle) {
     redirect('/onboarding-v2')
+  }
+
+  // If the user is mid-Marcus-journey (post-goal-beat), bounce them back to
+  // the appropriate onboarding-v2 step. Without this, a Marcus user could
+  // navigate manually to /office and skip the value-map / upload / archetype.
+  const onboardingStep = (profile?.onboarding_step as string | null) ?? null
+  const isMarcus = profile?.entry_struggle === 'dont_know'
+  const MID_MARCUS_STEPS = new Set(['goal_set', 'goal_skipped', 'value_map_started', 'value_map_done', 'upload_done', 'archetype_shown'])
+  if (isMarcus && !profile?.onboarding_completed_at && onboardingStep && MID_MARCUS_STEPS.has(onboardingStep)) {
+    if (onboardingStep === 'goal_set' || onboardingStep === 'goal_skipped' || onboardingStep === 'value_map_started') {
+      redirect('/onboarding-v2/value-map')
+    }
+    if (onboardingStep === 'value_map_done') redirect('/onboarding-v2/upload')
+    if (onboardingStep === 'upload_done' || onboardingStep === 'archetype_shown') redirect('/onboarding-v2/archetype')
+  }
+
+  // If the user is mid-goal-beat, look up their active goal-chat conversation
+  // so the GoalBeatWatcher can open it in the chat sheet.
+  let goalChatConversationId: string | null = null
+  if (onboardingStep === 'goal_chat_started') {
+    const { data: goalConv } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('type', 'onboarding_goal_chat')
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    goalChatConversationId = goalConv?.id ?? null
   }
 
   const currency = profile?.primary_currency ?? 'EUR'
@@ -114,6 +146,16 @@ export default async function OfficeLayout({ children }: { children: React.React
             onboarding-v2 server action redirects here, opens the drawer,
             loads the conversation, and triggers free-text opener if needed. */}
         <ChatOpenerTrigger />
+
+        {/* Activates only when onboarding_step='goal_chat_started'. Opens the
+            goal-chat conversation in the sheet, polls /api/goals/active-count
+            for create_goal completion, advances the step + routes onward.
+            Renders a skip control after 90s for dont_know users. */}
+        <GoalBeatWatcher
+          onboardingStep={onboardingStep}
+          entryStruggle={profile?.entry_struggle ?? null}
+          goalChatConversationId={goalChatConversationId}
+        />
       </ChatProvider>
     </div>
   )

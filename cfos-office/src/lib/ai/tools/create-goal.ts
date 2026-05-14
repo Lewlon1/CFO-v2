@@ -14,7 +14,18 @@ export function createCreateGoalTool(ctx: ToolContext) {
       target_date: z
         .string()
         .optional()
-        .describe('Target date in YYYY-MM-DD format, if the user has one'),
+        .refine(
+          (val) => {
+            if (!val) return true
+            const target = new Date(val)
+            if (Number.isNaN(target.getTime())) return false
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            return target.getTime() > today.getTime()
+          },
+          { message: 'target_date must be a valid date in the future (YYYY-MM-DD)' },
+        )
+        .describe('Target date in YYYY-MM-DD format, must be in the future'),
       priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
     }),
     execute: async ({

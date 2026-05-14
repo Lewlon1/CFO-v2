@@ -9,6 +9,45 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 09: Goal persistence in onboarding
+
+**Branch:** `feature/goal-persistence-onboarding`
+**Scope:** Wire goal creation into the onboarding-v2 flow as a CFO derive-and-confirm chat beat. Runs for every user immediately after the struggle picker, before either downstream path (Marcus or chat) resumes. The CFO drafts a goal from `entry_struggle` (+ free-text), asks "where are you starting from?" to seed `current_amount`, calls the existing `create_goal` tool on confirmation. Wow-moment becomes goal-aware because the goal exists by the time `resolveUserIntent()` runs.
+
+### What changed
+- **`cfos-office/src/lib/ai/context-builder.ts`** — new `buildGoalDeriveConfirmContext()` + dedicated assembly branch for `conversationType='onboarding_goal_chat'`. Restricted system prompt: persona + voice, current date, lean profile, derive-and-confirm task, tool instructions. No portrait, no goals context (none exist yet), no value-map, no benchmarks. Keeps the CFO focused.
+- **`cfos-office/src/components/chat/ChatProvider.tsx`** — added `'onboarding_goal_chat'` to `AUTO_TRIGGER_TYPES` with a `[System: ...]` trigger that fires when the conversation loads with zero messages. The CFO opens with either a goal draft (sufficient signal) or one clarifying question (insufficient signal).
+- **`cfos-office/src/app/onboarding-v2/actions.ts`** — `submitStruggle` rewritten: stamps `entry_struggle`, `entry_struggle_text`, `entry_struggle_at`, `onboarding_route`, `onboarding_step='goal_chat_started'`; creates an `onboarding_goal_chat` conversation; returns redirectTo=`/office?chat=open&conversationId=<id>` for every user. Marcus and chat-path users converge on the same beat.
+- **`cfos-office/src/app/onboarding-v2/goal-beat-actions.ts`** (new) — `completeGoalBeat()` and `skipGoalBeat()` server actions. completeGoalBeat is idempotent (checks `onboarding_step` before acting); stamps `goal_set` for Marcus or `complete` (+ `onboarding_completed_at`) for chat-path; marks the goal-chat conversation completed for Marcus so it doesn't re-open.
+- **`cfos-office/src/components/onboarding-v2/goal-beat-watcher.tsx`** (new) — client component mounted in office layout. Activates only when `onboarding_step='goal_chat_started'`. Opens the goal-chat conversation in the chat sheet, polls `/api/goals/active-count` every 2.5s, calls `completeGoalBeat()` on detection and routes per the result. Surfaces a "Continue without setting a goal yet" control after 90s for `dont_know` users.
+- **`cfos-office/src/app/api/goals/active-count/route.ts`** (new) — lightweight GET endpoint returning the count of the user's active non-deleted goals. Used by the watcher's poller.
+- **`cfos-office/src/app/(office)/layout.tsx`** — fetches `onboarding_step` in the existing profile query, looks up the active goal-chat conversation when step is 'goal_chat_started', passes both to the watcher. Also redirects Marcus users mid-downstream-journey (post-goal-beat steps) back to the correct onboarding-v2 sub-route so they can't skip to the office home view.
+- **`cfos-office/src/lib/onboarding-v2/types.ts`** — three new `OnboardingStep` values: `goal_chat_started`, `goal_set`, `goal_skipped`.
+- **`cfos-office/src/lib/onboarding-v2/resume.ts`** — rewritten to branch on `entry_struggle` (Marcus vs chat-path) per step, replacing the simple flat map.
+- **`cfos-office/src/app/onboarding-v2/page.tsx`** — uses `resumeRoute` for mid-onboarding users instead of blanket-redirecting to /office.
+- **`cfos-office/src/lib/ai/tools/create-goal.ts`** — `target_date` zod schema now `.refine()`s to require a future date. Closes the audit gap where a past date silently produced `monthly_required_saving=null` and `on_track=null`.
+- **`cfos-office/src/lib/onboarding-v2/openers.ts`** — deleted. `CHAT_OPENERS` superseded by the auto-trigger.
+
+### Verdicts
+- Goal now created in onboarding-v2 for both `dont_know` and chat paths.
+- Seed mechanism: CFO asks for the starting amount in chat — no statement at this beat, so seed-by-asking is the universal pattern (not a fallback).
+- `target_date` past-date rejection: landed at the validation boundary in `create_goal`.
+- `dont_know` users who can't articulate a goal can skip after 90s without blocking onboarding (Constitution principle: don't force what the user can't yet articulate).
+- Build, lint (no new errors introduced), and full test suite (175 tests) all pass.
+
+### Constitution fold-in deferred
+- Derive-and-confirm behaviour is currently a prompt-layer fragment in `context-builder.ts`. Fold-in to Constitution v1.3 owned by Session 12. Tracked in `BACKLOG.md`.
+- `create_goal` UI confirmation card (`SavedItemCard`) also deferred — flagged for Session 10 alongside progress-engine UI work.
+
+### Surprises
+- The onboarding-v2 flow bifurcates at the struggle picker — only `dont_know` goes through value-map → upload → archetype. The audit's "Onboarding-v2 has zero goals write paths" applies to both paths but the wow-moment-awareness fix only applies to Marcus. Chat-path users get the same goal beat anyway for consistency.
+- The chat infrastructure (`ChatProvider`, `ChatSheet`, message rendering) is tightly coupled to the office layout. The original plan envisaged a standalone `/onboarding-v2/goal` route hosting a chat component; in practice the cleanest reuse was to mount the beat INSIDE /office via the chat sheet, with a small `GoalBeatWatcher` in the layout doing the routing. Marcus users briefly see the office (chat sheet on top) before routing back to /onboarding-v2/value-map after goal-confirm. Acceptable for now; could revisit if it grates.
+
+### Next
+- Session 10 (progress engine) — moves `current_amount` from a frozen starting number to a live, contribution-driven figure. The seed work this session lands gives Session 10 a non-zero starting point for every new goal, so progress percentages are honest from day one instead of stuck at 0%.
+
+---
+
 ## 2026-05-14 — Session 08: Goal engine audit
 
 **Branch:** `investigation/goal-engine-audit`

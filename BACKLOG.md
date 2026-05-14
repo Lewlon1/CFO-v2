@@ -126,3 +126,24 @@ Session 03's Tier 1 list named three v2.4 primitives for deletion (`MetricTile.t
 - Export-style standardisation across `src/lib/**` — codemod scope; do as its own pass.
 
 ---
+
+## Goal-derive-and-confirm fold-in to Constitution v1.3 — PROPOSED
+
+Session 09 introduced goal derive-and-confirm as new CFO behaviour at the start of every onboarding journey. The behaviour currently lives as an onboarding-context prompt-layer fragment ([`buildGoalDeriveConfirmContext()` in `cfos-office/src/lib/ai/context-builder.ts`](cfos-office/src/lib/ai/context-builder.ts)) and a dedicated assembly branch for `conversationType='onboarding_goal_chat'`. It belongs in the Constitution proper, not just a layered fragment, but Session 12 owns the goal-awareness Constitution work and the v1.3 bump.
+
+**Proposed for Session 12 (Constitution v1.3):**
+- §3 should describe the CFO deriving a goal from minimal signals (entry struggle + free-text) and confirming with the user as a canonical first-meeting move — observe → calculate → educate → and now, at first contact, **derive**.
+- §9 should add a canonical exchange showing the three derive paths: sufficient-signal direct draft, insufficient-signal one clarifying question, and user correction (re-draft to user's exact terms per the §5 "honour the user's exact terms" rule).
+- Once landed, the prompt-layer text in `context-builder.ts` becomes a thin reference to the relevant §3/§9 sections rather than self-contained instructions.
+
+**Out of Session 09 scope** because §10 says the Constitution is updated when behaviour shifts at the principle level — Session 12 is the natural point to make that shift, alongside the goal-aware reading work it owns.
+
+---
+
+## `create_goal` confirmation card — DEFERRED
+
+Every other write tool ([`create_action_item`, `update_user_profile`, `upsert_asset`, `upsert_liability`, `update_value_category`, `record_value_classifications`](cfos-office/src/components/chat/MessageList.tsx)) renders a `SavedItemCard` confirmation in the chat UI on success. `create_goal` does not — the user only sees the model's natural-language echo. Session 09 noted this gap during planning but kept scope tight; the natural place to add it is alongside the Session 10 progress-engine UI work, where the goal card can also surface progress against target.
+
+**Proposed:** add a `goal_create` builder to [`savedCardBuilders.ts`](cfos-office/src/components/chat/savedCardBuilders.ts) that renders the goal name, target amount, target date, and starting amount. Wire it into the switch in [`MessageList.tsx`](cfos-office/src/components/chat/MessageList.tsx) at the same place the other write-tool cards are dispatched.
+
+

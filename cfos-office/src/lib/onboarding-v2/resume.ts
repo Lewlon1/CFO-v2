@@ -1,28 +1,49 @@
 import type { OnboardingStep } from './types'
 
-const STEP_TO_ROUTE: Record<OnboardingStep, string> = {
-  // Legacy: rows still stamped 'intro_shown' from before the intro page
-  // was removed should jump straight into the Value Map.
-  intro_shown:       '/onboarding-v2/value-map',
-  value_map_started: '/onboarding-v2/value-map',
-  value_map_done:    '/onboarding-v2/upload',
-  upload_done:       '/onboarding-v2/archetype',
-  archetype_shown:   '/onboarding-v2/archetype',
-  complete:          '/office',
-}
-
 /**
  * Resolve where the user should be in the onboarding-v2 journey.
  *
  * - No entry_struggle yet → /onboarding-v2 (struggle question)
- * - Has entry_struggle but no step → /onboarding-v2/value-map (entry into journey)
- * - Has step → mapped route
+ * - Mid-goal-beat (`goal_chat_started`) → /office (chat sheet hosts the
+ *   onboarding_goal_chat conversation; the GoalBeatWatcher in the office
+ *   layout opens it and watches for completion).
+ * - Goal set or skipped → next step depends on entry_struggle: Marcus
+ *   (`dont_know`) goes to value-map; chat-path stays in /office.
+ * - Mid-Marcus journey (value_map / upload / archetype) → mapped route.
+ * - Complete → /office.
  */
 export function resumeRoute(
   step: OnboardingStep | null,
   entryStruggle: string | null,
 ): string {
   if (!entryStruggle) return '/onboarding-v2'
-  if (!step) return '/onboarding-v2/value-map'
-  return STEP_TO_ROUTE[step] ?? '/onboarding-v2/value-map'
+
+  const isMarcus = entryStruggle === 'dont_know'
+
+  switch (step) {
+    case null:
+      // Legacy: row exists but step never stamped. Treat as start of journey.
+      return isMarcus ? '/onboarding-v2/value-map' : '/office'
+    case 'intro_shown':
+      // Legacy: rows stamped 'intro_shown' before the intro page was removed.
+      return isMarcus ? '/onboarding-v2/value-map' : '/office'
+    case 'goal_chat_started':
+      // Goal beat lives inside the office chat sheet.
+      return '/office'
+    case 'goal_set':
+    case 'goal_skipped':
+      return isMarcus ? '/onboarding-v2/value-map' : '/office'
+    case 'value_map_started':
+      return '/onboarding-v2/value-map'
+    case 'value_map_done':
+      return '/onboarding-v2/upload'
+    case 'upload_done':
+      return '/onboarding-v2/archetype'
+    case 'archetype_shown':
+      return '/onboarding-v2/archetype'
+    case 'complete':
+      return '/office'
+    default:
+      return isMarcus ? '/onboarding-v2/value-map' : '/office'
+  }
 }
