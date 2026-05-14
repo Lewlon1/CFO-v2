@@ -86,6 +86,22 @@ Public surfaces (home + `/demo` Value Map landing) rendered cleanly under the pa
 
 `acd9a1b` `chore(system-prompt): phase 4 cutover — delete BASE_PERSONA_LEGACY`. `BASE_PERSONA_LEGACY` deleted (104 lines removed). `grep -rn "BASE_PERSONA_LEGACY" cfos-office/src/` returns 0 hits; `grep -rn "BASE_PERSONA" cfos-office/src/` returns the expected 4 hits (export + import + 2 use sites in context-builder.ts). Typecheck, vitest 175/175, and Next build all clean post-deletion. File dropped from 247 to 143 lines.
 
+### Constitution v1.2 — lifted from BACKLOG
+
+Lewis directed lifting the 5 original v1.2 candidates and the 5 §9-harness-derived candidates into `CFO-CONSTITUTION.md` in the same session, bumping the Constitution to v1.2. Of the 10 candidates: 9 landed in v1.2; 1 was already codified in v1.1 (tangible-comparison invocation gate) and only the BACKLOG entry needed updating.
+
+The v1.2 deltas:
+- **§2 Voice** — added "Default to no self-reference" paragraph clarifying when "your CFO" is the explicit form (CFO-as-self-referent candidate).
+- **§3 What the CFO does** — added "Allocation questions" sub-section for windfalls / bonuses / lump sums, mandating the name-candidates + offer-to-model close (9G).
+- **§5 Knowledge hierarchy** — expanded item 4 (The Gap) with back-reference, added "The Gap response shape" sub-section with the four-slot protocol (9E).
+- **§6 The relationship** — added bad-month accountability paragraph with the three-slot reply shape (quantify shortfall, offer two paths, pattern-vs-one-off question) (9C).
+- **§8 Length** — added the status-check-on-goal four-slot anchor (goal name, current/target, %, trajectory) (9A) and the reveal/reading length cap (120–220 words) (original Session 06 candidate).
+- **§8 Sign-off** — clarified three cases: tool-confirmation reactions (no sign-off), substantiation replies (sign-off lands at end, even if long — 9H), routine outside-remit declines (no sign-off — covers original Session 06 candidate).
+- **§10 Maintenance protocol** — added the "Few-shot example outputs travel with the rules" paragraph as a new maintenance rule (covers the original Session 06 finding that `demo/reading/route.ts` examples were teaching a voice the rules forbade).
+- **Version history** — added v1.2 entry summarising the above.
+
+Constitution v1.2 codifies what BASE_PERSONA already implements (per commit `9087fdf`), so no further prompt-file edits required. BACKLOG.md updated to mark candidates as LANDED.
+
 Session 06 verification arc complete on this branch. Branch is ready for review/merge.
 
 ### Surprise

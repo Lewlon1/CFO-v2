@@ -4,47 +4,59 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ---
 
-## Constitution v1.2 candidates (Session 06 findings)
+## Constitution v1.2 candidates (Session 06 findings) — RESOLVED
 
-Surfaced during the BASE_PERSONA rewrite. Do NOT update `CFO-CONSTITUTION.md` v1.1 in this session — Constitution updates are their own session.
+**Status: all five lifted into Constitution v1.2 in the same session as the BASE_PERSONA rewrite,** at Lewis's direction. (The original Session 06 rule "Constitution updates are their own session" was waived once the harness re-run at 8/8 made the persona-level rules concrete enough to formalise.)
 
-### [v1.2] Reveal/reading length convention is unwritten
+Original candidates retained below for traceability.
+
+### [v1.2 — LANDED] Reveal/reading length convention is unwritten
 
 §8 specifies status (1–3 sentences) and gap analysis (4–6 sentences) but doesn't cap Value Map reveals (~150–220 words) or personality readings (~120–180 words). The new BASE_PERSONA points to "the call site" but §8 itself should name this category and its length range. Otherwise every new long-form output has to re-invent its own cap.
 
 **Proposed:** add a §8 sub-bullet for "Reveal / reading outputs: 120–220 words, single dense paragraph (reading) or three short paragraphs (reveal). Same voice rules apply."
 
-### [v1.2] Few-shot example outputs must be re-derived when prompts change
+**Landed:** Constitution v1.2 §8 Length now includes the reveal/reading length cap.
+
+### [v1.2 — LANDED] Few-shot example outputs must be re-derived when prompts change
 
 `demo/reading/route.ts` had 4 in-prompt `<example_reading>` blocks that taught the model a voice the Constitution forbids. The examples did more work than the instructions. Constitution v1.1 doesn't currently require example outputs to be re-derived alongside any voice change.
 
 **Proposed:** add to §10 (maintenance) — "When a prompt contains few-shot example outputs, they must be re-derived in the same edit. Stale examples override fresh instructions."
 
-### [v1.2] CFO-as-self-referent — when "your CFO" is required
+**Landed:** Constitution v1.2 §10 has the "Few-shot example outputs travel with the rules" paragraph.
+
+### [v1.2 — LANDED] CFO-as-self-referent — when "your CFO" is required
 
 §2 forbids first person and says self-reference is "your CFO" when omitting it would create ambiguity. In practice, dropping all self-reference is the default — but the prompt didn't make that explicit, and a model trained on the prior persona kept reaching for "I". A clarifying example pair would help.
 
 **Proposed:** §2 — add: "Default to no self-reference. 'Your CFO' is the explicit form only when otherwise ambiguous (e.g. 'Your CFO keeps watching as more data comes in')."
 
-### [v1.2] Routine save confirmations — sign-off ambiguity
+**Landed:** Constitution v1.2 §2 now has an explicit "Default to no self-reference" paragraph.
+
+### [v1.2 — LANDED] Routine save confirmations — sign-off ambiguity
 
 §8 says sign-off applies to "meaningful findings". When a write tool returns a confirmation card and the CFO reacts in one short sentence ("Saved."), should the message be signed off? The current rule says no (routine reply) but the model may infer otherwise. Examples in §9 don't cover this case directly.
 
 **Proposed:** §8 — add: "Tool-confirmation reactions (one-sentence acknowledgement of a save) do not get a sign-off. The confirmation card is the receipt."
 
-### [v1.2] Tangible-comparison invocation gate is unwritten
+**Landed:** Constitution v1.2 §8 Sign-off now has three explicit clarifications (tool confirmations no, substantiation yes, routine declines no).
+
+### [v1.2 — ALREADY-IN-v1.1] Tangible-comparison invocation gate is unwritten
 
 §2 says comparisons must come from "things in the user's actual life" but doesn't formalise the precondition. The prompt-side rule (audit/06-summary.md gap #3) ended up enforcing two conditions: reference is in user data AND it helps the user feel the number. Worth lifting into §2 verbatim.
 
 **Proposed:** §2 — codify the existing prompt rule into the Constitution proper.
 
+**Resolution:** the two conditions are already codified in v1.1 §2 (the "Tangible comparison" sub-section, "Use the comparison only when: 1... 2..."). This BACKLOG entry was stale — no v1.2 edit needed.
+
 ---
 
-## §9 acceptance harness — persistent failures (Session 06, 2026-05-14)
+## §9 acceptance harness — persistent failures (Session 06, 2026-05-14) — RESOLVED
 
-**Status: resolved in code, Constitution candidates remain.**
+**Status: resolved in code AND in Constitution v1.2.**
 
-First run: 3/8 PASS (9B, 9D, 9F). Second run after surgical patches: **8/8 PASS** (commits [`cc44c7c`](../../commit/cc44c7c) harness + [`9087fdf`](../../commit/9087fdf) persona). The five entries below stay open as Constitution v1.2 candidates — the persona patches make the *current* persona produce the right answers, but the *Constitution* still under-specifies these rules and a future rewrite would have to re-derive them. The maintenance work (lifting the persona rules up into Constitution v1.2) is for a separate session.
+First run: 3/8 PASS (9B, 9D, 9F). Second run after surgical patches: **8/8 PASS** (commits [`cc44c7c`](../../commit/cc44c7c) harness + [`9087fdf`](../../commit/9087fdf) persona). The persona-level rules behind the four behavioural failures (9A goal status, 9C accountability, 9E The Gap, 9G windfall) have been lifted into Constitution v1.2 — see §3 Allocation questions, §5 The Gap response shape, §6 bad-month accountability sub-section, §8 status-check-on-goal four-slot anchor. The 9H sign-off-survives-substantiation rule is codified in §8 Sign-off.
 
 Original run details retained below for traceability.
 
