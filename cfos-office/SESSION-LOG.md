@@ -9,6 +9,47 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 08: Goal engine audit
+
+**Branch:** `investigation/goal-engine-audit`
+**Scope:** Read-only investigation of the goal infrastructure to size Sessions 09, 10, and 13 from evidence rather than guesswork. Output: `audit/goal-engine-state.md`. No code, no migrations, no prompt changes.
+
+### Verdicts
+- **Q1 — Onboarding v2 goal persistence:** *References without persisting.* The full onboarding-v2 flow (struggle → value map → upload → archetype) writes to `user_profiles`, `conversations`, `messages`, and `value_map_sessions` — never to `goals`. The wow moment is intent-aware via [insight-engine.ts:165-199](cfos-office/src/lib/analytics/insight-engine.ts) `resolveUserIntent`, which uses goals if present but falls back to `entry_struggle`. On the first run, every user lands on the entry_struggle branch.
+- **Q3 — Goal progress computation:** *No progress engine.* `current_amount`, `monthly_required_saving`, and `on_track` are set once at goal creation and never updated. Zero UPDATEs on these columns in any code path. No SQL function, view, trigger, or cron updates them. Production: 6 of 7 goals stuck at `current_amount = 0`. The legacy `financial_goals` triggers (dropped in migration 026) suggest the prior design had automation; the current build hasn't replaced it.
+- **Q4 — Action items goal-attribution:** *Priority but no goal link.* `action_items` has no `goal_id` column in either environment. `get_action_items` orders by `created_at DESC` with no ranking. Category enum includes `goal_setting`/`savings_transfer` — 4 of 5 production rows are in these two categories, strong enough for a heuristic link.
+
+### Session sizing recommendations
+- **Session 09 (goal persistence):** build in full — the onboarding flow needs an explicit goal beat (or `entry_struggle` → goal promotion).
+- **Session 10 (progress computation):** full load-bearing session. Must build a `current_amount` writer (likely Edge Function + cron), pace recompute, and on/off-track refresh. Most underestimated session in the v2 roadmap.
+- **Session 13 (action items ranking):** add `goal_id` FK + heuristic ranking. Defer projection-based ranking until Session 10 lands.
+
+### Biggest surprise
+**`action-item-reminder.ts` is broken in production.** [Line 13](cfos-office/src/lib/nudges/evaluators/action-item-reminder.ts) selects `last_nudge_at, nudge_count` — columns that exist in `migrations/001_initial_schema.sql:154-155` but are absent from both staging and production schemas (which have `reminder_at` and no `nudge_count`). The weekly cron calls this evaluator. Should be throwing PostgrestError 42703 every Monday. Out of scope for this audit; flagged for separate fix.
+
+### Schema drift findings
+- `action_items` schema in both environments differs from migration 001 — has `source`, `reminder_at`, `potential_savings`, `actual_savings`, `priority` not in the migration; missing `last_nudge_at`, `nudge_count` that the migration adds. Someone modified the table without a migration. The deployed schemas in staging and production do match each other.
+- `goals` schema matches migration 001 + 028 exactly in both environments. No drift there.
+
+### CLAUDE.md staleness flagged
+- CLAUDE.md says `POST /api/onboarding/complete` exists with `seedFromOnboarding` — neither exists in the codebase. The "onboarding completion → portrait seeding" claim should be revised to reflect the actual `/api/insights/post-upload` path.
+
+### Verification (this session)
+- `git status` clean except for new `audit/goal-engine-state.md` and this entry
+- Schemas verified via `mcp__3949509e-ddc6-4092-88e9-05560e94f044__execute_sql` against both staging (`qlbhvlssksnrhsleadzn`) and production (`iccelmjenljanqrhhzdv`)
+- Zero writes performed on either environment
+
+### Deferred (with reason)
+- **Phase 1.3 — Playwright fresh-user trace.** `cfos-office/tests/onboarding/` is sealed by deny rules in `.claude/settings.json`. A subagent confirmed the harness has a staging guard but couldn't read further. Given there are zero `goals` write paths in any onboarding-v2 code file, the trace's value (catching hidden writes) is nil. Code evidence is conclusive.
+- **Phase 2 live `create_goal` invocation.** Same permission constraints. The insert logic is straightforward and matches the production schema; live invocation would only confirm what code reading already proves.
+
+### Unblocks
+- Sessions 09, 10, 13 can now be re-scoped from evidence
+- Session 11's home-hero scope needs reading `audit/goal-engine-state.md` before assuming pace/on-track exist on day one
+- Separate task: fix `action-item-reminder.ts` column-name mismatch in production
+
+---
+
 ## 2026-05-14 — Session 06: system-prompt.ts rewrite (the unlock)
 
 **Branch:** `claude/system-prompt-rewrite-upAGL`
