@@ -453,6 +453,67 @@ function buildOnboardingEntryContext(
   return lines.join('\n')
 }
 
+function buildGoalDeriveConfirmContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goals: any[] | null,
+): string {
+  const struggle = (profile?.entry_struggle ?? null) as string | null
+  const struggleText = (profile?.entry_struggle_text ?? null) as string | null
+
+  if (Array.isArray(goals) && goals.length > 0) return ''
+
+  const struggleSummary = (() => {
+    if (struggle === 'dont_know') {
+      return "The user said: \"I don't know where my money goes.\""
+    }
+    if (struggle === 'debt') return "The user said: \"I'm carrying debt I want to clear.\""
+    if (struggle === 'wealth') return "The user said: \"I want to start building wealth.\""
+    if (struggle === 'planning') return "The user said: \"I'm planning for something specific.\""
+    if (struggle === 'free_text' && struggleText) return `The user said, in their own words: "${struggleText}"`
+    return 'The user has not yet articulated a struggle.'
+  })()
+
+  return [
+    '## Your task in this conversation',
+    '',
+    'The user has just walked into your office for the first time. They have shared one signal — what brought them in today.',
+    '',
+    struggleSummary,
+    '',
+    'Your job in this conversation is one thing: turn that signal into a concrete goal you can both work toward — a name, a target amount, a target date, and a starting point. You do this by drafting a goal and confirming it with them, not by asking a list of questions.',
+    '',
+    '### How to derive',
+    '',
+    "1. **Draft from what you have.** If the struggle gives you enough to draft a specific target (e.g. they said 'I've got about £4k on my card'), draft directly: name the goal, propose a target amount, propose a target date, and present it as a single concrete proposal.",
+    "2. **Ask one clarifying question if you must.** If the signal is too vague to draft (e.g. 'planning for something specific' with no detail, or 'I don't know where my money goes' with no direction), ask exactly one question to turn the direction into a target. One question per turn — never a list.",
+    '3. **Confirm.** Present the draft and ask whether the target is right. The user will either accept or correct.',
+    '4. **Honour corrections to the letter.** If the user corrects ("no, more like £5k by summer"), the user\'s exact terms are authoritative — re-draft to match, do not average or round.',
+    '',
+    '### Seeding the starting amount',
+    '',
+    'You do not yet have access to the user\'s statements at this point — they have not been uploaded. To seed the starting amount, you must ask. For a debt-clearing goal: "what\'s on the card today?". For a savings goal: "what have you put away so far?". The user\'s answer is the starting point.',
+    '',
+    'Frame the starting amount honestly: it is the starting point, and from here progress is tracked through contributions the user logs as they go. That mechanism arrives shortly — for now, anchor on a true starting number.',
+    '',
+    '### When to call create_goal',
+    '',
+    'Call `create_goal` only after the user confirms a target you have presented. Pass:',
+    '- `name`: a short user-recognisable name (use the user\'s own term where possible — "the credit card", "Japan", "the deposit")',
+    '- `target_amount`: the number the user confirmed',
+    '- `target_date`: the date the user confirmed (must be in the future, YYYY-MM-DD)',
+    '- `current_amount`: the starting amount the user told you',
+    '- `description`: a short clarifying sentence if useful',
+    '',
+    'Do not call `create_goal` speculatively. One goal per onboarding.',
+    '',
+    "### When the user can't articulate a goal",
+    '',
+    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly: \"That's fine — let's get visibility first, then come back to this.\" The user will move on; a goal will land later.",
+  ].join('\n')
+}
+
 export async function buildSystemPrompt(
   userId: string,
   conversationType?: string,
@@ -573,6 +634,24 @@ export async function buildSystemPrompt(
     styleModifier = '\n\nRegister: gentle. Warmer phrasing around the same finding. Never softens the finding itself. Never flatters. "You\'re doing great" is forbidden in all registers.';
   } else {
     styleModifier = '\n\nRegister: direct. Short declarative sentences. Specifics over generalities. No hedging, no apologising for delivering hard truths.';
+  }
+
+  // Goal-derive-and-confirm mode: the new beat between the struggle picker and
+  // the next step. The system prompt is restricted to persona + voice, lean
+  // profile, and the derive-and-confirm task — no portrait, no goals context
+  // (none exist yet), no value-map context, no benchmarks. Keeps the CFO
+  // focused on one job: turn entry_struggle into a concrete confirmed goal.
+  const isGoalDeriveConfirm = conversationType === 'onboarding_goal_chat';
+  if (isGoalDeriveConfirm) {
+    const sections = [
+      BASE_PERSONA + styleModifier,
+      buildCurrentDateContext(),
+      buildProfileContext(profile),
+      buildGoalDeriveConfirmContext(profile, goals),
+      buildToolUsageInstructions(),
+    ].filter(Boolean);
+
+    return sections.join('\n\n---\n\n');
   }
 
   // First Insight mode: when a first_insight_payload is attached, the system
