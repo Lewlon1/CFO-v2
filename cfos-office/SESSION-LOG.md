@@ -9,6 +9,34 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-14 — Session 07: PR #38 verification
+
+**Branch:** `consolidation/v2.2`
+**Verdict:** GO-WITH-FIXES — safe to merge to main
+**Output:** `audit/pr-38-verification.md`
+
+- Onboarding v2 end-to-end: PASS (with 2 in-session fixes)
+- Theme system + dark default: PASS
+- Tool-call logging (Session 02 Phase 3 fold-in): PASS — 4 distinct tools, multi-step attribution verified
+- Deliberate-break test: PASS — chat survives logging failure; revert clean; logging resumes
+- Existing-user regression: PASS — office home + 4 folders + The Gap + settings all clean
+
+**Fixes applied in-session (on `consolidation/v2.2`):**
+- `e4eea1e` — `fix(chat): auto-trigger wow moment for server-created first_insight convos`. The headline product change in PR #38 was silently broken: `ChatOpenerTrigger` called `loadConversation()` which ignored the conversation's `type`, so `pendingTriggerRef` was never set and the wow-moment LLM call never fired. Users would land in an empty chat sheet. Fix: `loadConversation` now reads the type from `/api/conversations/recent` and queues the auto-trigger when type ∈ `AUTO_TRIGGER_TYPES` and the conversation has zero messages. A nonce forces the `useEffect` to re-evaluate after the async ref-set.
+- `defe971` — `fix(tests): align onboarding driver with current Value Map → Upload flow`. Test-only fix: the Value Map summary screen is unreachable in onboarding mode (handleExerciseComplete sets readyToFinish=true directly), so the driver's wait for "Continue" was an obsolete artefact. Also bumped post-archetype assistant-message poll from 90s → 150s.
+
+**Deferred defects:**
+- `console.error` in `logToolCall`'s catch block doesn't show in dev log (Turbopack/Node stderr handling). Non-blocking — chat-survival and zero-row-inserted evidence is sufficient for the safety claim. Investigate separately.
+- Tier 1 dead-code cleanup deferred from PR #38 (would have deleted `/v4` page) — pending separate PR.
+
+**Wow-moment output captured for Session 06:** yes — verbatim in `audit/pr-38-verification.md` Phase 1 section. Confirmed Constitution v1.1 drift (first-person everywhere, no "— C." sign-off).
+
+**Surprise:** the "Show me the gap" button label this whole verification was supposed to test no longer exists — superseded by "See what I found →" routing to the wow moment instead of the gap page. The gap page itself works perfectly when reached directly via `/office/values/the-gap`.
+
+**Operational note:** Turbopack does NOT HMR server-side library files like `lib/observability/llm-usage-log.ts`. A full dev-server restart is required for changes to take effect. Worth a future investigation — affects fast feedback on backend-touching changes.
+
+---
+
 ## Session 05 — Tier 2 cleanup (verified-orphan deletions + migration backfill) — 2026-05-13
 
 **Branch:** `claude/cleanup-tier-1-deletions-fkQwc`
