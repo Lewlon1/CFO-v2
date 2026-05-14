@@ -210,10 +210,10 @@ async function runMarcusPath(
       await tapValueMapCard(page, response)
     }
 
-    // After the 10th card the flow transitions to the summary screen
-    await page.waitForSelector('button:has-text("Continue")', { timeout: 20_000 })
-    await page.click('button:has-text("Continue")')
-    // ValueMapFlow.onComplete fires → /onboarding-v2/upload
+    // In onboarding mode, ValueMapFlow.handleExerciseComplete sets
+    // readyToFinish=true directly after the 10th card (no summary screen).
+    // That fires handleContinue → onComplete in value-map-orchestrator,
+    // which awaits advanceStep('value_map_done') then router.push('/upload').
     await page.waitForURL(/\/onboarding-v2\/upload/, { timeout: 30_000 })
   })
 
@@ -250,7 +250,9 @@ async function runMarcusPath(
   // complete: first-insight conversation has been created and is being
   // delivered via the chat sheet. Poll for the assistant message.
   await driveStage(page, 'complete', persona, opts, result, async () => {
-    const insight = await pollFirstInsightAssistantMessage(opts.admin, user.id, 90_000)
+    // First-insight generation can take 60-90s on Bedrock cold paths; allow
+    // a generous window so we capture the wow moment text reliably.
+    const insight = await pollFirstInsightAssistantMessage(opts.admin, user.id, 150_000)
     if (insight) {
       result.capturedInsight = insight
     }
