@@ -187,3 +187,25 @@ cd cfos-office && set -a && source .env.local && set +a && npm run test:prompts
 
 Session 12 chose to defer the fix to keep scope tight. Pick this up in any session that touches `provider.ts` or before the harness moves to CI. Lazy construction is the long-term right answer; the npm-script `--env-file` is the small fast move if the harness moves to CI urgently.
 
+
+
+---
+
+## Goal tag on goal-serving folder items — DEFERRED (Session 14)
+
+The original mockup put a small gold tag on files within folders that "serve the goal" (e.g. a goal-funding view in Cash Flow, the goal-relevant what-if in Scenarios). Session 14 scoped the tag as exploratory: ship if the static mapping is obvious, defer if not.
+
+**The static mapping is not obvious.**
+
+Surveying current sub-pages by folder:
+
+- **Cash Flow** — `bills`, `monthly-overview`, `optimise`, `patterns`, `spending-breakdown`, `transactions`, `trends`, `upload`. None are explicitly a "goal funding" view. `optimise` is the closest interpretive match (optimising spending frees surplus that feeds the goal), but it's not a goal view per se.
+- **Net Worth** — `assets`, `balance-sheet`, `liabilities`, `upload`. Pure balance-sheet building blocks. No goal-tagged view exists.
+- **Scenarios** — `goals`, `trips`, `what-if`. The `goals` page IS the goal (and is already shortcut from the home Goals folder card). `what-if` could model goal-relevant scenarios but only contextually — not a static "this is the goal what-if" view.
+- **Values** — `archetype`, `export`, `portrait`, `the-gap`, `value-split`. `the-gap` is the closest interpretive match (alignment between values and reality bears on goal discipline), but it's not goal-tagged.
+
+Determining "which file serves the goal" properly needs either (a) creating new dedicated goal-funding/goal-relevant views inside each folder — a non-trivial UX expansion — or (b) dynamic computation of goal-relevance per existing view per user. Both are Session 15 (data-deep) territory.
+
+The summary lines (Phase 2 of Session 14, shipped) carry the goal-aware framing on their own at the home level. The goal tag is a future enhancement, not a Session 14 omission to backfill.
+
+**The `<GoalTag />` component itself was not built.** Design intent if/when revived: small gold pill using `folderColors.goals` (see `cfos-office/src/lib/tokens.ts`) — same accent the Goals folder card uses, so the tag visually echoes the card. Apply it to whatever items the dynamic goal-relevance scoring (Session 15) surfaces.
