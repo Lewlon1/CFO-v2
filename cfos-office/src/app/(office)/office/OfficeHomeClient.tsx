@@ -73,7 +73,7 @@ export function OfficeHomeClient({
         icon="$"
         label="Cash Flow"
         subtitle={`${summary?.month ? new Date(summary.month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'This month'} · ${summary?.transaction_count ?? 0} transactions`}
-        accentColor="#22C55E"
+        accentColor={folderColors.cashflow}
         openHref="/office/cash-flow"
       >
         <CashFlowSection
@@ -88,7 +88,7 @@ export function OfficeHomeClient({
         icon="◈"
         label="Values & You"
         subtitle={`${archetype?.archetype_name ?? 'Not yet profiled'} · ${Math.round(profileCompleteness)}% profiled`}
-        accentColor="#E8A84C"
+        accentColor={folderColors.values}
         openHref="/office/values"
       >
         <ValuesSection
@@ -104,7 +104,7 @@ export function OfficeHomeClient({
         icon="≡"
         label="Net Worth"
         subtitle="The big picture"
-        accentColor="#06B6D4"
+        accentColor={folderColors.networth}
         openHref="/office/net-worth"
       >
         <NetWorthSection
@@ -119,7 +119,7 @@ export function OfficeHomeClient({
         icon="⊕"
         label="Scenario Planning"
         subtitle="What if..."
-        accentColor="#F43F5E"
+        accentColor={folderColors.scenarios}
         openHref="/office/scenarios"
       >
         <ScenariosSection
