@@ -7,9 +7,11 @@ import type { OnboardingStep } from './types'
  * - Mid-goal-beat (`goal_chat_started`) → /office (chat sheet hosts the
  *   onboarding_goal_chat conversation; the GoalBeatWatcher in the office
  *   layout opens it and watches for completion).
- * - Goal set or skipped → next step depends on entry_struggle: Marcus
- *   (`dont_know`) goes to value-map; chat-path stays in /office.
- * - Mid-Marcus journey (value_map / upload / archetype) → mapped route.
+ * - Goal set or skipped → /onboarding-v2/value-map for both routes. The
+ *   Value Map is mandatory for onboarding completion regardless of entry
+ *   struggle (Marcus is force-redirected; chat-path users carry themselves
+ *   in via the in-chat <ACTION:start_value_map> CTA or the office banner).
+ * - Mid-value-map journey (value_map / upload / archetype) → mapped route.
  * - Complete → /office.
  */
 export function resumeRoute(
@@ -32,7 +34,8 @@ export function resumeRoute(
       return '/office'
     case 'goal_set':
     case 'goal_skipped':
-      return isMarcus ? '/onboarding-v2/value-map' : '/office'
+      // Value Map is mandatory for both routes.
+      return '/onboarding-v2/value-map'
     case 'value_map_started':
       return '/onboarding-v2/value-map'
     case 'value_map_done':

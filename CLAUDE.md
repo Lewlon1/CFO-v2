@@ -238,17 +238,18 @@ A priority queue that determines which profile questions to ask and when. See th
 
 ### Onboarding completion
 
-A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. Two parallel paths set it:
+A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. **The Value Map is the canonical completion signal** — no other path stamps the timestamp. Both onboarding routes (Marcus / chat-path) converge on the Value Map.
 
-1. **Modal path** (`POST /api/onboarding/complete`) — fires when the user reaches the `handoff` beat in the onboarding modal and dismisses. Also seeds `financial_portrait` via `seedFromOnboarding`.
-2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from three write sites after a real engagement signal: Value Map session insert (`api/value-map/personal`), transaction import success (`api/upload`), and user message insert (`api/chat`). Stamps the timestamp only; does not seed.
+The goal-chat beat (`completeGoalBeat` / `skipGoalBeat` in `app/onboarding-v2/goal-beat-actions.ts`) stamps `onboarding_step = 'goal_set' | 'goal_skipped'` only — it does NOT stamp `onboarding_completed_at`. Chat-path users carry themselves into the Value Map via the in-chat `<ACTION:start_value_map>` CTA emitted in the goal-chat wrap-up (or via the office banner); Marcus users are force-redirected. Either way, completion happens when the Value Map session is recorded.
 
-**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND at least one of:
-- a `value_map_sessions` row exists for `profile_id = userId`
-- ≥1 `transactions` row with `user_id = userId AND deleted_at IS NULL`
-- ≥3 `messages` rows with `role='user' AND deleted_at IS NULL`, joined via `conversations.user_id = userId`
+Two paths can set the timestamp:
 
-The timestamp is a one-way ratchet in the permissive path (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. There is deliberately no wall-clock floor (e.g. "spent ≥60s in app"); anyone who hits one of the three signals has clearly been engaged.
+1. **Modal path** (`POST /api/onboarding/complete`) — fires when the user reaches the `handoff` beat in the onboarding modal and dismisses. Also seeds `financial_portrait` via `seedFromOnboarding`. Legacy surface; not in active use under onboarding-v2.
+2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires after a Value Map session insert (`api/value-map/personal`). Stamps the timestamp only; does not seed.
+
+**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND a `value_map_sessions` row exists for `profile_id = userId`.
+
+The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. Transactions and chat messages alone no longer satisfy completion — the Value Map is mandatory.
 
 ### The CFO Persona
 

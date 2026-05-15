@@ -54,6 +54,7 @@ import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
 import { CfoThinking } from '@/components/brand/CfoThinking';
 import { ValueMapActionButton } from './ValueMapActionButton';
 import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
+import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
 import {
   buildActionItemCard,
   buildProfileUpdateCard,
@@ -203,9 +204,13 @@ function parseMessageContent(rawContent: string): {
   cta: { type: string; label: string } | null;
   stats: Array<{ label: string; value: string }>;
 } {
+  // Strip the <ACTION:start_value_map> token so it doesn't render as visible
+  // text during the live stream. The server also strips before persisting,
+  // so this is idempotent on reload.
+  const stripped = stripActionMarkers(rawContent);
   // Order matters: extract stats first so the [STATS] block is stripped
   // before any downstream parsers (or markdown) see it.
-  const withStats = extractStats(rawContent);
+  const withStats = extractStats(stripped);
   const withOptions = parseOptions(withStats.text);
   const withCTA = parseCTA(withOptions.text);
   return {
@@ -429,13 +434,16 @@ export function MessageList({
               {/* CTA block */}
               {cta && <ChatCTA type={cta.type} label={cta.label} />}
 
-              {/* Onboarding v2 — Value Map action button (only on assistant
-                  messages whose actions_created includes start_value_map) */}
+              {/* Onboarding v2 — Value Map action button. Renders when either
+                  the persisted metadata stamps the action (post-stream) OR the
+                  streaming text contains the literal token (during stream,
+                  before metadata propagates). Both paths are idempotent. */}
               {message.role === 'assistant' &&
                 (() => {
                   const actions = (message.metadata as { actions_created?: unknown } | null)?.actions_created
-                  if (!Array.isArray(actions)) return null
-                  return actions.some(isStartValueMapAction) ? (
+                  const fromMetadata = Array.isArray(actions) && actions.some(isStartValueMapAction)
+                  const fromStream = hasStartValueMapAction(rawText)
+                  return (fromMetadata || fromStream) ? (
                     <div className="px-3">
                       <ValueMapActionButton />
                     </div>

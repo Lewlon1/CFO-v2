@@ -15,10 +15,11 @@ export async function OnboardingBanner() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('entry_struggle, onboarding_step')
+    .select('entry_struggle, onboarding_step, onboarding_completed_at')
     .eq('id', user.id)
     .single()
   if (!profile?.entry_struggle) return null
+  if (profile.onboarding_completed_at) return null
 
   const [{ count: vmCount }, { count: txCount }] = await Promise.all([
     supabase

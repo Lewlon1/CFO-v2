@@ -13,13 +13,16 @@ export type CompleteGoalBeatResult = {
  * new active goal during the goal-derive-and-confirm beat. Idempotent — if the
  * step has already moved past 'goal_chat_started', returns alreadyComplete: true.
  *
- * For Marcus (entry_struggle = 'dont_know') users: marks the goal-chat
- * conversation completed, stamps onboarding_step='goal_set', returns the
- * value-map URL so the watcher can route them onward.
+ * Stamps onboarding_step='goal_set' for both routes. Does NOT stamp
+ * onboarding_completed_at — completion is the Value Map's responsibility now,
+ * so chat-path users finish onboarding via the VM, same as Marcus.
  *
- * For chat-path users: stamps onboarding_step='complete' (they're done with
- * onboarding), returns null so the watcher leaves them in /office continuing
- * the same conversation.
+ * For Marcus (entry_struggle = 'dont_know'): marks the goal-chat conversation
+ * completed and returns the value-map URL so the watcher force-redirects there.
+ *
+ * For chat-path users: returns null so the watcher refreshes /office; the
+ * <ACTION:start_value_map> CTA emitted in the goal-chat wrap-up message
+ * carries the user into the Value Map at their pace.
  */
 export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
   const supabase = await createClient()
@@ -28,7 +31,7 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('entry_struggle, onboarding_step, onboarding_completed_at')
+    .select('entry_struggle, onboarding_step')
     .eq('id', user.id)
     .single()
 
@@ -51,17 +54,9 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
       .eq('status', 'active')
   }
 
-  const nextStep: OnboardingStep = isMarcus ? 'goal_set' : 'complete'
-  const profileUpdate: Record<string, unknown> = { onboarding_step: nextStep }
-
-  // Chat-path users have no further onboarding beats — stamp completion.
-  if (!isMarcus && !profile?.onboarding_completed_at) {
-    profileUpdate.onboarding_completed_at = new Date().toISOString()
-  }
-
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update(profileUpdate)
+    .update({ onboarding_step: 'goal_set' satisfies OnboardingStep })
     .eq('id', user.id)
 
   if (updateErr) {
@@ -77,9 +72,9 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
 
 /**
  * Called when the user opts out of setting a goal during the beat. Stamps
- * onboarding_step='goal_skipped' and returns the next destination per the
- * user's entry struggle. For chat-path users this also stamps
- * onboarding_completed_at since they have no further beats.
+ * onboarding_step='goal_skipped' for both routes and hands off to the Value
+ * Map — completion is the Value Map's responsibility, so skipping the goal
+ * does not stamp onboarding_completed_at.
  */
 export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
   const supabase = await createClient()
@@ -88,7 +83,7 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('entry_struggle, onboarding_completed_at')
+    .select('entry_struggle')
     .eq('id', user.id)
     .single()
 
@@ -103,16 +98,9 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
       .eq('status', 'active')
   }
 
-  const profileUpdate: Record<string, unknown> = {
-    onboarding_step: 'goal_skipped' satisfies OnboardingStep,
-  }
-  if (!isMarcus && !profile?.onboarding_completed_at) {
-    profileUpdate.onboarding_completed_at = new Date().toISOString()
-  }
-
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update(profileUpdate)
+    .update({ onboarding_step: 'goal_skipped' satisfies OnboardingStep })
     .eq('id', user.id)
 
   if (updateErr) {
@@ -120,5 +108,5 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
     throw new Error('Failed to skip goal beat')
   }
 
-  return { redirectTo: isMarcus ? '/onboarding-v2/value-map' : null }
+  return { redirectTo: '/onboarding-v2/value-map' }
 }
