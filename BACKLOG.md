@@ -166,6 +166,23 @@ This is its own multi-week project, not a bolt-on. It depends on Session 10's `g
 
 ---
 
+## Projection-based action-item ranking — DEFERRED (Session 13)
+
+Session 13 added a heuristic three-tier ranking to `get_action_items`:
+1. `goal_id` matches the user's primary goal,
+2. `goal_id` null AND category is goal-adjacent (`goal_setting` / `savings_transfer`),
+3. everything else.
+
+Within each tier: priority then `created_at DESC`. The `priority` column is now actually used in ranking (previously stored but never read).
+
+A €-impact projection — modelling how much each action contributes toward the goal, ranking by that figure — needs Session 10's progress engine to be live and meaningful. Until `current_amount` is being kept fresh from real transaction data, any projection runs against a near-zero baseline (86% of production goals have `current_amount = 0`).
+
+When that lands: a follow-up session can replace tier 0/1 ordering with a modelled score. The dead `potential_savings` column on `action_items` (currently zero rows populated across prod) is the natural place to store the projected figure — preserving the heuristic as a fallback for items the projector hasn't scored yet.
+
+**Out of any current session's scope** until the progress engine produces a non-trivial `current_amount` distribution. The heuristic is doing real work: production action items are 80% `goal_setting`/`savings_transfer`, so tier 1 is meaningful even before tier 0 is well-populated.
+
+---
+
 ## §9 harness env-loader (`test:prompts`) — DEFERRED (Session 12)
 
 [`cfos-office/scripts/test-prompts.ts`](cfos-office/scripts/test-prompts.ts) cannot be invoked via `npm run test:prompts` alone — Bedrock instantiates with `region: undefined` and the run fails immediately. The §9 harness is the persona regression net (now 9 cases as of Session 12), so this friction is load-bearing.

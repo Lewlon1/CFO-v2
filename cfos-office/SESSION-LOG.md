@@ -52,6 +52,48 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-15 — Session 13: Action items goal link & ranking
+
+**Branch:** `claude/action-items-goal-ranking-E5VkH` (own PR off main)
+**Scope:** `goal_id` FK on `action_items` (migration 045, staging only), write-it-on-create with category-match fallback, tiered ranking in `get_action_items`, and an adjacent fix for `action-item-reminder.ts` (broken in prod every Monday).
+
+### What changed
+- **`cfos-office/supabase/migrations/045_action_items_goal_link.sql`** (new) — `ALTER TABLE action_items ADD COLUMN goal_id uuid REFERENCES goals(id) ON DELETE SET NULL` + a partial index `idx_action_items_goal WHERE goal_id IS NOT NULL`. Applied to CFO Staging via MCP; production migration deferred to Lewis.
+- **`cfos-office/src/lib/ai/tools/create-action-item.ts`** — added optional `goal_id` to the zod input schema. When the model doesn't pass one and `category` is `goal_setting` or `savings_transfer`, calls `getPrimaryGoal` and links to it. Logs primary-goal lookup failures and falls through to a null write rather than aborting the action create. Tool description updated so the model knows the auto-link behaviour exists.
+- **`cfos-office/src/lib/ai/tools/action-item-ranking.ts`** (new) — extracted `tierFor`, `priorityRank`, `rankActionItems` so the ranking helper is unit-testable independent of Supabase. Tier 0 = matches primary goal; tier 1 = goal_id null AND category in {goal_setting, savings_transfer}; tier 2 = everything else. Within tiers, priority then `created_at DESC`.
+- **`cfos-office/src/lib/ai/tools/action-item-ranking.test.ts`** (new) — 14 cases covering tier assignment, priority rank, within-tier ordering, non-primary-link demotion, null primary goal, and input immutability.
+- **`cfos-office/src/lib/ai/tools/get-action-items.ts`** — drops the `ORDER BY created_at DESC LIMIT N` SQL ordering; fetches the unsorted set, calls `getPrimaryGoal` (failures degrade gracefully to `null`), runs `rankActionItems`, then slices to the limit. Now selects `priority` and `goal_id` and returns them in the response — both were previously not exposed to the model.
+- **`cfos-office/src/lib/nudges/evaluators/action-item-reminder.ts`** — the production bug fix. Removed selects and updates of `last_nudge_at` / `nudge_count` (columns that don't exist in either deployed env — the evaluator was throwing 42703 every Monday). Now relies on `canSendNudge`'s scope-keyed cooldown against the `nudges` table for per-item dedup; the rule's `cooldown_hours: 168` + `max_per_month: 4` give the right shape of cadence without the redundant local cache. Also adds `.is('deleted_at', null)` to the staleness query (was previously ignoring soft-deleted action items).
+- **`cfos-office/src/app/api/goals/delete/route.ts`** — soft-delete of a goal now also nulls `action_items.goal_id` for the user's actions linked to that goal. The FK's `ON DELETE SET NULL` only fires on hard-delete, so without this any action linked to a soft-deleted goal would persist in tier 2 (not match primary, not null) instead of falling back to tier 1 via category fallback.
+- **`cfos-office/src/lib/supabase/types.ts`** — added `goal_id: string | null` to the Row/Insert/Update shapes and the FK relationship metadata for `action_items`.
+- **`audit/session-13-phase-0.md`** (new) — Phase 0 ground-truth covering the live schema (both envs), tool contracts, the nudge bug's intent, and the centralised `getPrimaryGoal` helper this session ranks against.
+- **`BACKLOG.md`** — added "Projection-based action-item ranking — DEFERRED" entry noting that a €-impact projection needs Session 10's progress engine to produce a non-zero `current_amount` distribution before it can rank against real numbers. The dead `potential_savings` column is the natural destination for the future projected figure.
+
+### Verdicts
+- The `priority` column finally has a job. It's existed on `action_items` from day one and never been read by anything in `get_action_items`; tiered ranking gives it the load-bearing within-tier role.
+- Tier 1 (category fallback) is doing real work, not a hypothetical safety net: production data shows 4 of 5 action items are `goal_setting` or `savings_transfer`. The heuristic isn't a weak proxy — the audit was right about that.
+- The nudge evaluator now matches the schema. Five weeks of weekly cron failures across two environments end here. The intent-vs-implementation question that the plan flagged in Phase 0.3 (exponential backoff via local cache vs scope-keyed cooldown via the nudges table) was clear once `canSendNudge`'s shape was traced: the nudges-table cooldown is the system's existing dedup. The local cache was redundant from the start.
+- Soft-delete cascade through `/api/goals/delete/route.ts` is the right home for the "actions survive with goal_id null" invariant. A trigger would have caught any future write site but adds invisible DB behaviour for one known caller — not the right trade today.
+
+### Staging verification
+- Migration applied to CFO Staging; security + performance advisors clean (only the expected "unused index" INFO on the new `idx_action_items_goal`, plus pre-existing lints on unrelated tables).
+- Inserted four `action_items` rows covering tier 0, two tier 1 cases, and tier 2 against the same staging user (3 active goals, primary = "Emergency savings buffer", high priority). The SQL replica of the JS ranking returned exactly the expected order: tier 0 first regardless of priority, then tier 1 high before tier 1 medium, then tier 2 (even when tier 2 had higher priority).
+- FK behaviour: in a rolled-back transaction, hard-deleting a linked goal nulled `action_items.goal_id` via `ON DELETE SET NULL`. ✓
+- Soft-delete behaviour: ran the modified delete route's two updates against a throwaway goal — goal soft-deleted (status='deleted', deleted_at set), linked action survived with `goal_id = null`. Action's category is `goal_setting`, so it correctly drops to tier 1 via category fallback. ✓
+- Rewritten reminder query executed against staging cleanly — no PostgrestError 42703. ✓
+- `npx tsc --noEmit` clean. `npm test` 196/196 PASS (was 182; 14 new for the ranking helper). `npm run build` clean. `npm run lint` produced only pre-existing warnings/errors on files this session didn't touch.
+
+### Surprises
+- The plan's "soft-delete leaves action items with `goal_id` null" verification was load-bearing for the category-fallback ranking story but not free from the FK alone — `ON DELETE SET NULL` only fires on hard delete. Surfaced one extra file in the manifest (`/api/goals/delete/route.ts`) but the fix is 7 lines, not a trigger or a join.
+- The nudge evaluator's `last_nudge_at` / `nudge_count` tracking turned out to be straightforwardly redundant once `canSendNudge`'s scope-keyed cooldown was understood — no judgement call about exponential backoff vs flat cadence was needed. The system already enforced 7-day per-item cooldown via the `nudges` table; the local cache was an alternative spelling of the same thing.
+
+### Follow-ups
+- Lewis to apply `045_action_items_goal_link.sql` to CFO Production.
+- Projection-based action-item ranking — deferred in BACKLOG, ready to be replaced when Session 10's progress engine produces real `current_amount` deltas to project against.
+- `reminder_at` on `action_items` remains unused (schema-allowed, no read/write site). Not in scope for this session; lives as a future "user-scheduled reminder time" affordance if/when that surfaces.
+
+---
+
 ## 2026-05-14 — Session 12: CFO goal-awareness (Constitution v1.2 → v1.3)
 
 **Branch:** `feature/goal-aware-office` (stays open for Session 14; single PR after Session 14 lands)
