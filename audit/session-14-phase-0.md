@@ -40,22 +40,24 @@ All five folder cards live in [`OfficeHomeClient.tsx`](../cfos-office/src/app/(o
 
 Folder accents are **single-value, not theme-aware**. `globals.css` exposes theme-aware tokens for things like `--positive`, `--accent-cyan`, etc., but `folderColors` is a flat hex object — accents look the same in light and dark mode, by design. Folder identity is preserved across themes.
 
-## Goals vs Values numerical proximity
+## Goals vs Values numerical proximity — VISUAL VERDICT (Phase 1.2)
 
 - Values: `#E8A84C` — RGB(232, 168, 76)
-- Goals: `#D4A24C` — RGB(212, 162, 76)
-- Same blue (76); ΔR = 20, ΔG = 6. Both warm brass/gold family.
-- Visual side-by-side check is required (Phase 1.2). Numerically very close — likely needs a shift; final call after on-screen comparison.
+- Goals (provisional Session 11): `#D4A24C` — RGB(212, 162, 76)
+- Same hue (37°), Goals 19% lower saturation and 4% lower lightness.
 
-## Phase 1 candidate replacements (if Goals shifts)
+**Side-by-side rendering confirmed: too close.** Both read as the same warm gold/amber at a glance. The user would have to look closely to distinguish them. This was the failure mode the spec anticipated.
 
-Reserved if Phase 1.2 finds Goals/Values too close:
+## Phase 1 candidate replacements — VERDICT
 
-| Candidate | Hex | Why |
+| Candidate | Hex | Outcome |
 |---|---|---|
-| Deeper brass | `#9C7B2C` | Stays in warm gold family, clearly darker than amber |
-| Burnished bronze | `#A0673A` | More red-brown — reads as grounded/anchor |
-| Walnut accent | `#8B5E34` | Matches the walnut/vellum/brass palette family from PR #38 |
+| **Deeper brass** | **`#9C7B2C`** | **PICKED.** Same hue family as Values, distinctly darker and less saturated. Reads as "the prime/anchor" without leaving the warm CFO palette. |
+| Burnished bronze | `#A0673A` | Strong contender — distinctly red-brown, but starts to feel like a different palette tone |
+| Walnut accent | `#8B5E34` | Even more anchored, but darker than necessary; trades distinctness for gravity |
+| Antique gold | `#B8862B` | Too close to amber under casual viewing — same problem as the original |
+
+**Final Goals accent: `#9C7B2C`** (deeper brass). Verified distinct from Values in both light (`#F6F0E1` vellum) and dark (`#13110D`) themes. All five accents now visually distinct at-a-glance.
 
 ## Real data already on props (Phase 2 input)
 

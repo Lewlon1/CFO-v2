@@ -41,7 +41,12 @@ export const colors = {
 } as const;
 
 export const folderColors = {
-  goals: '#D4A24C',
+  // Five-folder palette finalised in Session 14.
+  // Goals shifted from #D4A24C (provisional, Session 11) to #9C7B2C — the
+  // original was numerically too close to Values amber (#E8A84C: same hue,
+  // ~20 R / 6 G apart) and read as the same warm tone at a glance. Deeper
+  // brass keeps Goals in the warm CFO family but unmistakably distinct.
+  goals: '#9C7B2C',
   cashflow: '#22C55E',
   values: '#E8A84C',
   networth: '#06B6D4',
