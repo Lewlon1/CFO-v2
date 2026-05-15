@@ -127,9 +127,9 @@ Session 03's Tier 1 list named three v2.4 primitives for deletion (`MetricTile.t
 
 ---
 
-## Goal-derive-and-confirm fold-in to Constitution v1.3 — PROPOSED
+## Goal-derive-and-confirm fold-in to the Constitution — PROPOSED (deferred past v1.3)
 
-Session 09 introduced goal derive-and-confirm as new CFO behaviour at the start of every onboarding journey. The behaviour currently lives as an onboarding-context prompt-layer fragment ([`buildGoalDeriveConfirmContext()` in `cfos-office/src/lib/ai/context-builder.ts`](cfos-office/src/lib/ai/context-builder.ts)) and a dedicated assembly branch for `conversationType='onboarding_goal_chat'`. It belongs in the Constitution proper, not just a layered fragment, but Session 12 owns the goal-awareness Constitution work and the v1.3 bump.
+Session 09 introduced goal derive-and-confirm as new CFO behaviour at the start of every onboarding journey. The behaviour currently lives as an onboarding-context prompt-layer fragment ([`buildGoalDeriveConfirmContext()` in `cfos-office/src/lib/ai/context-builder.ts`](cfos-office/src/lib/ai/context-builder.ts)) and a dedicated assembly branch for `conversationType='onboarding_goal_chat'`. It belongs in the Constitution proper, not just a layered fragment. Session 12 landed v1.3 (goal-awareness steady-state + no-goal protocol) but deliberately did **not** fold derive-and-confirm in — that was out of Session 12's scope. Carries forward to the next Constitution bump.
 
 **Proposed for Session 12 (Constitution v1.3):**
 - §3 should describe the CFO deriving a goal from minimal signals (entry struggle + free-text) and confirming with the user as a canonical first-meeting move — observe → calculate → educate → and now, at first contact, **derive**.
@@ -164,3 +164,65 @@ This is its own multi-week project, not a bolt-on. It depends on Session 10's `g
 
 **Out of any current session's scope.** Surfaces if/when the manual-contribution path proves too high-friction for users and we have data showing the categorisation work would be worth it. Until then, manual is the mechanism.
 
+---
+
+## Projection-based action-item ranking — DEFERRED (Session 13)
+
+Session 13 added a heuristic three-tier ranking to `get_action_items`:
+1. `goal_id` matches the user's primary goal,
+2. `goal_id` null AND category is goal-adjacent (`goal_setting` / `savings_transfer`),
+3. everything else.
+
+Within each tier: priority then `created_at DESC`. The `priority` column is now actually used in ranking (previously stored but never read).
+
+A €-impact projection — modelling how much each action contributes toward the goal, ranking by that figure — needs Session 10's progress engine to be live and meaningful. Until `current_amount` is being kept fresh from real transaction data, any projection runs against a near-zero baseline (86% of production goals have `current_amount = 0`).
+
+When that lands: a follow-up session can replace tier 0/1 ordering with a modelled score. The dead `potential_savings` column on `action_items` (currently zero rows populated across prod) is the natural place to store the projected figure — preserving the heuristic as a fallback for items the projector hasn't scored yet.
+
+**Out of any current session's scope** until the progress engine produces a non-trivial `current_amount` distribution. The heuristic is doing real work: production action items are 80% `goal_setting`/`savings_transfer`, so tier 1 is meaningful even before tier 0 is well-populated.
+
+---
+
+## §9 harness env-loader (`test:prompts`) — DEFERRED (Session 12)
+
+[`cfos-office/scripts/test-prompts.ts`](cfos-office/scripts/test-prompts.ts) cannot be invoked via `npm run test:prompts` alone — Bedrock instantiates with `region: undefined` and the run fails immediately. The §9 harness is the persona regression net (now 9 cases as of Session 12), so this friction is load-bearing.
+
+**Symptom:** `npm run test:prompts` errors out on first model call unless env vars are pre-sourced.
+
+**Cause:** ESM hoists `import { chatModel } from '../src/lib/ai/provider'` at [test-prompts.ts:35](cfos-office/scripts/test-prompts.ts) above the manual `.env.local` reader at lines 18–32. [`provider.ts:3-7`](cfos-office/src/lib/ai/provider.ts) calls `createAmazonBedrock({ region: process.env.AWS_REGION!, ... })` at module load time, with stale (undefined) env.
+
+**Workaround (current):**
+
+```bash
+cd cfos-office && set -a && source .env.local && set +a && npm run test:prompts
+```
+
+**Candidate fixes (in increasing order of robustness and blast radius):**
+1. **npm-script `--env-file`** — change `test:prompts` to `node --env-file=.env.local --import tsx/esm scripts/test-prompts.ts` (Node 20.6+). One file touched; no API changes. Smallest defensible move.
+2. **`dotenv-cli`** — add as devDep; script becomes `dotenv -e .env.local -- tsx scripts/test-prompts.ts`. Adds a dependency.
+3. **Lazy Bedrock client construction in `provider.ts`** — defer `createAmazonBedrock(...)` until first model call. Removes the load-order dependency for any future caller of `chatModel`/`utilityModel`/`opusModel`. Most robust, but touches every consumer of those exports (or stays API-stable via a Proxy, which trades clarity for compatibility).
+
+Session 12 chose to defer the fix to keep scope tight. Pick this up in any session that touches `provider.ts` or before the harness moves to CI. Lazy construction is the long-term right answer; the npm-script `--env-file` is the small fast move if the harness moves to CI urgently.
+
+
+
+---
+
+## Goal tag on goal-serving folder items — DEFERRED (Session 14)
+
+The original mockup put a small gold tag on files within folders that "serve the goal" (e.g. a goal-funding view in Cash Flow, the goal-relevant what-if in Scenarios). Session 14 scoped the tag as exploratory: ship if the static mapping is obvious, defer if not.
+
+**The static mapping is not obvious.**
+
+Surveying current sub-pages by folder:
+
+- **Cash Flow** — `bills`, `monthly-overview`, `optimise`, `patterns`, `spending-breakdown`, `transactions`, `trends`, `upload`. None are explicitly a "goal funding" view. `optimise` is the closest interpretive match (optimising spending frees surplus that feeds the goal), but it's not a goal view per se.
+- **Net Worth** — `assets`, `balance-sheet`, `liabilities`, `upload`. Pure balance-sheet building blocks. No goal-tagged view exists.
+- **Scenarios** — `goals`, `trips`, `what-if`. The `goals` page IS the goal (and is already shortcut from the home Goals folder card). `what-if` could model goal-relevant scenarios but only contextually — not a static "this is the goal what-if" view.
+- **Values** — `archetype`, `export`, `portrait`, `the-gap`, `value-split`. `the-gap` is the closest interpretive match (alignment between values and reality bears on goal discipline), but it's not goal-tagged.
+
+Determining "which file serves the goal" properly needs either (a) creating new dedicated goal-funding/goal-relevant views inside each folder — a non-trivial UX expansion — or (b) dynamic computation of goal-relevance per existing view per user. Both are Session 15 (data-deep) territory.
+
+The summary lines (Phase 2 of Session 14, shipped) carry the goal-aware framing on their own at the home level. The goal tag is a future enhancement, not a Session 14 omission to backfill.
+
+**The `<GoalTag />` component itself was not built.** Design intent if/when revived: small gold pill using `folderColors.goals` (see `cfos-office/src/lib/tokens.ts`) — same accent the Goals folder card uses, so the tag visually echoes the card. Apply it to whatever items the dynamic goal-relevance scoring (Session 15) surfaces.

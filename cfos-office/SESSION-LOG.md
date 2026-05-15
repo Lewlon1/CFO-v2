@@ -9,6 +9,171 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-15 — Session 14: Folder reframes (basic)
+
+**Branch:** `feature/goal-aware-office` (closes — combined PR opens after this entry covering Sessions 11 + 12 + 14)
+**Scope:** Presentation layer of the goal-aware office work. Goal-aware summary lines on the four non-Goals folder cards, five-folder accent palette finalised and migrated to tokens, optional goal tag deferred. No reordering, no filtering, no dynamic goal-relevance — that's Session 15 (data-deep).
+
+### What changed
+- **`audit/session-14-phase-0.md`** (new) — Phase 0 ground truth: per-folder subtitle state (Goals goal-aware via Session 11; Cash Flow generic month/count; Values archetype + completeness; Net Worth and Scenarios static placeholders), accent application audit (Goals tokenised since Session 11; the four originals still inline hex), Goals-vs-Values numerical proximity flag, Phase 1 candidate list, real-data-on-props inventory.
+- **`cfos-office/src/app/(office)/office/OfficeHomeClient.tsx`** — migrated four inline accent hexes to `folderColors.cashflow / .values / .networth / .scenarios` tokens (Session 11 already used `folderColors.goals`). Added imports for the four subtitle helpers. Computed `cashFlowSub`, `valuesSub`, `netWorthSub`, `scenariosSub` next to the existing `goalsSubtitle` IIFE so all five folder subtitles live together. Replaced the four subtitle props with the helper outputs. The Cash Flow fallback string preserves the existing month/count shape for the case where `summary` hasn't loaded.
+- **`cfos-office/src/components/office/folder-subtitles.ts`** (new) — pure functions for the four non-Goals folder subtitles. Voice per Constitution v1.3 §2 (short declaratives, second person, no first person, no "advice"/"advise", no fluff). Goal connection mentioned only when real per §3: surplus-feeds-goal on positive Cash Flow; goal-lives-here on Net Worth; patterns-under-your-goal on Values; what-shifts-your-goal's-pace on Scenarios. Deficits and zero months stated plainly — no goal commentary. No-goal state falls back to neutral copy (the no-goal prompt is already carried by the Goals card and Session 12's CFO behaviour).
+- **`cfos-office/src/components/office/folder-subtitles.test.ts`** (new) — 23 vitest cases across goal-state × data-state, including thousands-separator formatting, completeness rounding, and the negative-net-worth case.
+- **`cfos-office/src/lib/tokens.ts`** — `folderColors.goals` shifted from provisional `#D4A24C` (Session 11) to **`#9C7B2C`** (deeper brass). Inline comment documents the rationale and the supersession.
+- **`CLAUDE.md`** — new "Design system — folder accent palette" section between Mobile-First and Common Pitfalls. Lists the final five tokens with hex values and the no-hardcode rule. Includes the Goals-shift history line.
+- **`BACKLOG.md`** — appended "Goal tag on goal-serving folder items — DEFERRED (Session 14)" with the per-folder mapping survey, the design intent for the `<GoalTag />` component (gold pill using `folderColors.goals`), and the Session 15 reroute.
+
+### Verdicts
+- **Five-folder palette finalised.** Goals: `#9C7B2C`, Cash Flow: `#22C55E`, Values: `#E8A84C`, Net Worth: `#06B6D4`, Scenarios: `#F43F5E`. All five sourced from `folderColors` tokens — no hardcoded hex anywhere on the office home.
+- **Goals vs Values distinctness:** the original `#D4A24C` provisional was numerically and visually too close to Values amber (same hue, only 19% saturation / 4% lightness apart) — both read as warm gold at a glance. Side-by-side validation in both light (`#F6F0E1`) and dark (`#13110D`) themes against four candidates picked deeper brass (`#9C7B2C`): same warm hue family so palette identity holds, but unmistakably darker and less saturated. Reads as the prime/anchor folder.
+- **Goal-aware summary lines on four folder cards.** Real data only — no fabricated numbers. Goal connection mentioned only when real (positive surplus, archetype patterns, scenario pace; not deficits, not negative net worth, not zero balance sheets).
+- **No-goal state cleanly handled.** The four new helpers fall back to neutral copy when `primaryGoal == null` — Cash Flow drops to bare surplus, Net Worth to bare net worth, Values to existing `${archetype} · X% profiled`, Scenarios to existing "What if...". The no-goal prompt is carried by the Goals card and Session 12's CFO chat — the four other folders don't pile on.
+- **Subtitle logic extracted as testable pure functions** rather than inline IIFEs. Testing CFO voice copy via Vitest catches voice drift early; making the subtitles testable is high-value given the Constitution-driven copy rules. The `goalsSubtitle` IIFE (Session 11) was left in place — future refactor could fold it into the same module if Goals' subtitle ever grows beyond two branches.
+- **Goal tag deferred.** Phase 3 surveyed the sub-pages of all four folders (Cash Flow has 8 sub-pages, Net Worth has 4, Scenarios has 3, Values has 5) and found no folder has an explicit "goal-serving" view. The closest interpretive matches (`optimise`, `the-gap`, `what-if`) require analytical leaps. Deferred to Session 15 with the full mapping survey logged in BACKLOG.
+
+### Staging verification
+- **Done in this session:** `npm run build` clean (all 60+ routes compile); `npm test` clean (20 files, 205 tests — 23 new in `folder-subtitles.test.ts`); `npx tsc --noEmit` clean; `npm run lint` shows only pre-existing warnings in unrelated files (no new issues from Session 14 files); palette validation done via DOM-injected swatches in the dev server (preview screenshots confirmed both Goals/Values closeness and the deeper-brass shift across both themes).
+- **Skipped:** `npm run test:prompts` — Session 14 touched no prompt files, no context-builder changes, no Constitution edit. Session 12 last verified §9 harness 9/9; re-running here would burn Bedrock tokens for zero new signal.
+- **Deferred to Lewis on staging (requires authenticated walkthrough):**
+  - With-goal user: each non-Goals folder card shows its goal-aware subtitle with the user's real numbers. Cash Flow surplus, Net Worth total, Values archetype-with-goal-line, Scenarios goal-pace line.
+  - No-goal user: each subtitle falls back to neutral; no broken `your goal` references outside the Goals card itself.
+  - Theme toggle: all five folder accents distinct in both light and dark.
+  - Regression: opening any folder still shows the same contents and order — Session 14 only touched the home-level subtitles and accents.
+
+### Surprises
+- The Cash Flow surplus case is the one summary line where the goal connection is genuinely numerical (the surplus literally funds the goal). Net Worth, Values, and Scenarios goal-connection copy is necessarily qualitative — there's no clean single number to attach. The Constitution's §3 "real connection" rule made the deficit/zero/negative-net edge cases easier than expected: when in doubt, state the fact plainly without commentary, and the voice stays in compliance.
+- The Goals provisional accent really was off-distance — not just numerically. Even with the swatch comparison in dark theme, both `#D4A24C` and `#E8A84C` looked like the same colour. The shift to `#9C7B2C` was unambiguously the right call once the candidates were rendered side-by-side. Session 11's note ("provisional, validate in Session 14") proved load-bearing.
+- The static mapping of "which file serves the goal" turned out genuinely ill-defined. None of the existing folder sub-pages are dedicated goal views. A naive mapping would have been fluff at best, misleading at worst — exactly the kind of "small product lie" the Constitution forbids. Deferring was clearly correct.
+
+### Next on branch
+- Combined PR opens for `feature/goal-aware-office` covering Sessions 11 + 12 + 14.
+- After merge: Session 13 (action-items ranking — Session 08 audit scoped this) and Session 16 (comprehensive cleanup) before beta wave 2.
+- Session 15 (data-deep folder reframes — goal-aware ordering, filtering, dynamic goal-serving determination, the goal tag) is the natural follow-up to Session 14, but is post-wave-2.
+
+---
+
+## 2026-05-15 — Session 13: Action items goal link & ranking
+
+**Branch:** `claude/action-items-goal-ranking-E5VkH` (own PR off main)
+**Scope:** `goal_id` FK on `action_items` (migration 045, staging only), write-it-on-create with category-match fallback, tiered ranking in `get_action_items`, and an adjacent fix for `action-item-reminder.ts` (broken in prod every Monday).
+
+### What changed
+- **`cfos-office/supabase/migrations/045_action_items_goal_link.sql`** (new) — `ALTER TABLE action_items ADD COLUMN goal_id uuid REFERENCES goals(id) ON DELETE SET NULL` + a partial index `idx_action_items_goal WHERE goal_id IS NOT NULL`. Applied to CFO Staging via MCP; production migration deferred to Lewis.
+- **`cfos-office/src/lib/ai/tools/create-action-item.ts`** — added optional `goal_id` to the zod input schema. When the model doesn't pass one and `category` is `goal_setting` or `savings_transfer`, calls `getPrimaryGoal` and links to it. Logs primary-goal lookup failures and falls through to a null write rather than aborting the action create. Tool description updated so the model knows the auto-link behaviour exists.
+- **`cfos-office/src/lib/ai/tools/action-item-ranking.ts`** (new) — extracted `tierFor`, `priorityRank`, `rankActionItems` so the ranking helper is unit-testable independent of Supabase. Tier 0 = matches primary goal; tier 1 = goal_id null AND category in {goal_setting, savings_transfer}; tier 2 = everything else. Within tiers, priority then `created_at DESC`.
+- **`cfos-office/src/lib/ai/tools/action-item-ranking.test.ts`** (new) — 14 cases covering tier assignment, priority rank, within-tier ordering, non-primary-link demotion, null primary goal, and input immutability.
+- **`cfos-office/src/lib/ai/tools/get-action-items.ts`** — drops the `ORDER BY created_at DESC LIMIT N` SQL ordering; fetches the unsorted set, calls `getPrimaryGoal` (failures degrade gracefully to `null`), runs `rankActionItems`, then slices to the limit. Now selects `priority` and `goal_id` and returns them in the response — both were previously not exposed to the model.
+- **`cfos-office/src/lib/nudges/evaluators/action-item-reminder.ts`** — the production bug fix. Removed selects and updates of `last_nudge_at` / `nudge_count` (columns that don't exist in either deployed env — the evaluator was throwing 42703 every Monday). Now relies on `canSendNudge`'s scope-keyed cooldown against the `nudges` table for per-item dedup; the rule's `cooldown_hours: 168` + `max_per_month: 4` give the right shape of cadence without the redundant local cache. Also adds `.is('deleted_at', null)` to the staleness query (was previously ignoring soft-deleted action items).
+- **`cfos-office/src/app/api/goals/delete/route.ts`** — soft-delete of a goal now also nulls `action_items.goal_id` for the user's actions linked to that goal. The FK's `ON DELETE SET NULL` only fires on hard-delete, so without this any action linked to a soft-deleted goal would persist in tier 2 (not match primary, not null) instead of falling back to tier 1 via category fallback.
+- **`cfos-office/src/lib/supabase/types.ts`** — added `goal_id: string | null` to the Row/Insert/Update shapes and the FK relationship metadata for `action_items`.
+- **`audit/session-13-phase-0.md`** (new) — Phase 0 ground-truth covering the live schema (both envs), tool contracts, the nudge bug's intent, and the centralised `getPrimaryGoal` helper this session ranks against.
+- **`BACKLOG.md`** — added "Projection-based action-item ranking — DEFERRED" entry noting that a €-impact projection needs Session 10's progress engine to produce a non-zero `current_amount` distribution before it can rank against real numbers. The dead `potential_savings` column is the natural destination for the future projected figure.
+
+### Verdicts
+- The `priority` column finally has a job. It's existed on `action_items` from day one and never been read by anything in `get_action_items`; tiered ranking gives it the load-bearing within-tier role.
+- Tier 1 (category fallback) is doing real work, not a hypothetical safety net: production data shows 4 of 5 action items are `goal_setting` or `savings_transfer`. The heuristic isn't a weak proxy — the audit was right about that.
+- The nudge evaluator now matches the schema. Five weeks of weekly cron failures across two environments end here. The intent-vs-implementation question that the plan flagged in Phase 0.3 (exponential backoff via local cache vs scope-keyed cooldown via the nudges table) was clear once `canSendNudge`'s shape was traced: the nudges-table cooldown is the system's existing dedup. The local cache was redundant from the start.
+- Soft-delete cascade through `/api/goals/delete/route.ts` is the right home for the "actions survive with goal_id null" invariant. A trigger would have caught any future write site but adds invisible DB behaviour for one known caller — not the right trade today.
+
+### Staging verification
+- Migration applied to CFO Staging; security + performance advisors clean (only the expected "unused index" INFO on the new `idx_action_items_goal`, plus pre-existing lints on unrelated tables).
+- Inserted four `action_items` rows covering tier 0, two tier 1 cases, and tier 2 against the same staging user (3 active goals, primary = "Emergency savings buffer", high priority). The SQL replica of the JS ranking returned exactly the expected order: tier 0 first regardless of priority, then tier 1 high before tier 1 medium, then tier 2 (even when tier 2 had higher priority).
+- FK behaviour: in a rolled-back transaction, hard-deleting a linked goal nulled `action_items.goal_id` via `ON DELETE SET NULL`. ✓
+- Soft-delete behaviour: ran the modified delete route's two updates against a throwaway goal — goal soft-deleted (status='deleted', deleted_at set), linked action survived with `goal_id = null`. Action's category is `goal_setting`, so it correctly drops to tier 1 via category fallback. ✓
+- Rewritten reminder query executed against staging cleanly — no PostgrestError 42703. ✓
+- `npx tsc --noEmit` clean. `npm test` 196/196 PASS (was 182; 14 new for the ranking helper). `npm run build` clean. `npm run lint` produced only pre-existing warnings/errors on files this session didn't touch.
+
+### Surprises
+- The plan's "soft-delete leaves action items with `goal_id` null" verification was load-bearing for the category-fallback ranking story but not free from the FK alone — `ON DELETE SET NULL` only fires on hard delete. Surfaced one extra file in the manifest (`/api/goals/delete/route.ts`) but the fix is 7 lines, not a trigger or a join.
+- The nudge evaluator's `last_nudge_at` / `nudge_count` tracking turned out to be straightforwardly redundant once `canSendNudge`'s scope-keyed cooldown was understood — no judgement call about exponential backoff vs flat cadence was needed. The system already enforced 7-day per-item cooldown via the `nudges` table; the local cache was an alternative spelling of the same thing.
+
+### Follow-ups
+- Lewis to apply `045_action_items_goal_link.sql` to CFO Production.
+- Projection-based action-item ranking — deferred in BACKLOG, ready to be replaced when Session 10's progress engine produces real `current_amount` deltas to project against.
+- `reminder_at` on `action_items` remains unused (schema-allowed, no read/write site). Not in scope for this session; lives as a future "user-scheduled reminder time" affordance if/when that surfaces.
+
+---
+
+## 2026-05-14 — Session 12: CFO goal-awareness (Constitution v1.2 → v1.3)
+
+**Branch:** `feature/goal-aware-office` (stays open for Session 14; single PR after Session 14 lands)
+**Scope:** Constitution v1.3 (goal-awareness section + §9.I no-goal exchange), derived BASE_PERSONA mini-section, context-builder no-goal marker driven by Session 11's `getPrimaryGoal` signal, §9 harness extended to a 9th case. No UI. No schema. No prod DB.
+
+### What changed
+- **`CFO-CONSTITUTION.md`** — bumped header to v1.3. Added a `### Goal-awareness` sub-section to §3 (placed between the "serve one job" closing sentence and "Allocation questions"): steady-state framing rule (goal as lens, sometimes foregrounded, often just shaping framing) + per-conversation no-goal protocol (surface once, invite a target — deposit, buffer, trip — proceed with what's there; do not raise again) + cross-reference to the wow-moment as untouched + §7 distress override. Added `### I. No active goal` as the 9th canonical reference exchange in §9 (after §9.H). Added v1.3 entry to §10 version history.
+- **`cfos-office/src/lib/ai/system-prompt.ts`** — bumped leading comment from "v1.1 (Session 06)" to "v1.3 (Session 12)" (also closes the v1.1/v1.2 drift Session 06 left). Added a `## Goal-awareness` mini-section to BASE_PERSONA between "What you do" and "What you do not do", derived from Constitution §3 — same two-paragraph shape: steady-state lens + per-conversation no-goal surfacing + distress override.
+- **`cfos-office/src/lib/ai/context-builder.ts`** — imported `getPrimaryGoal, type PrimaryGoal` from `@/lib/goals/primary-goal`. Added `getPrimaryGoal(supabase, userId)` as the 11th element of the existing `Promise.allSettled` batch in `buildSystemPrompt`. Destructured `primaryGoalResult` and reduced to `primaryGoal: PrimaryGoal | null` with rejected-promise → null fallback. Extended `buildGoalsContext(goals, actions)` signature to `(goals, actions, primaryGoal)` and rewrote: the `## Active goals` heading is now **always** emitted; `primaryGoal == null` → "No active goal set."; primary present + multi-goal data → existing per-goal listing; primary present + multi-goal fetch failed → defensive single-line render of the primary. The old "return empty string when both empty" exit removed — the section is always present.
+- **`cfos-office/scripts/test-prompts.ts`** — extended `Case.id` literal union with `'9I'`. Added `NO_GOAL_BLOCK` mock context (mirrors the exact `"No active goal set."` string `buildGoalsContext` now emits, so the contract is tested end-to-end). Appended case `9I: No-goal prompting` with checks for: surfaces absence of goal (regex on "goal" + a "not set" variant), engages with available data (any of the surplus/income/spend numbers), invites goal-setting (verb + target/deposit/buffer/trip), does not refuse to engage, no first-person, signs off. Updated run banner to "9 reference exchanges". Exit gate (`failed.length > 1`) untouched — produces ≥8/9 with 9 cases.
+- **`audit/session-12-phase-0.md`** (new) — Phase 0 ground-truth: Constitution intersection map, harness structure summary, goal-context-today (silent no-goal state), Session 11 helper reuse target, env-loader bug confirmed and scoped out.
+- **`BACKLOG.md`** — updated the "Goal-derive-and-confirm fold-in" entry to reflect that Session 12 deferred it past v1.3. Added a new "§9 harness env-loader (`test:prompts`) — DEFERRED (Session 12)" entry with symptom, cause, workaround, and three candidate fixes.
+
+### Verdicts
+- The "does this user have a goal" signal is now single-sourced: `getPrimaryGoal` drives both the home Goals card (Session 11) and the chat prompt's no-goal marker (Session 12). The existing multi-goal display fetch stays in place — hybrid keeps display capability while centralising the boolean.
+- §9 harness re-run: **9/9 PASS** on first complete pass (9D needed 1 retry on a flaky "no buy/sell call" check, recovered cleanly). Cache hit rate 10% of input tokens, ~32k in / 1.3k out total. Original 8 hold; 9I converges with the §9.I Constitution draft — no `§9.I` rewrite required.
+- The "No active goal set." string in the prompt is now load-bearing: it's what the CFO acts on. Silence-in-silence-out is closed.
+- Distress-overrides-no-goal codified in both Constitution and BASE_PERSONA so a no-goal user in crisis still gets §7 treatment, not a goal-setting prompt.
+
+### Staging verification
+- **Done in this session:** `npx tsc --noEmit` clean; `npm test` clean (19 files, 182 tests); `npm run build` clean (full Next.js production build, all 60+ routes compile); `npm run test:prompts` (via `set -a && source .env.local && set +a && …` workaround) **9/9 PASS**.
+- **Deferred to Lewis on staging (authenticated walkthrough):**
+  - Goal-set user: chat references the active goal naturally (name, pace, on/off-track), not recited every turn.
+  - No-goal user (or one temporarily set `status='paused'` in CFO Staging): chat surfaces the absence **once** in the first response, engages with available data, does **not** repeat the prompt in same-conversation follow-ups.
+  - Distress + no-goal: the distress protocol overrides — no goal prompt in that exchange.
+
+### Surprises
+- The §9 harness run cleared 9/9 on the first complete pass — the §9.I Constitution draft and the harness 9I checks converged immediately. No iteration loop was needed. This is partly because the v1.2 → v1.3 change was additive (no existing rule was rewritten), partly because the BASE_PERSONA mini-section was derived literally from the Constitution prose with no improvisation.
+- `getPrimaryGoal` slotted into `Promise.allSettled` cleanly even though it returns `PrimaryGoal | null` directly instead of the `{ data, error }` shape of every other element. `Promise.allSettled` doesn't care — `result.value` is whatever the promise resolved to.
+- The existing `buildGoalsContext` had a quirky shape: it returned an empty string when both goals and actions were empty, *or* an actions-only block when actions existed but goals didn't (no `## Active goals` heading). The Session 12 rewrite incidentally fixes that — the heading is always present now, which is the right shape for any caller reading the prompt.
+
+### Next on branch
+- Session 14: folder reframes + palette validation (the brass `#D4A24C` from Session 11 needs the full five-colour validation). May also relocate `/office/scenarios/goals → /office/goals` since Goals is now top-level.
+- After Session 14 lands: one combined PR for Sessions 11 + 12 + 14 off `feature/goal-aware-office`.
+
+---
+
+## 2026-05-14 — Session 11: Home goals surface
+
+**Branch:** `feature/goal-aware-office` (stays open for Sessions 12 + 14; single PR after Session 14 lands)
+**Scope:** Goals as the first folder on the office home, with a state-dependent goals section that reads Session 10's progress numbers. No schema, no prompt changes, no routing changes — pure UI surface.
+
+### What changed
+- **`cfos-office/src/lib/goals/primary-goal.ts`** (new) — `getPrimaryGoal(supabase, userId)` returns the active goal to feature on the home, or null. Sort is highest `priority` (`high → medium → low → null`) then `created_at DESC`. Active-only contract: completed goals return null and still appear in the detail view. Session 12 imports this same function for CFO prompt context — the "does this user have a goal" signal lives in one place to prevent drift.
+- **`cfos-office/src/lib/goals/primary-goal.test.ts`** (new) — 7 vitest cases covering empty input, single goal, priority order, tiebreak by recency, null-priority handling, supabase error surface.
+- **`cfos-office/src/lib/tokens.ts`** — `folderColors.goals = '#D4A24C'` (provisional brass). Distinct from Values' `#E8A84C`. Session 14 to validate the five-colour palette.
+- **`cfos-office/src/components/office/sections/GoalsSection.tsx`** (new) — server component receiving `goal: PrimaryGoal | null`. Goal-exists branch: large `current` numeric, `of target`, right-aligned %, then on/off-track pill + `${monthly_required_saving}/mo needed`. NaN-safe — no progress % rendered when `target_amount` is null or ≤ 0. Negative `current_amount` clamps at 0 for display (matches existing `GoalCard` behaviour). No-goal branch delegates to `<GoalsEmptyState>`.
+- **`cfos-office/src/components/office/sections/GoalsEmptyState.tsx`** (new) — client wrapper (required because it embeds the existing `<GoalsEmptyStateCTA>` which calls `useChatContext()`). Headline `No goal set.` / body `Your CFO can't advise on a destination you haven't named.` / button `Chat with your CFO`. The CTA reuses the existing `GoalsEmptyStateCTA` verbatim — single source of truth for goal creation outside onboarding.
+- **`cfos-office/src/app/(office)/office/page.tsx`** — adds `getPrimaryGoal(supabase, user.id)` to the existing 7-way `Promise.all` (now 8-way), passes `primaryGoal` to `<OfficeHomeClient>`.
+- **`cfos-office/src/app/(office)/office/OfficeHomeClient.tsx`** — accepts new `primaryGoal: PrimaryGoal | null` prop. Computes a NaN-safe `goalsSubtitle` (`${goal.name} · ${pct}%` when target > 0, else just `goal.name`; `Not yet set` when null — parity with Values' `Not yet profiled`). Renders a fifth `<FolderSection icon="◎" label="Goals" accentColor={folderColors.goals} openHref="/office/scenarios/goals">` as the **first** folder, before Cash Flow. The four existing folders are unchanged.
+- **`audit/session-11-phase-0.md`** (new) — ground truth + locked microcopy + risk register (R1 first-render staleness, R2 priority laxness, R3 onboarding overlap, R4 completed-only goals, R5 theme contrast).
+
+### Verdicts
+- Goal data flows: server-side `getPrimaryGoal` → server `Promise.all` → client `OfficeHomeClient` → server `GoalsSection` → either inline progress or `<GoalsEmptyState>`. Single read, no waterfall.
+- Primary-goal selection: highest priority wins; equal priority → newest. No `is_primary` flag, no schema change, no RPC. Matches the existing codebase pattern (fetch + TS sort, as `recompute.ts` and `scenarios/goals/page.tsx` already do).
+- Non-blocking confirmed in code: no modal, no redirect, no overlay. The no-goal state is a card with a CTA; all four other folders remain reachable via the standard FolderSection links.
+- Detail view: routes to existing `/office/scenarios/goals` (unchanged). Session 14 may relocate.
+- CTA: reuses existing `GoalsEmptyStateCTA` (primes `"I'd like to set a financial goal"`, opens chat sheet). The flow that already worked for the goals page empty state now works identically from the home card.
+- Brass `#D4A24C` is provisional — Session 14 owns the full palette validation.
+
+### Staging verification
+- **Done in this session:** `npm run build` clean (full app builds, all 60+ routes compile); `npm test` clean (19 files, 182 tests including the 7 new `primary-goal` cases); `npm run lint` shows only pre-existing warnings (none in the new files); dev server serves `/office` cleanly (307 → `/login` for unauthenticated request, no compile errors).
+- **Deferred to Lewis on staging (requires authenticated walkthrough):**
+  - User with one active goal: home Goals card renders live numbers; tap-through to detail view works.
+  - User with multiple active goals: primary selection matches priority + recency rule (the only failure mode single-goal users mask).
+  - User with no active goal: prompt + CTA renders; all four other folders reachable; CTA primes the chat sheet; creating a goal flips the card to the progress state on next render.
+  - Theme toggle (light + dark): `#D4A24C` contrast across both states.
+
+### Surprises
+- The `npm` scripts in this repo don't include a `typecheck` task (CLAUDE.md references `npm run typecheck` but the script is absent). `next build` performs the full type check during compilation, so the workflow still works — adjusted Phase 3 to rely on the build for type-level verification.
+- `npx tsc --noEmit` falls back to the system tsc (which errors) because no local `tsc` binary is in `node_modules/.bin`. Same conclusion: rely on `next build` for type verification or add an explicit `typecheck: "tsc --noEmit"` script in a future session.
+- The existing `GoalsEmptyStateCTA` already did exactly what the home no-goal CTA needed (set chat input, open sheet). Saved building a new chat-priming mechanism — single source of truth for goal-creation outside onboarding.
+
+### Next on branch
+- Session 12: CFO goal-awareness — imports `getPrimaryGoal()` for prompt context so the CFO can reference the active goal naturally.
+- Session 14: folder palette validation + folder reframes; may also relocate `/office/scenarios/goals` → `/office/goals` since Goals is now top-level.
+- One PR after Session 14 lands.
+
+---
+
 ## 2026-05-14 — Session 10: Goal progress engine
 
 **Branch:** `feature/goal-progress-engine`

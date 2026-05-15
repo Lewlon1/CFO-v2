@@ -600,6 +600,24 @@ Write styles for the smallest screen first, then layer in larger-screen override
 
 ---
 
+## Design system — folder accent palette
+
+The five office folders each have an accent colour applied as a left border + icon tint on the home folder card. All five live in [`cfos-office/src/lib/tokens.ts`](cfos-office/src/lib/tokens.ts) as `folderColors`. Single-value (not theme-aware) — accents preserve folder identity across light and dark themes.
+
+| Folder | Token | Hex | Notes |
+|---|---|---|---|
+| Goals | `folderColors.goals` | `#9C7B2C` | Deeper brass — anchors as the prime folder |
+| Cash Flow | `folderColors.cashflow` | `#22C55E` | Green |
+| Values | `folderColors.values` | `#E8A84C` | Amber |
+| Net Worth | `folderColors.networth` | `#06B6D4` | Cyan |
+| Scenarios | `folderColors.scenarios` | `#F43F5E` | Red |
+
+**Rule:** never hardcode these hex values inline. Import `folderColors` from `@/lib/tokens` and reference the token. The five-folder palette is the load-bearing visual identity of the office home — divergence creates inconsistency.
+
+History: Goals' provisional accent (Session 11) was `#D4A24C`, numerically and visually too close to Values amber. Session 14 finalised the palette and shifted Goals to `#9C7B2C` after side-by-side validation in both themes.
+
+---
+
 ## Common Pitfalls (Learned from MVP)
 
 1. **Don't let Claude do maths.** It will get cash flow wrong. Every number comes from a query or Edge Function.

@@ -7,6 +7,7 @@ import { PERSONALITIES } from '@/lib/value-map/constants';
 import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
 import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
+import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -535,6 +536,7 @@ export async function buildSystemPrompt(
     tripsResult,
     assetsResult,
     liabilitiesResult,
+    primaryGoalResult,
   ] = await Promise.allSettled([
     supabase
       .from('user_profiles')
@@ -592,6 +594,12 @@ export async function buildSystemPrompt(
       .select('*')
       .eq('user_id', userId)
       .order('interest_rate', { ascending: false, nullsFirst: false }),
+    // Centralised "does this user have a goal" signal (Session 11). Reused
+    // here so the chat path and home surface cannot drift on the active-goal
+    // definition (status='active' AND deleted_at IS NULL, primary sort).
+    // A rejected promise (Postgres error) falls through to null via the
+    // destructure below — the no-goal marker is the safe default.
+    getPrimaryGoal(supabase, userId),
   ]);
 
   const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null;
@@ -622,6 +630,10 @@ export async function buildSystemPrompt(
   })();
   const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
   const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
+  // getPrimaryGoal returns PrimaryGoal | null directly (not { data, error }).
+  // Rejected promise → null → no-goal marker emitted by buildGoalsContext.
+  const primaryGoal: PrimaryGoal | null =
+    primaryGoalResult.status === 'fulfilled' ? primaryGoalResult.value : null;
 
   // Voice register (Constitution v1.1 §2). The underlying finding never changes
   // between registers — only the phrasing around it. Gentle is warmer phrasing,
@@ -686,7 +698,7 @@ export async function buildSystemPrompt(
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
-    buildGoalsContext(goals, actions),
+    buildGoalsContext(goals, actions, primaryGoal),
     buildTripsContext(dedupedTrips, profile),
     buildToolUsageInstructions(),
     await getValueMappingContext(userId, supabase),
@@ -1179,12 +1191,23 @@ function buildBalanceSheetContext(assets: any[] | null, liabilities: any[] | nul
   return out;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildGoalsContext(goals: any[] | null, actions: any[] | null): string {
+function buildGoalsContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goals: any[] | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  actions: any[] | null,
+  primaryGoal: PrimaryGoal | null,
+): string {
   const parts: string[] = [];
 
-  if (goals && goals.length > 0) {
-    parts.push('## Active goals');
+  // Always emit the heading. The explicit no-goal marker is the signal the
+  // CFO is trained to act on — silence in this slot produces silence in the
+  // behaviour (Constitution v1.3 §3 Goal-awareness, no-goal protocol).
+  parts.push('## Active goals');
+
+  if (primaryGoal == null) {
+    parts.push('No active goal set.');
+  } else if (goals && goals.length > 0) {
     for (const goal of goals) {
       let line = `- ${goal.name}`;
       if (goal.target_amount) line += `: target ${goal.target_amount}`;
@@ -1194,6 +1217,17 @@ function buildGoalsContext(goals: any[] | null, actions: any[] | null): string {
       if (goal.on_track !== null) line += goal.on_track ? ' ✓ on track' : ' ✗ off track';
       parts.push(line);
     }
+  } else {
+    // Defensive fallback: primaryGoal exists but the multi-goal fetch failed
+    // or returned empty. Render the primary alone so the CFO is not blind to
+    // the goal it has just been told exists.
+    let line = `- ${primaryGoal.name}`;
+    if (primaryGoal.target_amount) line += `: target ${primaryGoal.target_amount}`;
+    if (primaryGoal.current_amount) line += `, current ${primaryGoal.current_amount}`;
+    if (primaryGoal.target_date) line += `, by ${primaryGoal.target_date}`;
+    if (primaryGoal.monthly_required_saving) line += ` (need ${primaryGoal.monthly_required_saving}/mo)`;
+    if (primaryGoal.on_track !== null) line += primaryGoal.on_track ? ' ✓ on track' : ' ✗ off track';
+    parts.push(line);
   }
 
   if (actions && actions.length > 0) {
@@ -1207,7 +1241,6 @@ function buildGoalsContext(goals: any[] | null, actions: any[] | null): string {
     }
   }
 
-  if (parts.length === 0) return '';
   return parts.join('\n');
 }
 
