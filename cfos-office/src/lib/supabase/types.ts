@@ -78,6 +78,7 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           due_date: string | null
+          goal_id: string | null
           id: string
           potential_savings: number | null
           priority: string | null
@@ -98,6 +99,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           potential_savings?: number | null
           priority?: string | null
@@ -118,6 +120,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           due_date?: string | null
+          goal_id?: string | null
           id?: string
           potential_savings?: number | null
           priority?: string | null
@@ -134,6 +137,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
             referencedColumns: ["id"]
           },
           {
