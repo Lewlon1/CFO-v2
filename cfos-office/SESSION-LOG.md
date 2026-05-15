@@ -9,6 +9,49 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-05-15 — Session 14: Folder reframes (basic)
+
+**Branch:** `feature/goal-aware-office` (closes — combined PR opens after this entry covering Sessions 11 + 12 + 14)
+**Scope:** Presentation layer of the goal-aware office work. Goal-aware summary lines on the four non-Goals folder cards, five-folder accent palette finalised and migrated to tokens, optional goal tag deferred. No reordering, no filtering, no dynamic goal-relevance — that's Session 15 (data-deep).
+
+### What changed
+- **`audit/session-14-phase-0.md`** (new) — Phase 0 ground truth: per-folder subtitle state (Goals goal-aware via Session 11; Cash Flow generic month/count; Values archetype + completeness; Net Worth and Scenarios static placeholders), accent application audit (Goals tokenised since Session 11; the four originals still inline hex), Goals-vs-Values numerical proximity flag, Phase 1 candidate list, real-data-on-props inventory.
+- **`cfos-office/src/app/(office)/office/OfficeHomeClient.tsx`** — migrated four inline accent hexes to `folderColors.cashflow / .values / .networth / .scenarios` tokens (Session 11 already used `folderColors.goals`). Added imports for the four subtitle helpers. Computed `cashFlowSub`, `valuesSub`, `netWorthSub`, `scenariosSub` next to the existing `goalsSubtitle` IIFE so all five folder subtitles live together. Replaced the four subtitle props with the helper outputs. The Cash Flow fallback string preserves the existing month/count shape for the case where `summary` hasn't loaded.
+- **`cfos-office/src/components/office/folder-subtitles.ts`** (new) — pure functions for the four non-Goals folder subtitles. Voice per Constitution v1.3 §2 (short declaratives, second person, no first person, no "advice"/"advise", no fluff). Goal connection mentioned only when real per §3: surplus-feeds-goal on positive Cash Flow; goal-lives-here on Net Worth; patterns-under-your-goal on Values; what-shifts-your-goal's-pace on Scenarios. Deficits and zero months stated plainly — no goal commentary. No-goal state falls back to neutral copy (the no-goal prompt is already carried by the Goals card and Session 12's CFO behaviour).
+- **`cfos-office/src/components/office/folder-subtitles.test.ts`** (new) — 23 vitest cases across goal-state × data-state, including thousands-separator formatting, completeness rounding, and the negative-net-worth case.
+- **`cfos-office/src/lib/tokens.ts`** — `folderColors.goals` shifted from provisional `#D4A24C` (Session 11) to **`#9C7B2C`** (deeper brass). Inline comment documents the rationale and the supersession.
+- **`CLAUDE.md`** — new "Design system — folder accent palette" section between Mobile-First and Common Pitfalls. Lists the final five tokens with hex values and the no-hardcode rule. Includes the Goals-shift history line.
+- **`BACKLOG.md`** — appended "Goal tag on goal-serving folder items — DEFERRED (Session 14)" with the per-folder mapping survey, the design intent for the `<GoalTag />` component (gold pill using `folderColors.goals`), and the Session 15 reroute.
+
+### Verdicts
+- **Five-folder palette finalised.** Goals: `#9C7B2C`, Cash Flow: `#22C55E`, Values: `#E8A84C`, Net Worth: `#06B6D4`, Scenarios: `#F43F5E`. All five sourced from `folderColors` tokens — no hardcoded hex anywhere on the office home.
+- **Goals vs Values distinctness:** the original `#D4A24C` provisional was numerically and visually too close to Values amber (same hue, only 19% saturation / 4% lightness apart) — both read as warm gold at a glance. Side-by-side validation in both light (`#F6F0E1`) and dark (`#13110D`) themes against four candidates picked deeper brass (`#9C7B2C`): same warm hue family so palette identity holds, but unmistakably darker and less saturated. Reads as the prime/anchor folder.
+- **Goal-aware summary lines on four folder cards.** Real data only — no fabricated numbers. Goal connection mentioned only when real (positive surplus, archetype patterns, scenario pace; not deficits, not negative net worth, not zero balance sheets).
+- **No-goal state cleanly handled.** The four new helpers fall back to neutral copy when `primaryGoal == null` — Cash Flow drops to bare surplus, Net Worth to bare net worth, Values to existing `${archetype} · X% profiled`, Scenarios to existing "What if...". The no-goal prompt is carried by the Goals card and Session 12's CFO chat — the four other folders don't pile on.
+- **Subtitle logic extracted as testable pure functions** rather than inline IIFEs. Testing CFO voice copy via Vitest catches voice drift early; making the subtitles testable is high-value given the Constitution-driven copy rules. The `goalsSubtitle` IIFE (Session 11) was left in place — future refactor could fold it into the same module if Goals' subtitle ever grows beyond two branches.
+- **Goal tag deferred.** Phase 3 surveyed the sub-pages of all four folders (Cash Flow has 8 sub-pages, Net Worth has 4, Scenarios has 3, Values has 5) and found no folder has an explicit "goal-serving" view. The closest interpretive matches (`optimise`, `the-gap`, `what-if`) require analytical leaps. Deferred to Session 15 with the full mapping survey logged in BACKLOG.
+
+### Staging verification
+- **Done in this session:** `npm run build` clean (all 60+ routes compile); `npm test` clean (20 files, 205 tests — 23 new in `folder-subtitles.test.ts`); `npx tsc --noEmit` clean; `npm run lint` shows only pre-existing warnings in unrelated files (no new issues from Session 14 files); palette validation done via DOM-injected swatches in the dev server (preview screenshots confirmed both Goals/Values closeness and the deeper-brass shift across both themes).
+- **Skipped:** `npm run test:prompts` — Session 14 touched no prompt files, no context-builder changes, no Constitution edit. Session 12 last verified §9 harness 9/9; re-running here would burn Bedrock tokens for zero new signal.
+- **Deferred to Lewis on staging (requires authenticated walkthrough):**
+  - With-goal user: each non-Goals folder card shows its goal-aware subtitle with the user's real numbers. Cash Flow surplus, Net Worth total, Values archetype-with-goal-line, Scenarios goal-pace line.
+  - No-goal user: each subtitle falls back to neutral; no broken `your goal` references outside the Goals card itself.
+  - Theme toggle: all five folder accents distinct in both light and dark.
+  - Regression: opening any folder still shows the same contents and order — Session 14 only touched the home-level subtitles and accents.
+
+### Surprises
+- The Cash Flow surplus case is the one summary line where the goal connection is genuinely numerical (the surplus literally funds the goal). Net Worth, Values, and Scenarios goal-connection copy is necessarily qualitative — there's no clean single number to attach. The Constitution's §3 "real connection" rule made the deficit/zero/negative-net edge cases easier than expected: when in doubt, state the fact plainly without commentary, and the voice stays in compliance.
+- The Goals provisional accent really was off-distance — not just numerically. Even with the swatch comparison in dark theme, both `#D4A24C` and `#E8A84C` looked like the same colour. The shift to `#9C7B2C` was unambiguously the right call once the candidates were rendered side-by-side. Session 11's note ("provisional, validate in Session 14") proved load-bearing.
+- The static mapping of "which file serves the goal" turned out genuinely ill-defined. None of the existing folder sub-pages are dedicated goal views. A naive mapping would have been fluff at best, misleading at worst — exactly the kind of "small product lie" the Constitution forbids. Deferring was clearly correct.
+
+### Next on branch
+- Combined PR opens for `feature/goal-aware-office` covering Sessions 11 + 12 + 14.
+- After merge: Session 13 (action-items ranking — Session 08 audit scoped this) and Session 16 (comprehensive cleanup) before beta wave 2.
+- Session 15 (data-deep folder reframes — goal-aware ordering, filtering, dynamic goal-serving determination, the goal tag) is the natural follow-up to Session 14, but is post-wave-2.
+
+---
+
 ## 2026-05-14 — Session 12: CFO goal-awareness (Constitution v1.2 → v1.3)
 
 **Branch:** `feature/goal-aware-office` (stays open for Session 14; single PR after Session 14 lands)
