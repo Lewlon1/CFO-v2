@@ -34,5 +34,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to delete goal' }, { status: 500 })
   }
 
+  // Soft-delete here does not fire the FK's ON DELETE SET NULL, so unlink
+  // any action items still pointing at this goal. They survive (the heuristic
+  // ranking can still place them via category fallback) but no longer claim
+  // to serve a goal that's gone.
+  const { error: unlinkError } = await supabase
+    .from('action_items')
+    .update({ goal_id: null })
+    .eq('user_id', user.id)
+    .eq('goal_id', goalId)
+
+  if (unlinkError) {
+    console.error('[goals/delete] action_items unlink error:', unlinkError)
+  }
+
   return NextResponse.json({ success: true })
 }
