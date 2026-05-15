@@ -12,6 +12,12 @@ import { InboxRow } from '@/components/office/InboxRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderColors } from '@/lib/tokens'
 import type { PrimaryGoal } from '@/lib/goals/primary-goal'
+import {
+  cashFlowSubtitle,
+  netWorthSubtitle,
+  valuesSubtitle,
+  scenariosSubtitle,
+} from '@/components/office/folder-subtitles'
 
 interface OfficeHomeClientProps {
   provenance?: { source: string | null; uploadDate: string | null }
@@ -54,6 +60,12 @@ export function OfficeHomeClient({
     return `${primaryGoal.name} · ${pct}%`
   })()
 
+  const cashFlowFallback = `${summary?.month ? new Date(summary.month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'This month'} · ${summary?.transaction_count ?? 0} transactions`
+  const cashFlowSub = cashFlowSubtitle(summary, primaryGoal, cashFlowFallback)
+  const valuesSub = valuesSubtitle(archetype?.archetype_name ?? null, profileCompleteness, primaryGoal)
+  const netWorthSub = netWorthSubtitle(totalAssets, totalLiabilities, primaryGoal)
+  const scenariosSub = scenariosSubtitle(primaryGoal)
+
   return (
     <div className="px-3.5 pt-2 pb-6">
       {/* Inbox row — shows when there are unread nudges */}
@@ -72,7 +84,7 @@ export function OfficeHomeClient({
       <FolderSection
         icon="$"
         label="Cash Flow"
-        subtitle={`${summary?.month ? new Date(summary.month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'This month'} · ${summary?.transaction_count ?? 0} transactions`}
+        subtitle={cashFlowSub}
         accentColor={folderColors.cashflow}
         openHref="/office/cash-flow"
       >
@@ -87,7 +99,7 @@ export function OfficeHomeClient({
       <FolderSection
         icon="◈"
         label="Values & You"
-        subtitle={`${archetype?.archetype_name ?? 'Not yet profiled'} · ${Math.round(profileCompleteness)}% profiled`}
+        subtitle={valuesSub}
         accentColor={folderColors.values}
         openHref="/office/values"
       >
@@ -103,7 +115,7 @@ export function OfficeHomeClient({
       <FolderSection
         icon="≡"
         label="Net Worth"
-        subtitle="The big picture"
+        subtitle={netWorthSub}
         accentColor={folderColors.networth}
         openHref="/office/net-worth"
       >
@@ -118,7 +130,7 @@ export function OfficeHomeClient({
       <FolderSection
         icon="⊕"
         label="Scenario Planning"
-        subtitle="What if..."
+        subtitle={scenariosSub}
         accentColor={folderColors.scenarios}
         openHref="/office/scenarios"
       >
