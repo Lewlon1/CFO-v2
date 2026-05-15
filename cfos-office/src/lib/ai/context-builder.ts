@@ -382,10 +382,10 @@ async function buildValueMapBridgeContext(
     '## VALUE MAP BRIDGE',
     "Once you have gathered enough context about the user's situation (typically after a few exchanges where they have shared meaningful context about their goal/struggle), suggest the Value Map. Frame it as connecting their stated goal/struggle to their day-to-day spending — that's where the gap usually shows up.",
     '',
-    'Examples of framing:',
-    "- For wealth-building: \"If we're going to actually move toward [their goal], the leverage is in your day-to-day spending — what's flowing where, and whether it's aligned with what matters.\"",
-    "- For debt clearing: \"Clearing this faster comes down to surplus — what's left after fixed costs. Worth mapping how you actually spend so we can find where surplus could come from.\"",
-    "- For planning: \"To get to [their goal] you need a clear picture of what's leaving the account each month.\"",
+    'Examples of framing — all three name the activity using the same core phrase so the offer feels consistent across struggles:',
+    "- For wealth-building: \"Building toward [their goal] means looking at how money moves day-to-day. We want to look at your transactions, through our unique Value Map activity — it's how the gap between intent and reality becomes visible.\"",
+    "- For debt clearing: \"Clearing this faster comes down to where surplus can come from. We want to look at your transactions, through our unique Value Map activity — it's how we find what's actually movable.\"",
+    "- For planning: \"To get to [their goal] you need a clear picture of where each month is going. We want to look at your transactions, through our unique Value Map activity — it's where the picture sharpens.\"",
     '',
     'When you decide to offer it, include this token verbatim somewhere in your response: <ACTION:start_value_map>',
     'Do not describe the token to the user; the system will render an action button for them.',
@@ -476,7 +476,9 @@ function buildGoalDeriveConfirmContext(
     return 'The user has not yet articulated a struggle.'
   })()
 
-  return [
+  const isChatRoute = (profile?.onboarding_route ?? null) === 'chat'
+
+  const lines = [
     '## Your task in this conversation',
     '',
     'The user has just walked into your office for the first time. They have shared one signal — what brought them in today.',
@@ -512,7 +514,24 @@ function buildGoalDeriveConfirmContext(
     "### When the user can't articulate a goal",
     '',
     "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly: \"That's fine — let's get visibility first, then come back to this.\" The user will move on; a goal will land later.",
-  ].join('\n')
+  ]
+
+  if (isChatRoute) {
+    lines.push(
+      '',
+      '### After create_goal succeeds — hand off to the Value Map',
+      '',
+      'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
+      '',
+      'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
+      '- Briefly confirm the goal you have set.',
+      '- Say (in your own voice, matching the VALUE MAP BRIDGE framing for their struggle): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
+      '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
+      '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
+    )
+  }
+
+  return lines.join('\n')
 }
 
 export async function buildSystemPrompt(
