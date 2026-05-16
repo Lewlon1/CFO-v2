@@ -23,6 +23,15 @@ import { createCalculateEmergencyFundTool } from './calculate-emergency-fund';
 import { createGetNetWorthHistoryTool } from './get-net-worth-history';
 import { createCreateGoalTool } from './create-goal';
 import { createLogContributionTool } from './log-contribution';
+// Session v2.2 — Chat Intelligence tools (find_value_gaps lands with Phase 3).
+import { createGetTransactionsTool } from './get-transactions';
+import { createGetTopMerchantsTool } from './get-top-merchants';
+import { createFindMoneyClustersTool } from './find-money-clusters';
+import { createFindTemporalSignalsTool } from './find-temporal-signals';
+import { createFindTrendChangesTool } from './find-trend-changes';
+import { createFindOutliersTool } from './find-outliers';
+import { createProposeExperimentTool } from './propose-experiment';
+import { createLabelTransactionsTool } from './label-transactions';
 
 export type { ToolContext } from './types';
 
@@ -52,5 +61,14 @@ export function createToolbox(ctx: ToolContext) {
     get_net_worth_history: createGetNetWorthHistoryTool(ctx),
     create_goal: createCreateGoalTool(ctx),
     log_contribution: createLogContributionTool(ctx),
+    // Session v2.2 — Chat Intelligence tools
+    get_transactions: createGetTransactionsTool(ctx),
+    get_top_merchants: createGetTopMerchantsTool(ctx),
+    find_money_clusters: createFindMoneyClustersTool(ctx),
+    find_temporal_signals: createFindTemporalSignalsTool(ctx),
+    find_trend_changes: createFindTrendChangesTool(ctx),
+    find_outliers: createFindOutliersTool(ctx),
+    propose_experiment: createProposeExperimentTool(ctx),
+    label_transactions: createLabelTransactionsTool(ctx),
   };
 }
