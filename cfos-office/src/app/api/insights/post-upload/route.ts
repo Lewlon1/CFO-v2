@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { computeFirstInsight } from '@/lib/analytics/insight-engine'
+import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -39,21 +40,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ conversationId: existing.id, reused: true })
   }
 
-  // Compute the full first-insight payload (pure data, no LLM)
-  const payload = await computeFirstInsight(supabase, user.id)
+  // Session v2.2 Chat Intelligence cohort users skip the expensive
+  // computeFirstInsight() pre-compute — the v2 prompt does not read
+  // first_insight_payload and instead has the LLM pull numbers via the 10
+  // detective tools. The conversation is still created (and the office
+  // expects it) but with no payload attached.
+  const { data: cohortProfile } = await supabase
+    .from('user_profiles')
+    .select('beta_cohort')
+    .eq('id', user.id)
+    .maybeSingle()
+  const v2Enabled = isChatIntelligenceV2Enabled(cohortProfile)
 
-  // Create the first_insight conversation with the payload in metadata
+  const payload = v2Enabled ? null : await computeFirstInsight(supabase, user.id)
+
+  // Create the first_insight conversation. Metadata omits the payload entirely
+  // for v2 users so downstream code can disambiguate "no payload yet" from
+  // "payload is null" cleanly.
+  const metadata: Record<string, unknown> = {
+    import_batch_id: importBatchId,
+  }
+  if (payload) {
+    metadata.first_insight_payload = payload
+    metadata.transaction_count = payload.transactionCount
+  } else {
+    metadata.chat_intelligence_v2 = true
+  }
+
   const { data: conversation, error } = await supabase
     .from('conversations')
     .insert({
       user_id: user.id,
       type: 'first_insight',
       title: 'Your first look',
-      metadata: {
-        first_insight_payload: payload,
-        import_batch_id: importBatchId,
-        transaction_count: payload.transactionCount,
-      },
+      metadata,
     })
     .select('id')
     .single()

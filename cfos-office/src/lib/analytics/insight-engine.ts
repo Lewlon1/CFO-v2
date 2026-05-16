@@ -393,6 +393,12 @@ export function computeDisciplineScore(ctx: DetectorContext): number {
   return Math.min(100, s);
 }
 
+/**
+ * V1-ONLY: deterministic chip generator for the first-insight prompt.
+ * The Session v2.2 Chat Intelligence v2 prompt does NOT call this — chips
+ * come from the LLM emitting an [OPTIONS] block validated by
+ * insight-validator.ts (Phase 6). Do not remove until v1 path is retired.
+ */
 function buildSuggestedResponses(
   layers: InsightPayload['layers'],
   hook: Hook
