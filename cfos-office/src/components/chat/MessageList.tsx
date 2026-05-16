@@ -47,6 +47,10 @@ import { TappableOptions } from './TappableOptions';
 import { StatCardBlock } from './StatCardBlock';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
+import {
+  LabelTransactionsBlock,
+  type LabelTransactionsBlockProps,
+} from './LabelTransactionsBlock';
 import { ScenarioResult } from './ScenarioResult';
 import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
@@ -258,6 +262,7 @@ export function MessageList({
         // Extract text parts and structured input tool invocations
         const textParts: string[] = [];
         const structuredInputs: StructuredInputConfig[] = [];
+        const labelTransactionsConfigs: LabelTransactionsBlockProps[] = [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const scenarioResults: any[] = [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -303,6 +308,18 @@ export function MessageList({
                   (output as { type?: string }).type === 'structured_input'
                 ) {
                   structuredInputs.push(output as StructuredInputConfig);
+                }
+
+                // Inline labelling block (label_transactions tool).
+                // The render_directive guard distinguishes successful tool
+                // output from error-shape outputs ({ error: '...' }).
+                if (
+                  toolName === 'label_transactions' &&
+                  output &&
+                  typeof output === 'object' &&
+                  (output as { render_directive?: string }).render_directive === 'label_transactions'
+                ) {
+                  labelTransactionsConfigs.push(output as LabelTransactionsBlockProps);
                 }
 
                 // Scenario result visualisation
@@ -456,6 +473,16 @@ export function MessageList({
                   key={`${config.field}-${i}`}
                   config={config}
                   onSubmit={onStructuredSubmit ?? (() => {})}
+                  userCurrency={userCurrency}
+                />
+              ))}
+
+              {/* Inline label_transactions blocks. The block POSTs to
+                  /api/corrections/signal itself; nothing to wire from here. */}
+              {labelTransactionsConfigs.map((config) => (
+                <LabelTransactionsBlock
+                  key={config.directiveId}
+                  {...config}
                   userCurrency={userCurrency}
                 />
               ))}
