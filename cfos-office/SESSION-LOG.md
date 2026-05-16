@@ -9,6 +9,119 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.2 — Session 26: Chat Intelligence (Dialogue-as-Moat) — 2026-05-16
+
+**Branch:** `feature/v2.2-chat-intelligence`
+**Tag:** `v2.2` (gated on cohort-flip review; see `cfos-office/docs/v2.2-rollout.md`)
+**Scope:** First-insight rebuilt as a tool-driven architecture with brief-first context, an in-conversation labelling primitive, multi-intent Gap rendering, and output-discipline validators. Internal value enum value `no_idea` deprecated in favour of `unsure` (UI + data); enum value `no_idea` left in place for a follow-up cleanup migration once all writes are confirmed to use `unsure`.
+
+### Architectural principles established
+1. Tools return story-shaped data, not pattern enumerations.
+2. The system holds hypotheses, not claims.
+3. Stated values and learned rules are different stores (`value_map_results` vs `value_category_rules`).
+4. The CFO learns through dialogue, not pre-classification.
+5. Conversations make the system better and users feel it.
+6. LLM interprets, system computes.
+
+### What changed
+
+**Migrations (staging only — prod gated on Lewis review):**
+- **`050_no_idea_to_unsure_and_vm_rule_cleanup`** — migrates any `no_idea` data rows back to `unsure` (Phase 0 confirmed 0 existed; defensive), deletes the 277 broken VM merchant rules so the Gap analyser stops substring-matching sample-card labels against bank descriptions, drops the redundant 3-col unique constraint on `value_category_rules` (4-col COALESCE form `vcr_unique_match` is canonical).
+- **`051_proposed_experiments`** — new telemetry table for LLM-proposed experiments (`reduce_merchant` / `pause_recurring` / `consolidate_category` / `cap_category` / `redirect_to_goal`), RLS-pinned. Accept-flow UI deferred to next session.
+
+**Foundation (Phase 1):**
+- **`cfos-office/src/lib/value-map/{types,constants}.ts`** — `ValueMapTransaction` gets optional `category_id` + `granularity: 'category' | 'intent'`. All 10 `SAMPLE_TRANSACTIONS` get explicit mappings (e.g. `vm-rent → housing/category`, `vm-takeaway → eat_drinking_out/intent`).
+- **`cfos-office/src/app/api/value-map/link-session/route.ts`** + **`cfos-office/src/components/value-map/value-map-flow.tsx`** — rule-writer now only seeds rules from category-precise cards (intent cards write only to `value_map_results`). Real-transaction flows (personal/checkin) still write merchant rules, now under `source: 'value_map_personal'` so future sample-card cleanups don't sweep them up. Both onConflict aligned to the 4-col COALESCE form.
+- **25 files / 53 refs** — `no_idea` → `unsure` rename across UI + code. `NoIdeaQueue.tsx` renamed to `UnsureQueue.tsx`. Generated `supabase/types.ts` skipped (DB enum still has both values). Hand-written `prediction/types.ts` `ValueCategoryType` switched to `'unsure'`. `OfficeTransactionsClient.tsx` lost its obsolete display→DB mapping layer (route now accepts `'unsure'` directly).
+
+**Tools (Phases 2 + 3):**
+- **`cfos-office/src/lib/ai/tools/helpers/{group-by-merchant,data-confidence}.ts`** — shared merchant grouping + confidence assessment used by every new tool. `insight-engine.ts` `computeDisciplineScore` refactored to consume the helper.
+- **10 new AI tools**, registered in `createToolbox`:
+  - **Reading:** `get_transactions`, `get_top_merchants`
+  - **Detective:** `find_money_clusters`, `find_temporal_signals`, `find_trend_changes`, `find_outliers`, `find_value_gaps`
+  - **Action:** `propose_experiment` (writes telemetry row to `proposed_experiments` on every call)
+  - **Labelling:** `label_transactions` (returns a `render_directive` payload for inline UI; doesn't capture labels itself — frontend POSTs each label to `/api/corrections/signal`)
+- Each tool returns story-shaped data with `data_confidence` ('high' | 'medium' | 'low' | null with reason).
+
+**Gap analyser V2 (Phase 3):**
+- **`cfos-office/src/lib/analytics/gap-analyser.ts`** — adds `analyseGapV2` reading stated values directly from `value_map_results` (joined to `SAMPLE_TRANSACTIONS` for `category_id` + `granularity`). Three shapes: `single_intent`, `multi_intent`, `coverage_gap`. New trait_keys (`gap_v2_<category_id>`) don't clobber v1 writes. Existing `analyseGap` untouched — v1 callers, the `analyse_gap` tool, and the existing Gap page all keep working.
+
+**Context restructure (Phase 4):**
+- **`cfos-office/src/lib/features/chat-intelligence-v2.ts`** — `isChatIntelligenceV2Enabled(profile)` returns true for `beta_cohort ∈ {wave_1, wave_1_5}` or when `CHAT_INTELLIGENCE_V2_FORCE=1`.
+- **`cfos-office/src/lib/ai/context-builder.ts`** — adds `buildFirstInsightContextV2` (async) with 8 sections: the user, Value Map, data available, memory surface (top 30 confirmed merchant labels from `value_category_rules`), how to approach the first message, voice rules, how to write chips, how to surface learning. v1 path unchanged.
+- **`cfos-office/src/app/api/insights/post-upload/route.ts`** — skips `computeFirstInsight` (the expensive v1 payload prep) when v2 is on.
+- **`cfos-office/src/lib/analytics/insight-engine.ts`** — JSDoc on `buildSuggestedResponses` marking it v1-only.
+- **`cfos-office/scripts/verify-first-insight.ts`** — `--v2` flag for side-by-side prompt inspection.
+
+**Frontend (Phase 5):**
+- **`cfos-office/src/components/chat/LabelTransactionsBlock.tsx`** + integration in `MessageList.tsx` — matches `docs/design/prototypes/label-transactions-prototype.jsx` exactly. Inline chat block with 5 quadrant pills per transaction (Foundation / Investment / Leak / Burden / Unsure), 'Send to C.' disabled until all labelled, 800ms "C. is reading..." beat before transitioning to completed read-only state. Each label POSTs to `/api/corrections/signal` (existing endpoint, no changes); unsure labels go through the same path (the route already accepts `'unsure'`).
+- **`cfos-office/src/app/(office)/office/values/the-gap/`** — new V2 client (`TheGapV2Client.tsx`) gated behind the cohort flag, with `ValueMapSummary` header block + `SingleIntentGapCard` / `MultiIntentGapCard` / `CoverageGapCard` matching `docs/design/prototypes/multi-intent-gap-prototype.jsx`. V1 Gap page untouched for non-cohort users. Multi-intent `after_labelling` state is wired but defaults to `initial` — the merchant-learning threshold (3+ merchants covering 70%+ of category) computation is a follow-up. CTAs open `/chat?intent=...&category=...`; the in-chat capture flow is explicitly deferred.
+
+**Output discipline (Phase 6):**
+- **`cfos-office/src/lib/ai/insight-validator.ts`** — appends `buildCitationAllowlist`, `validateCitations`, `validateProjections`, `validateVoice`, `validateChips`, `appendCorrection`. v1 `validateNarrative` untouched.
+- **`cfos-office/src/lib/chat/options-parser.ts`** (new) — `parseOptions` / `hasOptionsBlock` / `extractChips` / `removeInvalidChips` extracted from `MessageList.tsx`. Pure refactor; MessageList re-imports.
+- **`cfos-office/src/app/api/chat/route.ts`** — v2-gated validator block after the LLM produces its message. Citation / projection / voice firings append a brief italic server-side correction to the message body and log `first_insight_validator_fired` to `user_events`. Bad chips are removed; empty `[OPTIONS]` blocks dropped entirely (separate `first_insight_chips_stripped` event for cleaner analytics).
+
+**Eval harness (Phase 7) — built, not executed:**
+- **`cfos-office/scripts/compare-first-insight.ts`** — generates v1 + v2 prompts for one user, runs each through Claude, writes markdown diff to `tests/onboarding/test-output/`. `--judge` flag scores via the judge harness.
+- **`cfos-office/tests/onboarding/runner/judge-first-insight.ts`** — LLM-as-judge (Haiku utility model) returning structured pass/fail via zod schema. 8 hard rules + 6 Likert dimensions (mean ≥4 + L6 ≥4 = pass).
+- **`cfos-office/scripts/run-personas-v2.ts`** — wrapper for the persona runner that sets `CHAT_INTELLIGENCE_V2_FORCE=1` before spawning `cli.ts`. The runner itself wasn't edited (deny rule on `tests/onboarding/**` blocks the read).
+- **`cfos-office/docs/v2.2-rollout.md`** — exact commands for the cohort flip, persona evals, telemetry monitoring, and git tag — all gated on Lewis approval after merge.
+
+### Verdicts
+
+- **Migration 050 cleaned up cleanly.** 277 broken VM merchant rules deleted; redundant 3-col unique constraint dropped; staging advisors clean (no new lints — only the pre-existing warnings on demo tables + SECURITY DEFINER functions).
+- **Sample-card flow is now correct.** Going forward, completing the Value Map seeds only category-precise rules. Intent cards (takeaway / dinner-with-friends inside `eat_drinking_out`) write to `value_map_results` for the V2 multi-intent path to read, but no longer pollute `value_category_rules`. User Lew 1's broken-rule count is 0; was 9.
+- **The decoupling worked.** v1 `buildFirstInsightContext`, `buildSuggestedResponses`, `analyseGap`, the v1 `analyse_gap` tool, and the existing Gap page are all untouched. v2 lives alongside them behind the cohort flag. Rollback is "flip `beta_cohort`," not "revert the PR."
+- **Tool surface is consistent.** All 10 new tools return story-shaped data with `data_confidence`. The brief-first prompt teaches the LLM to call 1-3 tools, form a hypothesis, write ONE specific observation. No more four-act narration baked into the prompt.
+- **Validators caught everything they should.** Hand-rolled tests show the citation guard catches hallucinated numbers, the projection guard catches "€500/year saved" without a `propose_experiment` result, the voice guard catches each banned phrase, and the chip guard catches generic / navigational / no-narrative-noun chips. The whole validator block runs synchronously inside `onFinish` — textContent mutations land in the DB; `user_events` inserts fire-and-forget so telemetry doesn't block.
+- **459 tests passing**, up from 219 at the start of the session. `npx tsc --noEmit` clean, `npm run build` succeeds.
+
+### Staging verification
+
+**Done in this session (DB-level):**
+- 0 broken `source='value_map' AND match_type='merchant'` rules remain (was 277)
+- User Lew 1 has 0 broken VM rules (was 9)
+- 0 rows using `value_category = 'no_idea'` anywhere
+- `proposed_experiments` table exists with correct schema, RLS enabled, 2 indexes, 2 policies
+- Both `unsure` and `no_idea` enum values retained on `value_category_type` (deprecation, not drop — drop comes in a follow-up cleanup migration once new writes are confirmed to use `unsure`)
+
+**Deferred to Lewis (requires actual flip + live monitoring — commands in `cfos-office/docs/v2.2-rollout.md`):**
+- Cohort flip on User Lew 1 + 2-3 test users via `UPDATE public.user_profiles SET beta_cohort = 'wave_1' WHERE id = '...'`
+- Run persona evals: `npx tsx scripts/run-personas-v2.ts --prompt-version v2` and `--prompt-version v1`
+- Side-by-side comparison: `npx tsx scripts/compare-first-insight.ts bcfbb511-... --judge`
+- Monitor `user_events` for 5 days — target `first_insight_validator_fired` rate <5% of v2 first_insight conversations
+- Manual review of 5 v2 first-insight conversations to confirm conversion bar
+- If green: broader Wave 1 flip
+- Git tag: `git tag v2.2 && git push --tags`
+
+### Surprises
+
+- **The spec's planned migration numbers (046, 047) were wrong** — repo already had 046–048 and staging had 049 from PR #44 on a different branch. Adjusted to 050/051 mid-Phase 1.
+- **The spec's `SAMPLE_TRANSACTIONS` update list was wrong on 5/10 card IDs.** Real cards include `vm-gift` + `vm-learning`, not `vm-coffee` / `vm-transport`. Real category for utilities is `utilities_bills`, not `utilities`. Fixed in Phase 1.4 against the actual staging data.
+- **`value_category_type` enum already had BOTH `no_idea` AND `unsure`** — migration 029 added `no_idea` without dropping `unsure`. The rename was therefore a data migration + code rename only; no enum schema change required this session.
+- **Brief field is `display_name`, not `first_name`.** `user_profiles` doesn't have a `first_name` column. Caught in Phase 0 audit.
+- **`api/value-map/personal/impact/route.ts` is read-only** — the personal-flow rule-writing happens inside `value-map-flow.tsx` itself (mode 'personal' / 'checkin'). Phase 1.6 already handled it; no separate fix needed.
+- **`value_category_rules` had two unique indexes** — a 3-col `value_category_rules_unique_match` AND the 4-col `vcr_unique_match` with COALESCE. The 3-col was a redundant constraint. Dropped in migration 050.
+- **`tests/onboarding/**` is denied from Read** by `.claude/settings.json` (for context budget). Phase 7 couldn't edit `cli.ts` directly — landed a wrapper script (`run-personas-v2.ts`) instead. The deny rule note in CLAUDE.md says "explicit reads still work" but the runtime auto-mode classifier blocks them too — worth a CLAUDE.md tweak to match reality.
+
+### Path NOT taken (intentional)
+- Social context as a labelling dimension (deferred to Couples CFO).
+- Deterministic chip fallback (killed; bad fallbacks are worse than no fallback — if the LLM can't emit good chips, the [OPTIONS] block is removed entirely).
+- Joy Signal supervision via intent labels (Session 31 unchanged).
+- Value Map redesigned to use real transactions instead of sample cards (deferred — keep onboarding stable for v2.2).
+- Drop `no_idea` enum value (defer to a cleanup migration once all writes confirmed to use `unsure`).
+- Accept-flow UI for `propose_experiment` (writes telemetry only this session; UI is a future session).
+- Coverage gap capture flow (the `CoverageGapCard` opens `/chat` but the actual capture mechanism for the user to volunteer a value classification for a category mid-conversation isn't built — defer until usage warrants).
+- `MultiIntentGapCard` `after_labelling` threshold computation (server-side derivation of "3+ confirmed merchants covering 70%+ of category" — wired UI-side, deferred server-side).
+
+### Next on branch
+- PR opens for `feature/v2.2-chat-intelligence` targeting `main`.
+- After merge: cohort flip on test users per `docs/v2.2-rollout.md`, monitor for 5 days, then broader Wave 1.
+- Once stable: tag `v2.2`, then start v2.3 (Session 27 — Folder Fix-Up).
+
+---
+
 ## 2026-05-15 — Session 14: Folder reframes (basic)
 
 **Branch:** `feature/goal-aware-office` (closes — combined PR opens after this entry covering Sessions 11 + 12 + 14)
