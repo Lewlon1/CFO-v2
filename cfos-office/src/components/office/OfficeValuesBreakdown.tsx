@@ -10,7 +10,7 @@ const VALUE_CONFIG = {
   investment: { color: valueCategories.investment.color, label: 'Investment', desc: 'Building future value' },
   leak: { color: valueCategories.leak.color, label: 'Leak', desc: 'Avoidable, habitual drain' },
   burden: { color: valueCategories.burden.color, label: 'Burden', desc: 'Unavoidable but resented' },
-  no_idea: { color: '#F59E0B', label: 'Unsure', desc: 'Not yet classified' },
+  unsure: { color: '#F59E0B', label: 'Unsure', desc: 'Not yet classified' },
 } as const
 
 type VCKey = keyof typeof VALUE_CONFIG
@@ -82,7 +82,7 @@ export function OfficeValuesBreakdown() {
   }
 
   const vcData = summary.spending_by_value_category
-  const valueOrder: VCKey[] = ['foundation', 'investment', 'leak', 'burden', 'no_idea']
+  const valueOrder: VCKey[] = ['foundation', 'investment', 'leak', 'burden', 'unsure']
   const segments = valueOrder
     .map(key => ({ key, pct: vcData[key]?.pct ?? 0, amount: vcData[key]?.amount ?? 0 }))
     .filter(s => s.pct > 0)
@@ -95,7 +95,7 @@ export function OfficeValuesBreakdown() {
   const leakData = vcData['leak']
   const hasLeaks = leakData && leakData.amount > 0
 
-  const unsureData = vcData['no_idea']
+  const unsureData = vcData['unsure']
   const hasUnsure = unsureData && unsureData.amount > 0
 
   // Month selector

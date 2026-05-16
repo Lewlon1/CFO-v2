@@ -10,7 +10,7 @@ const VC_FILL: Record<string, string> = {
   investment: valueCategories.investment.color,
   leak: valueCategories.leak.color,
   burden: valueCategories.burden.color,
-  no_idea: '#6B7280',
+  unsure: '#6B7280',
 }
 
 type Props = {
@@ -20,7 +20,7 @@ type Props = {
 }
 
 export function ValuesDonut({ breakdown, totalSpending, currency = 'EUR' }: Props) {
-  const order = ['foundation', 'investment', 'leak', 'burden', 'no_idea']
+  const order = ['foundation', 'investment', 'leak', 'burden', 'unsure']
   const data = order
     .filter(vc => breakdown[vc] && breakdown[vc].amount > 0)
     .map(vc => ({

@@ -17,7 +17,7 @@ const VALUE_META: Record<string, { label: string; color: string; order: number }
   investment: { label: 'Investment', color: valueCategories.investment.color, order: 2 },
   leak: { label: 'Leak', color: valueCategories.leak.color, order: 3 },
   burden: { label: 'Burden', color: valueCategories.burden.color, order: 4 },
-  no_idea: { label: 'Unclassified', color: '#6B7280', order: 5 },
+  unsure: { label: 'Unclassified', color: '#6B7280', order: 5 },
 }
 
 export interface ValuesDashboardGap {

@@ -43,11 +43,11 @@ export const VALUE_COLORS: Record<
     label: 'Burden',
     description: 'Necessary but resented',
   },
-  no_idea: {
+  unsure: {
     bg: 'bg-gray-500/10',
     text: 'text-gray-400',
     border: 'border-gray-500/20',
-    label: 'No Idea',
+    label: 'Unsure',
     description: 'Not yet classified',
   },
 }

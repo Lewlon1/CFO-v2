@@ -62,7 +62,7 @@ async function refreshOneMonth(
     const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
     const delta = -Number(txn.amount) // outflow → +ve, refund → -ve
     spendingByCategory[cid] = (spendingByCategory[cid] ?? 0) + delta
-    const vc = txn.value_category ?? 'no_idea'
+    const vc = txn.value_category ?? 'unsure'
     spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + delta
 
     if (isSpendRow(txn.amount, txn.category_id) || (Number(txn.amount) < 0 && !txn.category_id)) {

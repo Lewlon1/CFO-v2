@@ -64,7 +64,7 @@ function groupByCategory(txns: RawTxn[]): Record<string, CategoryBucket> {
 
   for (const txn of txns) {
     const catId = txn.category_id ?? 'uncategorised'
-    const vc = txn.value_category ?? 'no_idea'
+    const vc = txn.value_category ?? 'unsure'
     const abs = Math.abs(txn.amount)
 
     if (!result[catId]) result[catId] = {}

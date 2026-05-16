@@ -1,4 +1,4 @@
-export type ValueCategoryType = 'foundation' | 'investment' | 'leak' | 'burden' | 'no_idea'
+export type ValueCategoryType = 'foundation' | 'investment' | 'leak' | 'burden' | 'unsure'
 
 /** A correction signal row as queried from the DB */
 export type CorrectionSignal = {

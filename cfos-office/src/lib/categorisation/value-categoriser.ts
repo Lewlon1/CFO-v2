@@ -37,7 +37,7 @@ export type ValueCatResult = {
  *    c. category — plain category match
  * 4. Global user prior
  * 5. Category default + ambiguity discount
- * 6. Fallback → 'no_idea', confidence 0
+ * 6. Fallback → 'unsure', confidence 0
  *
  * When `signals` is omitted (preview, backwards compat), tier 1 and
  * contextual adjustments in tier 5 are skipped gracefully.
@@ -52,7 +52,7 @@ export function assignValueCategory(
 ): ValueCatResult {
   // Transfers are internal money movement — not spending. Skip value assignment.
   if (categoryId === 'transfers') {
-    return { valueCategory: 'no_idea', confidence: 0, source: 'none' }
+    return { valueCategory: 'unsure', confidence: 0, source: 'none' }
   }
 
   const normalised = normaliseMerchant(description)
@@ -202,7 +202,7 @@ export function assignValueCategory(
   }
 
   // ── Tier 6: Fallback ───────────────────────────────────────────────
-  return { valueCategory: 'no_idea', confidence: 0, source: 'none' }
+  return { valueCategory: 'unsure', confidence: 0, source: 'none' }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────

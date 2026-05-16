@@ -2033,7 +2033,7 @@ Value category breakdown:
 - Investment: ${pct('investment')}%
 - Burden: ${pct('burden')}%
 - Leak: ${pct('leak')}%
-- No Idea/untagged: ${pct('no_idea')}%
+- Unsure/untagged: ${pct('unsure')}%
 `
     }
   }

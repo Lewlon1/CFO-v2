@@ -5,7 +5,7 @@ import { getTimeContext } from '@/lib/utils/time-context'
 import { processSignals } from '@/lib/prediction/process-signals'
 import { backfillForMerchant } from '@/lib/prediction/backfill'
 
-const VALID_VALUES = ['foundation', 'investment', 'leak', 'burden', 'no_idea']
+const VALID_VALUES = ['foundation', 'investment', 'leak', 'burden', 'unsure']
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()

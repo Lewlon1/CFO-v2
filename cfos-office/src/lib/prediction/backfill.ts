@@ -53,7 +53,7 @@ export async function backfillForMerchant(
       const { error: updateErr } = await supabase
         .from('transactions')
         .update({
-          value_category: prediction.value_category ?? 'no_idea',
+          value_category: prediction.value_category ?? 'unsure',
           value_confidence: prediction.confidence,
           prediction_source: prediction.source === 'none' ? 'category_default' : prediction.source.includes('merchant') ? 'merchant_rule' : prediction.source,
         })
