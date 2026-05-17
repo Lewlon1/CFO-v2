@@ -170,11 +170,7 @@ export function TheGapV2Client({
                   key={`multi-${g.category_id}-${i}`}
                   gap={g}
                   currency={currency}
-                  // After-labelling threshold (3+ confirmed merchants covering
-                  // 70%+ of category spend) needs a follow-up to compute
-                  // reliably from value_category_rules. Default to initial
-                  // for now; the 'after_labelling' branch is wired and ready.
-                  learning={{ state: 'initial' }}
+                  learning={g.learning}
                   onWalkThrough={() =>
                     openChatWithIntent('label_walkthrough', g.category_id)
                   }

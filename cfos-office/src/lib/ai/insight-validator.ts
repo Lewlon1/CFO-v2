@@ -606,6 +606,34 @@ export function validateChips(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// V2 validators — validateLength
+//
+// Enforces the 180-word body cap that the prompt names but the LLM doesn't
+// always honour. Strips signoff ("— C.") and any [OPTIONS]…[/OPTIONS] block
+// before counting — mirrors what the judge harness does for H6.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DEFAULT_BODY_WORD_CAP = 180;
+
+const SIGNOFF_LINE = /^[\s—–-]*C\.\s*$/gm;
+const OPTIONS_BLOCK = /\[OPTIONS\][\s\S]*?\[\/OPTIONS\]/gi;
+
+export interface LengthCheckResult {
+  valid: boolean;
+  word_count: number;
+  cap: number;
+}
+
+export function validateLength(
+  narrative: string,
+  cap: number = DEFAULT_BODY_WORD_CAP,
+): LengthCheckResult {
+  const body = narrative.replace(OPTIONS_BLOCK, '').replace(SIGNOFF_LINE, '');
+  const words = body.trim().split(/\s+/).filter((w) => w.length > 0);
+  return { valid: words.length <= cap, word_count: words.length, cap };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // appendCorrection — server-side correction string appended to message body
 // when one or more v2 validators fired. Kept terse — this is a dev-time guard
 // rail, not a user-facing UI.
@@ -615,6 +643,7 @@ export interface CorrectionInputs {
   unmatched_citations?: { numbers: string[]; merchants: string[] };
   unmatched_projections?: string[];
   voice_violations?: string[];
+  length_violation?: LengthCheckResult;
 }
 
 export function appendCorrection(
@@ -626,6 +655,7 @@ export function appendCorrection(
   const citationMerchantCount = inputs.unmatched_citations?.merchants.length ?? 0;
   const projectionCount = inputs.unmatched_projections?.length ?? 0;
   const voiceCount = inputs.voice_violations?.length ?? 0;
+  const lengthViolation = inputs.length_violation;
 
   if (citationNumberCount > 0) {
     issues.push(
@@ -644,6 +674,11 @@ export function appendCorrection(
   }
   if (voiceCount > 0) {
     issues.push(`${voiceCount} voice phrase${voiceCount === 1 ? '' : 's'}`);
+  }
+  if (lengthViolation && !lengthViolation.valid) {
+    issues.push(
+      `body length ${lengthViolation.word_count} words (cap ${lengthViolation.cap})`,
+    );
   }
 
   const count = issues.length;

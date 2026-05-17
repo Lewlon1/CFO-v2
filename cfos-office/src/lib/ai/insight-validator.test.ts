@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { extractNumbers, extractMerchants, validateNarrative } from './insight-validator';
+import {
+  extractNumbers,
+  extractMerchants,
+  validateNarrative,
+  validateLength,
+  appendCorrection,
+  DEFAULT_BODY_WORD_CAP,
+} from './insight-validator';
 import type { QuotableFact } from '@/lib/analytics/insight-types';
 
 describe('extractNumbers', () => {
@@ -128,5 +135,82 @@ describe('validateNarrative — ±1 tolerance', () => {
       expect(result.reason).toBe('numbers_not_allowed');
       expect(result.offenders).toContain('35');
     }
+  });
+});
+
+describe('validateLength', () => {
+  it('passes when body word count is under the cap', () => {
+    const narrative = 'Short body. Three sentences total.';
+    const result = validateLength(narrative);
+    expect(result.valid).toBe(true);
+    expect(result.word_count).toBe(5);
+    expect(result.cap).toBe(180);
+  });
+
+  it('passes when body word count is exactly at the cap', () => {
+    const narrative = Array(180).fill('word').join(' ');
+    const result = validateLength(narrative);
+    expect(result.valid).toBe(true);
+    expect(result.word_count).toBe(180);
+  });
+
+  it('fails when body word count exceeds the cap', () => {
+    const narrative = Array(225).fill('word').join(' ');
+    const result = validateLength(narrative);
+    expect(result.valid).toBe(false);
+    expect(result.word_count).toBe(225);
+    expect(result.cap).toBe(180);
+  });
+
+  it('strips [OPTIONS]...[/OPTIONS] block before counting', () => {
+    const body = Array(50).fill('body').join(' ');
+    const chips = Array(50).fill('chip').join(' ');
+    const narrative = `${body}\n[OPTIONS]\n- ${chips}\n[/OPTIONS]`;
+    const result = validateLength(narrative);
+    expect(result.word_count).toBe(50);
+    expect(result.valid).toBe(true);
+  });
+
+  it('strips signoff line "— C." before counting', () => {
+    const narrative = `Body text here.\n\n— C.`;
+    const result = validateLength(narrative);
+    expect(result.word_count).toBe(3);
+  });
+
+  it('honours an explicit cap parameter', () => {
+    const narrative = Array(50).fill('word').join(' ');
+    expect(validateLength(narrative, 40).valid).toBe(false);
+    expect(validateLength(narrative, 100).valid).toBe(true);
+  });
+
+  it('exposes DEFAULT_BODY_WORD_CAP for downstream callers', () => {
+    expect(DEFAULT_BODY_WORD_CAP).toBe(180);
+  });
+});
+
+describe('appendCorrection — length_violation', () => {
+  it('appends a length-violation note when length_violation.valid is false', () => {
+    const out = appendCorrection('Original body.', {
+      length_violation: { valid: false, word_count: 225, cap: 180 },
+    });
+    expect(out).toContain('body length 225 words');
+    expect(out).toContain('cap 180');
+    expect(out).toContain('System note');
+  });
+
+  it('does NOT append anything when length_violation.valid is true', () => {
+    const out = appendCorrection('Original body.', {
+      length_violation: { valid: true, word_count: 100, cap: 180 },
+    });
+    expect(out).toBe('Original body.');
+  });
+
+  it('combines length violation with other v2 violations into one note', () => {
+    const out = appendCorrection('Original body.', {
+      voice_violations: ['I noticed'],
+      length_violation: { valid: false, word_count: 200, cap: 180 },
+    });
+    expect(out).toContain('1 voice phrase');
+    expect(out).toContain('body length 200 words');
   });
 });

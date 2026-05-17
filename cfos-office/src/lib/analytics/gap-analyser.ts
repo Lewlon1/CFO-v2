@@ -460,6 +460,33 @@ export interface SingleIntentGapV2 {
   narrative_hint: string
 }
 
+/**
+ * Multi-intent learning state. `initial` is the default: not enough confirmed
+ * merchant labels yet to tell the user "you've actually been sorting this".
+ * `after_labelling` fires once 3+ learned/corrected merchant rules cover ≥70%
+ * of the category's spend in the analysis window — at that point the system
+ * surfaces the per-quadrant breakdown derived from those labels.
+ *
+ * Shape mirrors `MultiIntentGapCardLearning` in the renderer:
+ *   cfos-office/src/app/(office)/office/values/the-gap/components/MultiIntentGapCard.tsx
+ */
+export type MultiIntentLearning =
+  | { state: 'initial' }
+  | {
+      state: 'after_labelling'
+      learnedMerchants: Array<{
+        merchant: string
+        reads: 'foundation' | 'investment' | 'leak' | 'burden' | 'unsure'
+        count: number
+      }>
+      claimableGap: Array<{
+        label: string
+        amount: number
+        quadrant: 'foundation' | 'investment' | 'burden' | 'leak'
+      }>
+      verdict: string
+    }
+
 export interface MultiIntentGapV2 {
   shape: 'multi_intent'
   category_id: string
@@ -470,6 +497,7 @@ export interface MultiIntentGapV2 {
   time_slices: Record<string, TimeSliceBreakdown>   // keyed by TimeContext bucket
   skipped_undated_count: number                     // tx with date-only stamps
   narrative_hint: string
+  learning: MultiIntentLearning
 }
 
 export interface CoverageGapV2 {
@@ -527,6 +555,88 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+// Minimum learned-rule coverage of category spend to flip multi_intent into
+// the `after_labelling` state. The renderer reads this as "the system has
+// learned enough to surface what's actually going on in this category".
+const LEARNED_COVERAGE_THRESHOLD = 0.70
+// Minimum number of distinct learned merchants to flip — single-merchant
+// dominance doesn't tell us about the spread.
+const LEARNED_MERCHANT_MIN_COUNT = 3
+
+/**
+ * Derive multi-intent learning state from learned merchant rules + the
+ * category's spend rows. Exported for direct testing.
+ */
+export function buildMultiIntentLearning(
+  categoryName: string,
+  rows: Array<{ description: string; absAmount: number }>,
+  rulesByMerchant: Map<string, { quadrant: string; signals: number }>,
+  categoryTotal: number,
+): MultiIntentLearning {
+  if (categoryTotal <= 0) return { state: 'initial' }
+
+  // Aggregate row spend per normalised merchant key.
+  const merchantSpend = new Map<string, number>()
+  for (const r of rows) {
+    const key = normaliseMerchant(r.description) || 'unknown'
+    merchantSpend.set(key, (merchantSpend.get(key) ?? 0) + r.absAmount)
+  }
+
+  interface LabelledMerchant {
+    merchant: string
+    amount: number
+    quadrant: 'foundation' | 'investment' | 'burden' | 'leak' | 'unsure'
+    signals: number
+  }
+  const labelled: LabelledMerchant[] = []
+  for (const [merchant, amount] of merchantSpend.entries()) {
+    const rule = rulesByMerchant.get(merchant)
+    if (!rule) continue
+    const q = rule.quadrant
+    if (q !== 'foundation' && q !== 'investment' && q !== 'burden' && q !== 'leak' && q !== 'unsure') continue
+    labelled.push({ merchant, amount, quadrant: q, signals: rule.signals })
+  }
+
+  const labelledSum = labelled.reduce((s, x) => s + x.amount, 0)
+  const coverage = labelledSum / categoryTotal
+
+  if (labelled.length < LEARNED_MERCHANT_MIN_COUNT || coverage < LEARNED_COVERAGE_THRESHOLD) {
+    return { state: 'initial' }
+  }
+
+  const learnedMerchants = labelled
+    .slice()
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5)
+    .map((m) => ({ merchant: m.merchant, reads: m.quadrant, count: m.signals }))
+
+  // claimableGap: per-quadrant aggregation. Omit unsure since the renderer
+  // type restricts to the 4 decided quadrants.
+  const byQuadrant = new Map<'foundation' | 'investment' | 'burden' | 'leak', number>()
+  for (const m of labelled) {
+    if (m.quadrant === 'unsure') continue
+    byQuadrant.set(m.quadrant, (byQuadrant.get(m.quadrant) ?? 0) + m.amount)
+  }
+  const claimableGap = Array.from(byQuadrant.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([quadrant, amount]) => ({
+      label: `${quadrant.charAt(0).toUpperCase()}${quadrant.slice(1)}`,
+      amount: round2(amount),
+      quadrant,
+    }))
+
+  const dominantQuadrant = claimableGap[0]?.quadrant ?? 'foundation'
+  const coveragePct = Math.round(coverage * 100)
+  const verdict = `${labelled.length} merchants covering ${coveragePct}% of ${categoryName}. Reads mostly ${dominantQuadrant}.`
+
+  return {
+    state: 'after_labelling',
+    learnedMerchants,
+    claimableGap,
+    verdict,
+  }
+}
+
 // Build a quick lookup from sample card id → { category_id, granularity, label }.
 function buildSampleCardLookup(): Map<string, { category_id: string; granularity: 'category' | 'intent'; label: string }> {
   const map = new Map<string, { category_id: string; granularity: 'category' | 'intent'; label: string }>()
@@ -572,6 +682,26 @@ export async function analyseGapV2(
   }
 
   const hasValueMap = true
+
+  // Learned merchant rules — used to compute multi-intent `after_labelling`
+  // state. Pulled once at the top of analyseGapV2 so we don't re-query per
+  // category. `source: 'value_map'` rows are excluded because they're sample-
+  // card seeds, not user-confirmed corrections.
+  const { data: learnedRules } = await supabase
+    .from('value_category_rules')
+    .select('match_value, value_category, total_signals')
+    .eq('user_id', userId)
+    .eq('match_type', 'merchant')
+    .in('source', ['correction', 'learned'])
+
+  const rulesByMerchant = new Map<string, { quadrant: string; signals: number }>()
+  for (const r of learnedRules ?? []) {
+    if (!r.match_value || !r.value_category) continue
+    rulesByMerchant.set(String(r.match_value).toLowerCase(), {
+      quadrant: String(r.value_category),
+      signals: typeof r.total_signals === 'number' ? r.total_signals : 1,
+    })
+  }
 
   // 2. Join via SAMPLE_TRANSACTIONS lookup. Rows whose transaction_id is not
   //    in the lookup are personal/checkin retake rows (real tx UUIDs) — they
@@ -838,6 +968,7 @@ export async function analyseGapV2(
         skipped_undated_count: 0,
         narrative_hint:
           'Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.',
+        learning: { state: 'initial' },
       })
       continue
     }
@@ -916,6 +1047,13 @@ export async function analyseGapV2(
       }
     }
 
+    const learning = buildMultiIntentLearning(
+      categoryName,
+      agg.rows,
+      rulesByMerchant,
+      agg.total,
+    )
+
     gaps.push({
       shape: 'multi_intent',
       category_id: categoryId,
@@ -927,6 +1065,7 @@ export async function analyseGapV2(
       skipped_undated_count: skippedUndated,
       narrative_hint:
         'Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.',
+      learning,
     })
   }
 

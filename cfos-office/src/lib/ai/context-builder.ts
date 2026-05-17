@@ -563,7 +563,7 @@ export async function buildFirstInsightContextV2(
     '- Honest: if data is thin, say so',
     '- Direct: no "worth holding in mind", "worth knowing", "no judgement"',
     '- Curious: end with a real question, not "let me know how I can help"',
-    '- Length: 100–180 words for the body, signoff on its own line',
+    '- Length: 100–180 words for the body. HARD CAP 180 — responses over 180 words are flagged with a server correction. Signoff on its own line.',
     '',
     'NEVER:',
     '- Compute new numbers in prose (ratios, averages, projections, annualised',

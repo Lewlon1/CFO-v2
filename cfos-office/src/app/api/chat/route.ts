@@ -26,6 +26,7 @@ import {
   validateProjections,
   validateVoice,
   validateChips,
+  validateLength,
   appendCorrection,
   type ToolResultLike,
 } from '@/lib/ai/insight-validator';
@@ -772,12 +773,19 @@ export async function POST(req: Request) {
           const projectionCheck = validateProjections(textContent, experimentResults);
 
           const voiceCheck = validateVoice(textContent);
+          const lengthCheck = validateLength(textContent);
 
-          if (!citationCheck.valid || !projectionCheck.valid || !voiceCheck.valid) {
+          if (
+            !citationCheck.valid ||
+            !projectionCheck.valid ||
+            !voiceCheck.valid ||
+            !lengthCheck.valid
+          ) {
             textContent = appendCorrection(textContent, {
               unmatched_citations: citationCheck.unmatched,
               unmatched_projections: projectionCheck.unmatched_projections,
               voice_violations: voiceCheck.violations,
+              length_violation: lengthCheck.valid ? undefined : lengthCheck,
             });
 
             void supabase.from('user_events').insert({
@@ -790,6 +798,7 @@ export async function POST(req: Request) {
                 citationCheck,
                 projectionCheck,
                 voiceCheck,
+                lengthCheck,
               },
             });
           }

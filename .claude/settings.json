@@ -1,7 +1,7 @@
 {
   "permissions": {
     "deny": [
-      "Read(./cfos-office/tests/**)"
+      "Read(./cfos-office/tests/onboarding/test-output/**)"
     ]
   }
 }
