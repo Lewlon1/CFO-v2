@@ -235,7 +235,7 @@ export function getRegenerationFallback(
         traits: [
           'Low-confidence classifications outnumber high-confidence ones — spending is seen but not yet named.',
           'Breakdown shifts month to month without an obvious driver.',
-          'Uncategorised or "no_idea" responses crop up repeatedly for the same merchants.',
+          'Uncategorised or "unsure" responses crop up repeatedly for the same merchants.',
         ],
       },
       anchor: {

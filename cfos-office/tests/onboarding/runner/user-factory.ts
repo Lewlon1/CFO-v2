@@ -52,9 +52,66 @@ export async function createTestUser(
   return { id: data.user.id, email, password }
 }
 
+// Public-schema tables that reference user_id / profile_id. Deleting these
+// rows before auth.admin.deleteUser keeps Supabase's "Database error deleting
+// user" path from firing — when public-schema FKs lack ON DELETE CASCADE,
+// the Supabase Auth admin endpoint surfaces a noisy generic 500 even though
+// the auth.users row eventually goes away via the auth.* cascades. Explicit
+// tear-down makes the operation deterministic and the cleanup log quiet.
+const USER_DATA_TABLES_BY_USER_ID = [
+  'value_category_rules',
+  'financial_portrait',
+  'goals',
+  'assets',
+  'liabilities',
+  'action_items',
+  'messages',
+  'conversations',
+  'transactions',
+] as const
+
+const USER_DATA_TABLES_BY_PROFILE_ID = [
+  'value_map_results',
+  'value_map_sessions',
+  'user_events',
+] as const
+
+const PROFILE_ROW_TABLE_BY_ID = 'user_profiles'
+
+// "Table-not-found" patterns from PostgREST — silent-skip cases. Adding a
+// new entry here is preferable to logging noise for tables that don't exist
+// in the current branch.
+const TABLE_MISSING_RE = /(relation .* does not exist|could not find the table|schema cache)/i
+
+async function tearDownUserData(admin: SupabaseClient, userId: string): Promise<void> {
+  // Order: dependent rows first (messages before conversations), then top-
+  // level domain tables. Errors are logged but not thrown — a missing table
+  // (e.g. in branched databases) shouldn't block the auth-user deletion.
+  for (const table of USER_DATA_TABLES_BY_USER_ID) {
+    const { error } = await admin.from(table).delete().eq('user_id', userId)
+    if (error && !TABLE_MISSING_RE.test(error.message)) {
+      console.warn(`[user-factory] tearDownUserData ${table}/user_id failed:`, error.message)
+    }
+  }
+  for (const table of USER_DATA_TABLES_BY_PROFILE_ID) {
+    const { error } = await admin.from(table).delete().eq('profile_id', userId)
+    if (error && !TABLE_MISSING_RE.test(error.message)) {
+      console.warn(`[user-factory] tearDownUserData ${table}/profile_id failed:`, error.message)
+    }
+  }
+  const { error: profErr } = await admin.from(PROFILE_ROW_TABLE_BY_ID).delete().eq('id', userId)
+  if (profErr && !TABLE_MISSING_RE.test(profErr.message)) {
+    console.warn(`[user-factory] tearDownUserData user_profiles/id failed:`, profErr.message)
+  }
+}
+
 export async function deleteTestUser(admin: SupabaseClient, userId: string): Promise<void> {
+  await tearDownUserData(admin, userId)
   const { error } = await admin.auth.admin.deleteUser(userId)
   if (error) {
+    // After tear-down, the only path to this error is a Supabase Auth-side
+    // bug or the user already being gone. Treat "user not found" as success.
+    if (/user not found/i.test(error.message)) return
     console.error(`[user-factory] deleteUser ${userId} failed:`, error.message)
   }
 }

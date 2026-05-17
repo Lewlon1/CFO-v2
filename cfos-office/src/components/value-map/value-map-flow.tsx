@@ -506,32 +506,82 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
         }))
         await supabase2.from('value_map_results').insert(resultRows)
 
-        // Seed value_category_rules from the quadrant assignments so the
-        // system can start classifying future transactions by value category
-        // even before the user corrects anything. Mirrors link-session
-        // (demo path) — see cfos-office/src/app/api/value-map/link-session/route.ts
+        // Seed value_category_rules from the quadrant assignments.
+        //
+        // This component handles three modes:
+        //   - onboarding: SAMPLE_TRANSACTIONS cards (sample labels, not real
+        //     merchants). Only category-precise cards (granularity: 'category')
+        //     seed rules — and as match_type: 'category' against the DB slug.
+        //     Intent cards (e.g. takeaway / dinner-friends inside
+        //     eat_drinking_out) don't seed; their quadrant doesn't generalise.
+        //   - personal / checkin: REAL transactions the user classifies. Those
+        //     produce legitimate merchant rules and use source='value_map_personal'
+        //     so future sample-card cleanups don't sweep them up.
+        //
+        // Rows with quadrant === null (UI represents "Unsure" as null) don't seed.
+        // The onConflict matches the canonical 4-col unique index
+        // (vcr_unique_match). The prior 3-col form was redundant and dropped
+        // in migration 050.
+        const cardLookup = new Map(SAMPLE_TRANSACTIONS.map((c) => [c.id, c]))
+
         const decidedForRules = results.filter(
           (r): r is ValueMapResult & { quadrant: NonNullable<ValueMapResult['quadrant']> } =>
             r.quadrant !== null,
         )
+
+        type VcrInsert = {
+          user_id: string
+          match_type: 'category' | 'merchant'
+          match_value: string
+          value_category: NonNullable<ValueMapResult['quadrant']>
+          confidence: number
+          source: string
+          last_signal_at: string
+          updated_at: string
+        }
+
         if (decidedForRules.length > 0) {
-          const rules = decidedForRules.map((r) => ({
-            user_id: currentUser.id,
-            match_type: 'merchant' as const,
-            match_value: r.merchant.toLowerCase(),
-            value_category: r.quadrant,
-            confidence: r.confidence / 5, // 1-5 scale → 0-1
-            source: 'value_map',
-            last_signal_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }))
-          const { error: rulesError } = await supabase2
-            .from('value_category_rules')
-            .upsert(rules, {
-              onConflict: 'user_id,match_type,match_value',
-            })
-          if (rulesError) {
-            console.error('[value-map] value_category_rules upsert error:', rulesError)
+          const rules: VcrInsert[] = decidedForRules.flatMap((r): VcrInsert[] => {
+            const card = cardLookup.get(r.transaction_id)
+
+            // Sample card path (onboarding): only category-precise cards seed.
+            if (card) {
+              if (card.granularity !== 'category') return []
+              return [{
+                user_id: currentUser.id,
+                match_type: 'category',
+                match_value: card.category_id!,
+                value_category: r.quadrant,
+                confidence: r.confidence / 5,
+                source: 'value_map',
+                last_signal_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }]
+            }
+
+            // Real-transaction path (personal / checkin): merchant rules are
+            // correct here because the merchant string IS a real merchant.
+            return [{
+              user_id: currentUser.id,
+              match_type: 'merchant',
+              match_value: r.merchant.toLowerCase(),
+              value_category: r.quadrant,
+              confidence: r.confidence / 5,
+              source: 'value_map_personal',
+              last_signal_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }]
+          })
+
+          if (rules.length > 0) {
+            const { error: rulesError } = await supabase2
+              .from('value_category_rules')
+              .upsert(rules, {
+                onConflict: "user_id,match_type,match_value,coalesce(time_context,'__none__')",
+              })
+            if (rulesError) {
+              console.error('[value-map] value_category_rules upsert error:', rulesError)
+            }
           }
         }
 

@@ -1,13 +1,15 @@
 import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { BASE_PERSONA } from './system-prompt';
 import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
-import { PERSONALITIES } from '@/lib/value-map/constants';
+import { PERSONALITIES, SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants';
 import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
 import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
+import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -358,6 +360,300 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   return lines.join('\n');
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// V2 first-insight context (Session v2.2 Chat Intelligence)
+//
+// Brief-first prompt. Instead of pre-narrating quotable facts, the system
+// hands the LLM a thin user brief + Value Map + memory surface and tells it
+// to form a hypothesis, call 1–3 detective tools, and write ONE specific
+// observation. Cohort-flag-gated; v1 path remains untouched for non-cohort
+// users (see `isChatIntelligenceV2Enabled`).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type BriefProfile = {
+  display_name?: string | null
+  country?: string | null
+  primary_currency?: string | null
+  net_monthly_income?: number | null
+  monthly_rent?: number | null
+  entry_struggle_text?: string | null
+}
+
+export type VmRowsByQuadrant = {
+  foundation: string[]
+  investment: string[]
+  leak: string[]
+  burden: string[]
+  unsure: string[]
+}
+
+export type TxWindow = {
+  n_transactions: number
+  n_months: number
+  earliest: string
+  latest: string
+}
+
+type LearnedLabelRow = {
+  match_value: string | null
+  value_category: string | null
+  confidence: number | null
+  last_signal_at: string | null
+  total_signals: number | null
+}
+
+function formatBriefMoney(amount: number | null | undefined, currency: string | null | undefined): string | null {
+  if (amount === null || amount === undefined || !Number.isFinite(Number(amount))) return null
+  return formatMoney(Number(amount), currency || 'EUR')
+}
+
+function daysBetween(fromIso: string | null, toIso: string): number | null {
+  if (!fromIso) return null
+  const a = new Date(fromIso).getTime()
+  const b = new Date(toIso).getTime()
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null
+  return Math.max(0, Math.floor((b - a) / (1000 * 60 * 60 * 24)))
+}
+
+/**
+ * V2 first-insight context. Returns a multi-section prompt block joined with
+ * `\n\n---\n\n`. Async because it queries `value_category_rules` for the
+ * memory surface — confirmed merchant/category labels the user has
+ * corrected or the system has learned.
+ *
+ * Selection rule for memory surface: source IN ('correction', 'learned').
+ * Excludes 'value_map' because those are sample-card seeds from the 10-card
+ * exercise, not user-confirmed merchant labels — surfacing them as
+ * "previously confirmed" would conflate stated values with actual corrections.
+ */
+export async function buildFirstInsightContextV2(
+  supabase: SupabaseClient,
+  userId: string,
+  profile: BriefProfile,
+  archetype: string | null,
+  valueMapTakenAt: string | null,
+  vmRowsByQuadrant: VmRowsByQuadrant,
+  txWindow: TxWindow,
+  primaryGoal: { title: string } | null,
+): Promise<string> {
+  // ─── Memory surface query ──────────────────────────────────────────────
+  let learnedLabels: LearnedLabelRow[] = []
+  try {
+    const { data } = await supabase
+      .from('value_category_rules')
+      .select('match_value, value_category, confidence, last_signal_at, total_signals')
+      .eq('user_id', userId)
+      .in('source', ['correction', 'learned'])
+      .order('total_signals', { ascending: false })
+      .limit(30)
+    if (Array.isArray(data)) learnedLabels = data as LearnedLabelRow[]
+  } catch (err) {
+    // Don't fail the whole prompt assembly if memory query errors. The "no
+    // labels yet" branch below renders cleanly.
+    console.error('[context-builder-v2] memory surface query failed:', err)
+    learnedLabels = []
+  }
+
+  const currency = profile.primary_currency || 'EUR'
+
+  // ─── Section 1: The user (brief) ───────────────────────────────────────
+  const userLines: string[] = ['## The user', '']
+  userLines.push(`Name: ${profile.display_name || 'not yet shared'}`)
+  if (profile.country) {
+    userLines.push(`Country: ${profile.country} (${currency})`)
+  } else {
+    userLines.push(`Country: not yet shared (${currency})`)
+  }
+  userLines.push('Brief (in their own words):')
+  userLines.push(`  Goal: "${primaryGoal?.title || 'not yet shared'}"`)
+  userLines.push(`  Struggle: "${profile.entry_struggle_text || 'not yet shared'}"`)
+  const incomeText = formatBriefMoney(profile.net_monthly_income, currency)
+  userLines.push(`  Income: ${incomeText ? `~${incomeText} monthly` : 'not yet shared'}`)
+  const rentText = formatBriefMoney(profile.monthly_rent, currency)
+  userLines.push(`  Fixed costs: ${rentText ? `Rent/mortgage ~${rentText}` : 'not yet shared'}`)
+
+  // ─── Section 2: Value Map ──────────────────────────────────────────────
+  const vmLines: string[] = ['## Value Map (their stated values)', '']
+  vmLines.push(`Archetype: ${archetype || 'not yet taken'}`)
+  if (valueMapTakenAt) {
+    const stale = daysBetween(valueMapTakenAt, new Date().toISOString())
+    const datePart = valueMapTakenAt.slice(0, 10)
+    vmLines.push(`Baseline taken: ${datePart} (${stale ?? 0} days ago)`)
+  } else {
+    vmLines.push('Baseline taken: not yet taken')
+  }
+  vmLines.push('Classifications:')
+  vmLines.push(`  Foundation: ${vmRowsByQuadrant.foundation.join(', ') || '(none)'}`)
+  vmLines.push(`  Investment: ${vmRowsByQuadrant.investment.join(', ') || '(none)'}`)
+  vmLines.push(`  Leak: ${vmRowsByQuadrant.leak.join(', ') || '(none)'}`)
+  vmLines.push(`  Burden: ${vmRowsByQuadrant.burden.join(', ') || '(none)'}`)
+  vmLines.push(`  Unsure: ${vmRowsByQuadrant.unsure.join(', ') || '(none)'}`)
+  vmLines.push('')
+  vmLines.push(
+    'Confidence: This is a 10-card baseline from a 5-minute exercise. Treat as',
+  )
+  vmLines.push(
+    "the user's stated hypothesis about their values, not ground truth. The data",
+  )
+  vmLines.push(
+    'may validate or challenge specific classifications. Surface uncertainty',
+  )
+  vmLines.push("when relevant — don't caveat every sentence.")
+
+  // ─── Section 3: Data available ─────────────────────────────────────────
+  const dataLines: string[] = ['## Data available', '']
+  dataLines.push(`${txWindow.n_transactions} transactions across ${txWindow.n_months} months.`)
+  dataLines.push(`Range: ${txWindow.earliest} to ${txWindow.latest}.`)
+
+  // ─── Section 4: Memory surface ─────────────────────────────────────────
+  const memLines: string[] = ["## What you've learned so far (memory)", '']
+  if (learnedLabels.length === 0) {
+    memLines.push(
+      'No corrections or labels yet — this is your first real conversation with this user.',
+    )
+  } else {
+    for (const row of learnedLabels) {
+      const match = (row.match_value ?? '').trim()
+      const cat = (row.value_category ?? '').trim()
+      const sig = row.total_signals ?? 0
+      const last = row.last_signal_at ? row.last_signal_at.slice(0, 10) : 'unknown'
+      if (!match || !cat) continue
+      memLines.push(`  - ${match}: ${cat} (${sig} confirmations, last: ${last})`)
+    }
+  }
+  memLines.push('')
+  memLines.push(
+    'When relevant, reference these naturally ("last time you told me your',
+  )
+  memLines.push(
+    'Tuesday Pret is Foundation — should I treat this one the same way?").',
+  )
+  memLines.push('Continuity is the point.')
+
+  // ─── Section 5: How to approach the first message ──────────────────────
+  const approachLines: string[] = [
+    '## How to approach the first message',
+    '',
+    "You are writing the user's first interaction after onboarding. Goal: ONE",
+    'specific, surprising, goal-relevant observation that ends with a question,',
+    'an action, or a labelling invitation. Not a recap. Not a four-act',
+    'narration.',
+    '',
+    'Steps:',
+    '1. Read the brief above. Form a hypothesis about what matters most for',
+    '   THIS user.',
+    '2. Call 1-3 tools to test it (find_money_clusters, find_value_gaps,',
+    '   find_temporal_signals, find_trend_changes, find_outliers).',
+    '3. If the hypothesis holds, write the observation. If not, try another',
+    "   angle. Don't narrate every tool result.",
+    '4. End with one of: a real question, a chip-able action',
+    '   (propose_experiment), or a labelling invitation (label_transactions).',
+    '',
+    'When find_value_gaps returns a multi-intent shape, label_transactions is',
+    'often the right move — the data is genuinely ambiguous, and asking the',
+    'user resolves it AND demonstrates the system getting smarter.',
+  ]
+
+  // ─── Section 6: Voice rules ────────────────────────────────────────────
+  const voiceLines: string[] = [
+    '## Voice rules',
+    '',
+    'You are C. — a startup CFO speaking directly. First person. Sign off "— C."',
+    '- Specific: name merchants, amounts, dates from tool output',
+    '- Honest: if data is thin, say so',
+    '- Direct: no "worth holding in mind", "worth knowing", "no judgement"',
+    '- Curious: end with a real question, not "let me know how I can help"',
+    '- Length: 100–180 words for the body. HARD CAP 180 — responses over 180 words are flagged with a server correction. Signoff on its own line.',
+    '',
+    'NEVER:',
+    '- Compute new numbers in prose (ratios, averages, projections, annualised',
+    '  savings) — those come from tools',
+    '- Quote without source (every number traces to a tool call or payload field)',
+    '- Use "I noticed", "great question", "advice"/"advise"',
+    '- Reference the product name',
+  ]
+
+  // ─── Section 7: How to write chips ─────────────────────────────────────
+  const chipLines: string[] = [
+    '## How to write chips',
+    '',
+    'After your message, emit a [OPTIONS] block with 2-4 chips. Each chip MUST:',
+    '- Reference a specific noun from your message (merchant, category, amount)',
+    '- Advance the dialogue (deepen the thread, propose action, invite labelling)',
+    '- NOT be a navigation jump',
+    '- NOT be generic ("Tell me more" is forbidden)',
+    '- NOT be a question you could answer yourself',
+    '',
+    'Three shapes of good chip:',
+    '- Labelling: "Walk through the Friday Glovo orders"',
+    '- Action: "Try cutting Glovo for 30 days"',
+    '- Specificity: "Show me the Ryanair flights"',
+    '',
+    "If you genuinely can't think of good chips, emit none. Empty [OPTIONS] is",
+    'better than fake chips.',
+  ]
+
+  // ─── Section 8: How to surface learning ────────────────────────────────
+  const learningLines: string[] = [
+    '## How to surface learning',
+    '',
+    'When a conversation changes what the system knows (labelling exchange,',
+    'correction, accepted experiment), close by naming what changed and what',
+    'it unlocks. Specific, quantified:',
+    '',
+    '  "After today, I know your Tuesday Pret is Foundation. That',
+    '  auto-classifies 18 transactions going forward and changes how I read',
+    '  your eating-out picture."',
+    '',
+    'Never use "I learned". State what\'s now true.',
+  ]
+
+  const sections = [
+    userLines.join('\n'),
+    vmLines.join('\n'),
+    dataLines.join('\n'),
+    memLines.join('\n'),
+    approachLines.join('\n'),
+    voiceLines.join('\n'),
+    chipLines.join('\n'),
+    learningLines.join('\n'),
+  ]
+
+  return sections.join('\n\n---\n\n')
+}
+
+/**
+ * Build the per-quadrant friendly labels for the V2 brief from a
+ * value_map_results rowset joined with SAMPLE_TRANSACTIONS. For real-data
+ * Value Map runs the rows reference live transactions — falls back to the
+ * merchant column when the transaction_id is not a sample-card id.
+ */
+export function bucketVmRowsByQuadrant(
+  rows: Array<{ transaction_id: string | null; merchant: string | null; quadrant: string | null }>,
+): VmRowsByQuadrant {
+  const out: VmRowsByQuadrant = {
+    foundation: [],
+    investment: [],
+    leak: [],
+    burden: [],
+    unsure: [],
+  }
+  const sampleById = new Map(SAMPLE_TRANSACTIONS.map((t) => [t.id, t.description]))
+  for (const row of rows) {
+    const q = (row.quadrant ?? '').toLowerCase()
+    const txId = row.transaction_id ?? ''
+    const friendly = sampleById.get(txId) ?? row.merchant ?? null
+    if (!friendly) continue
+    if (q === 'foundation' || q === 'investment' || q === 'leak' || q === 'burden') {
+      out[q].push(friendly)
+    } else {
+      // 'unsure', null, or anything else → unsure bucket
+      out.unsure.push(friendly)
+    }
+  }
+  return out
+}
+
 async function buildValueMapBridgeContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   profile: any,
@@ -689,12 +985,128 @@ export async function buildSystemPrompt(
   // has deterministically computed everything Claude is allowed to say. We
   // suppress any section that would leak income, surplus, goals, portrait
   // traits, benchmarks, etc. — the payload is the sole source of truth.
+  //
+  // V2 (Session v2.2 Chat Intelligence) cohort users take a different
+  // branch: brief + tools + memory surface instead of pre-computed
+  // narration. Gated by isChatIntelligenceV2Enabled(profile). The v2 path
+  // does NOT require first_insight_payload to be present — the LLM forms
+  // its hypothesis from the brief and pulls numbers via the 10 tools.
   const firstInsightPayload = conversationMetadata?.first_insight_payload as InsightPayload | undefined;
-  const isFirstInsight =
-    (conversationType === 'first_insight' || conversationType === 'post_upload') &&
-    !!firstInsightPayload;
+  const conversationIsFirstInsight =
+    conversationType === 'first_insight' || conversationType === 'post_upload';
+  const v2Enabled = isChatIntelligenceV2Enabled(profile);
 
-  if (isFirstInsight) {
+  if (conversationIsFirstInsight && v2Enabled) {
+    // V2 brief assembly. Fetch the extras the brief needs (value_map_results
+    // for per-quadrant labels, transaction window stats). Done sequentially
+    // after the parallel block so the v1 path is unaffected.
+    // entry_struggle_text exists at runtime but the typed schema may lag —
+    // cast through unknown to silence the per-key strict access.
+    const profileRecord = (profile ?? {}) as Record<string, unknown>;
+    const briefProfile: BriefProfile = {
+      display_name: (profileRecord.display_name as string | null) ?? null,
+      country: (profileRecord.country as string | null) ?? null,
+      primary_currency: (profileRecord.primary_currency as string | null) ?? null,
+      net_monthly_income: (profileRecord.net_monthly_income as number | null) ?? null,
+      monthly_rent: (profileRecord.monthly_rent as number | null) ?? null,
+      entry_struggle_text: (profileRecord.entry_struggle_text as string | null) ?? null,
+    };
+
+    const archetype =
+      (valueMap?.archetype_name as string | null) ??
+      (valueMap?.personality_type
+        ? (PERSONALITIES[valueMap.personality_type]?.name ?? (valueMap.personality_type as string))
+        : null);
+
+    let vmRowsByQuadrant: VmRowsByQuadrant = {
+      foundation: [],
+      investment: [],
+      leak: [],
+      burden: [],
+      unsure: [],
+    };
+    let valueMapTakenAt: string | null = null;
+    if (valueMap?.id) {
+      const { data: vmRows } = await supabase
+        .from('value_map_results')
+        .select('transaction_id, merchant, quadrant, created_at')
+        .eq('session_id', valueMap.id)
+        .order('created_at', { ascending: true });
+      if (Array.isArray(vmRows) && vmRows.length > 0) {
+        vmRowsByQuadrant = bucketVmRowsByQuadrant(vmRows);
+        valueMapTakenAt = (vmRows[0]?.created_at as string | null) ?? null;
+      }
+    }
+
+    // Transaction window: count + min/max date in a single query each.
+    let txWindow: TxWindow = {
+      n_transactions: 0,
+      n_months: 0,
+      earliest: 'unknown',
+      latest: 'unknown',
+    };
+    try {
+      const [{ count: txCount }, { data: minRow }, { data: maxRow }] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId),
+        supabase
+          .from('transactions')
+          .select('date')
+          .eq('user_id', userId)
+          .order('date', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('transactions')
+          .select('date')
+          .eq('user_id', userId)
+          .order('date', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const earliest = (minRow?.date as string | null) ?? null;
+      const latest = (maxRow?.date as string | null) ?? null;
+      const months = earliest && latest
+        ? Math.max(1, Math.round(
+            (new Date(latest).getTime() - new Date(earliest).getTime()) /
+              (1000 * 60 * 60 * 24 * 30),
+          ))
+        : 0;
+      txWindow = {
+        n_transactions: txCount ?? 0,
+        n_months: months,
+        earliest: earliest ?? 'unknown',
+        latest: latest ?? 'unknown',
+      };
+    } catch (err) {
+      console.error('[context-builder-v2] tx window query failed:', err);
+    }
+
+    const primaryGoalBrief = primaryGoal ? { title: primaryGoal.name } : null;
+
+    const sections = [
+      BASE_PERSONA + styleModifier,
+      buildCurrentDateContext(),
+      await buildFirstInsightContextV2(
+        supabase,
+        userId,
+        briefProfile,
+        archetype,
+        valueMapTakenAt,
+        vmRowsByQuadrant,
+        txWindow,
+        primaryGoalBrief,
+      ),
+      await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+      buildToolUsageInstructions(),
+    ].filter(Boolean);
+
+    return sections.join('\n\n---\n\n');
+  }
+
+  if (conversationIsFirstInsight && firstInsightPayload) {
     const sections = [
       BASE_PERSONA + styleModifier,
       buildCurrentDateContext(),
@@ -2033,7 +2445,7 @@ Value category breakdown:
 - Investment: ${pct('investment')}%
 - Burden: ${pct('burden')}%
 - Leak: ${pct('leak')}%
-- No Idea/untagged: ${pct('no_idea')}%
+- Unsure/untagged: ${pct('unsure')}%
 `
     }
   }

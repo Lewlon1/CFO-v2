@@ -11,8 +11,8 @@ import {
   formatCurrency,
   isPlSpend,
   absExpense,
-  normaliseMerchant,
 } from './pattern-detectors';
+import { groupByMerchant } from '@/lib/ai/tools/helpers/group-by-merchant';
 
 /**
  * Resolve the user's currency.
@@ -371,24 +371,34 @@ export function computeDisciplineScore(ctx: DetectorContext): number {
   }
 
   // merchant concentration
+  // Pre-filter to spend rows so groupByMerchant's refund-netting collapses
+  // to plain absolute spend (no positive amounts present after this filter).
   const expenses = ctx.transactions.filter(t => isPlSpend(t));
   if (expenses.length > 0) {
-    const byMerchant = new Map<string, number>();
-    for (const t of expenses) {
-      const k = normaliseMerchant(t.description ?? '');
-      byMerchant.set(k, (byMerchant.get(k) ?? 0) + absExpense(Number(t.amount)));
-    }
+    const merchants = groupByMerchant(
+      expenses.map(t => ({
+        amount: t.amount,
+        description: t.description ?? null,
+        date: t.date,
+        category_id: t.category_id ?? null,
+      }))
+    );
     const total = expenses.reduce((a, t) => a + absExpense(Number(t.amount)), 0);
-    const top5 = Array.from(byMerchant.values())
-      .sort((a, b) => b - a)
+    const top5 = merchants
       .slice(0, 5)
-      .reduce((a, v) => a + v, 0);
+      .reduce((a, m) => a + m.total_spend, 0);
     if (total > 0 && top5 / total > 0.5) s += 20;
   }
 
   return Math.min(100, s);
 }
 
+/**
+ * V1-ONLY: deterministic chip generator for the first-insight prompt.
+ * The Session v2.2 Chat Intelligence v2 prompt does NOT call this — chips
+ * come from the LLM emitting an [OPTIONS] block validated by
+ * insight-validator.ts (Phase 6). Do not remove until v1 path is retired.
+ */
 function buildSuggestedResponses(
   layers: InsightPayload['layers'],
   hook: Hook

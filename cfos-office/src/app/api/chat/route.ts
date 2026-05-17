@@ -19,6 +19,18 @@ import { extractFromConversation } from '@/lib/ai/portrait-extraction';
 import { createServiceClient } from '@/lib/supabase/service';
 import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-classifier';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
+import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
+import {
+  buildCitationAllowlist,
+  validateCitations,
+  validateProjections,
+  validateVoice,
+  validateChips,
+  validateLength,
+  appendCorrection,
+  type ToolResultLike,
+} from '@/lib/ai/insight-validator';
+import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
 
 export const maxDuration = 60;
 
@@ -179,10 +191,14 @@ export async function POST(req: Request) {
     }
   }
 
-  // Fetch user profile (currency for tool context + onboarding-v2 bridge state)
+  // Fetch user profile (currency for tool context + onboarding-v2 bridge state).
+  // beta_cohort + net_monthly_income + monthly_rent feed the v2 chat-intel
+  // validators (Phase 6) — kept in the same query to avoid an extra round-trip.
   const { data: profileForChat } = await supabase
     .from('user_profiles')
-    .select('primary_currency, onboarding_route, value_map_offered_in_chat, value_map_declined_in_chat')
+    .select(
+      'primary_currency, onboarding_route, value_map_offered_in_chat, value_map_declined_in_chat, beta_cohort, net_monthly_income, monthly_rent',
+    )
     .eq('id', user.id)
     .single();
 
@@ -708,6 +724,112 @@ export async function POST(req: Request) {
           }
         }
         // ── end hallucination guard ──────────────────────────────────────
+
+        // ── V2 chat-intelligence validators (Phase 6) ────────────────────
+        // For wave-1/wave-1.5 cohort users on first_insight conversations,
+        // run four deterministic guards on the LLM output:
+        //   - citation grounding (numbers + merchants → tool result/brief)
+        //   - projection grounding (any /year, /month, "saved" framing →
+        //     propose_experiment tool result)
+        //   - voice (banned reflexive CFO phrases)
+        //   - chip validity (no generic / navigation / no-narrative-noun)
+        //
+        // When the first three fire, a short server-side correction is
+        // appended to the persisted message body and a single user_events
+        // row is logged. Bad chips are stripped from the [OPTIONS] block.
+        const v2Enabled = isChatIntelligenceV2Enabled(profileForChat);
+        if (
+          v2Enabled &&
+          conversationType === 'first_insight' &&
+          textContent
+        ) {
+          // Build the ToolResultLike[] from the audit trail. insightsGenerated
+          // already carries { tool, output } for every successful structured
+          // tool call, which is exactly the shape buildCitationAllowlist wants.
+          const toolResults: ToolResultLike[] = insightsGenerated.map((entry) => ({
+            toolName: entry.tool,
+            output: entry.output,
+          }));
+
+          // Brief facts: income + rent are enough to ground common numbers
+          // the LLM might quote without a tool call (e.g. "your £2,800 net").
+          const brief = {
+            income: profileForChat?.net_monthly_income ?? null,
+            rent: profileForChat?.monthly_rent ?? null,
+          };
+
+          const allowlist = buildCitationAllowlist(toolResults, brief);
+          const citationCheck = validateCitations(textContent, allowlist);
+
+          // Filter toolResults down to propose_experiment outputs for the
+          // projection validator. Each output has the shape
+          // { monthly_impact: { amount }, annualised_impact: { amount }, ... }.
+          const experimentResults = toolResults
+            .filter((r) => r.toolName === 'propose_experiment')
+            .map((r) => r.output as {
+              monthly_impact?: { amount?: number };
+              annualised_impact?: { amount?: number };
+            });
+          const projectionCheck = validateProjections(textContent, experimentResults);
+
+          const voiceCheck = validateVoice(textContent);
+          const lengthCheck = validateLength(textContent);
+
+          if (
+            !citationCheck.valid ||
+            !projectionCheck.valid ||
+            !voiceCheck.valid ||
+            !lengthCheck.valid
+          ) {
+            textContent = appendCorrection(textContent, {
+              unmatched_citations: citationCheck.unmatched,
+              unmatched_projections: projectionCheck.unmatched_projections,
+              voice_violations: voiceCheck.violations,
+              length_violation: lengthCheck.valid ? undefined : lengthCheck,
+            });
+
+            void supabase.from('user_events').insert({
+              profile_id: user.id,
+              session_id: activeConversationId,
+              event_type: 'first_insight_validator_fired',
+              event_category: 'validation',
+              payload: {
+                message_id: assistantMessageDbId,
+                citationCheck,
+                projectionCheck,
+                voiceCheck,
+                lengthCheck,
+              },
+            });
+          }
+
+          // Chip validation runs AFTER the citation/projection/voice append,
+          // because the appended correction can affect chip-narrative-noun
+          // matching (it shouldn't — the appended text is meta — but
+          // running it last keeps the chip check focused on chips alone).
+          const chips = extractChips(textContent);
+          if (chips.length > 0) {
+            const chipCheck = validateChips(chips, textContent);
+            if (!chipCheck.valid) {
+              const invalid = chips.filter((c) => chipCheck.reasons[c]);
+              if (invalid.length > 0) {
+                textContent = removeInvalidChips(textContent, invalid);
+                void supabase.from('user_events').insert({
+                  profile_id: user.id,
+                  session_id: activeConversationId,
+                  event_type: 'first_insight_chips_stripped',
+                  event_category: 'validation',
+                  payload: {
+                    message_id: assistantMessageDbId,
+                    invalid_chips: invalid,
+                    reasons: chipCheck.reasons,
+                  },
+                });
+              }
+            }
+          }
+        }
+        // ── end v2 chat-intelligence validators ───────────────────────────
 
         if (textContent) {
           await supabase.from('messages').insert({

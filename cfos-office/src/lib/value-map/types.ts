@@ -2,6 +2,8 @@
 
 export type ValueQuadrant = 'foundation' | 'investment' | 'burden' | 'leak'
 
+export type ValueMapGranularity = 'category' | 'intent'
+
 export interface ValueMapTransaction {
   id: string
   merchant: string | null
@@ -12,6 +14,14 @@ export interface ValueMapTransaction {
   is_recurring: boolean
   category_name?: string | null
   context?: string
+  // DB category slug this card maps to. Required on sample cards; nullable
+  // on personal/retake flows where the source transaction may be uncategorised.
+  category_id?: string | null
+  // 'category' = card represents the whole DB category (rent IS housing);
+  // 'intent'   = card represents one slice of a multi-intent category.
+  // Only 'category' cards seed value_category_rules from VM completion.
+  // Undefined on personal/retake flows (which seed rules via a different path).
+  granularity?: ValueMapGranularity
 }
 
 export interface ValueMapResult {

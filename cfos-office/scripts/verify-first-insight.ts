@@ -1,9 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * Usage: npx tsx scripts/verify-first-insight.ts <userId>
+ * Usage:
+ *   npx tsx scripts/verify-first-insight.ts <userId>          # V1 (default)
+ *   npx tsx scripts/verify-first-insight.ts <userId> --v2     # V2 (Session v2.2)
  *
- * Prints payload JSON + assembled system prompt, then runs anti-hallucination
+ * V1: prints payload JSON + assembled system prompt, then runs anti-hallucination
  * checks against the First Insight pipeline.
+ *
+ * V2: forces CHAT_INTELLIGENCE_V2_FORCE=1 before any module loads, skips
+ * computeFirstInsight (the v2 prompt does not consume the payload), and dumps
+ * the brief-first prompt. Anti-hallucination checks are V1-shaped and SKIPPED
+ * for v2 — the v2 prompt does not contain the same denial-zone scaffolding.
  *
  * Prerequisites:
  * - .env.local (or env vars) with NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
@@ -15,6 +22,16 @@
  * build path resolves and we can inject a service-role client.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
+
+// --- 0. Parse flags BEFORE any imports that read process.env at module load ---
+// The chat-intelligence-v2 flag is evaluated lazily on every call, but we set
+// CHAT_INTELLIGENCE_V2_FORCE here for completeness and so the banner reflects
+// the active mode.
+const ARGV = process.argv.slice(2);
+const V2_MODE = ARGV.includes('--v2');
+if (V2_MODE) {
+  process.env.CHAT_INTELLIGENCE_V2_FORCE = '1';
+}
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -102,15 +119,57 @@ const { computeFirstInsight } = require('../src/lib/analytics/insight-engine');
 const { buildSystemPrompt } = require('../src/lib/ai/context-builder');
 
 async function main() {
-  const userId = process.argv[2];
+  // First positional arg that isn't a flag is the userId.
+  const userId = ARGV.find((a) => !a.startsWith('--'));
   if (!userId) {
-    console.error('Usage: npx tsx scripts/verify-first-insight.ts <userId>');
+    console.error('Usage:');
+    console.error('  npx tsx scripts/verify-first-insight.ts <userId>          # V1');
+    console.error('  npx tsx scripts/verify-first-insight.ts <userId> --v2     # V2');
     process.exit(1);
   }
 
   console.log(`\n(env loaded from ${envLoadedFrom ?? 'process env'})`);
   console.log(`(supabase url: ${supabaseUrl})`);
-  console.log(`\n=== Computing first insight for user ${userId} ===\n`);
+  console.log(`(mode: ${V2_MODE ? 'V2 (CHAT_INTELLIGENCE_V2_FORCE=1)' : 'V1'})`);
+  console.log(`\n=== ${V2_MODE ? 'V2 brief prompt' : 'Computing first insight'} for user ${userId} ===\n`);
+
+  if (V2_MODE) {
+    // V2 path: the prompt builder pulls everything it needs from the user's
+    // row + a value_category_rules query. No payload pre-compute.
+    console.log('(skipping computeFirstInsight — v2 prompt does not consume it)\n');
+    console.log('\n=== Assembled system prompt (V2) ===\n');
+    const prompt: string = await buildSystemPrompt(userId, 'first_insight');
+    console.log(prompt);
+    console.log('\n--- end prompt ---\n');
+
+    // V2 sanity checks: confirm the brief markers are present. The V1
+    // anti-hallucination checks below intentionally do NOT run for v2 —
+    // the v2 prompt has no "QUOTABLE FACTS" / "NOT AVAILABLE" denial zones,
+    // so the patterns would generate false positives.
+    console.log('\n=== V2 structural checks ===\n');
+    const expectedSections = [
+      '## The user',
+      '## Value Map (their stated values)',
+      '## Data available',
+      "## What you've learned so far (memory)",
+      '## How to approach the first message',
+      '## Voice rules',
+      '## How to write chips',
+      '## How to surface learning',
+    ];
+    let v2Failed = 0;
+    for (const section of expectedSections) {
+      if (prompt.includes(section)) {
+        console.log(`  OK: section "${section}" present`);
+      } else {
+        console.error(`  FAIL: section "${section}" missing`);
+        v2Failed++;
+      }
+    }
+    console.log(`\n=== Summary: ${v2Failed === 0 ? 'PASS' : 'FAIL'} (${v2Failed} issues) ===`);
+    console.log(`\nPrompt length: ${prompt.length} chars (~${Math.round(prompt.length / 4)} tokens)`);
+    process.exit(v2Failed === 0 ? 0 : 2);
+  }
 
   const payload = await computeFirstInsight(serviceClient as any, userId);
   console.log(JSON.stringify(payload, null, 2));

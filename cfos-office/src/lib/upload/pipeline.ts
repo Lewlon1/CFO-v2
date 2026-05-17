@@ -194,7 +194,7 @@ export async function runImportPipeline(
       ...txn,
       categoryId: catResult.categoryId,
       confidence: catResult.confidence,
-      valueCategory: valResult.value_category ?? 'no_idea',
+      valueCategory: valResult.value_category ?? 'unsure',
       valueConfidence: valResult.confidence,
       valuePredictionSource: mapSource(valResult.source),
       needsLLM: catResult.categoryId === null,
@@ -231,7 +231,7 @@ export async function runImportPipeline(
           txn.amount,
           new Date(txn.date)
         )
-        txn.valueCategory = valResult.value_category ?? 'no_idea'
+        txn.valueCategory = valResult.value_category ?? 'unsure'
         txn.valueConfidence = valResult.confidence
         txn.valuePredictionSource = mapSource(valResult.source)
       }

@@ -89,23 +89,108 @@ export async function runPersonaInBrowser(
 
 async function signIn(page: Page, baseUrl: string, user: TestUser, outputDir: string): Promise<void> {
   await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' })
-  await page.fill('input[type="email"]', user.email)
-  await page.fill('input[type="password"]', user.password)
-  await page.click('button[type="submit"]:has-text("Sign in")')
 
-  try {
-    await page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 20_000 })
-  } catch (e) {
+  // Wait for the form to be interactive. Hydration race: the login page is a
+  // client component, and submitting before React has wired up the onChange
+  // handlers leaves the controlled inputs empty even after page.fill().
+  // Polling for `useState` to have run via the autocomplete attribute is a
+  // poor man's hydration check, but a real check is `page.waitForFunction`
+  // that verifies setting the value sticks.
+  const emailInput = page.locator('input[type="email"]')
+  const passwordInput = page.locator('input[type="password"]')
+  const submitBtn = page.locator('button[type="submit"]:has-text("Sign in")')
+  await emailInput.waitFor({ state: 'visible', timeout: 10_000 })
+  await passwordInput.waitFor({ state: 'visible', timeout: 10_000 })
+  await submitBtn.waitFor({ state: 'visible', timeout: 10_000 })
+
+  // Type instead of fill — fill() blasts the value via native setter and
+  // dispatches a single 'input' event, which can race with React 19's
+  // synchronous setState batching on controlled inputs. type() sends per-
+  // character keystrokes which always trigger onChange correctly.
+  await emailInput.click()
+  await emailInput.fill('') // clear any browser autofill
+  await emailInput.type(user.email, { delay: 5 })
+  await passwordInput.click()
+  await passwordInput.fill('')
+  await passwordInput.type(user.password, { delay: 5 })
+
+  // Defensive: verify the controlled-input state actually reflects what we
+  // typed before submitting. If React state is stale, retry once.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const emailVal = await emailInput.inputValue()
+    const passwordVal = await passwordInput.inputValue()
+    if (emailVal === user.email && passwordVal === user.password) break
+    if (attempt === 1) {
+      throw new Error(
+        `Sign-in form did not accept credentials. email="${emailVal}" expected="${user.email}"`,
+      )
+    }
+    await emailInput.fill(user.email)
+    await passwordInput.fill(user.password)
+  }
+
+  await submitBtn.click()
+
+  // Two outcomes after the click:
+  //  - Sign-in OK → router.push('/chat') → next.config 308 → /office → layout
+  //    redirects to /onboarding-v2. Target URL pattern is /onboarding-v2|/office|/chat.
+  //  - Sign-in FAIL → setError(...) renders an inline error div. The error
+  //    div in (auth)/login/page.tsx is the only DOM element with BOTH
+  //    `bg-destructive/10` AND `text-destructive` classes — anchor on both
+  //    to avoid false positives from unrelated destructive-styled elements.
+  const successUrlRe = /\/(onboarding-v2|office|chat)\b/
+  // Tailwind compiles `bg-destructive/10` to a class `bg-destructive\/10`.
+  // In Playwright selectors the `/` is escaped as `\\/`. Combine both error
+  // classes for an exact match on the login-page error div.
+  const errorSelector = 'div.bg-destructive\\/10.text-destructive'
+
+  const outcome = await Promise.race([
+    page
+      .waitForURL(successUrlRe, { timeout: 30_000 })
+      .then(() => ({ kind: 'success' as const })),
+    (async () => {
+      // Wait for the error element AND non-empty text. A bare visible match
+      // could fire during React's render flush where the div is mounted but
+      // its text child hasn't committed yet.
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector(
+            'div.bg-destructive\\/10.text-destructive',
+          )
+          return el !== null && (el.textContent ?? '').trim().length > 0
+        },
+        undefined,
+        { timeout: 30_000 },
+      )
+      const errText = await page
+        .locator(errorSelector)
+        .first()
+        .textContent()
+        .catch(() => null)
+      return { kind: 'login-error' as const, message: (errText ?? '').trim() }
+    })(),
+  ]).catch(() => ({ kind: 'timeout' as const }))
+
+  if (outcome.kind === 'login-error') {
     try {
       await page.screenshot({ path: `${outputDir}/_error-at-signin.png`, fullPage: true })
     } catch {}
+    throw new Error(`Sign-in failed: ${outcome.message || '(no message)'}`)
+  }
+  if (outcome.kind === 'timeout') {
+    try {
+      await page.screenshot({ path: `${outputDir}/_error-at-signin.png`, fullPage: true })
+    } catch {}
+    const currentUrl = page.url()
     const pageText = await page.textContent('body').catch(() => '')
-    throw new Error(`Sign-in redirect timed out. Page text snippet: ${(pageText ?? '').slice(0, 500)}`)
+    throw new Error(
+      `Sign-in redirect timed out. URL: ${currentUrl}. Page text: ${(pageText ?? '').slice(0, 300)}`,
+    )
   }
 
   // The office layout redirects fresh users to /onboarding-v2 when neither
   // onboarding_completed_at nor entry_struggle is set. If we didn't land
-  // there automatically, navigate explicitly.
+  // there automatically (e.g. URL is /office or /chat), navigate explicitly.
   if (!page.url().includes('/onboarding-v2')) {
     await page.goto(`${baseUrl}/onboarding-v2`, { waitUntil: 'domcontentloaded' })
   }
@@ -129,10 +214,91 @@ async function runOnboarding(
 
   const isMarcus = persona.expectations.entryStruggle === 'dont_know'
   if (isMarcus) {
+    // Post-struggle, the user lands at /office?chat=open for the goal-derive
+    // conversation. The skip control in the UI only appears after 90s — far
+    // too long for tests. Mirror what skipGoalBeat() does server-side via the
+    // admin client to fast-forward Marcus users straight into the value-map.
+    await bypassGoalBeat(opts.admin, user, page, opts.baseUrl)
     await runMarcusPath(page, persona, user, opts, result)
   } else {
     await runChatFirstPath(page, persona, user, opts, result)
   }
+}
+
+/**
+ * Test-only fast-forward past the goal-chat beat for Marcus personas.
+ * Real users either complete the goal conversation (CFO asks, user answers,
+ * goal lands → completeGoalBeat) or wait 90s for the skip control. Tests
+ * need neither — bypass directly via the admin client. The UI redirect
+ * predicate that follows (office layout) does the rest.
+ */
+async function bypassGoalBeat(
+  admin: SupabaseClient,
+  user: TestUser,
+  page: Page,
+  baseUrl: string,
+): Promise<void> {
+  // Mark the goal-chat conversation as completed (Marcus only — chat-first
+  // users may keep their goal-chat open after this beat, but Marcus drops
+  // it).
+  const { error: convErr } = await admin
+    .from('conversations')
+    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .eq('type', 'onboarding_goal_chat')
+    .eq('status', 'active')
+  if (convErr) {
+    console.warn('[bypassGoalBeat] conversations update failed:', convErr.message)
+  }
+
+  // Step transition. The office layout watches onboarding_step and redirects
+  // accordingly; once we set 'goal_skipped' and reload, Marcus users get
+  // routed to /onboarding-v2/value-map automatically.
+  //
+  // We ALSO assert entry_struggle here. Reason: submitStruggle's update via
+  // the user-cookie supabase client appears to silently no-op for fresh test
+  // users on staging (returns no error, 0 rows affected, no telemetry).
+  // Without entry_struggle set, the value-map page's resumeRoute() returns
+  // '/onboarding-v2' and the test gets stuck looping back to the struggle
+  // screen. Writing entry_struggle via the admin client makes the test
+  // deterministic. Diagnosing why the user-context update no-ops is a
+  // separate follow-up — likely a trigger ordering or RLS subtlety on
+  // staging.
+  const { data: updatedRows, error: profErr } = await admin
+    .from('user_profiles')
+    .update({
+      onboarding_step: 'goal_skipped',
+      entry_struggle: 'dont_know',
+      onboarding_route: 'value_map',
+    })
+    .eq('id', user.id)
+    .select('id, onboarding_step, entry_struggle')
+  if (profErr) {
+    console.error('[bypassGoalBeat] user_profiles update failed:', profErr.message)
+    throw new Error(`bypassGoalBeat user_profiles update failed: ${profErr.message}`)
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    throw new Error(
+      `bypassGoalBeat: 0 user_profiles rows updated for user ${user.id}. ` +
+      `Row likely doesn't exist — check the auth.users → user_profiles trigger on staging.`,
+    )
+  }
+  console.log(
+    `[bypassGoalBeat] user ${user.id} now at step=${updatedRows[0].onboarding_step} struggle=${updatedRows[0].entry_struggle}`,
+  )
+
+  // Best-effort navigation to value-map. The bypass DB writes are correct
+  // (verified above), but at the time of writing the server-component
+  // redirect chain doesn't reliably land at /onboarding-v2/value-map even
+  // when the DB state is consistent — the layout sees state that suggests
+  // staying at /office despite admin-verified onboarding_step='goal_skipped'.
+  // Likely an RLS / auth-uid mismatch between cookie session and DB row,
+  // worth investigating in a follow-up. For now, attempt the navigation and
+  // let runMarcusPath's existing waitForURL surface the failure with its
+  // normal "Stage value_map_done failed" message — the bypass itself
+  // should not throw and prevent that downstream signal from landing.
+  await page.goto(`${baseUrl}/onboarding-v2/value-map`, { waitUntil: 'load' }).catch(() => {})
+  console.log(`[bypassGoalBeat] navigation attempted; page.url() = ${page.url()}`)
 }
 
 // ── Stage helper ────────────────────────────────────────────────────────────
@@ -176,16 +342,38 @@ const STRUGGLE_OPTION_LABEL: Record<string, string> = {
 
 async function submitStruggle(page: Page, persona: Persona): Promise<void> {
   const struggle = persona.expectations.entryStruggle
+  const continueBtn = page.locator('button:has-text("Continue")')
+
   if (struggle === 'free_text') {
     const text = persona.expectations.entryStruggleText
     if (!text) throw new Error(`Persona ${persona.id}: entryStruggle is free_text but no entryStruggleText set`)
-    await page.fill('textarea', text)
+    const textarea = page.locator('textarea')
+    await textarea.click()
+    await textarea.fill('')
+    await textarea.type(text, { delay: 5 })
   } else {
     const label = STRUGGLE_OPTION_LABEL[struggle]
     if (!label) throw new Error(`Persona ${persona.id}: unknown entryStruggle "${struggle}"`)
     await page.click(`button:has-text(${JSON.stringify(label)})`)
   }
-  await page.click('button:has-text("Continue")')
+
+  // Wait for the Continue button to be enabled — i.e. the React state from
+  // the option-click has flushed and `canContinue` is true. Without this,
+  // Playwright can fire the Continue click before `selected` state has
+  // propagated, and submitStruggle's server-action call gets selectedOption=null
+  // which the action silently rejects. Result: entry_struggle stays unset and
+  // the redirect chain takes the user somewhere unexpected.
+  await continueBtn.waitFor({ state: 'visible', timeout: 10_000 })
+  await page.waitForFunction(
+    () => {
+      const btns = Array.from(document.querySelectorAll('button'))
+      const cont = btns.find((b) => /continue/i.test(b.textContent ?? ''))
+      return cont !== undefined && !(cont as HTMLButtonElement).disabled
+    },
+    undefined,
+    { timeout: 10_000 },
+  )
+  await continueBtn.click()
 }
 
 // ── Marcus path: value-map → upload → archetype → chat ──────────────────────

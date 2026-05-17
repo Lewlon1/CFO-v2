@@ -1,0 +1,3 @@
+# Active champion. One filename per line. Comments allowed (# prefix). Empty
+# lines ignored. The first non-comment line is the active champion.
+2026-05-17-baseline.ts

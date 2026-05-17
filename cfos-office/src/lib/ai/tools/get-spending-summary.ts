@@ -101,7 +101,7 @@ export function createGetSpendingSummaryTool(ctx: ToolContext) {
         // Value breakdown — net per value category.
         const valueMap = new Map<string, number>();
         for (const t of transactions) {
-          const vc = t.value_category || 'no_idea';
+          const vc = t.value_category || 'unsure';
           valueMap.set(vc, (valueMap.get(vc) || 0) + net(t.amount));
         }
         const valueBreakdown: Record<string, number> = {};

@@ -10,6 +10,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { NextResponse } from 'next/server'
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import { calculatePersonality } from '@/lib/value-map/personalities'
+import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
 
 export async function POST(request: Request) {
   const { session_token } = await request.json()
@@ -107,26 +108,45 @@ export async function POST(request: Request) {
     console.error('[link-session] value_map_results insert error:', resultsError)
   }
 
-  // Seed value_category_rules from quadrant assignments
-  const decided = responses.filter(
-    (r): r is ValueMapResult & { quadrant: ValueQuadrant } => r.quadrant !== null
+  // Seed value_category_rules from quadrant assignments.
+  // Only category-precise cards (rent IS housing, weekly shop IS groceries)
+  // seed rules. Intent cards (takeaway, dinner-with-friends — both inside
+  // eat_drinking_out) write only to value_map_results; their quadrant doesn't
+  // generalise across the whole category.
+  // Cards without a decision (quadrant === null, i.e. "Unsure") don't seed.
+  //
+  // The prior implementation wrote match_type: 'merchant' with match_value =
+  // sample card label (e.g. "dinner out with friends"), which the Gap analyser
+  // then tried to substring-match against bank transaction descriptions and
+  // never found anything. Migration 050 cleaned up those broken rows.
+  const cardLookup = new Map(SAMPLE_TRANSACTIONS.map(c => [c.id, c]))
+
+  const decidedCategoryCards = responses.filter(
+    (r): r is ValueMapResult & { quadrant: ValueQuadrant } => {
+      if (r.quadrant === null) return false
+      const card = cardLookup.get(r.transaction_id)
+      return card?.granularity === 'category'
+    }
   )
 
-  if (decided.length > 0) {
-    const rules = decided.map(r => ({
-      user_id: user.id,
-      match_type: 'merchant' as const,
-      match_value: r.merchant.toLowerCase(),
-      value_category: r.quadrant,
-      confidence: r.confidence / 5, // Convert 1-5 scale to 0-1
-      source: 'value_map',
-      last_signal_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }))
+  if (decidedCategoryCards.length > 0) {
+    const rules = decidedCategoryCards.map(r => {
+      const card = cardLookup.get(r.transaction_id)!
+      return {
+        user_id: user.id,
+        match_type: 'category' as const,
+        match_value: card.category_id!,
+        value_category: r.quadrant,
+        confidence: r.confidence / 5, // Convert 1-5 scale to 0-1
+        source: 'value_map',
+        last_signal_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+    })
 
     const { error: rulesError } = await service
       .from('value_category_rules')
-      .upsert(rules, { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' })
+      .upsert(rules, { onConflict: "user_id,match_type,match_value,coalesce(time_context,'__none__')" })
 
     if (rulesError) {
       console.error('[link-session] value_category_rules seed error:', rulesError)

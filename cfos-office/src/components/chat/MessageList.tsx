@@ -47,6 +47,12 @@ import { TappableOptions } from './TappableOptions';
 import { StatCardBlock } from './StatCardBlock';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
+import {
+  LabelTransactionsBlock,
+  type LabelTransactionsBlockProps,
+  type LabelTransactionsQuadrantId,
+  type LabelTransactionsTransaction,
+} from './LabelTransactionsBlock';
 import { ScenarioResult } from './ScenarioResult';
 import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
@@ -55,6 +61,7 @@ import { CfoThinking } from '@/components/brand/CfoThinking';
 import { ValueMapActionButton } from './ValueMapActionButton';
 import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
+import { parseOptions } from '@/lib/chat/options-parser';
 import {
   buildActionItemCard,
   buildProfileUpdateCard,
@@ -102,88 +109,6 @@ function extractStats(text: string): {
   return { text: cleaned, stats };
 }
 
-function parseOptions(content: string): { text: string; options: string[] | null } {
-  // Primary: explicit [OPTIONS] blocks. Accept both closed and unclosed forms
-  // — Claude frequently forgets the trailing [/OPTIONS] tag.
-  const markerMatch = content.match(/\[OPTIONS\]\s*\n/);
-  if (markerMatch && markerMatch.index !== undefined) {
-    const markerStart = markerMatch.index;
-    const afterMarker = markerStart + markerMatch[0].length;
-    const tail = content.slice(afterMarker);
-    const lines = tail.split('\n');
-
-    const bulletLines: string[] = [];
-    let consumedLines = 0;
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line) {
-        // Blank lines inside the block are allowed only between bullets.
-        if (bulletLines.length === 0 || consumedLines === lines.length - 1) {
-          consumedLines++;
-          continue;
-        }
-        consumedLines++;
-        continue;
-      }
-      if (/^[-•]\s+/.test(line)) {
-        bulletLines.push(line.replace(/^[-•]\s*/, '').trim());
-        consumedLines++;
-      } else {
-        break;
-      }
-    }
-
-    // Trim trailing blank lines back off the consumed count so we don't eat
-    // a blank separator that belongs to prose after the block.
-    while (consumedLines > 0 && lines[consumedLines - 1].trim() === '') {
-      consumedLines--;
-    }
-
-    if (bulletLines.length > 0 && bulletLines.length <= 5) {
-      const consumedText = lines.slice(0, consumedLines).join('\n');
-      // +1 for the newline after the last consumed line, if there is one.
-      const hasTrailingNewline = consumedLines < lines.length;
-      const consumedLength = consumedText.length + (hasTrailingNewline ? 1 : 0);
-
-      let removeEnd = afterMarker + consumedLength;
-      // Also consume an optional closing [/OPTIONS] tag immediately after.
-      const closingMatch = content.slice(removeEnd).match(/^\s*\[\/OPTIONS\]\s*\n?/);
-      if (closingMatch) {
-        removeEnd += closingMatch[0].length;
-      }
-
-      const text = (content.slice(0, markerStart) + content.slice(removeEnd))
-        .replace(/\[\/?OPTIONS\]/g, '')
-        .trim();
-      return { text, options: bulletLines };
-    }
-  }
-
-  // Fallback: trailing bullet list of 2-4 short items that don't look like data.
-  // The LLM sometimes forgets the explicit block — this catches "Would you like
-  // to..." style responses while skipping spending breakdowns (monetary values).
-  // Allow optional blank lines between bullets (markdown-style paragraphs).
-  const trailing = content.match(/\n((?:[-•]\s+.{3,60}(?:\n\s*)?){2,4})$/);
-  if (trailing) {
-    const items = trailing[1]
-      .split('\n')
-      .map((l) => l.replace(/^[-•]\s*/, '').trim())
-      .filter(Boolean);
-    const looksLikeChoices = items.every(
-      (i) => i.length <= 60 && !/\d{2,}[.,]\d{2}/.test(i)
-    );
-    if (looksLikeChoices && items.length >= 2 && items.length <= 4) {
-      const text = content
-        .slice(0, content.length - trailing[0].length)
-        .replace(/\[\/?OPTIONS\]/g, '')
-        .trim();
-      return { text, options: items };
-    }
-  }
-
-  return { text: content, options: null };
-}
-
 function parseCTA(content: string): { text: string; cta: { type: string; label: string } | null } {
   // Accept both inline ([CTA:type]label[/CTA]) and multi-line variants.
   // [\s\S] so the label can span newlines; the optional \s* lets us match either form.
@@ -228,12 +153,17 @@ export function MessageList({
   status,
   onOptionSelect,
   onStructuredSubmit,
+  onLabelTransactionsSubmit,
   userCurrency,
 }: {
   messages: UIMessage[];
   status: string;
   onOptionSelect?: (text: string) => void;
   onStructuredSubmit?: (field: string, value: string | number, displayText: string) => void;
+  onLabelTransactionsSubmit?: (
+    transactions: LabelTransactionsTransaction[],
+    labels: Record<string, LabelTransactionsQuadrantId>,
+  ) => void;
   userCurrency?: string;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -258,6 +188,7 @@ export function MessageList({
         // Extract text parts and structured input tool invocations
         const textParts: string[] = [];
         const structuredInputs: StructuredInputConfig[] = [];
+        const labelTransactionsConfigs: LabelTransactionsBlockProps[] = [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const scenarioResults: any[] = [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -303,6 +234,18 @@ export function MessageList({
                   (output as { type?: string }).type === 'structured_input'
                 ) {
                   structuredInputs.push(output as StructuredInputConfig);
+                }
+
+                // Inline labelling block (label_transactions tool).
+                // The render_directive guard distinguishes successful tool
+                // output from error-shape outputs ({ error: '...' }).
+                if (
+                  toolName === 'label_transactions' &&
+                  output &&
+                  typeof output === 'object' &&
+                  (output as { render_directive?: string }).render_directive === 'label_transactions'
+                ) {
+                  labelTransactionsConfigs.push(output as LabelTransactionsBlockProps);
                 }
 
                 // Scenario result visualisation
@@ -457,6 +400,21 @@ export function MessageList({
                   config={config}
                   onSubmit={onStructuredSubmit ?? (() => {})}
                   userCurrency={userCurrency}
+                />
+              ))}
+
+              {/* Inline label_transactions blocks. The block POSTs each
+                  label to /api/corrections/signal itself; onSubmit then fires
+                  a hidden [System: ...] trigger so the CFO acknowledges the
+                  labels in the next turn (see ChatProvider.handleLabelTransactionsSubmit). */}
+              {labelTransactionsConfigs.map((config) => (
+                <LabelTransactionsBlock
+                  key={config.directiveId}
+                  {...config}
+                  userCurrency={userCurrency}
+                  onSubmit={(labels) =>
+                    onLabelTransactionsSubmit?.(config.transactions, labels)
+                  }
                 />
               ))}
 

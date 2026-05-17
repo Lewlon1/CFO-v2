@@ -199,6 +199,16 @@ export function printCliSummary(suite: SuiteRunResult, outputDir: string): void 
     if (p.hardRuleFailures.length > 0) extra = `  <- ${p.hardRuleFailures[0].slice(0, 80)}`
     else if (p.functionalErrors.length > 0) extra = `  <- ${p.functionalErrors[0].slice(0, 80)}`
     lines.push(row + extra)
+
+    // When a persona fails, surface the first functional error too — the
+    // hardRuleFailures line above often says "No LLM outputs captured" but
+    // the actual root cause is a stage failure stored separately in
+    // functionalErrors. Print it as a continuation line so it's visible
+    // from the CLI without opening the HTML report.
+    if (p.layers.functional === 'fail' && p.functionalErrors.length > 0) {
+      const stageErr = p.functionalErrors[0].slice(0, 140)
+      lines.push(`${''.padEnd(32)}    ${stageErr}`)
+    }
   }
 
   lines.push('-'.repeat(72))
