@@ -41,11 +41,14 @@ import Module from 'module';
 // --- 1. Parse args ---
 const ARGV = process.argv.slice(2);
 const JUDGE_MODE = ARGV.includes('--judge');
+const CAPTURE_MODE = ARGV.includes('--capture');
 
 function usageAndExit(code = 1): never {
   console.error('Usage:');
-  console.error('  npx tsx scripts/compare-first-insight.ts <userId>           # capture only');
-  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --judge   # capture + judge');
+  console.error('  npx tsx scripts/compare-first-insight.ts <userId>             # markdown only');
+  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --judge     # markdown + legacy judge');
+  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --capture   # markdown + write pair to eval/golden-set/');
+  console.error('  (--judge and --capture can be combined)');
   process.exit(code);
 }
 
@@ -359,14 +362,21 @@ async function main() {
   const v2 = await runVariant('v2', `${conversationId}-v2`);
   console.log(`  V2 done — ${v2.text.length} chars text, ${v2.toolCalls.length} tool calls`);
 
+  // Known merchants + user brief are needed by either --judge or --capture.
+  // Compute once, share between both paths.
+  let knownMerchants: string[] = [];
+  let userBrief = '';
+  if (JUDGE_MODE || CAPTURE_MODE) {
+    [knownMerchants, userBrief] = await Promise.all([
+      fetchKnownMerchants(),
+      fetchUserBrief(),
+    ]);
+  }
+
   let judgeSection = '';
   if (JUDGE_MODE) {
     console.log('Running judge...');
     const { judgeFirstInsight } = require('../tests/onboarding/runner/judge-first-insight');
-    const [knownMerchants, userBrief] = await Promise.all([
-      fetchKnownMerchants(),
-      fetchUserBrief(),
-    ]);
 
     const v1Judge = await judgeFirstInsight({
       response: v1.text,
@@ -450,6 +460,37 @@ async function main() {
 
   writeFileSync(outPath, md, 'utf-8');
   console.log(`\nWrote: ${outPath}\n`);
+
+  // --capture: persist the V1/V2 pair into the golden set so it can be rated
+  // and used by calibrate/diagnose/tournament. We do this AFTER the markdown
+  // write so a failure here doesn't lose the visible artifact.
+  if (CAPTURE_MODE) {
+    const { buildPair, writePair } = require('./eval/_lib/pair-storage');
+    const pair = buildPair({
+      source: 'compare-first-insight',
+      persona_id: null,
+      user_id: userId,
+      trigger_message: FIRST_INSIGHT_TRIGGER,
+      known_merchants: knownMerchants,
+      user_brief: userBrief,
+      variant_a: { label: 'v1', system_prompt: v1.prompt },
+      variant_b: { label: 'v2', system_prompt: v2.prompt },
+      response_a: {
+        text: v1.text,
+        tool_calls: v1.toolCalls,
+        tokens: { in: v1.inputTokens ?? 0, out: v1.outputTokens ?? 0 },
+      },
+      response_b: {
+        text: v2.text,
+        tool_calls: v2.toolCalls,
+        tokens: { in: v2.inputTokens ?? 0, out: v2.outputTokens ?? 0 },
+      },
+    });
+    writePair(pair);
+    console.log(`Captured pair: ${pair.pair_id} (fold=${pair.fold})`);
+    console.log(`  eval/golden-set/pairs/${pair.pair_id}.json\n`);
+  }
+
   process.exit(0);
 }
 
