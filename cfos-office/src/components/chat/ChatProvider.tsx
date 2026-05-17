@@ -14,6 +14,11 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
+import {
+  buildLabelRecapTrigger,
+  type LabelTransactionsQuadrantId,
+  type LabelTransactionsTransaction,
+} from './LabelTransactionsBlock'
 
 // Conversation types that should fire an auto-trigger when loaded with zero
 // messages. Shared between `startConversation` (new conversation, client-side)
@@ -56,6 +61,10 @@ interface ChatContextValue {
     field: string,
     value: string | number,
     displayText: string,
+  ) => void
+  handleLabelTransactionsSubmit: (
+    transactions: LabelTransactionsTransaction[],
+    labels: Record<string, LabelTransactionsQuadrantId>,
   ) => void
   userCurrency?: string
   currentFolder: FolderKey
@@ -381,6 +390,22 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     [sendMessage],
   )
 
+  // Fires after LabelTransactionsBlock has POSTed every label to
+  // /api/corrections/signal. The block already wrote the learning-engine
+  // signal — our job here is to advance the chat by sending a hidden
+  // [System: ...] trigger so the LLM responds in the next turn. Mirrors the
+  // existing handleStructuredSubmit/onStructuredSubmit pattern.
+  const handleLabelTransactionsSubmit = useCallback(
+    (
+      transactions: LabelTransactionsTransaction[],
+      labels: Record<string, LabelTransactionsQuadrantId>,
+    ) => {
+      const trigger = buildLabelRecapTrigger(transactions, labels)
+      sendMessage({ text: trigger })
+    },
+    [sendMessage],
+  )
+
   const dismissError = useCallback(() => setChatError(null), [])
 
   // ── Context value ─────────────────────────────────────────────────────────
@@ -402,6 +427,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     dismissError,
     handleOptionSelect,
     handleStructuredSubmit,
+    handleLabelTransactionsSubmit,
     userCurrency,
     currentFolder,
   }

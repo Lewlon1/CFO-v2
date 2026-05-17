@@ -20,6 +20,7 @@ export function ChatSheet() {
     startConversation,
     handleOptionSelect,
     handleStructuredSubmit,
+    handleLabelTransactionsSubmit,
     chatError,
     dismissError,
     userCurrency,
@@ -225,6 +226,7 @@ export function ChatSheet() {
                   status={status}
                   onOptionSelect={handleOptionSelect}
                   onStructuredSubmit={handleStructuredSubmit}
+                  onLabelTransactionsSubmit={handleLabelTransactionsSubmit}
                   userCurrency={userCurrency}
                 />
               )}

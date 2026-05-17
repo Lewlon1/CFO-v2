@@ -109,6 +109,56 @@ export function isAllLabelled(
   return transactions.every((t) => labels[t.id] != null)
 }
 
+// Canonical order used both visually (pill grid below) and in the
+// post-submit recap trigger. Keeping this declared once so the two stay in
+// sync if quadrants ever change.
+const QUADRANT_ORDER: LabelTransactionsQuadrantId[] = [
+  'foundation',
+  'investment',
+  'leak',
+  'burden',
+  'unsure',
+]
+
+const QUADRANT_LABEL: Record<LabelTransactionsQuadrantId, string> = {
+  foundation: 'Foundation',
+  investment: 'Investment',
+  leak: 'Leak',
+  burden: 'Burden',
+  unsure: 'Unsure',
+}
+
+/**
+ * Build the hidden `[System: ...]` trigger sent to /api/chat after the user
+ * submits their labels. MessageList filters messages starting with `[System:`
+ * from the visible chat, so this is invisible to the user but gives the LLM
+ * the data it needs to acknowledge what was labelled and ask the next
+ * follow-up question.
+ *
+ * Format mirrors the other automated triggers in ChatProvider.tsx:213-249.
+ */
+export function buildLabelRecapTrigger(
+  transactions: LabelTransactionsTransaction[],
+  labels: Record<string, LabelTransactionsQuadrantId>,
+): string {
+  const byQuadrant = new Map<LabelTransactionsQuadrantId, string[]>()
+  for (const tx of transactions) {
+    const q = labels[tx.id]
+    if (!q) continue
+    const list = byQuadrant.get(q) ?? []
+    list.push(tx.merchant || 'Unknown')
+    byQuadrant.set(q, list)
+  }
+  const groupedLines: string[] = []
+  for (const q of QUADRANT_ORDER) {
+    const merchants = byQuadrant.get(q)
+    if (!merchants || merchants.length === 0) continue
+    groupedLines.push(`${QUADRANT_LABEL[q]}: ${merchants.join(', ')}.`)
+  }
+  const summary = groupedLines.length > 0 ? ` ${groupedLines.join(' ')}` : ''
+  return `[System: User just labelled the transactions you asked about.${summary} Acknowledge what landed in 1-2 sentences, reference one specific thing they revealed, then ask the next logical follow-up. Don't list all the labels back.]`
+}
+
 /**
  * Format a transaction row date as "Fri 8 Mar". Matches the prototype's
  * left-aligned date format. The tool emits date as YYYY-MM-DD.
@@ -415,14 +465,14 @@ function TransactionRow({
         </div>
       </div>
 
-      {/* 5-pill row. The prototype's gridTemplateColumns is 'repeat(4, 1fr)'
-          (clearly a prototype bug — there are 5 quadrants). We use 5 columns
-          to actually fit all 5 pills in a row, matching the visible behaviour
-          the prototype implies. */}
+      {/* 5-pill grid laid out as 2 rows (3 + 2) so labels never clip on
+          mobile. Five-across at 11px clips "Unsure" inside the chat sheet
+          width; the prototype's repeat(4, 1fr) was already wrong for five
+          quadrants. */}
       <div
         className="grid"
         style={{
-          gridTemplateColumns: 'repeat(5, 1fr)',
+          gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '6px',
           marginTop: '10px',
         }}

@@ -50,6 +50,8 @@ import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 import {
   LabelTransactionsBlock,
   type LabelTransactionsBlockProps,
+  type LabelTransactionsQuadrantId,
+  type LabelTransactionsTransaction,
 } from './LabelTransactionsBlock';
 import { ScenarioResult } from './ScenarioResult';
 import { TripPlanResult } from './TripPlanResult';
@@ -151,12 +153,17 @@ export function MessageList({
   status,
   onOptionSelect,
   onStructuredSubmit,
+  onLabelTransactionsSubmit,
   userCurrency,
 }: {
   messages: UIMessage[];
   status: string;
   onOptionSelect?: (text: string) => void;
   onStructuredSubmit?: (field: string, value: string | number, displayText: string) => void;
+  onLabelTransactionsSubmit?: (
+    transactions: LabelTransactionsTransaction[],
+    labels: Record<string, LabelTransactionsQuadrantId>,
+  ) => void;
   userCurrency?: string;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -396,13 +403,18 @@ export function MessageList({
                 />
               ))}
 
-              {/* Inline label_transactions blocks. The block POSTs to
-                  /api/corrections/signal itself; nothing to wire from here. */}
+              {/* Inline label_transactions blocks. The block POSTs each
+                  label to /api/corrections/signal itself; onSubmit then fires
+                  a hidden [System: ...] trigger so the CFO acknowledges the
+                  labels in the next turn (see ChatProvider.handleLabelTransactionsSubmit). */}
               {labelTransactionsConfigs.map((config) => (
                 <LabelTransactionsBlock
                   key={config.directiveId}
                   {...config}
                   userCurrency={userCurrency}
+                  onSubmit={(labels) =>
+                    onLabelTransactionsSubmit?.(config.transactions, labels)
+                  }
                 />
               ))}
 

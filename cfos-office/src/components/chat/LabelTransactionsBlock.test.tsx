@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildLabelRecapTrigger,
   buildSignalPayload,
   formatRowAmount,
   formatRowDate,
@@ -103,5 +104,70 @@ describe('formatRowAmount', () => {
 
   it('formats fractional amounts with two decimals', () => {
     expect(formatRowAmount(12.5, 'EUR')).toBe('−€12.50')
+  })
+})
+
+describe('buildLabelRecapTrigger', () => {
+  const tx = (id: string, merchant: string): LabelTransactionsTransaction => ({
+    id,
+    merchant,
+    date: '2026-03-08',
+    amount: 18.5,
+  })
+
+  it('starts with the [System: hidden-trigger envelope', () => {
+    const result = buildLabelRecapTrigger([tx('a', 'Glovo')], { a: 'leak' })
+    expect(result.startsWith('[System: ')).toBe(true)
+    expect(result.endsWith(']')).toBe(true)
+  })
+
+  it('groups merchants by quadrant in canonical order (foundation → unsure)', () => {
+    const txs = [
+      tx('a', 'Mercadona'),
+      tx('b', 'Glovo'),
+      tx('c', 'Gym'),
+    ]
+    const labels = { a: 'foundation', b: 'leak', c: 'investment' } as const
+    const result = buildLabelRecapTrigger(txs, labels)
+    // Canonical order is foundation → investment → leak → burden → unsure,
+    // regardless of the order labels were applied in.
+    const foundationIdx = result.indexOf('Foundation:')
+    const investmentIdx = result.indexOf('Investment:')
+    const leakIdx = result.indexOf('Leak:')
+    expect(foundationIdx).toBeGreaterThan(-1)
+    expect(investmentIdx).toBeGreaterThan(foundationIdx)
+    expect(leakIdx).toBeGreaterThan(investmentIdx)
+  })
+
+  it('lists merchants inside their quadrant separated by commas', () => {
+    const txs = [tx('a', 'Mercadona'), tx('b', 'Lidl')]
+    const result = buildLabelRecapTrigger(txs, { a: 'foundation', b: 'foundation' })
+    expect(result).toContain('Foundation: Mercadona, Lidl.')
+  })
+
+  it('omits quadrants that have no transactions', () => {
+    const result = buildLabelRecapTrigger([tx('a', 'Glovo')], { a: 'leak' })
+    expect(result).toContain('Leak: Glovo.')
+    expect(result).not.toContain('Foundation:')
+    expect(result).not.toContain('Investment:')
+    expect(result).not.toContain('Burden:')
+    expect(result).not.toContain('Unsure:')
+  })
+
+  it('falls back to "Unknown" when merchant is empty', () => {
+    const txs: LabelTransactionsTransaction[] = [
+      { id: 'a', merchant: '', date: '2026-03-08', amount: 5 },
+    ]
+    const result = buildLabelRecapTrigger(txs, { a: 'unsure' })
+    expect(result).toContain('Unsure: Unknown.')
+  })
+
+  it('skips transactions that were not labelled (defensive)', () => {
+    const txs = [tx('a', 'Glovo'), tx('b', 'Mercadona')]
+    // Only 'a' has a label — 'b' is unlabelled. In practice handleSubmit gates
+    // on isAllLabelled, but the helper must still produce valid output.
+    const result = buildLabelRecapTrigger(txs, { a: 'leak' })
+    expect(result).toContain('Leak: Glovo.')
+    expect(result).not.toContain('Mercadona')
   })
 })
