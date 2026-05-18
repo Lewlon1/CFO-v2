@@ -6,6 +6,7 @@ import {
   isNeutralCategory,
   isSpendRow,
 } from './categories'
+import { detectIncomeShape } from './income-shape'
 
 export async function refreshMonthlySnapshots(
   supabase: SupabaseClient,
@@ -15,6 +16,9 @@ export async function refreshMonthlySnapshots(
   for (const month of affectedMonths) {
     await refreshOneMonth(supabase, userId, month)
   }
+  // Income shape detection runs after monthly snapshots are current.
+  // Best-effort: failures are logged but do not block ingest.
+  await updateIncomeShape(supabase, userId)
 }
 
 async function refreshOneMonth(
@@ -120,4 +124,48 @@ async function refreshOneMonth(
 export function extractAffectedMonths(dates: string[]): string[] {
   const months = new Set(dates.map((d) => d.slice(0, 7)))
   return Array.from(months).sort()
+}
+
+/**
+ * Recompute and persist the user's income shape based on the last 12 months
+ * of income-categorised transactions. Called at the end of refreshMonthlySnapshots
+ * so every transaction ingest triggers a fresh classification.
+ *
+ * Forward-only: existing users without a recent ingest will sit at NULL until
+ * their next refresh. No backfill is performed by this session.
+ */
+export async function updateIncomeShape(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  const cutoff = new Date()
+  cutoff.setMonth(cutoff.getMonth() - 12)
+  const cutoffIso = cutoff.toISOString().slice(0, 10)
+
+  const { data: txns, error } = await supabase
+    .from('transactions')
+    .select('amount, category_id, date')
+    .eq('user_id', userId)
+    .gte('date', cutoffIso)
+
+  if (error) {
+    console.error('[updateIncomeShape] failed to load transactions:', error)
+    return
+  }
+
+  const result = detectIncomeShape(txns ?? [])
+
+  const { error: upsertError } = await supabase
+    .from('user_profiles')
+    .update({
+      income_shape: result.shape,
+      income_volatility: result.volatility,
+      income_shape_deposit_count: result.deposit_count,
+      income_shape_detected_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+
+  if (upsertError) {
+    console.error('[updateIncomeShape] failed to persist:', upsertError)
+  }
 }

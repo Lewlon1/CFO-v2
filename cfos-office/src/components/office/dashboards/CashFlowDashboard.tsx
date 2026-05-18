@@ -12,13 +12,26 @@ import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
 import type { TrendsResponse } from '@/app/api/dashboard/trends/route'
+import { IncomeShapeBadge } from '@/components/dev/IncomeShapeBadge'
 
 const ACCENT = '#22C55E'
+
+interface IncomeShapeData {
+  income_shape: string | null
+  income_volatility: number | null
+  income_shape_deposit_count: number | null
+}
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
   if (!res.ok) throw new Error('Failed')
   return res.json() as Promise<TrendsResponse>
+}
+
+const shapeFetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Failed')
+  return res.json() as Promise<IncomeShapeData>
 }
 
 interface CashFlowDashboardProps {
@@ -29,6 +42,7 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
   const trackEvent = useTrackEvent()
   const { summary, isLoading } = useDashboardData()
   const { data: trends } = useSWR<TrendsResponse>('/api/dashboard/trends?months=6', fetcher)
+  const { data: incomeShape } = useSWR<IncomeShapeData>('/api/profile/income-shape', shapeFetcher)
 
   useEffect(() => {
     trackEvent('cashflow_dashboard_viewed', 'engagement')
@@ -58,6 +72,10 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
         />
       ) : (
         <>
+          <div className="mb-2">
+            <IncomeShapeBadge data={incomeShape ?? null} />
+          </div>
+
           <Briefing accentColor={ACCENT}>
             {buildBriefing(summary, currency)}
           </Briefing>

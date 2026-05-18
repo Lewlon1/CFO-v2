@@ -1020,3 +1020,50 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 
 ### Unblocks
 - Session v2.1 (Phase A) can now be run against a clean main
+
+---
+
+## Session A — Income Shape Detector — 2026-05-18
+
+**Branch:** `claude/income-shape-detector-BB3Pe` (harness-assigned; task spec referenced `feature/income-shape-detector` — naming reconciled at merge)
+**Scope:** foundation layer for variable-income support. Detector + persistence + dev verification surface only. No CFO behaviour change, no frame switching, no runway.
+
+### What shipped
+
+**Migration (staging — applied):**
+- **`055_add_income_shape_fields`** — adds `income_shape` (text, check constraint covers `salaried | salaried_with_bonus | variable | unknown`), `income_volatility` (numeric), `income_shape_deposit_count` (integer), `income_shape_detected_at` (timestamptz) to `user_profiles`. Forward-only — no backfill of existing beta users. Production migration is Lewis's manual step.
+
+**Code:**
+- New pure detector in `src/lib/analytics/income-shape.ts`. Coefficient of variation over the 12-month window, filtered by `isIncomeRow`. `TUNABLE_CONSTANTS` block at top: `SALARIED_CV_MAX = 0.05`, `SALARIED_WITH_BONUS_CV_MAX = 0.20`, `MIN_DEPOSITS_FOR_DETECTION = 4`. Returns shape + CV + count — never the income amount itself, by design.
+- `updateIncomeShape()` appended to `src/lib/analytics/monthly-snapshot.ts` and wired into `refreshMonthlySnapshots()` after the month loop. Best-effort: failures logged, do not block ingest.
+- `IncomeShapeBadge` component in `src/components/dev/IncomeShapeBadge.tsx`, gated by `NEXT_PUBLIC_DEV_BADGES=true`. Renders inline above the Cash Flow folder briefing.
+- `GET /api/profile/income-shape` route returns the four fields for the authenticated user. Read-only.
+- CLI verification script `scripts/show-income-shape.ts` — persisted vs live recomputation side-by-side.
+
+**Files left untouched (Session B+ territory):**
+- `src/lib/ai/context-builder.ts`, `src/lib/analytics/pattern-detectors.ts`, all system prompts, `api/onboarding/generate-insight`.
+
+### Verification
+- 7/7 unit tests in `__tests__/income-shape.test.ts` green. Full suite 576/576 passing.
+- `npx tsc --noEmit` clean.
+- Staging schema verified: 4 columns + check constraint + migration registry entry. `get_advisors` returned no new flags introduced by this migration.
+- Production (`iccelmjenljanqrhhzdv`) confirmed untouched — `information_schema.columns` for the four target columns returns empty.
+
+### Lessons learned
+
+1. **Spec test data conflicted with its own thresholds.** The session prompt's `salaried_with_bonus` test used literal Spain 14-payment values (10×£2500 + 2×£5000), but that mix produces CV ≈ 0.32 — well above the `< 0.20` threshold the same prompt specified. The cofounder note that "Spain 14-payment sits in 0.10–0.18" is correct for *modest* bonus months, not literal double-pay. Adjusted the test data to 10×£2500 + 2×£3500 (CV ≈ 0.14) so the assertion holds. The threshold itself stays at `< 0.20` per the prompt's non-negotiable list — literal double-pay is, mathematically, structural lumpiness rather than predictable bonus noise.
+
+2. **Migration MCP returned an error response when the migration had actually applied.** First `apply_migration` call surfaced "Tool result missing due to internal error" but the columns + constraint were created server-side. The retry then failed cleanly on the duplicate constraint. Verifying via `information_schema` + `pg_constraint` directly is the only safe way to confirm migration state when the MCP transport is flaky. The migration is in the registry (`055_add_income_shape_fields`) and only ran once.
+
+3. **`refreshMonthlySnapshots` absorbed the new call cleanly.** No existing tests broke. The function has three production callers (`/api/upload`, `/api/value-map/checkin/save`, `/api/value-map/personal`); all now trigger detection automatically because the call is internal to the function. No call-site changes needed.
+
+4. **The dashboard hook surface didn't fit the badge.** `useDashboardData` returns a heavily-typed `DashboardSummary` keyed on the monthly snapshot, and bolting the four profile fields onto it would pollute a shared type for a dev-only badge. Solved by a dedicated `GET /api/profile/income-shape` route + a local SWR fetch inside `CashFlowDashboard`. Keeps the badge orthogonal to the production data path.
+
+5. **Test-persona-verified-via-the-CLI step is deferred to manual.** The success criteria call for uploading Maya/Carlos CSVs to fresh staging users and running `show-income-shape.ts`. That's a Lewis-driven step (requires staging session, the fixture CSVs, and an account flow) — the script + migration + detector are ready for it.
+
+### Open questions for Session B
+
+- **12-month window appropriate?** For surviving-style users (Maya) whose income shape may be drifting fast, a shorter window (6 months) might react faster. For tax-year analytics, longer (24 months) would be better. v1 is a single fixed window; Session B should validate whether multi-window detection is worth the complexity.
+- **Reconciliation with existing `incomeDetected` pattern detector.** That detector does similar deposit-grouping for first-insight narration. Two sources of truth on "income deposits" is a smell — Session B should pick one as canonical, or make one delegate to the other.
+- **Unknown vs salaried for sparse-but-flat data.** A user with 4 perfectly identical deposits gets `salaried`. A user with 3 perfectly identical gets `unknown`. The cliff is sharp — Session B should consider whether `unknown` warrants a "tentative" sub-state for 2–3 deposit users so the UI can show partial confidence.
+- **What does `variable` actually unlock?** This session ships the signal but no consumer. Session B (posture detector + runway) is where the value lands; if the signal turns out to be wrong on real users, that's where it'll show up first.

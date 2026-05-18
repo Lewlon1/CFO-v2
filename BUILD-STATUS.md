@@ -39,3 +39,36 @@ UI rebuild (session-25/folder-detail-views) + onboarding (O1/O2) merged to main.
 - **v2.4–v2.7** — Phases B–E from UX audit remediation (drafted)
 - **v2.8** — Sessions 28–30: Confidence / Prediction / Value Map Retake (designed)
 - **v3.0** — Premium tier launch (~August 2026)
+
+## Derived data fields
+
+### `user_profiles.income_shape` (Session A — Income Shape Detector)
+
+Forward-only classifier for variable-income support. Written by
+`updateIncomeShape()` at the end of `refreshMonthlySnapshots()` so every
+transaction ingest triggers a fresh classification.
+
+| Column | Type | Notes |
+|---|---|---|
+| `income_shape` | `text` | One of `salaried` / `salaried_with_bonus` / `variable` / `unknown` |
+| `income_volatility` | `numeric` | Coefficient of variation (std dev / mean) of income deposits |
+| `income_shape_deposit_count` | `integer` | Number of income deposits used to compute the CV |
+| `income_shape_detected_at` | `timestamptz` | Last refresh time |
+
+Detection path: `src/lib/analytics/income-shape.ts` → pure function over
+12-month transaction window, filtered by `isIncomeRow` (income category +
+positive amount). Thresholds (`CV < 0.05` salaried, `CV < 0.20`
+salaried_with_bonus, `≥ 0.20` variable, `< 4` deposits → unknown) live in a
+`TUNABLE_CONSTANTS` block — empirical, revisit after Wave 1.
+
+**Critical:** detector never returns the income amount itself — only
+pattern signals (shape, CV, count). Anti-hallucination block at the
+context-builder layer remains the source of truth on income figures.
+
+Staging migration: `055_add_income_shape_fields` (applied to
+`qlbhvlssksnrhsleadzn`). Production migration is Lewis's manual step.
+
+Dev verification surface: `<IncomeShapeBadge />` on the Cash Flow folder,
+gated by `NEXT_PUBLIC_DEV_BADGES=true`. CLI script: `npx tsx
+scripts/show-income-shape.ts <userId>` prints persisted + live-recomputed
+values side-by-side.
