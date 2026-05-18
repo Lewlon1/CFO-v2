@@ -66,8 +66,9 @@ export function createCreateGoalTool(ctx: ToolContext) {
             on_track: pace.on_track,
             priority: priority || 'medium',
             status: 'active',
+            currency: ctx.currency,
           })
-          .select('id, name, target_amount, current_amount, target_date, monthly_required_saving, on_track')
+          .select('id, name, target_amount, current_amount, target_date, monthly_required_saving, on_track, currency')
           .single();
 
         if (error) {

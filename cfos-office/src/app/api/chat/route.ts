@@ -16,6 +16,7 @@ import { sendAlert, wrapToolsWithAlerts } from '@/lib/alerts/notify';
 import { extractMessageAudit } from '@/lib/ai/audit-trail';
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete';
 import { extractFromConversation } from '@/lib/ai/portrait-extraction';
+import { extractProfileFields } from '@/lib/ai/profile-extraction';
 import { createServiceClient } from '@/lib/supabase/service';
 import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-classifier';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
@@ -140,6 +141,29 @@ export async function POST(req: Request) {
             }).catch(() => {});
           }
         });
+
+        // Profile-field extraction runs alongside the portrait extractor in a
+        // separate `after()` so a failure in one doesn't block the other. The
+        // daily cron at /api/cron/profile-extraction catches anything missed.
+        after(async () => {
+          try {
+            const serviceSupabase = createServiceClient();
+            await extractProfileFields(serviceSupabase, {
+              conversationId: conv.id,
+              userId: user.id,
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[chat] post-conversation profile extraction failed:', message);
+            await sendAlert({
+              severity: 'critical',
+              event: 'profile_extraction_after_failed',
+              user_id: user.id,
+              details: message,
+              metadata: { conversationId: conv.id, callSite: 'chat_route' },
+            }).catch(() => {});
+          }
+        });
       }
 
       // Stamp reviewed_at on any monthly review snapshots that were just completed
@@ -194,13 +218,65 @@ export async function POST(req: Request) {
   // Fetch user profile (currency for tool context + onboarding-v2 bridge state).
   // beta_cohort + net_monthly_income + monthly_rent feed the v2 chat-intel
   // validators (Phase 6) — kept in the same query to avoid an extra round-trip.
+  // onboarding_step + onboarding_progress feed the goal-chat stall handler.
   const { data: profileForChat } = await supabase
     .from('user_profiles')
     .select(
-      'primary_currency, onboarding_route, value_map_offered_in_chat, value_map_declined_in_chat, beta_cohort, net_monthly_income, monthly_rent',
+      'primary_currency, onboarding_route, value_map_offered_in_chat, value_map_declined_in_chat, beta_cohort, net_monthly_income, monthly_rent, onboarding_step, onboarding_progress',
     )
     .eq('id', user.id)
     .single();
+
+  // Goal-chat stall handler. The prompt-side "draft on next turn" rule is the
+  // primary mechanism; this is a safety net for the case where the model
+  // doesn't comply. After 5 user turns in `onboarding_goal_chat` without an
+  // active goal, the onboarding state advances to `goal_chat_tentative` and a
+  // transient system note tells the CFO to acknowledge and pivot to the Value
+  // Map. The user can set a specific goal later — tentative state is a
+  // feature, not a failure mode.
+  let stallSystemNote: string | null = null;
+  if (
+    conversationType === 'onboarding_goal_chat' &&
+    profileForChat?.onboarding_step === 'goal_chat_started'
+  ) {
+    const [{ count: userTurnCount }, { count: goalCount }] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', activeConversationId)
+        .eq('role', 'user'),
+      supabase
+        .from('goals')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .is('deleted_at', null),
+    ]);
+
+    // The user message for THIS turn is already persisted above (L203),
+    // so userTurnCount reflects the count including the current turn.
+    if ((userTurnCount ?? 0) >= 5 && (goalCount ?? 0) === 0) {
+      const existingProgress =
+        profileForChat.onboarding_progress && typeof profileForChat.onboarding_progress === 'object'
+          ? (profileForChat.onboarding_progress as Record<string, unknown>)
+          : {};
+      await supabase
+        .from('user_profiles')
+        .update({
+          onboarding_step: 'goal_chat_tentative',
+          onboarding_progress: {
+            ...existingProgress,
+            goal_chat_tentative_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', user.id);
+
+      stallSystemNote =
+        '[SYSTEM] The user has exchanged 5+ turns without committing to a goal. ' +
+        'Acknowledge that there is enough context for now and propose moving to the Value Map next — ' +
+        'they can set a specific goal later. Do NOT ask another goal-related question. ' +
+        'Include the <ACTION:start_value_map> token verbatim in your response.';
+    }
+  }
 
   // Onboarding v2 — Value Map decline classifier.
   // Synchronous Haiku call before the assistant streams so the system prompt
@@ -229,12 +305,16 @@ export async function POST(req: Request) {
   // Build dynamic system prompt — after activeConversationId is known AND
   // after the decline classifier has potentially flipped the declined flag,
   // so the bridge context section reflects current state.
-  const systemPrompt = await buildSystemPrompt(
+  const baseSystemPrompt = await buildSystemPrompt(
     user.id,
     conversationType,
     conversationMetadata,
     activeConversationId,
   );
+
+  const systemPrompt = stallSystemNote
+    ? `${baseSystemPrompt}\n\n---\n\n${stallSystemNote}`
+    : baseSystemPrompt;
 
   const toolCtx: ToolContext = {
     supabase,

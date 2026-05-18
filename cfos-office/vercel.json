@@ -6,6 +6,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/profile-extraction",
+      "schedule": "15 6 * * *"
+    },
+    {
       "path": "/api/cron/daily-bills",
       "schedule": "0 8 * * *"
     },

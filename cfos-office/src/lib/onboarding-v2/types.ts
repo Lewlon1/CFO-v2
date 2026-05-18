@@ -1,6 +1,7 @@
 export type OnboardingStep =
   | 'intro_shown'
   | 'goal_chat_started'
+  | 'goal_chat_tentative'
   | 'goal_set'
   | 'goal_skipped'
   | 'value_map_started'

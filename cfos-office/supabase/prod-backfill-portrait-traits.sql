@@ -1,0 +1,39 @@
+-- v2.2 — Balance-sheet portrait trait backfill for PROD
+--
+-- Status: DO NOT auto-apply. Lewis runs this manually after v2.2 ships and the
+-- staging backfill has been verified.
+--
+-- WHY: The previous derivation in lib/balance-sheet/portrait.ts wrote
+-- `has_property=no` when a mortgage existed without a paired property asset,
+-- `has_high_interest_debt=no` for credit cards without explicit APR, and
+-- `net_worth_bracket=negative` for users with only liabilities declared.
+-- The new logic (shipped in this branch) corrects all three. Existing rows in
+-- `financial_portrait` need to be regenerated for users with any asset or
+-- liability row.
+--
+-- HOW: The derivation is in TypeScript, not SQL — there is no PL/pgSQL
+-- equivalent. The companion script does the recompute via the service role:
+--
+--   1. Pull prod env vars (NEXT_PUBLIC_SUPABASE_URL=https://iccelmjenljanqrhhzdv.supabase.co
+--      + the prod SUPABASE_SERVICE_ROLE_KEY).
+--   2. From the cfos-office/ directory, run:
+--
+--        npx tsx scripts/backfill-balance-sheet-portrait.ts
+--
+--   3. The script enumerates every user with at least one asset or liability
+--      row (deleted_at IS NULL) and calls updateAssetPortrait() per user.
+--      Writes are idempotent — upserts on (user_id, trait_key).
+--
+-- VERIFICATION: After running, spot-check Lewis's account:
+--
+--    SELECT trait_key, trait_value, updated_at
+--    FROM public.financial_portrait
+--    WHERE user_id = '<lewis prod uuid>'
+--      AND trait_type = 'asset_profile'
+--      AND deleted_at IS NULL
+--    ORDER BY trait_key;
+--
+-- Expect: has_property=yes, has_high_interest_debt='<card name> (rate not
+-- declared — treated as high-interest)' or similar, net_worth_bracket='unknown'.
+
+SELECT 'No SQL to apply. Run scripts/backfill-balance-sheet-portrait.ts against prod env.' AS instruction;
