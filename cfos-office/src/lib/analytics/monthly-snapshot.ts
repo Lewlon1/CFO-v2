@@ -7,6 +7,8 @@ import {
   isSpendRow,
 } from './categories'
 import { detectIncomeShape } from './income-shape'
+import { computeCashFlowAggregates } from './cashflow-aggregates'
+import { detectPosture } from './posture'
 
 export async function refreshMonthlySnapshots(
   supabase: SupabaseClient,
@@ -16,9 +18,13 @@ export async function refreshMonthlySnapshots(
   for (const month of affectedMonths) {
     await refreshOneMonth(supabase, userId, month)
   }
-  // Income shape detection runs after monthly snapshots are current.
-  // Best-effort: failures are logged but do not block ingest.
+  // Order matters: closing_balance must populate first (posture reads it
+  // via the cashflow aggregator), then shape (posture reads shape from
+  // user_profiles), then posture. Each step is best-effort — failures are
+  // logged but never throw so ingest still completes.
+  await backfillClosingBalances(supabase, userId)
   await updateIncomeShape(supabase, userId)
+  await updateFinancialPosture(supabase, userId)
 }
 
 async function refreshOneMonth(
@@ -167,5 +173,176 @@ export async function updateIncomeShape(
 
   if (upsertError) {
     console.error('[updateIncomeShape] failed to persist:', upsertError)
+  }
+}
+
+/**
+ * Walk monthly snapshots most-recent first and populate closing_balance.
+ *
+ * Newest snapshot's closing_balance = current liquid balance from accounts
+ * (filtered to spendable types). Each older row = newer row's closing
+ * minus newer row's surplus_deficit. Stops at the first NULL surplus to
+ * avoid poisoning trajectory for older history.
+ *
+ * No-ops when no liquid accounts exist or no snapshots are present. Newest
+ * row's closing_balance is "balance as of refresh time", not strictly
+ * month-end — acceptable for runway. Months with zero transactions have
+ * no snapshot row and are silently skipped (real-world drift in those
+ * gaps via interest / fees is not reconstructed).
+ *
+ * Multi-currency: amounts are summed naively, matching the existing
+ * loadSavingsBalance helper. Documented limitation.
+ */
+export async function backfillClosingBalances(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  const { data: accounts, error: aErr } = await supabase
+    .from('accounts')
+    .select('current_balance, type')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .neq('type', 'credit_card')
+
+  if (aErr) {
+    console.error('[backfillClosingBalances] failed to load accounts:', aErr)
+    return
+  }
+
+  if (!accounts || accounts.length === 0) return
+
+  const liquidBalance = accounts
+    .filter((a) => a.current_balance !== null)
+    .reduce((s, a) => s + Number(a.current_balance), 0)
+
+  if (!Number.isFinite(liquidBalance)) return
+
+  const { data: snapshots, error: sErr } = await supabase
+    .from('monthly_snapshots')
+    .select('id, month, surplus_deficit')
+    .eq('user_id', userId)
+    .order('month', { ascending: false })
+
+  if (sErr) {
+    console.error('[backfillClosingBalances] failed to load snapshots:', sErr)
+    return
+  }
+
+  if (!snapshots || snapshots.length === 0) return
+
+  let runningBalance: number | null = liquidBalance
+  for (const snap of snapshots) {
+    if (runningBalance === null) break // poisoned by NULL surplus upstream
+
+    const { error } = await supabase
+      .from('monthly_snapshots')
+      .update({ closing_balance: Math.round(runningBalance * 100) / 100 })
+      .eq('id', snap.id)
+
+    if (error) {
+      console.error(
+        '[backfillClosingBalances] failed to update snapshot',
+        snap.id,
+        error,
+      )
+      // Keep walking — best-effort.
+    }
+
+    const surplus = snap.surplus_deficit
+    if (surplus === null || surplus === undefined) {
+      runningBalance = null
+    } else {
+      runningBalance = runningBalance - Number(surplus)
+    }
+  }
+}
+
+/**
+ * Recompute and persist the user's financial posture. Reads the freshly
+ * persisted income_shape (set by updateIncomeShape) and combines with the
+ * latest monthly snapshots + liquid balance from accounts.
+ *
+ * Forward-only: failures are logged but never block ingest.
+ */
+export async function updateFinancialPosture(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  const { data: profile, error: pErr } = await supabase
+    .from('user_profiles')
+    .select('income_shape')
+    .eq('id', userId)
+    .single()
+
+  if (pErr || !profile?.income_shape) {
+    console.warn('[updateFinancialPosture] no shape, skipping:', pErr)
+    return
+  }
+
+  const { data: accounts, error: aErr } = await supabase
+    .from('accounts')
+    .select('current_balance, type')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .neq('type', 'credit_card')
+
+  if (aErr) {
+    console.error('[updateFinancialPosture] failed to load accounts:', aErr)
+    return
+  }
+
+  const hasAccounts = !!accounts && accounts.length > 0
+  const liquidSum = hasAccounts
+    ? accounts!
+        .filter((a) => a.current_balance !== null)
+        .reduce((s, a) => s + Number(a.current_balance), 0)
+    : 0
+  const liquidBalance = hasAccounts && Number.isFinite(liquidSum) ? liquidSum : null
+
+  const { data: snapshots, error: sErr } = await supabase
+    .from('monthly_snapshots')
+    .select('month, total_income, total_spending, closing_balance')
+    .eq('user_id', userId)
+    .order('month', { ascending: false })
+    .limit(3)
+
+  if (sErr) {
+    console.error('[updateFinancialPosture] failed to load snapshots:', sErr)
+    return
+  }
+
+  const aggregates = computeCashFlowAggregates(
+    (snapshots ?? []).map((s) => ({
+      month: typeof s.month === 'string' ? s.month : String(s.month),
+      income_total: Number(s.total_income) || 0,
+      spend_total: Number(s.total_spending) || 0,
+      closing_balance:
+        s.closing_balance === null || s.closing_balance === undefined
+          ? null
+          : Number(s.closing_balance),
+    })),
+    liquidBalance,
+  )
+
+  const { posture, confidence } = detectPosture(
+    profile.income_shape as Parameters<typeof detectPosture>[0],
+    aggregates,
+  )
+
+  const { error: upsertError } = await supabase
+    .from('user_profiles')
+    .update({
+      financial_posture: posture,
+      posture_confidence: confidence,
+      runway_days: aggregates.runway_days,
+      t3m_income_monthly: aggregates.t3m_income_monthly,
+      t3m_spend_monthly: aggregates.t3m_spend_monthly,
+      balance_trajectory: aggregates.balance_trajectory,
+      posture_detected_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+
+  if (upsertError) {
+    console.error('[updateFinancialPosture] failed to persist:', upsertError)
   }
 }

@@ -4,14 +4,17 @@ interface ShapeData {
   income_shape: string | null
   income_volatility: number | null
   income_shape_deposit_count: number | null
+  financial_posture: string | null
+  runway_days: number | null
 }
 
 const ENABLED = process.env.NEXT_PUBLIC_DEV_BADGES === 'true'
 
 /**
- * Dev-only badge surfacing the detected income shape on the Cash Flow folder.
- * Hidden in production unless NEXT_PUBLIC_DEV_BADGES=true is explicitly set.
- * Not for user-facing surfaces — it exposes raw classifier internals.
+ * Dev-only badge surfacing the detected income shape and posture on the
+ * Cash Flow folder. Hidden in production unless NEXT_PUBLIC_DEV_BADGES=true
+ * is explicitly set. Not for user-facing surfaces — it exposes raw
+ * classifier internals.
  */
 export function IncomeShapeBadge({ data }: { data: ShapeData | null }) {
   if (!ENABLED) return null
@@ -35,6 +38,18 @@ export function IncomeShapeBadge({ data }: { data: ShapeData | null }) {
       <span>CV {cvLabel}</span>
       <span>·</span>
       <span>n={count}</span>
+      {data.financial_posture && (
+        <>
+          <span>·</span>
+          <span>posture · {data.financial_posture}</span>
+          {data.runway_days !== null && (
+            <>
+              <span>·</span>
+              <span>runway {data.runway_days}d</span>
+            </>
+          )}
+        </>
+      )}
     </div>
   )
 }

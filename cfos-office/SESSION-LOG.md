@@ -1067,3 +1067,61 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 - **Reconciliation with existing `incomeDetected` pattern detector.** That detector does similar deposit-grouping for first-insight narration. Two sources of truth on "income deposits" is a smell — Session B should pick one as canonical, or make one delegate to the other.
 - **Unknown vs salaried for sparse-but-flat data.** A user with 4 perfectly identical deposits gets `salaried`. A user with 3 perfectly identical gets `unknown`. The cliff is sharp — Session B should consider whether `unknown` warrants a "tentative" sub-state for 2–3 deposit users so the UI can show partial confidence.
 - **What does `variable` actually unlock?** This session ships the signal but no consumer. Session B (posture detector + runway) is where the value lands; if the signal turns out to be wrong on real users, that's where it'll show up first.
+
+---
+
+## Session B — Posture Detector + Runway — 2026-05-18
+
+**Branch:** `claude/add-posture-detector-gObY0` (harness-assigned; spec referenced `feature/posture-detector` — naming reconciled at merge).
+**Scope:** the **posture** layer on top of Session A's shape. Detection + verification + dev badge extension only. **No CFO behaviour change, no frame switching, no UI changes beyond the dev badge.**
+
+### What shipped
+
+**Migration (staging — applied):**
+- **`056_add_financial_posture`** — adds 7 columns to `user_profiles` (`financial_posture`, `posture_confidence`, `runway_days`, `t3m_income_monthly`, `t3m_spend_monthly`, `balance_trajectory`, `posture_detected_at`) plus `closing_balance` on `monthly_snapshots`. Check constraints lock the enum domains. Forward-only — no backfill of existing beta users. Production migration is Lewis's manual step.
+
+**Code:**
+- New pure detector `src/lib/analytics/posture.ts` — `detectPosture(shape, aggregates)` returns posture + confidence. TUNABLE_CONSTANTS block: runway cutoffs (30, 90), `MIN_MONTHS_FOR_CONFIDENT_POSTURE = 3`, four confidence dampers.
+- New pure aggregator `src/lib/analytics/cashflow-aggregates.ts` — `computeCashFlowAggregates(snapshots, liquid_balance)` returns T3M income/spend, runway days, and balance trajectory. Below 2 months → all nulls + `'unknown'` trajectory.
+- `backfillClosingBalances()` and `updateFinancialPosture()` appended to `src/lib/analytics/monthly-snapshot.ts` and wired into `refreshMonthlySnapshots()` immediately after `updateIncomeShape()`. The order is critical: closing balances first (posture reads them), shape next (posture reads it from `user_profiles`), posture last.
+- `<IncomeShapeBadge>` extended with posture + runway chips when the new fields are present.
+- `GET /api/profile/income-shape` route widened to return all 11 derived fields (URL kept stable for the SWR fetcher hook key; JSDoc updated to reflect the broader role).
+- `CashFlowDashboard`'s `IncomeShapeData` interface extended with `financial_posture` and `runway_days`.
+- CLI script renamed `scripts/show-income-shape.ts` → `scripts/show-shape-and-posture.ts` via `git mv` (history preserved) and extended to print + compare both layers.
+- `src/lib/supabase/types.ts` regenerated via Supabase MCP `generate_typescript_types` after the migration applied — the 8 new columns now narrow correctly in client code.
+
+**Files left untouched (Session C+ territory):**
+- `src/lib/ai/context-builder.ts`, `src/lib/ai/system-prompt*`, `src/lib/chat/folder-prompts.ts`, NetWorth/Scenarios dashboards, inbox/monthly-review cadence code, `src/lib/analytics/pattern-detectors.ts` (existing `incomeDetected` — reconciliation deferred).
+
+### Verification
+- 13/13 new unit tests across `cashflow-aggregates.test.ts` and `posture.test.ts` green. Full suite **589/589 passing**.
+- `npx tsc --noEmit` clean.
+- Staging schema verified: all 8 new columns confirmed via `information_schema.columns`; `get_advisors` returns no new flags introduced by this migration (the lints surfaced are all pre-existing).
+- Production (`iccelmjenljanqrhhzdv`) untouched — Lewis's manual step.
+
+### Resolved design calls (during planning)
+
+1. **Closing-balance derivation.** Original prompt suggested extending `refreshOneMonth` to populate `closing_balance`. The function only sees one month's transactions and has no liquid-balance context — threading state through would have required either passing accounts in or recomputing all months whenever any one changes. Chose instead to add a single-pass `backfillClosingBalances()` that walks all snapshots desc once per refresh, deriving closing[N] = closing[N+1] − surplus[N+1] from `accounts.current_balance`. `refreshOneMonth` was left untouched. Edge handling: stop walking at first NULL surplus (don't poison older history); skip months with no snapshot row (zero-txn months — real drift via interest/fees in those gaps is not reconstructed, acceptable for v1).
+2. **API route widening.** Widened the existing `/api/profile/income-shape` to also return posture fields rather than spinning up a parallel `/api/profile/posture` route. Doubling requests for a dev-only badge wasn't worth the cleanliness. URL path kept stable for the SWR hook key; JSDoc updated to reflect broader role.
+3. **Accepted LLM context leak.** `context-builder.ts` does `select('*')` from `user_profiles`, so the 7 posture columns will silently land in the CFO's system prompt as soon as the migration applies. Session A's 4 shape columns already leak the same way. Confirmed with Lewis that this is fine — Session C will deliberately use these fields, so the leak is forward-compatible.
+4. **Liquid balance filter.** `type != 'credit_card' AND deleted_at IS NULL`. Intentionally broader than the existing `loadSavingsBalance` helper (which is `type IN ('savings','investment')`) — runway needs *all* spendable liquid. Documented the divergence in the function comment.
+
+### Lessons learned
+
+1. **The schema's column was `type`, not `account_type` — the spec wrote it wrong.** The session prompt repeatedly referenced `accounts.account_type` but the actual column is `accounts.type` (enum: `'checking' | 'savings' | 'credit_card' | 'cash' | 'other'`). Phase 0 caught it during the `information_schema.columns` audit. Always cross-check spec text against the live schema before writing SQL — a copy-paste from spec to code would have produced a runtime error on every ingest.
+
+2. **`monthly_snapshots.closing_balance` did not exist before this session.** The original spec text said "Phase 0 must confirm whether `monthly_snapshots.closing_balance` already exists" — it did not. Added it to migration 056 and populated via the backfill pass. Worth keeping spec language tentative on schema state and forcing Phase 0 to be the source of truth.
+
+3. **`.select()` string concatenation defeats Supabase's type narrowing.** First draft of the widened API route + CLI script split the long select into `'col1,' + 'col2,' + 'col3'` for readability — typecheck immediately flagged every field as missing because PostgREST's TypeScript types parse the literal at compile time. Single string literal is the only form the type system can see through. Logged here so the next person reading widens their selects in one line.
+
+4. **Types regeneration is a mandatory step, not optional.** `src/lib/supabase/types.ts` is hand-committed; the new columns wouldn't have narrowed in the upsert/`select` calls without regenerating. Without it, `npx tsc --noEmit` would have failed on the new `closing_balance` insert paths. Should be a permanent line on every migration checklist.
+
+5. **The Plan agent caught the types-regen omission before I did.** Worth keeping the practice of running a Plan agent against the draft, even when the spec is detailed — it catches the systemic gaps that easily slip past a checklist read-through.
+
+### Open questions for Session C
+
+1. **`incomeDetected` vs persisted `income_shape` reconciliation** — still deferred. Two income-detection paths coexist; cleanup is C's job.
+2. **CSV ingest should write `accounts.current_balance` from closing balance** — backlog item recorded. Currently a manual UPDATE is required after ingest for the persona test flow. Replaces manual entry once shipped.
+3. **Frame switching, voice fragments, folder-prompt variants** — all Session C deliverables. The data is in place; the UX divergence is not.
+4. **Maya/Carlos persona verification** — pending Lewis's manual staging step (set `accounts.current_balance` to CSV closing for each test user, re-trigger ingest, run `show-shape-and-posture.ts`). The detector + CLI are ready.
+5. **Posture stability at boundaries** — the confidence dampers should help, but real users will surface whether 30-day / 90-day cutoffs are stable enough. If runway breathes around 30d week-to-week, Session C will need to debounce or smooth the frame-switching trigger.
