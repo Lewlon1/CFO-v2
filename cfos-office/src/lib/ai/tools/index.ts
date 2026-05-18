@@ -33,6 +33,12 @@ import { createFindOutliersTool } from './find-outliers';
 import { createFindValueGapsTool } from './find-value-gaps';
 import { createProposeExperimentTool } from './propose-experiment';
 import { createLabelTransactionsTool } from './label-transactions';
+// Session v2.3 — Experiment Engine.
+import { createProposeCatalogExperimentTool } from './propose-catalog-experiment';
+import { createAcceptExperimentTool } from './accept-experiment';
+import { createDeclineExperimentTool } from './decline-experiment';
+import { createRecordExperimentOutcomeTool } from './record-experiment-outcome';
+import { createListActiveExperimentsTool } from './list-active-experiments';
 
 export type { ToolContext } from './types';
 
@@ -72,5 +78,11 @@ export function createToolbox(ctx: ToolContext) {
     find_value_gaps: createFindValueGapsTool(ctx),
     propose_experiment: createProposeExperimentTool(ctx),
     label_transactions: createLabelTransactionsTool(ctx),
+    // Session v2.3 — Experiment Engine
+    propose_catalog_experiment: createProposeCatalogExperimentTool(ctx),
+    accept_experiment: createAcceptExperimentTool(ctx),
+    decline_experiment: createDeclineExperimentTool(ctx),
+    record_experiment_outcome: createRecordExperimentOutcomeTool(ctx),
+    list_active_experiments: createListActiveExperimentsTool(ctx),
   };
 }

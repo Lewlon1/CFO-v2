@@ -36,7 +36,6 @@ const AUTO_TRIGGER_TYPES = [
   'onboarding_goal_chat',
   'value_checkin_done',
   'chip_opener',
-  'experiment_template',
 ] as const
 
 // ── Context shape ─────────────────────────────────────────────────────────────
@@ -250,9 +249,6 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       trigger = prompt
         ? `[System: User just completed onboarding and tapped "${prompt}" as their first action. Respond to this directly — treat it as their opening message. Follow the first-post-onboarding instructions.]`
         : '[System: User completed onboarding. Welcome them briefly and ask what they want to work on.]'
-    } else if (type === 'experiment_template') {
-      const title = pending.metadata?.title ?? 'their experiment'
-      trigger = `[System: User tapped "Yes, draft it for me" on the experiment card for "${title}". Deliver the template per your conversation instructions. No clarifying questions — draft first.]`
     } else {
       trigger =
         '[System: Post-upload analysis triggered. Deliver your first insight.]'

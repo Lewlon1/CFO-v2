@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   InsightPayload, DataDependency, PatternResult, StatCard, Hook,
   DetectorContext, InsightLayer, UserIntent, UserIntentStruggleType,
+  ExperimentProposalLayer, ExperimentProposalCandidate,
 } from './insight-types';
 import { BLOCKED_AT_FIRST_INSIGHT } from './insight-types';
 import {
@@ -13,6 +14,12 @@ import {
   absExpense,
 } from './pattern-detectors';
 import { groupByMerchant } from '@/lib/ai/tools/helpers/group-by-merchant';
+import { EXPERIMENT_TEMPLATES, type GoalType } from '@/lib/experiments/templates';
+import { rankCandidates } from '@/lib/experiments/scoring';
+import {
+  isCapacityAvailable,
+  recentlyProposedTemplateIds,
+} from '@/lib/experiments/limit';
 
 /**
  * Resolve the user's currency.
@@ -127,10 +134,16 @@ export async function computeFirstInsight(
   }
 
   const layers = assignToLayers(results, valueMap !== null);
+  const experimentProposal = await buildExperimentProposal(
+    supabase,
+    userId,
+    results,
+    goals,
+  );
   const statCards = computeStatCards(layers, ctx);
   const hook = determineHook(available, valueMap);
   const disciplineScore = computeDisciplineScore(ctx);
-  const suggestedResponses = buildSuggestedResponses(layers, hook);
+  const suggestedResponses = buildSuggestedResponses(layers, hook, experimentProposal);
 
   return {
     version: 1,
@@ -148,8 +161,79 @@ export async function computeFirstInsight(
     hook,
     suggestedResponses,
     userIntent,
+    experiment_proposal: experimentProposal,
     computedAt: new Date().toISOString(),
   };
+}
+
+// Build the experiment-proposal layer: rank catalog templates against detected
+// patterns + the user's active goal, exclude templates proposed within the
+// last 90 days, and tag with capacity info so the LLM knows whether to
+// actually surface the experiment or just describe it.
+async function buildExperimentProposal(
+  supabase: SupabaseClient,
+  userId: string,
+  results: PatternResult[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goals: any[],
+): Promise<ExperimentProposalLayer | null> {
+  const detectedPatternIds = results.map((r) => r.id);
+  if (detectedPatternIds.length === 0) return null;
+
+  const goalType = resolveGoalType(goals);
+  const [excluded, capacity] = await Promise.all([
+    recentlyProposedTemplateIds(supabase, userId),
+    isCapacityAvailable(supabase, userId),
+  ]);
+
+  const ranked = rankCandidates({
+    templates: EXPERIMENT_TEMPLATES,
+    detectedPatternIds,
+    goalType,
+    excludedTemplateIds: excluded,
+  });
+
+  if (ranked.length === 0) {
+    return { primary: null, alternatives: [], capacity };
+  }
+
+  const top3 = ranked.slice(0, 3).map((scored): ExperimentProposalCandidate => {
+    const template = EXPERIMENT_TEMPLATES.find((t) => t.id === scored.template_id);
+    return {
+      template_id: scored.template_id,
+      source_pattern_id: scored.source_pattern_id,
+      title: template?.title_template ?? scored.template_id,
+      hypothesis: template?.hypothesis ?? '',
+      success_criterion: template?.success_criterion_template ?? '',
+      duration_days: template?.duration_days ?? 7,
+      target_metric: { ...(template?.target_metric ?? { kind: 'completed' }) },
+      score: Math.round(scored.score * 10000) / 10000,
+      scoring_breakdown: {
+        goal_alignment: scored.breakdown.goal_alignment,
+        measurability: scored.breakdown.measurability,
+        effort: scored.breakdown.effort,
+        reach: scored.breakdown.reach,
+      },
+    };
+  });
+
+  return {
+    primary: top3[0] ?? null,
+    alternatives: top3.slice(1),
+    capacity,
+  };
+}
+
+function resolveGoalType(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goals: any[],
+): GoalType | null {
+  if (!Array.isArray(goals) || goals.length === 0) return null;
+  const raw = goals[0]?.type as string | undefined;
+  if (raw === 'debt_clearance' || raw === 'savings' || raw === 'investment' || raw === 'general') {
+    return raw;
+  }
+  return null;
 }
 
 /**
@@ -220,15 +304,6 @@ export function assignToLayers(
         (r.id === 'convenience_vs_planned' || r.id === 'spending_velocity'));
       if (shape) { layers[layer] = shape; used.add(shape.id); }
     }
-  }
-
-  // Promote any experiment-bearing pattern into the action slot if it's empty.
-  // The pattern is still referenced from its primary layer (e.g. hidden_pattern)
-  // — this duplication is intentional: the narrative describes the observation,
-  // the action slot drives the experiment card in the UI.
-  if (!layers.action) {
-    const bestWithExperiment = sorted.find(r => r.experiment);
-    if (bestWithExperiment) layers.action = bestWithExperiment;
   }
 
   return layers;
@@ -401,26 +476,17 @@ export function computeDisciplineScore(ctx: DetectorContext): number {
  */
 function buildSuggestedResponses(
   layers: InsightPayload['layers'],
-  hook: Hook
+  hook: Hook,
+  experimentProposal: ExperimentProposalLayer | null,
 ): string[] {
   const out: string[] = [];
 
-  // 1. Experiment CTA leads when present — it's the most concrete action.
-  const experiment = layers.action?.experiment;
-  if (experiment) {
-    switch (experiment.template_kind) {
-      case 'grocery_plan':
-        out.push('Draft my weekly grocery list');
-        break;
-      case 'subscription_audit':
-        out.push('Show me every active subscription');
-        break;
-      case 'convenience_swap':
-        out.push('Find me a swap I can stick to');
-        break;
-      default:
-        out.push('Set up this experiment');
-    }
+  // 1. Experiment acceptance leads when present — most concrete next action.
+  if (experimentProposal?.primary && experimentProposal.capacity.allowed) {
+    out.push("Yes, let's try it");
+    out.push('Pick a different one');
+  } else if (experimentProposal?.primary) {
+    out.push('Show me a different one');
   }
 
   // 2. Pattern-specific drill-down action. Each maps to a concrete task the
@@ -486,7 +552,7 @@ async function loadRecurring(s: SupabaseClient, userId: string) {
 async function loadActiveGoals(s: SupabaseClient, userId: string) {
   const { data } = await s
     .from('goals')
-    .select('id, name, description, target_amount, target_date, priority, created_at')
+    .select('id, name, description, target_amount, target_date, priority, type, created_at')
     .eq('user_id', userId)
     .eq('status', 'active')
     .is('deleted_at', null)
