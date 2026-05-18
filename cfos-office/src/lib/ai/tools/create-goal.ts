@@ -28,6 +28,12 @@ export function createCreateGoalTool(ctx: ToolContext) {
         )
         .describe('Target date in YYYY-MM-DD format, must be in the future'),
       priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
+      type: z
+        .enum(['debt_clearance', 'savings', 'investment', 'general'])
+        .optional()
+        .describe(
+          'Goal classification: debt_clearance for paying down debt; savings for emergency funds, deposits, trips, big purchases; investment for pension/portfolio/long-term wealth; general otherwise. Pick the closest fit.',
+        ),
     }),
     execute: async ({
       name,
@@ -36,6 +42,7 @@ export function createCreateGoalTool(ctx: ToolContext) {
       current_amount,
       target_date,
       priority,
+      type,
     }: {
       name: string;
       description?: string;
@@ -43,6 +50,7 @@ export function createCreateGoalTool(ctx: ToolContext) {
       current_amount?: number;
       target_date?: string;
       priority?: string;
+      type?: 'debt_clearance' | 'savings' | 'investment' | 'general';
     }) => {
       try {
         const saved = current_amount ?? 0;
@@ -65,6 +73,7 @@ export function createCreateGoalTool(ctx: ToolContext) {
             monthly_required_saving: pace.monthly_required_saving,
             on_track: pace.on_track,
             priority: priority || 'medium',
+            type: type || 'general',
             status: 'active',
             currency: ctx.currency,
           })

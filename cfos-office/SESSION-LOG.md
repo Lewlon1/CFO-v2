@@ -9,6 +9,47 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.3 — Experiment Engine — 2026-05-18
+
+**Branch:** `claude/experiment-engine-oKzua`
+**Headline principle:** the system observes, Claude experiments. Every named behavioural pattern must fork into a measurable experiment with a self-reported outcome.
+
+### What shipped
+
+**Migration (staging — applied):**
+- **`052_experiment_engine`** — extends `proposed_experiments` in place with the catalog/lifecycle model (`template_id`, `source_pattern_id`, `title`, `hypothesis`, `success_criterion`, `duration_days`, `target_metric`, `proposal_score`, `scoring_breakdown`, `accepted_at`, `starts_at`, `ends_at`, `outcome_reported_at`, `outcome_self_report`, `user_note`, `related_goal_id`, `deleted_at`, `anonymised_at`, `updated_at`); migrates legacy `dismissed→declined` and `completed→succeeded`; new status enum covers `proposed | accepted | active | succeeded | partial | failed | expired | declined`. Adds `goals.type` with keyword-inference backfill (`debt_clearance | savings | investment | general`). RLS refreshed to filter soft-deleted rows.
+- Companion `prod-backfill-experiments.sql` drafted for Lewis to apply by hand.
+
+**Code:**
+- 10-template catalog in `src/lib/experiments/templates.ts` (subscription_audit, merchant_cap, convenience_swap, weekend_cap, cap_top_category, velocity_brake, value_leak_pause, redirect_windfall_to_goal, creep_reverse, sawtooth_smooth). Two templates from the original v2.3 spec (`no_eat_out_week`, `cash_only_week`) dropped — their trigger patterns don't exist in `pattern-detectors.ts`; reintroduce by writing the detector first.
+- Scoring engine in `src/lib/experiments/scoring.ts` with locked weights (goal_alignment 0.40 / measurability 0.25 / effort 0.20 / reach 0.15) and an alias map for the four prompt-side pattern IDs that diverged from canonical detector IDs.
+- Active-experiment limit + 90-day novelty filter in `src/lib/experiments/limit.ts` (formula `max(1, min(3, ceil(rate * 3)))` over last 4 completed; expired rows excluded).
+- New top-level `experiment_proposal` field on `InsightPayload`; legacy `PatternResult.experiment` and the `Experiment`/`template_kind` interface removed; the three legacy savings-band detectors (`merchant_fragmentation`, `recurring_expense_total`, `convenience_vs_planned`) no longer emit `experiment`.
+- Five new CFO tools: `propose_catalog_experiment`, `accept_experiment`, `decline_experiment`, `record_experiment_outcome`, `list_active_experiments`. Existing `propose_experiment` kept and marked deprecated in its description for the custom-impact path. `create_goal` now accepts a `type` argument.
+- `buildExperimentContext` injects Active / Outcome owed / Open proposals sections into the system prompt; vocabulary lock ("experiment", banned: challenge/task/habit/rule/commitment) appended to `BASE_PERSONA`.
+- Cron `/api/cron/expire-experiments` (03:00 UTC daily, registered in `vercel.json`) auto-declines stale `proposed` rows older than 7d and auto-expires `active|accepted` rows past `ends_at + 14d` without outcome.
+- Dead `experiment_template` conversation type removed (no producers — superseded by the catalog flow).
+
+### Verification
+- `npm run typecheck` + `npm run build` green at end of every phase.
+- 554 tests passing (45 files), including 34 new tests for the experiment engine (scoring, limit, lifecycle tools).
+- Staging migration applied to `qlbhvlssksnrhsleadzn`; Dorcas's "Clear the debt" goal correctly classified as `debt_clearance`.
+
+### Known follow-ups (deferred)
+- `no_eat_out_week`, `cash_only_week` templates — need new detectors first.
+- Full removal of legacy `propose_experiment` tool (kept deprecated this session for the custom-impact path).
+- UI for accept/decline / outcome-owed banner (relies on generic `[OPTIONS]` renderer this session).
+- Joy Signal integration of experiment outcomes (Session 31).
+- Multi-experiment dashboard, user-authored experiments, expanded catalog past 10.
+- Transaction-based outcome auto-verification (out of scope — self-report only this session).
+
+### Lessons learned
+- Run the spec's Phase 0 audit before writing code. The original v2.3 spec called for a new `experiments` table and `propose_experiment` tool; the codebase already had both, with sophisticated 90-day impact math in the existing tool. Surfacing the conflict before drafting avoided a parallel architecture.
+- Detector IDs in `pattern-detectors.ts` are canonical; specs written from memory will diverge. Grep first.
+- The `updated_at` trigger function is `public.handle_updated_at()`; older migrations also reference `set_updated_at` / `_set_updated_at` (defunct names).
+
+---
+
 ## v2.2 — Prod Readiness — 2026-05-18
 
 **Branch:** `claude/prod-readiness-v2-2-2jjhs`

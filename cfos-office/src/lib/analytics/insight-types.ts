@@ -33,24 +33,6 @@ export type DataDependency =
 // goal-aware patterns can run when there's something to anchor to.
 export const BLOCKED_AT_FIRST_INSIGHT: DataDependency[] = ['income'];
 
-// Deterministic experiment attached to a pattern — every number here is
-// computed in the detector. Claude quotes the bands verbatim; the UI renders
-// the card. See pattern-detectors.ts for the savings math.
-export interface Experiment {
-  title: string;
-  hypothesis: string;
-  time_investment: string;
-  monthly_saving_low: number;
-  monthly_saving_high: number;
-  annual_saving_low: number;
-  annual_saving_high: number;
-  annual_minutes_saved: number | null;
-  experiment_prompt: string;
-  cta_label: string;
-  template_kind: 'grocery_plan' | 'subscription_audit' | 'convenience_swap';
-  currency: string;
-}
-
 export interface PatternResult {
   id: string;
   score: number;
@@ -58,7 +40,38 @@ export interface PatternResult {
   data: Record<string, unknown>;
   narrative_prompt: string;
   requires: DataDependency[];
-  experiment?: Experiment;
+}
+
+// Experiment-engine proposal layer. Computed in insight-engine.ts after
+// pattern detection, scored against the user's active goal, and surfaced to
+// the CFO so the first-insight closing beat can propose a measurable
+// experiment instead of deferring. Persisted only when the user accepts
+// (via the propose_catalog_experiment tool).
+export interface ExperimentProposalCandidate {
+  template_id: string;
+  source_pattern_id: string;
+  title: string;
+  hypothesis: string;
+  success_criterion: string;
+  duration_days: number;
+  target_metric: Record<string, unknown>;
+  score: number;
+  scoring_breakdown: {
+    goal_alignment: number;
+    measurability: number;
+    effort: number;
+    reach: number;
+  };
+}
+
+export interface ExperimentProposalLayer {
+  primary: ExperimentProposalCandidate | null;
+  alternatives: ExperimentProposalCandidate[];
+  capacity: {
+    allowed: boolean;
+    activeCount: number;
+    limit: number;
+  };
 }
 
 export interface DetectorContext {
@@ -131,6 +144,7 @@ export interface InsightPayload {
    * = 'dont_know' and no goals row).
    */
   userIntent: UserIntent | null;
+  experiment_proposal: ExperimentProposalLayer | null;
   computedAt: string;
 }
 

@@ -44,9 +44,9 @@ function formatMoney(amount: number, currency: string): string {
  * as a possible merchant for the validator's allowlist.
  */
 const NON_MERCHANT_KEYS = new Set([
-  'id', 'layer', 'currency', 'template_kind', 'category', 'topCategory',
-  'top2Category', 'outlierDay', 'outlierName', 'narrative_prompt', 'cta_label',
-  'experiment_prompt', 'hypothesis', 'title', 'time_investment', 'reason',
+  'id', 'layer', 'currency', 'category', 'topCategory',
+  'top2Category', 'outlierDay', 'outlierName', 'narrative_prompt',
+  'hypothesis', 'title', 'reason', 'smallestDuplicateCategory',
 ]);
 
 /**
@@ -146,23 +146,6 @@ export function buildQuotableFacts(payload: InsightPayload): QuotableFact[] {
     const pattern = payload.layers[layer];
     if (!pattern) continue;
     facts.push(...factsFromPattern(pattern, payload.currency));
-  }
-
-  // Experiment savings bands — the existing EXPERIMENT RULES already tell the
-  // LLM to quote these verbatim; we register them as quotable so the validator
-  // doesn't reject them.
-  const experiment = payload.layers.action?.experiment;
-  if (experiment) {
-    facts.push({
-      text: `${formatMoney(experiment.monthly_saving_low, experiment.currency)}–${formatMoney(experiment.monthly_saving_high, experiment.currency)} a month`,
-      numbers: [Math.round(experiment.monthly_saving_low), Math.round(experiment.monthly_saving_high)],
-      merchants: [],
-    });
-    facts.push({
-      text: `${formatMoney(experiment.annual_saving_low, experiment.currency)}–${formatMoney(experiment.annual_saving_high, experiment.currency)} a year`,
-      numbers: [Math.round(experiment.annual_saving_low), Math.round(experiment.annual_saving_high)],
-      merchants: [],
-    });
   }
 
   return facts;
@@ -306,28 +289,42 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
     lines.push(`Instruction: ${pattern.narrative_prompt}`);
   }
 
-  // Experiment block — only present when a pattern has opted in. Claude must
-  // quote the savings bands verbatim; the UI renders the ExperimentCard
-  // alongside the narrative.
-  const experiment = payload.layers.action?.experiment;
-  if (experiment) {
+  // Experiment proposal — the closing beat of first insight. The system has
+  // scored the catalog against the detected patterns and the user's active
+  // goal. Claude proposes ONE experiment and asks via [OPTIONS]. Accept goes
+  // through propose_catalog_experiment → accept_experiment.
+  const proposal = payload.experiment_proposal;
+  if (proposal?.primary) {
+    const p = proposal.primary;
     lines.push('');
-    lines.push('#### EXPERIMENT (fold into the hidden_pattern / action paragraph)');
-    lines.push(`- Title: ${experiment.title}`);
-    lines.push(`- Hypothesis: ${experiment.hypothesis}`);
-    lines.push(`- Time investment: ${experiment.time_investment}`);
-    lines.push(`- Monthly saving band: ${experiment.monthly_saving_low}–${experiment.monthly_saving_high} ${experiment.currency}`);
-    lines.push(`- Annual saving band: ${experiment.annual_saving_low}–${experiment.annual_saving_high} ${experiment.currency}`);
-    if (experiment.annual_minutes_saved !== null) {
-      lines.push(`- Annual time saved: ~${Math.round(experiment.annual_minutes_saved / 60)} hours`);
+    lines.push('#### EXPERIMENT PROPOSAL (REQUIRED closing beat)');
+    lines.push(`- Template id: ${p.template_id}`);
+    lines.push(`- Source pattern: ${p.source_pattern_id}`);
+    lines.push(`- Proposed title: ${p.title}`);
+    lines.push(`- Hypothesis (paraphrase, don't quote): ${p.hypothesis}`);
+    lines.push(`- Success criterion: ${p.success_criterion}`);
+    lines.push(`- Duration: ${p.duration_days} day${p.duration_days === 1 ? '' : 's'}`);
+    if (proposal.alternatives.length > 0) {
+      const alt = proposal.alternatives.map((a) => `${a.template_id}`).join(', ');
+      lines.push(`- Alternatives if user wants a different one: ${alt}`);
     }
-    lines.push(`- Template kind: ${experiment.template_kind}`);
-    lines.push(`- Instruction: ${experiment.experiment_prompt}`);
+    if (!proposal.capacity.allowed) {
+      lines.push(`- CAPACITY: user already has ${proposal.capacity.activeCount}/${proposal.capacity.limit} active experiments. Mention the proposal but do NOT pressure for acceptance — finish their current experiments first.`);
+    }
     lines.push('');
     lines.push('EXPERIMENT RULES:');
-    lines.push('- Quote the saving band verbatim. Do not pick a single number. Do not invent precision.');
-    lines.push('- Label the figure as an estimate: "roughly", "around", "based on your pattern".');
-    lines.push('- End the paragraph by offering to draft the template ("Want a draft of this one?").');
+    lines.push('- Close the message with ONE sentence framing the proposed experiment using the title.');
+    lines.push('- State the success criterion plainly.');
+    lines.push('- Then emit the OPTIONS block exactly:');
+    lines.push('  [OPTIONS]');
+    lines.push("  - Yes, let's try it");
+    lines.push('  - Pick a different one');
+    lines.push('  - Not right now');
+    lines.push('  [/OPTIONS]');
+    lines.push('- When the user accepts: call `propose_catalog_experiment` with this template_id, then `accept_experiment`.');
+    lines.push('- When the user picks a different one: present the next alternative without re-explaining the rationale.');
+    lines.push('- When the user declines: do NOT push. Move on naturally.');
+    lines.push('- Vocabulary: "experiment" only. Never "challenge", "task", "habit".');
     lines.push('- Never use the words "advice" or "advise" — say "suggestion", "nudge", or just what you\'d do.');
   }
   lines.push('');
@@ -1144,6 +1141,7 @@ export async function buildSystemPrompt(
     buildBalanceSheetContext(assets, liabilities),
     buildGoalsContext(goals, actions, primaryGoal),
     buildTripsContext(dedupedTrips, profile),
+    await buildExperimentContext(supabase, userId),
     buildToolUsageInstructions(),
     await getValueMappingContext(userId, supabase),
     await getValueCheckinNudgeContext(userId, supabase, conversationType),
@@ -1705,6 +1703,108 @@ function buildTripsContext(trips: any[] | null, profile: any): string {
   return `## Upcoming trips\n\n${lines.join('\n')}`;
 }
 
+// Render the user's open experiments so the CFO knows what's running, what's
+// awaiting outcome, and what proposals are still on the table. The auto-prompt
+// for an overdue outcome lives in the "Outcome owed" block — the LLM is
+// instructed to ask once, near the start of its first response, when this
+// block is present.
+async function buildExperimentContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('proposed_experiments')
+      .select(
+        'id, template_id, title, success_criterion, status, starts_at, ends_at, outcome_reported_at, proposed_at, duration_days',
+      )
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .in('status', ['proposed', 'accepted', 'active'])
+      .order('proposed_at', { ascending: false });
+    if (error || !Array.isArray(data) || data.length === 0) return '';
+
+    const nowMs = Date.now();
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+
+    interface ExperimentRow {
+      id: string;
+      template_id: string | null;
+      title: string | null;
+      success_criterion: string | null;
+      status: string;
+      starts_at: string | null;
+      ends_at: string | null;
+      outcome_reported_at: string | null;
+      proposed_at: string;
+      duration_days: number | null;
+    }
+
+    const rows = data as ExperimentRow[];
+
+    const active = rows.filter(
+      (r) =>
+        (r.status === 'accepted' || r.status === 'active') &&
+        r.ends_at !== null &&
+        new Date(r.ends_at).getTime() > nowMs - ONE_DAY,
+    );
+    const awaiting = rows.filter(
+      (r) =>
+        (r.status === 'accepted' || r.status === 'active') &&
+        r.outcome_reported_at === null &&
+        r.ends_at !== null &&
+        new Date(r.ends_at).getTime() <= nowMs - ONE_DAY,
+    );
+    const openProposals = rows.filter((r) => r.status === 'proposed');
+
+    if (active.length === 0 && awaiting.length === 0 && openProposals.length === 0) {
+      return '';
+    }
+
+    const sections: string[] = ['## Experiments'];
+
+    if (active.length > 0) {
+      sections.push('### Currently active');
+      for (const r of active) {
+        const endDate = r.ends_at ? r.ends_at.slice(0, 10) : 'TBD';
+        sections.push(
+          `- ${r.title ?? r.template_id ?? r.id} — ends ${endDate}. Success: ${r.success_criterion ?? 'see template'}. (id: ${r.id})`,
+        );
+      }
+    }
+
+    if (awaiting.length > 0) {
+      sections.push('### Outcome owed');
+      sections.push(
+        'Ask once, naturally, near the start of this turn. Then call `record_experiment_outcome` with the user\'s answer (yes / partial / no). Do NOT moralise about partial or no.',
+      );
+      for (const r of awaiting) {
+        sections.push(
+          `- "${r.title ?? r.template_id ?? r.id}" ended ${r.ends_at?.slice(0, 10) ?? 'recently'}. Success criterion was: ${r.success_criterion ?? 'see template'}. Use [OPTIONS]\\n- Yes I stuck with it\\n- Partially\\n- No\\n[/OPTIONS] (id: ${r.id})`,
+        );
+      }
+    }
+
+    if (openProposals.length > 0) {
+      sections.push('### Open proposals (awaiting user decision)');
+      sections.push(
+        "The user can still accept these from a previous turn. Don't re-propose the same template — present the alternatives or wait for their answer.",
+      );
+      for (const r of openProposals) {
+        sections.push(
+          `- "${r.title ?? r.template_id ?? r.id}" proposed ${r.proposed_at.slice(0, 10)} (id: ${r.id}, template_id: ${r.template_id ?? 'unknown'})`,
+        );
+      }
+    }
+
+    return sections.join('\n');
+  } catch (err) {
+    console.error('[context-builder] buildExperimentContext error:', err);
+    return '';
+  }
+}
+
 function buildToolUsageInstructions(): string {
   return `## Available tools
 
@@ -1726,6 +1826,12 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **record_value_classifications**: Save value category classifications after the user tells you how they feel about a merchant IN CHAT. Only used with the inline flow above (get_value_review_queue). The card-based check-in saves its own classifications server-side — do NOT call this after the user completes a check-in.
 - **delete_value_rule**: Remove a saved value-category rule when the user says it's wrong or misclassifying ("stop tagging Aldi as a leak", "that rule is broken", "delete my Deliveroo rule"). Pass \`merchant_pattern\` (the merchant name) or \`rule_id\` if known. ALWAYS confirm with the user before calling — deletion is permanent. Does not touch past transactions, only stops future auto-categorisation. After deletion, briefly offer to reclassify via a check-in if they want a fresh rule.
 - **search_bill_alternatives**: "Can I get a better deal on electricity?" / "Help me switch internet provider." Researches alternatives and compares with the user's current plan.
+- **propose_catalog_experiment**: When the conversation has surfaced a behavioural pattern AND the user has paused on it, propose ONE catalog experiment derived from that pattern. Always follow with an [OPTIONS] block: "Yes, let's try it" / "Pick a different one" / "Not right now". Capacity (active limit) and the 90-day novelty window are enforced server-side — if rejected, do not push, acknowledge and move on.
+- **accept_experiment**: Call when the user says yes to a proposed experiment. Sets it active and starts the clock.
+- **decline_experiment**: Call when the user says "Not right now". For "Pick a different one", call this AND immediately propose_catalog_experiment with the next alternative.
+- **record_experiment_outcome**: Call after the user answers the outcome ask (yes / partial / no). Capture any free-text reason in \`note\`. Do not moralise about partial or no.
+- **list_active_experiments**: Read-only. Use at the start of a conversation to know what's active and whether any are awaiting outcome.
+- **propose_experiment** (DEPRECATED — prefer propose_catalog_experiment): Use only when you need a custom hypothesis with computed impact bands that doesn't match a catalog template.
 - **upsert_asset**: Call whenever the user mentions a savings balance, investment, pension pot, crypto holding, or property they own — whether volunteered or in reply to a question. Use asset_id to update an existing entry, omit it to create a new one. Always confirm the saved details naturally afterwards.
 - **upsert_liability**: Call whenever the user mentions a debt balance — mortgage, student loan, credit card, personal loan, BNPL, overdraft. Use liability_id to update, omit to create. Always confirm afterwards.
 - **get_balance_sheet**: "What's my net worth?" / "What's my overall position?" / when you need balance sheet context to answer a question about emergency funds, goal feasibility, or debt burden. Returns totals, itemised lists, and a data_gaps array — use the gaps to naturally prompt for missing information, never to push.
@@ -2138,73 +2244,6 @@ CRITICAL: Do not mention, reference, imply, or compute anything involving income
 
     case 'bill_optimisation':
       return buildBillOptimisationPrompt(metadata, userId);
-
-    case 'experiment_template': {
-      const kind = (metadata?.template_kind as string | undefined) ?? 'grocery_plan';
-      const title = (metadata?.title as string | undefined) ?? 'your experiment';
-      const hypothesis = (metadata?.hypothesis as string | undefined) ?? '';
-      const timeInvestment = (metadata?.time_investment as string | undefined) ?? '';
-      const monthlyLow = metadata?.monthly_saving_low;
-      const monthlyHigh = metadata?.monthly_saving_high;
-      const annualLow = metadata?.annual_saving_low;
-      const annualHigh = metadata?.annual_saving_high;
-      const annualMinutes = metadata?.annual_minutes_saved;
-      const currency = (metadata?.currency as string | undefined) ?? 'GBP';
-      const symbol = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency === 'USD' ? '$' : `${currency} `;
-      const savingBand = monthlyLow === monthlyHigh
-        ? `${symbol}${monthlyLow} a month (${symbol}${annualLow} a year)`
-        : `${symbol}${monthlyLow}–${symbol}${monthlyHigh} a month (roughly ${symbol}${annualLow}–${symbol}${annualHigh} a year)`;
-      const timeLine =
-        annualMinutes !== undefined && annualMinutes !== null && Number(annualMinutes) > 0
-          ? `\nTime saved: about ${Math.round(Number(annualMinutes) / 60)} hours over the year from fewer trips.`
-          : '';
-
-      const templateSkeletons: Record<string, string> = {
-        grocery_plan:
-          `Draft a 7-day grocery plan the user can paste into their phone's notes app. Include:\n` +
-          `  - A main-shop list grouped by store section (produce, dairy, pantry, frozen).\n` +
-          `  - Two backup meals for low-energy nights so they don't default to convenience runs.\n` +
-          `  - A rule for when it's OK to break the plan (e.g. "fresh fish once a week is fine").\n` +
-          `  - One line at the end: "Try this for one week — next time the conversation can check how it went."`,
-        convenience_swap:
-          `Draft a swap plan the user can stick on the fridge. Include:\n` +
-          `  - Which two convenience trips a week to consolidate.\n` +
-          `  - A short "buy on Sunday" list that covers those convenience impulses (milk, snacks, lunch stuff).\n` +
-          `  - A reminder rule ("before popping into the corner shop, check the Sunday list first").\n` +
-          `  - One line at the end: "Try this for a fortnight — flag what tripped you up next time."`,
-        subscription_audit:
-          `Draft a 3-step cancellation script. Include:\n` +
-          `  - Which duplicate to cancel first (the smallest one is easiest).\n` +
-          `  - Where to go to cancel (account settings link if well-known, otherwise a short phone script).\n` +
-          `  - A one-line recap of what they keep — so they don't feel the loss.\n` +
-          `  - One line at the end: "Track this as an action item?"`,
-      };
-      const skeleton = templateSkeletons[kind] ?? templateSkeletons.grocery_plan;
-
-      return `## Conversation type: Experiment template
-
-The user just tapped "Yes, draft it for me" on the experiment card in the onboarding insight. They want a concrete template for: **${title}**.
-
-Context from the experiment:
-- Hypothesis: ${hypothesis}
-- Time investment: ${timeInvestment}
-- Projected saving (band): ${savingBand}${timeLine}
-
-Your first message MUST:
-1. Open with a single sentence acknowledging the jump: "Right — here's a starting template. Tweak anything that doesn't fit."
-2. Deliver the template in a compact, scannable format (bullets or a short numbered list, not prose paragraphs).
-3. Quote the projected saving band verbatim somewhere in the message — do NOT change the numbers, do NOT pick a single figure. Label it an estimate.
-4. Close with a single offer: "Track this as an action item so it surfaces next month?" — if they agree, call the create_action_item tool.
-
-Template skeleton:
-${skeleton}
-
-HARD RULES:
-- Keep the whole response under ~200 words. This is a starter, not a manifesto.
-- Never use the words "advice" or "advise" — say "suggestion", "nudge", or just what you'd do.
-- Do NOT invent numbers beyond what's in the experiment context above.
-- Do NOT ask the user clarifying questions before drafting — draft first, let them tweak.`;
-    }
 
     case 'chip_opener':
       return `## Conversation type: First chat after onboarding

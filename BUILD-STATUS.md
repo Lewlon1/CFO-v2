@@ -1,10 +1,10 @@
 # Build Status
 
-> **Last updated:** 2026-05-16
+> **Last updated:** 2026-05-18
 > **Current version:** v2.1 on main (Sessions 11–14 via #42, onboarding-v2 fix via #43)
-> **Active work:** v2.2 — Session 26 (Chat Intelligence / Dialogue-as-Moat)
-> **Next session:** Cohort flip on test users per `cfos-office/docs/v2.2-rollout.md`, monitor 5 days, then tag v2.2
-> **Branch state:** `feature/v2.2-chat-intelligence` carries Phases 1–7 (migrations 050+051 on staging, 10 new tools, gap analyser V2, brief-first prompt, frontend components, output validators, eval harness). 459/459 tests passing. PR not yet opened.
+> **Active work:** v2.3 — Experiment Engine (alongside v2.2 in review)
+> **Next session:** v2.2 cohort flip per `cfos-office/docs/v2.2-rollout.md`; v2.3 manual prod-backfill (`cfos-office/supabase/prod-backfill-experiments.sql`) when Lewis is ready.
+> **Branch state:** `claude/experiment-engine-oKzua` carries migration 052 (applied to staging), the 10-template catalog, scoring + limit modules, 5 new lifecycle tools, removal of legacy `PatternResult.experiment`, cron `/api/cron/expire-experiments`. 554/554 tests passing. PR not yet opened.
 
 ## Branch Topology
 

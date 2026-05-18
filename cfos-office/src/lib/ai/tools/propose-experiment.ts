@@ -432,7 +432,7 @@ function computeRedirectToGoal(currency: string): ImpactBlock {
 export function createProposeExperimentTool(ctx: ToolContext) {
   return {
     description:
-      'Propose a concrete experiment (cut merchant, pause recurring, cap category, etc.) and get back system-computed impact based on the user\'s actual baseline. Use ONLY when you want to surface a specific actionable next step in your response — the user-facing prose should say what THIS tool returned, never an invented projection. Every call writes a telemetry row regardless of whether the user accepts.',
+      'DEPRECATED — prefer propose_catalog_experiment for the 10 standard templates. Use this tool only when you need a custom hypothesis with a system-computed impact band (cut merchant by N%, cap category at £X) that doesn\'t map to a catalog template. The user-facing prose should say what THIS tool returned, never an invented projection. Every call writes a telemetry row regardless of whether the user accepts.',
     inputSchema,
     execute: async (input: ProposeExperimentInput) => {
       try {
