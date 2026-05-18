@@ -70,5 +70,41 @@ Staging migration: `055_add_income_shape_fields` (applied to
 
 Dev verification surface: `<IncomeShapeBadge />` on the Cash Flow folder,
 gated by `NEXT_PUBLIC_DEV_BADGES=true`. CLI script: `npx tsx
-scripts/show-income-shape.ts <userId>` prints persisted + live-recomputed
-values side-by-side.
+scripts/show-shape-and-posture.ts <userId>` prints persisted + live-recomputed
+shape AND posture values side-by-side.
+
+### `user_profiles.financial_posture` + `monthly_snapshots.closing_balance` (Session B — Posture Detector + Runway)
+
+Forward-only posture layer built on Session A's shape. Written by
+`updateFinancialPosture()` at the end of `refreshMonthlySnapshots()`,
+after `backfillClosingBalances()` walks closing balances back from
+`accounts.current_balance` through each snapshot's `surplus_deficit`,
+and after `updateIncomeShape()` persists fresh shape data.
+
+| Column | Type | Notes |
+|---|---|---|
+| `financial_posture` | `text` | One of `surviving` / `stable` / `planning` / `unknown` |
+| `posture_confidence` | `numeric` | 0–0.90; damped by low-month-count, unknown trajectory, or boundary proximity |
+| `runway_days` | `integer` | Days at T3M spend rate against liquid balance |
+| `t3m_income_monthly` | `numeric` | Trailing-3-month mean of `total_income` |
+| `t3m_spend_monthly` | `numeric` | Trailing-3-month mean of `total_spending` |
+| `balance_trajectory` | `text` | `growing` / `growing_slowly` / `flat` / `shrinking` / `unknown` |
+| `posture_detected_at` | `timestamptz` | Last refresh time |
+| `monthly_snapshots.closing_balance` | `numeric` | Liquid balance at refresh time for newest snapshot; older rows back-walked through surplus_deficit |
+
+Detection path: pure functions in `src/lib/analytics/cashflow-aggregates.ts`
+(T3M means, runway days, trajectory) and `src/lib/analytics/posture.ts`
+(thresholds + confidence). TUNABLE_CONSTANTS at top of both files —
+runway cutoffs 30d (surviving) and 90d (stable / planning, gated by
+income ≥ spend).
+
+Liquid balance source: `accounts.current_balance` summed across all
+non-credit-card accounts (`type != 'credit_card'`, `deleted_at is null`).
+Single-currency assumption — multi-currency users will see noisy runway.
+
+Staging migration: `056_add_financial_posture` (applied to
+`qlbhvlssksnrhsleadzn`). Production migration is Lewis's manual step.
+
+**No CFO behaviour change in Session B.** Detection + dev badge + CLI
+verification only. Frame switching, voice fragments, and folder-prompt
+variants land in Session C.

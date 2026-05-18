@@ -20,6 +20,8 @@ interface IncomeShapeData {
   income_shape: string | null
   income_volatility: number | null
   income_shape_deposit_count: number | null
+  financial_posture: string | null
+  runway_days: number | null
 }
 
 const fetcher = async (url: string) => {

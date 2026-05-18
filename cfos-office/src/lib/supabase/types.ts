@@ -155,87 +155,6 @@ export type Database = {
           },
         ]
       }
-      active_experiments: {
-        Row: {
-          accepted_at: string | null
-          callback_due_at: string
-          cfo_synthesis: string | null
-          conversation_id: string | null
-          created_at: string
-          experiment_text: string
-          id: string
-          next_action_kind: string | null
-          next_action_payload: Json | null
-          noticing_target: string
-          observation_payload: Json
-          observation_type: string
-          pattern_name: string
-          pattern_template_key: string
-          proposed_at: string
-          question: string
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          callback_due_at: string
-          cfo_synthesis?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          experiment_text: string
-          id?: string
-          next_action_kind?: string | null
-          next_action_payload?: Json | null
-          noticing_target: string
-          observation_payload: Json
-          observation_type: string
-          pattern_name: string
-          pattern_template_key: string
-          proposed_at?: string
-          question: string
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          accepted_at?: string | null
-          callback_due_at?: string
-          cfo_synthesis?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          experiment_text?: string
-          id?: string
-          next_action_kind?: string | null
-          next_action_payload?: Json | null
-          noticing_target?: string
-          observation_payload?: Json
-          observation_type?: string
-          pattern_name?: string
-          pattern_template_key?: string
-          proposed_at?: string
-          question?: string
-          status?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "active_experiments_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "active_experiments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       assets: {
         Row: {
           account_id: string | null
@@ -513,6 +432,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           metadata: Json | null
+          profile_extracted_at: string | null
           status: string | null
           title: string | null
           type: string | null
@@ -526,6 +446,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           metadata?: Json | null
+          profile_extracted_at?: string | null
           status?: string | null
           title?: string | null
           type?: string | null
@@ -539,6 +460,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           metadata?: Json | null
+          profile_extracted_at?: string | null
           status?: string | null
           title?: string | null
           type?: string | null
@@ -773,53 +695,6 @@ export type Database = {
           },
         ]
       }
-      dsar_requests: {
-        Row: {
-          acknowledged_at: string | null
-          completed_at: string | null
-          created_at: string
-          deadline_at: string
-          id: string
-          notes: string | null
-          request_type: string
-          requested_at: string
-          status: string
-          user_id: string
-        }
-        Insert: {
-          acknowledged_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          deadline_at?: string
-          id?: string
-          notes?: string | null
-          request_type: string
-          requested_at?: string
-          status?: string
-          user_id: string
-        }
-        Update: {
-          acknowledged_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          deadline_at?: string
-          id?: string
-          notes?: string | null
-          request_type?: string
-          requested_at?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "dsar_requests_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       financial_portrait: {
         Row: {
           anonymised_at: string | null
@@ -886,10 +761,65 @@ export type Database = {
           },
         ]
       }
+      goal_contributions: {
+        Row: {
+          amount: number
+          anonymised_at: string | null
+          created_at: string
+          deleted_at: string | null
+          goal_id: string
+          id: string
+          kind: string
+          logged_at: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          anonymised_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          goal_id: string
+          id?: string
+          kind?: string
+          logged_at?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          anonymised_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          goal_id?: string
+          id?: string
+          kind?: string
+          logged_at?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_contributions_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_contributions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
           anonymised_at: string | null
           created_at: string | null
+          currency: string
           current_amount: number | null
           deleted_at: string | null
           description: string | null
@@ -901,11 +831,13 @@ export type Database = {
           status: string | null
           target_amount: number | null
           target_date: string | null
+          type: string
           user_id: string
         }
         Insert: {
           anonymised_at?: string | null
           created_at?: string | null
+          currency?: string
           current_amount?: number | null
           deleted_at?: string | null
           description?: string | null
@@ -917,11 +849,13 @@ export type Database = {
           status?: string | null
           target_amount?: number | null
           target_date?: string | null
+          type?: string
           user_id: string
         }
         Update: {
           anonymised_at?: string | null
           created_at?: string | null
+          currency?: string
           current_amount?: number | null
           deleted_at?: string | null
           description?: string | null
@@ -933,6 +867,7 @@ export type Database = {
           status?: string | null
           target_amount?: number | null
           target_date?: string | null
+          type?: string
           user_id?: string
         }
         Relationships: [
@@ -1122,6 +1057,7 @@ export type Database = {
           metadata: Json | null
           model: string
           prompt_tokens: number | null
+          tool_name: string | null
           total_tokens: number | null
           user_id: string | null
         }
@@ -1136,6 +1072,7 @@ export type Database = {
           metadata?: Json | null
           model: string
           prompt_tokens?: number | null
+          tool_name?: string | null
           total_tokens?: number | null
           user_id?: string | null
         }
@@ -1150,6 +1087,7 @@ export type Database = {
           metadata?: Json | null
           model?: string
           prompt_tokens?: number | null
+          tool_name?: string | null
           total_tokens?: number | null
           user_id?: string | null
         }
@@ -1308,6 +1246,7 @@ export type Database = {
         Row: {
           anonymised_at: string | null
           avg_transaction_size: number | null
+          closing_balance: number | null
           created_at: string | null
           deleted_at: string | null
           id: string
@@ -1328,6 +1267,7 @@ export type Database = {
         Insert: {
           anonymised_at?: string | null
           avg_transaction_size?: number | null
+          closing_balance?: number | null
           created_at?: string | null
           deleted_at?: string | null
           id?: string
@@ -1348,6 +1288,7 @@ export type Database = {
         Update: {
           anonymised_at?: string | null
           avg_transaction_size?: number | null
+          closing_balance?: number | null
           created_at?: string | null
           deleted_at?: string | null
           id?: string
@@ -1496,6 +1437,62 @@ export type Database = {
           },
         ]
       }
+      profile_extraction_candidates: {
+        Row: {
+          applied: boolean
+          applied_at: string | null
+          candidate_value: Json
+          confidence: number
+          conversation_id: string | null
+          created_at: string
+          deleted_at: string | null
+          evidence: string | null
+          field_name: string
+          id: string
+          rejected: boolean
+          rejected_at: string | null
+          user_id: string
+        }
+        Insert: {
+          applied?: boolean
+          applied_at?: string | null
+          candidate_value: Json
+          confidence: number
+          conversation_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          evidence?: string | null
+          field_name: string
+          id?: string
+          rejected?: boolean
+          rejected_at?: string | null
+          user_id: string
+        }
+        Update: {
+          applied?: boolean
+          applied_at?: string | null
+          candidate_value?: Json
+          confidence?: number
+          conversation_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          evidence?: string | null
+          field_name?: string
+          id?: string
+          rejected?: boolean
+          rejected_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_extraction_candidates_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiling_queue: {
         Row: {
           anonymised_at: string | null
@@ -1546,6 +1543,132 @@ export type Database = {
           },
           {
             foreignKeyName: "profiling_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposed_experiments: {
+        Row: {
+          accepted_at: string | null
+          affected_transaction_ids: string[] | null
+          anonymised_at: string | null
+          computed_impact: Json
+          conversation_id: string | null
+          created_at: string
+          deleted_at: string | null
+          duration_days: number | null
+          ends_at: string | null
+          experiment_type: string
+          feasibility_note: string | null
+          hypothesis: string | null
+          id: string
+          message_id: string | null
+          next_check_in_at: string | null
+          outcome_reported_at: string | null
+          outcome_self_report: string | null
+          parameters: Json
+          proposal_score: number | null
+          proposed_at: string
+          rationale: string | null
+          related_goal_id: string | null
+          responded_at: string | null
+          scoring_breakdown: Json
+          source_pattern_id: string | null
+          starts_at: string | null
+          status: string
+          success_criterion: string | null
+          target_metric: Json
+          template_id: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+          user_note: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          affected_transaction_ids?: string[] | null
+          anonymised_at?: string | null
+          computed_impact?: Json
+          conversation_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_days?: number | null
+          ends_at?: string | null
+          experiment_type: string
+          feasibility_note?: string | null
+          hypothesis?: string | null
+          id?: string
+          message_id?: string | null
+          next_check_in_at?: string | null
+          outcome_reported_at?: string | null
+          outcome_self_report?: string | null
+          parameters?: Json
+          proposal_score?: number | null
+          proposed_at?: string
+          rationale?: string | null
+          related_goal_id?: string | null
+          responded_at?: string | null
+          scoring_breakdown?: Json
+          source_pattern_id?: string | null
+          starts_at?: string | null
+          status?: string
+          success_criterion?: string | null
+          target_metric?: Json
+          template_id?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          user_note?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          affected_transaction_ids?: string[] | null
+          anonymised_at?: string | null
+          computed_impact?: Json
+          conversation_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_days?: number | null
+          ends_at?: string | null
+          experiment_type?: string
+          feasibility_note?: string | null
+          hypothesis?: string | null
+          id?: string
+          message_id?: string | null
+          next_check_in_at?: string | null
+          outcome_reported_at?: string | null
+          outcome_self_report?: string | null
+          parameters?: Json
+          proposal_score?: number | null
+          proposed_at?: string
+          rationale?: string | null
+          related_goal_id?: string | null
+          responded_at?: string | null
+          scoring_breakdown?: Json
+          source_pattern_id?: string | null
+          starts_at?: string | null
+          status?: string
+          success_criterion?: string | null
+          target_metric?: Json
+          template_id?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          user_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposed_experiments_related_goal_id_fkey"
+            columns: ["related_goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposed_experiments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_profiles"
@@ -1649,105 +1772,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      savings_tips: {
-        Row: {
-          action_url: string | null
-          category: string
-          country: string
-          created_at: string | null
-          id: string
-          potential_saving: string | null
-          priority: number | null
-          subcategory: string | null
-          tier_required: string | null
-          tip_body: string
-          tip_title: string
-          trigger_condition: string
-          updated_at: string | null
-          valid_from: string
-          valid_until: string | null
-        }
-        Insert: {
-          action_url?: string | null
-          category: string
-          country: string
-          created_at?: string | null
-          id?: string
-          potential_saving?: string | null
-          priority?: number | null
-          subcategory?: string | null
-          tier_required?: string | null
-          tip_body: string
-          tip_title: string
-          trigger_condition: string
-          updated_at?: string | null
-          valid_from: string
-          valid_until?: string | null
-        }
-        Update: {
-          action_url?: string | null
-          category?: string
-          country?: string
-          created_at?: string | null
-          id?: string
-          potential_saving?: string | null
-          priority?: number | null
-          subcategory?: string | null
-          tier_required?: string | null
-          tip_body?: string
-          tip_title?: string
-          trigger_condition?: string
-          updated_at?: string | null
-          valid_from?: string
-          valid_until?: string | null
-        }
-        Relationships: []
-      }
-      third_party_data_flows: {
-        Row: {
-          created_at: string | null
-          data_categories: string[] | null
-          data_retention_days: number | null
-          dpa_reference: string | null
-          id: string
-          is_active: boolean | null
-          lawful_basis: string | null
-          notes: string | null
-          service_name: string | null
-          service_provider: string | null
-          transfer_mechanism: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          data_categories?: string[] | null
-          data_retention_days?: number | null
-          dpa_reference?: string | null
-          id?: string
-          is_active?: boolean | null
-          lawful_basis?: string | null
-          notes?: string | null
-          service_name?: string | null
-          service_provider?: string | null
-          transfer_mechanism?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          data_categories?: string[] | null
-          data_retention_days?: number | null
-          dpa_reference?: string | null
-          id?: string
-          is_active?: boolean | null
-          lawful_basis?: string | null
-          notes?: string | null
-          service_name?: string | null
-          service_provider?: string | null
-          transfer_mechanism?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
       }
       transactions: {
         Row: {
@@ -2069,6 +2093,7 @@ export type Database = {
           advice_style: string | null
           age_range: string | null
           anonymised_at: string | null
+          balance_trajectory: string | null
           beta_cohort: Database["public"]["Enums"]["beta_cohort_t"] | null
           bonus_month_details: Json | null
           budget_config: Json | null
@@ -2080,11 +2105,20 @@ export type Database = {
           dependents: number | null
           display_name: string | null
           employment_status: string | null
+          entry_struggle: string | null
+          entry_struggle_at: string | null
+          entry_struggle_text: string | null
           financial_awareness: string | null
+          financial_posture: string | null
+          goals_last_synced_at: string | null
           gross_salary: number | null
           has_bonus_months: boolean | null
           housing_type: string | null
           id: string
+          income_shape: string | null
+          income_shape_deposit_count: number | null
+          income_shape_detected_at: string | null
+          income_volatility: number | null
           is_lifetime_pro: boolean
           monthly_rent: number | null
           nationality: string | null
@@ -2092,18 +2126,27 @@ export type Database = {
           nudge_preferences: Json | null
           onboarding_completed_at: string | null
           onboarding_progress: Json | null
+          onboarding_route: string | null
+          onboarding_step: string | null
           partner_employment_status: string | null
           partner_monthly_contribution: number | null
           pay_frequency: string | null
+          posture_confidence: number | null
+          posture_detected_at: string | null
           primary_currency: string | null
           profile_completeness: number | null
           relationship_status: string | null
           residency_status: string | null
           risk_tolerance: string | null
+          runway_days: number | null
           savings_rate_target: number | null
           spending_triggers: Json | null
+          t3m_income_monthly: number | null
+          t3m_spend_monthly: number | null
           tax_residency_country: string | null
           updated_at: string | null
+          value_map_declined_in_chat: boolean
+          value_map_offered_in_chat: boolean
           values_ranking: Json | null
           years_in_country: number | null
         }
@@ -2111,6 +2154,7 @@ export type Database = {
           advice_style?: string | null
           age_range?: string | null
           anonymised_at?: string | null
+          balance_trajectory?: string | null
           beta_cohort?: Database["public"]["Enums"]["beta_cohort_t"] | null
           bonus_month_details?: Json | null
           budget_config?: Json | null
@@ -2122,11 +2166,20 @@ export type Database = {
           dependents?: number | null
           display_name?: string | null
           employment_status?: string | null
+          entry_struggle?: string | null
+          entry_struggle_at?: string | null
+          entry_struggle_text?: string | null
           financial_awareness?: string | null
+          financial_posture?: string | null
+          goals_last_synced_at?: string | null
           gross_salary?: number | null
           has_bonus_months?: boolean | null
           housing_type?: string | null
           id: string
+          income_shape?: string | null
+          income_shape_deposit_count?: number | null
+          income_shape_detected_at?: string | null
+          income_volatility?: number | null
           is_lifetime_pro?: boolean
           monthly_rent?: number | null
           nationality?: string | null
@@ -2134,18 +2187,27 @@ export type Database = {
           nudge_preferences?: Json | null
           onboarding_completed_at?: string | null
           onboarding_progress?: Json | null
+          onboarding_route?: string | null
+          onboarding_step?: string | null
           partner_employment_status?: string | null
           partner_monthly_contribution?: number | null
           pay_frequency?: string | null
+          posture_confidence?: number | null
+          posture_detected_at?: string | null
           primary_currency?: string | null
           profile_completeness?: number | null
           relationship_status?: string | null
           residency_status?: string | null
           risk_tolerance?: string | null
+          runway_days?: number | null
           savings_rate_target?: number | null
           spending_triggers?: Json | null
+          t3m_income_monthly?: number | null
+          t3m_spend_monthly?: number | null
           tax_residency_country?: string | null
           updated_at?: string | null
+          value_map_declined_in_chat?: boolean
+          value_map_offered_in_chat?: boolean
           values_ranking?: Json | null
           years_in_country?: number | null
         }
@@ -2153,6 +2215,7 @@ export type Database = {
           advice_style?: string | null
           age_range?: string | null
           anonymised_at?: string | null
+          balance_trajectory?: string | null
           beta_cohort?: Database["public"]["Enums"]["beta_cohort_t"] | null
           bonus_month_details?: Json | null
           budget_config?: Json | null
@@ -2164,11 +2227,20 @@ export type Database = {
           dependents?: number | null
           display_name?: string | null
           employment_status?: string | null
+          entry_struggle?: string | null
+          entry_struggle_at?: string | null
+          entry_struggle_text?: string | null
           financial_awareness?: string | null
+          financial_posture?: string | null
+          goals_last_synced_at?: string | null
           gross_salary?: number | null
           has_bonus_months?: boolean | null
           housing_type?: string | null
           id?: string
+          income_shape?: string | null
+          income_shape_deposit_count?: number | null
+          income_shape_detected_at?: string | null
+          income_volatility?: number | null
           is_lifetime_pro?: boolean
           monthly_rent?: number | null
           nationality?: string | null
@@ -2176,18 +2248,27 @@ export type Database = {
           nudge_preferences?: Json | null
           onboarding_completed_at?: string | null
           onboarding_progress?: Json | null
+          onboarding_route?: string | null
+          onboarding_step?: string | null
           partner_employment_status?: string | null
           partner_monthly_contribution?: number | null
           pay_frequency?: string | null
+          posture_confidence?: number | null
+          posture_detected_at?: string | null
           primary_currency?: string | null
           profile_completeness?: number | null
           relationship_status?: string | null
           residency_status?: string | null
           risk_tolerance?: string | null
+          runway_days?: number | null
           savings_rate_target?: number | null
           spending_triggers?: Json | null
+          t3m_income_monthly?: number | null
+          t3m_spend_monthly?: number | null
           tax_residency_country?: string | null
           updated_at?: string | null
+          value_map_declined_in_chat?: boolean
+          value_map_offered_in_chat?: boolean
           values_ranking?: Json | null
           years_in_country?: number | null
         }
@@ -2416,13 +2497,6 @@ export type Database = {
           tx_count: number
         }[]
       }
-      fn_session_feedback: {
-        Args: { p_session_id: string }
-        Returns: {
-          negative_count: number
-          positive_count: number
-        }[]
-      }
       get_import_history: {
         Args: { p_user_id: string }
         Returns: {
@@ -2443,6 +2517,16 @@ export type Database = {
         }[]
       }
       prediction_metrics_txn: { Args: { p_user_id: string }; Returns: Json }
+      recompute_goal_current_amount: {
+        Args: { p_goal_id: string }
+        Returns: {
+          current_amount: number
+          id: string
+          status: string
+          target_amount: number
+          target_date: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
@@ -2794,4 +2878,3 @@ export const Constants = {
     },
   },
 } as const
-
