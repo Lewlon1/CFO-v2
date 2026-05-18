@@ -1125,3 +1125,58 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 3. **Frame switching, voice fragments, folder-prompt variants** — all Session C deliverables. The data is in place; the UX divergence is not.
 4. **Maya/Carlos persona verification** — pending Lewis's manual staging step (set `accounts.current_balance` to CSV closing for each test user, re-trigger ingest, run `show-shape-and-posture.ts`). The detector + CLI are ready.
 5. **Posture stability at boundaries** — the confidence dampers should help, but real users will surface whether 30-day / 90-day cutoffs are stable enough. If runway breathes around 30d week-to-week, Session C will need to debounce or smooth the frame-switching trigger.
+
+---
+
+## Session C — Posture-Aware Experience — 2026-05-18
+
+**Branch:** `claude/posture-aware-experience-YK28W` (Session B merged in before any new work via `git merge --no-ff origin/claude/add-posture-detector-gObY0`).
+**Scope:** make the posture signal visible. Cash Flow folder, suggested chat prompts, and CFO voice all modulate for `surviving` and `planning` users (confidence ≥ 0.80). **No schema changes.** Stable, unknown, and below-threshold users continue to see the existing default experience.
+
+### What shipped
+
+**New files:**
+- `src/lib/analytics/posture-helpers.ts` — single source of truth for the confidence gate. Exports `getTransformPosture(profile): 'surviving' | 'planning' | null`. `MIN_CONFIDENCE_FOR_TRANSFORM = 0.80`. Returns null for stable, unknown, null posture, or below-threshold confidence.
+- `src/lib/analytics/__tests__/posture-helpers.test.ts` — 7 cases covering null profile, stable + high confidence, unknown, surviving below threshold, surviving + planning above threshold, and the boundary at exactly 0.80. All green.
+- `src/lib/ai/posture-prompts/surviving.ts` + `planning.ts` + `index.ts` — first-pass voice fragments (status flagged in COPY-DECK.md). Router returns `''` when no transform applies, so `.filter(Boolean)` in the section assembler drops it cleanly.
+
+**Modified:**
+- `src/lib/ai/context-builder.ts` — appended `getPosturePromptFragment(profile)` to all three section arrays (goal-derive-confirm, first-insight v2, default chat). Added new helper `buildPostureContext(profile, recurring)` that emits posture-aware quotable facts: runway + trajectory + recurring-due-in-14d for surviving; T3M income/spend/net + trajectory for planning. `buildFirstInsightContext` accepts an optional `profile` arg and swaps the income-amount block in the NOT AVAILABLE list when planning posture is active (T3M income may then be cited as "trailing-3-month income").
+- `src/lib/chat/folder-prompts.ts` — added `getFolderChatMeta(folder, profile)` returning the static `CHAT_SUBJECTS[folder]` for every key except `'cash-flow'`, where prompts swap on transform. Three Cash Flow prompt arrays: existing default, `CASH_FLOW_SURVIVING_PROMPTS`, `CASH_FLOW_PLANNING_PROMPTS`.
+- `src/components/chat/ChatSheet.tsx` — `FolderEmptyState` now fetches the same `/api/profile/income-shape` SWR key already used by Cash Flow (deduped), feeds it into `getFolderChatMeta` to pick the right prompt set.
+- `src/components/office/dashboards/CashFlowDashboard.tsx` — widened `IncomeShapeData` interface with `posture_confidence`, `t3m_income_monthly`, `t3m_spend_monthly`, `balance_trajectory` (route already returned them post-Session B; the type just needed to match). Added inline `<PostureHero>` between the dev badge and the existing `<Briefing>` — renders `Runway: N days` for surviving and `Last 3 months: ±X net` for planning. Renders `null` for stable/unknown/below-threshold so the existing Briefing remains the headline. Added inline `<DrillDowns>` that consolidates the 5 drill-down rows into a config map keyed by `DrillDownKey` and walks them in posture-driven order (bills first for surviving, patterns first for planning).
+- `BUILD-STATUS.md` — added "Session C — Posture-Aware Experience" section with the surface-by-surface variant matrix.
+- `COPY-DECK.md` — **new file** at repo root; the session prompt referenced it as existing but it didn't. Created with two sections (voice fragments + folder prompts), both marked `STATUS: first pass — Lewis to refine`.
+
+### Verification
+
+- `npm test -- posture-helpers --run` → 7/7 green.
+- `npm test -- --run` → 596/596 green across the full suite (up from 589 in Session B; new posture-helpers tests added, none regressed).
+- `npx tsc --noEmit` → clean.
+- No new files under `cfos-office/supabase/migrations/` — Session C is application-code only.
+- Staging persona verification (Maya, Carlos, low-confidence) was not run from this session — requires Lewis's manual step of seeding the test users' profile rows with the persona values + applying migration 056 to the staging project if not already done in Session B.
+
+### Resolved design calls (during execution)
+
+1. **Phase 0 caught the wrong base branch.** The session prompt said "branch off main after Sessions A + B merge", but neither A nor B were on main — A was on the working branch as the previous commit, and B lived on `claude/add-posture-detector-gObY0` (unmerged). Surfaced via AskUserQuestion; Lewis confirmed Session B's branch as the foundation. Merged it into the working branch as Phase 0 before any new code.
+2. **`buildPostureContext` lives in `context-builder.ts`, not a new file.** The session prompt didn't specify location explicitly. Kept it inline next to `buildFinancialContext` and `buildPortraitContext` — same shape, same calling convention, same lifecycle. Avoids creating a one-function helper file.
+3. **`FolderEmptyState` fetches its own SWR key rather than threading profile through `ChatProvider`.** Considered adding posture data to `ChatContextValue` (`userCurrency` style) but that would have required four touch points (provider state, value, consumer, context type). SWR dedupes the `/api/profile/income-shape` key with `CashFlowDashboard`'s existing call, so the cost is one extra hook in one component vs. propagation through a 432-line provider. Took the smaller blast radius.
+4. **First-insight NOT AVAILABLE adjustment uses an optional `profile` arg.** `buildFirstInsightContext` had a single-arg signature pre-Session C. Adding a required arg would have broken downstream callers I might have missed; an optional `profile?: any` preserves the v1 path and the existing eval harness calls.
+5. **Recurring-bills-due-in-14d count uses `billing_day` only.** `recurring_expenses` doesn't store an explicit `next_due_date` — only `billing_day` + `frequency`. Computed next occurrence of `billing_day` from today (carries to next month if `billing_day < today_day`) and counted if within 14 days. Other frequencies (biannual/quarterly) are excluded from the count — the slight underestimate is acceptable since the user-facing fact is "bills coming up", not a contract.
+
+### Lessons learned
+
+1. **Always re-audit the branch before trusting "Session X is merged".** The session prompt confidently said "Sessions A and B installed the detection layer" — Phase 0 caught that B was on a parallel branch. A two-minute `git log` + `ls cfos-office/src/lib/analytics/` is the cheapest insurance against three phases of building on a phantom interface.
+2. **The session prompt's drill-down placeholder count was wrong (4 vs actual 5).** Worth keeping spec text tentative on UI surface counts; Phase 0 audit is the source of truth. The plan adjusted to 5 rows.
+3. **`COPY-DECK.md` existed in the spec but not in the tree.** Created it as a new file. Future sessions should treat any referenced doc artifact as "either exists or needs creating with the right structure"; don't assume.
+4. **Single `getTransformPosture` helper paid off immediately.** Five consumers (UI hero, drill-down order, system prompt, folder prompts, context-builder facts). Tuning the threshold is one line in one file. Worth doing this kind of single-source-of-truth gate from day one for any cross-surface decision.
+5. **Conditional sections that return empty strings + `.filter(Boolean)` is the cleanest pattern for posture-aware prompt assembly.** No branching in the section array, no conditional spread, just a regular function that knows when to no-op. Drops in next to the other helpers without disturbing existing flow.
+
+### Open questions for the next session
+
+1. **Reconciling legacy `incomeDetected`** — still parallel to the persistent shape field; cleanup deferred from Sessions A and B. The Session C voice fragments don't depend on it, but the first-insight flow still triggers off the pattern detector. Worth a dedicated cleanup session before posture-aware first insights ship to real users.
+2. **Inbox cadence per posture** — surviving users want weekly digests, planning users want monthly + quarterly. Out of scope this session because of scheduling/DST/opt-out complexity. Currently in `BACKLOG.md`.
+3. **Net Worth folder posture gentleness** — explicitly excluded this session per the "do not touch" list. Worth designing a separate variant for surviving users on the Net Worth view; the current numbers may feel discouraging at low runway.
+4. **First-insight × posture integration** — the NOT AVAILABLE list now flips for planning posture, but first-insight users are typically too new to have posture detected (need 2+ months of snapshots). The flip will rarely fire in practice. Verify on first cohort users who upload 3+ months of CSV history.
+5. **Joy Signal (Session 31) × posture** — posture-aware Joy Signal framing wasn't designed yet. Surviving users likely need a different mood metric than planning users.
+6. **Drill-down ordering on touch:** does putting "Spending patterns" first for planning users actually drive engagement, or does it feel academic when they just want to see the breakdown? Worth measuring via track events on Cash Flow drill-down clicks.

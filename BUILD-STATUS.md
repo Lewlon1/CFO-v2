@@ -108,3 +108,27 @@ Staging migration: `056_add_financial_posture` (applied to
 **No CFO behaviour change in Session B.** Detection + dev badge + CLI
 verification only. Frame switching, voice fragments, and folder-prompt
 variants land in Session C.
+
+### Session C — Posture-Aware Experience
+
+Surfaces Session B's posture signal to the user. **No schema changes.** Reads
+the persisted detector output via the existing `/api/profile/income-shape`
+route and `user_profiles.*` already loaded by the system-prompt assembly.
+
+Single confidence gate: `MIN_CONFIDENCE_FOR_TRANSFORM = 0.80` in
+`src/lib/analytics/posture-helpers.ts`. Every consumer reads
+`getTransformPosture(profile)`. Only `surviving` and `planning` transform;
+`stable`, `unknown`, and below-threshold fall through to the existing
+default experience.
+
+| Surface | Default | Surviving variant | Planning variant |
+|---|---|---|---|
+| Cash Flow hero | Existing `<Briefing>` paragraph | `Runway: N days` + trajectory copy | `Last 3 months: ±X net` + T3M income/spend monthly |
+| Cash Flow drill-downs | overview → bills → breakdown → patterns → transactions | **bills first** | **patterns first** |
+| Chat suggested prompts | "What drove my spending this month?" etc | Tactical short-horizon prompts | Strategic deployment prompts |
+| System prompt | base persona only | base + surviving voice fragment (≤30d horizon, no savings/pension) | base + planning voice fragment (quarterly, deployment) |
+| Context-builder quotable facts | (none specific) | runway, trajectory, bills-due-in-14d | T3M income/spend/net, trajectory |
+| First-insight NOT AVAILABLE list | blocks income amount | unchanged | swaps income-amount block → "trailing-3-month income" allowed |
+
+Voice fragments and folder prompts are **first-pass copy** — see
+`COPY-DECK.md` (`STATUS: first pass — Lewis to refine`).

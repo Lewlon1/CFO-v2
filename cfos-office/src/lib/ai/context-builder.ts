@@ -10,6 +10,8 @@ import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
+import { getPosturePromptFragment } from './posture-prompts';
+import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -166,7 +168,8 @@ const CAPABILITY_FOCUS: Record<string, string> = {
   scenarios: 'The user is weighing a big decision. Frame patterns in terms of financial headroom and optionality. The hook should invite a forward-looking question: "what would it take to..."',
 }
 
-export function buildFirstInsightContext(payload: InsightPayload, selectedCapabilities?: string[]): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildFirstInsightContext(payload: InsightPayload, selectedCapabilities?: string[], profile?: any): string {
   const lines: string[] = [];
   lines.push('## First insight — data from the system');
   lines.push('The following patterns were computed deterministically. You MUST narrate ONLY these patterns.');
@@ -345,7 +348,12 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   for (const s of payload.suggestedResponses) lines.push(`- ${s}`);
   lines.push('');
   lines.push('#### NOT AVAILABLE — do not reference');
-  lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
+  const planningTransform = getTransformPosture(profile) === 'planning';
+  if (planningTransform) {
+    lines.push('- t3m_income_monthly is available — you may reference it as "trailing-3-month income" but never as "your monthly income" (the underlying flow is variable)');
+  } else {
+    lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
+  }
   lines.push('- Savings rate (requires income)');
   lines.push('- Surplus/deficit (requires income)');
   lines.push('- Any percentage "of income" (requires income)');
@@ -986,6 +994,7 @@ export async function buildSystemPrompt(
       buildProfileContext(profile),
       buildGoalDeriveConfirmContext(profile, goals),
       buildToolUsageInstructions(),
+      getPosturePromptFragment(profile),
     ].filter(Boolean);
 
     return sections.join('\n\n---\n\n');
@@ -1111,6 +1120,7 @@ export async function buildSystemPrompt(
       ),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
       buildToolUsageInstructions(),
+      getPosturePromptFragment(profile),
     ].filter(Boolean);
 
     return sections.join('\n\n---\n\n');
@@ -1120,9 +1130,10 @@ export async function buildSystemPrompt(
     const sections = [
       BASE_PERSONA + styleModifier,
       buildCurrentDateContext(),
-      buildFirstInsightContext(firstInsightPayload),
+      buildFirstInsightContext(firstInsightPayload, undefined, profile),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
       buildToolUsageInstructions(),
+      getPosturePromptFragment(profile),
     ].filter(Boolean);
 
     return sections.join('\n\n---\n\n');
@@ -1135,6 +1146,7 @@ export async function buildSystemPrompt(
     buildOnboardingEntryContext(profile),
     await buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     buildFinancialContext(snapshots, recurring, profile),
+    buildPostureContext(profile, recurring),
     await getCountryBenchmarks(profile, supabase),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
@@ -1148,6 +1160,7 @@ export async function buildSystemPrompt(
     await getRetakeSuggestionContext(userId, supabase, conversationType),
     await getPredictionQualityContext(userId, supabase),
     await buildProfilingContext(userId, supabase),
+    getPosturePromptFragment(profile),
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
@@ -1422,6 +1435,70 @@ async function getCountryBenchmarks(
   } catch {
     return '';
   }
+}
+
+// Posture-aware quotable facts. Only emits a section when the user has a
+// surviving or planning posture above the confidence gate (see posture-helpers).
+// These facts come from the deterministic detector layer in Session B —
+// the LLM may quote them without anti-hallucination concern.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildPostureContext(profile: any, recurring: any[] | null): string {
+  const transform = getTransformPosture(profile);
+  if (!transform) return '';
+
+  const currency = profile?.primary_currency || 'EUR';
+  const sym = currencySymbol(currency);
+  const trajectory = profile?.balance_trajectory as string | null | undefined;
+  const lines: string[] = [];
+
+  if (transform === 'surviving') {
+    const runway = profile?.runway_days;
+    if (runway == null) return '';
+
+    lines.push('## Posture: surviving (runway-aware)');
+    lines.push('### QUOTABLE POSTURE FACTS — these are computed, the LLM may cite them');
+    lines.push(`- "Runway: ${runway} days at current spend rate"`);
+    if (trajectory) {
+      lines.push(`- "Balance trajectory over the last 3 months: ${trajectory.replace(/_/g, ' ')}"`);
+    }
+
+    // Count recurring bills falling within the next 14 days based on billing_day.
+    const today = new Date();
+    const todayDay = today.getDate();
+    const dueIn14 = (recurring ?? []).filter((r: { billing_day?: number | null }) => {
+      const bd = r?.billing_day;
+      if (bd == null || bd < 1 || bd > 31) return false;
+      const daysUntil = bd >= todayDay
+        ? bd - todayDay
+        : (30 - todayDay) + bd; // next month occurrence, ~30-day approx
+      return daysUntil <= 14;
+    }).length;
+    lines.push(`- "Recurring bills due in the next 14 days: ${dueIn14}"`);
+  }
+
+  if (transform === 'planning') {
+    const t3mIncome = profile?.t3m_income_monthly;
+    const t3mSpend = profile?.t3m_spend_monthly;
+    if (t3mIncome == null || t3mSpend == null) return '';
+
+    const t3mNet = Math.round((Number(t3mIncome) - Number(t3mSpend)) * 3);
+    const incomeRounded = Math.round(Number(t3mIncome));
+    const spendRounded = Math.round(Number(t3mSpend));
+    const netSign = t3mNet >= 0 ? '+' : '−';
+
+    lines.push('## Posture: planning (T3M-aware)');
+    lines.push('### QUOTABLE POSTURE FACTS — these are computed, the LLM may cite them');
+    lines.push(`- "Trailing-3-month income: ${sym}${incomeRounded.toLocaleString('en-GB')}/month"`);
+    lines.push(`- "Trailing-3-month spend: ${sym}${spendRounded.toLocaleString('en-GB')}/month"`);
+    lines.push(`- "Last 3 months net: ${netSign}${sym}${Math.abs(t3mNet).toLocaleString('en-GB')}"`);
+    if (trajectory) {
+      lines.push(`- "Balance trajectory over the last 3 months: ${trajectory.replace(/_/g, ' ')}"`);
+    }
+    lines.push('');
+    lines.push('AVAILABLE: t3m_income_monthly may be cited as "trailing-3-month income" but never as "your monthly income" — the underlying flow is variable.');
+  }
+
+  return lines.join('\n');
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
