@@ -1,14 +1,8 @@
 import type { SavedItemCardProps } from './SavedItemCard';
+import { formatCurrency } from '@/lib/format/currency';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
-
-function formatCurrency(amount: number | null | undefined, currency?: string): string {
-  if (amount === null || amount === undefined) return '—';
-  const c = (currency || 'EUR').toUpperCase();
-  const symbol = c === 'EUR' ? '€' : c === 'GBP' ? '£' : c === 'USD' ? '$' : `${c} `;
-  return `${symbol}${Math.abs(amount).toLocaleString('en', { maximumFractionDigits: 0 })}`;
-}
 
 function formatFieldLabel(field: string): string {
   return field

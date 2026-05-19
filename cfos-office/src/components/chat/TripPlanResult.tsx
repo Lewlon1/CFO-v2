@@ -1,10 +1,6 @@
 'use client';
 
-function formatCurrency(amount: number, currency?: string): string {
-  const c = currency || 'EUR';
-  const symbol = c === 'EUR' ? '€' : c === 'GBP' ? '£' : c === 'USD' ? '$' : c;
-  return `${symbol}${Math.abs(amount).toLocaleString('en', { maximumFractionDigits: 0 })}`;
-}
+import { formatCurrency } from '@/lib/format/currency';
 
 const BUDGET_COLORS: Record<string, string> = {
   flights: '#6366F1',

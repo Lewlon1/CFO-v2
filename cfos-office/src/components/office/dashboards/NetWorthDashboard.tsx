@@ -9,9 +9,10 @@ import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
+import { folderColors } from '@/lib/tokens'
 import type { BalanceSheetResponse } from '@/app/api/balance-sheet/route'
 
-const ACCENT = '#06B6D4'
+const ACCENT = folderColors.networth
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)

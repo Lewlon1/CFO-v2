@@ -226,3 +226,37 @@ Determining "which file serves the goal" properly needs either (a) creating new 
 The summary lines (Phase 2 of Session 14, shipped) carry the goal-aware framing on their own at the home level. The goal tag is a future enhancement, not a Session 14 omission to backfill.
 
 **The `<GoalTag />` component itself was not built.** Design intent if/when revived: small gold pill using `folderColors.goals` (see `cfos-office/src/lib/tokens.ts`) — same accent the Goals folder card uses, so the tag visually echoes the card. Apply it to whatever items the dynamic goal-relevance scoring (Session 15) surfaces.
+
+---
+
+## v2.5 component-reuse audit deferrals
+
+Items catalogued in `cfos-office/audit/v2.5-component-reuse.md` that were classified BACKLOG rather than fixed in v2.5. Each links back to a specific audit finding.
+
+### Foundation / Investment colour inversion (audit Q3, finding 8)
+
+`src/lib/tokens.ts` says foundation=`#22C55E` (green), investment=`#3B82F6` (blue). `src/lib/value-map/constants.ts` says the opposite: foundation=`#4A90D9` (blue), investment=`#48BB78` (green). Same applies to Leak (`#F43F5E` vs `#E53E3E`) — close but not identical. Pick a source of truth and migrate the other. UX-bearing decision: which colour represents which category in the Value Map quadrant grid? Pulls in product framing, not just refactor.
+
+### FolderCard dead code (audit Q1, finding 9)
+
+`cfos-office/src/components/data/FolderCard.tsx` has zero consumers as of v2.5 — only re-exported from `src/components/data/index.ts`. Delete the file and remove the export. Confirmed by `grep -rn "FolderCard" src/ --include="*.tsx"` returning only the definition and the index re-export.
+
+### formatCurrencyRounded vs formatCurrency consolidation (audit Q2, finding 10)
+
+`src/lib/utils/format-currency-rounded.ts:formatCurrencyRounded` and `src/lib/format/currency.ts:formatCurrency` (extracted in v2.5 Phase 5) do similar work with slight signature differences. Reasonable to consolidate into a single `formatCurrency(amount, currency, { rounded?: boolean })` once the dashboards migrate. Low priority — both helpers work and are honest about their behaviour.
+
+### GoalCard purple Tailwind tokenisation (audit Q3, finding 11)
+
+`src/app/(office)/office/goals/GoalCard.tsx` lines 105, 154, 169 use `bg-purple-500` / `text-purple-400` for goal-status highlights. Not Burden-semantic — these are CTA highlight colours. Add a "highlight purple" token to `tokens.ts` and migrate so future palette shifts don't pass these by.
+
+### Hardcoded folder hexes in non-dashboard files (audit Q3, finding 12)
+
+The v2.5 audit catalogued ~25 sites outside the four office dashboards that hardcode `#22C55E`, `#06B6D4`, `#3B82F6`, `#F43F5E`. Files include `src/components/dashboard/DataComponents.tsx`, `src/components/office/OfficeMonthlyOverview.tsx`, `src/app/api/balance-sheet/route.ts`, onboarding archetype reveal, value-map flow components. Migrate to `folderColors.*` and value-category tokens. Out of scope for v2.5 since none of those files were touched by Phases 1–4.
+
+### formatMonth triple-implementation (audit Q2, finding 13)
+
+`formatMonth` exists in `src/lib/constants/dashboard.ts:60`, `src/lib/utils/format-currency-rounded.ts:26` (`formatMonthShort`), `src/components/dashboard/ReviewBanner.tsx:13` (`formatMonthName`), and `src/lib/ai/review-context.ts:57` (`formatMonth`). Three different implementations of "render a month from a date". Consolidate after the dashboards are settled.
+
+### PatternsClient maxFractionDigits-only signature (v2.5 Phase 5 carve-out)
+
+The `src/lib/format/currency.ts` helper extracted in Phase 5 supports `{ decimals }` (fixed min+max). `src/app/(office)/office/cash-flow/patterns/PatternsClient.tsx` previously used `maxFractionDigits: 2` without a min — €45 stayed "€45", not "€45.00". Migration would force a visual shift to "€45.00" everywhere. If we extend the helper with `{ minDecimals, maxDecimals }`, PatternsClient becomes a one-line migration; until then it keeps its local helper.

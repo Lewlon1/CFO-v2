@@ -8,9 +8,9 @@ import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
-import { valueCategories } from '@/lib/tokens'
+import { folderColors, valueCategories } from '@/lib/tokens'
 
-const ACCENT = '#E8A84C'
+const ACCENT = folderColors.values
 
 const VALUE_META: Record<string, { label: string; color: string; order: number }> = {
   foundation: { label: 'Foundation', color: valueCategories.foundation.color, order: 1 },

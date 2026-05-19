@@ -3,12 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useChatContext } from '@/components/chat/ChatProvider';
-
-function formatCurrency(amount: number, currency?: string): string {
-  const c = currency || 'EUR';
-  const symbol = c === 'EUR' ? '€' : c === 'GBP' ? '£' : c === 'USD' ? '$' : c;
-  return `${symbol}${Math.abs(amount).toLocaleString('en', { maximumFractionDigits: 0 })}`;
-}
+import { formatCurrency } from '@/lib/format/currency';
 
 const STATUS_STYLES: Record<string, string> = {
   planning: 'bg-blue-500/20 text-blue-400',
