@@ -777,8 +777,6 @@ function buildGoalDeriveConfirmContext(
     return 'The user has not yet articulated a struggle.'
   })()
 
-  const isChatRoute = (profile?.onboarding_route ?? null) === 'chat'
-
   const lines = [
     '## Your task in this conversation',
     '',
@@ -827,23 +825,18 @@ function buildGoalDeriveConfirmContext(
     '',
     "### When the user can't articulate a goal",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly: \"That's fine — let's get visibility first, then come back to this.\" The user will move on; a goal will land later.",
+    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this.\" — and hand off to the Value Map in the same response by including this token verbatim: <ACTION:start_value_map>. A goal will land later, once they have reflection and transactions to anchor it on. Do not describe the token to the user; the system renders an action button for them.",
+    '',
+    '### After create_goal succeeds — hand off to the Value Map',
+    '',
+    'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
+    '',
+    'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
+    '- Briefly confirm the goal you have set.',
+    '- Say (in your own voice): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
+    '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
+    '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
   ]
-
-  if (isChatRoute) {
-    lines.push(
-      '',
-      '### After create_goal succeeds — hand off to the Value Map',
-      '',
-      'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
-      '',
-      'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
-      '- Briefly confirm the goal you have set.',
-      '- Say (in your own voice, matching the VALUE MAP BRIDGE framing for their struggle): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
-      '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
-      '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
-    )
-  }
 
   return lines.join('\n')
 }
