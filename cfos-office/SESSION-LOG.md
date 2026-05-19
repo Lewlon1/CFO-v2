@@ -9,6 +9,68 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.5 — Posture-aware experience + onboarding & insight hardening — 2026-05-19
+
+**Branch:** `claude/posture-aware-experience-YK28W`
+**Scope:** The shipping unit that lands posture-aware Cash Flow, hardens the onboarding-v2 chat-path, and fixes a chain of data-layer bugs surfaced by Carlos's staging audit. Also the merge that finally carries the previously-logged v2.2 (Chat Intelligence + Prod Readiness) and v2.3 (Experiment Engine) work onto `main` — both sessions had landed in this branch but had never been git-tagged. v2.4 stays reserved (Phase B — Primitive layer expansion).
+
+### What shipped (new this version)
+
+**Posture-aware experience (Sessions A→C):**
+- **Session A — Income shape detector** (`src/lib/analytics/income-shape.ts`): classifies users as `regular | variable | sawtooth` based on 12-month deposit volatility and gap variance. Persisted on `user_profiles` (`income_shape`, `income_volatility`, `income_shape_deposit_count`, `income_shape_detected_at`). Recomputed at the end of each monthly-snapshot refresh.
+- **Session B — Posture detector + runway** (`src/lib/posture/`): derives `financial_posture ∈ {planning, surviving, transforming}` from income shape, runway months, and savings velocity. Runway calculation uses balance-sheet liquid assets divided by trailing-3-month essential spend.
+- **Session C — Posture-aware experience:**
+  - Cash Flow dashboard switches headline metric, hero card framing, and section ordering per posture
+  - Voice fragments in `BASE_PERSONA` and per-conversation-type prompts adapt language (transforming → forward-looking; surviving → triage; planning → optimisation)
+  - `getPosturePromptFragment(profile)` injected as the final section of every chat assembly
+- **Migrations (staging applied):** `055_add_income_shape_fields`, `056_add_financial_posture`
+
+**Onboarding-v2 hardening (post-Session-C bugfix sweep):**
+- **`b29332f`** — Posture prompt fragment removed from `onboarding_goal_chat`. The fragment was orienting the CFO to surviving/planning/transforming framings before the goal beat had captured the user's actual struggle, causing chat-path users to stall mid-flow with off-topic suggestions.
+- **`dd14ed1`** — Marcus exit: the in-chat `<ACTION:start_value_map>` chip is now emitted at the goal-chat wrap-up beat for both routes. Marcus had been routed back to the onboarding modal with no chip-based forward path.
+- **`39e27b3`** — Value Map handoff hardened: Marcus is no longer yanked mid-stream when the goal_chat conversation completes — the redirect waits for the chip click. Removed the race where Marcus's session was force-redirected before the wrap-up message rendered.
+- **`10ccc29`** — `onboarding_completed_at` is now stamped when the archetype is generated (was being missed for archetype-only completions where the user never returned to the modal handoff). Stamp is a one-way ratchet, gated `.is('onboarding_completed_at', null)`.
+
+**Insight payload + analytics fixes (Carlos staging audit):**
+- **`4e1b5e4`** — Three bugs in `lib/analytics/pattern-detectors.ts`:
+  - `categoryConcentration.topPct` denominator now includes uncategorised spend. Carlos's "housing 48% of total spending" was a denominator-excluding-uncategorised artifact; the honest share is 17%.
+  - `recurringExpenseTotal.recurringPct` averages across non-zero snapshots instead of using the latest month. Carlos's 149% was 5,173 / 3,465 instead of the true 5,173 / 7,888 = 66%.
+  - `monthOverMonthTrend.biggestShiftCategory` skips uncategorised/unknown/other/null pseudo-buckets when picking the headline mover. The "biggest shift is the gap you haven't filled in" hallucination chain is now impossible.
+  - Also `context-builder.ts:1271-1284` no longer strips uncategorised from the LLM's spending_by_category briefing.
+- **`c956a1f`** — Three bugs in the recurring-expense + snapshot pipeline:
+  - `aggregate-month-spending` (now `monthly-snapshot.ts`) was bucketing null-categorised income transactions as uncategorised SPEND with negated sign, producing -€9k values that poisoned every downstream `% of total` calculation.
+  - Recurring detector gained a regularity gate (`qualifiesAsRecurring`): min 3 occurrences, amount CV ≤ 0.20, gap CV ≤ 0.35, monthly equivalent ≥ €5. Carlos went from 55 false-positive "recurring bills" (Satans Coffee, El Corte Inglés trips) to 23 real recurring bills under the gated detector.
+  - **Migration `057_dedupe_recurring_expenses_by_lower_name`** — collapses case-duplicate rows per `(user_id, lower(name))`, preserves status priority (`tracked > detected > dismissed`), adds a lowercase-name unique constraint. Staging: 1056 → 869 rows; all 6 user-tracked rows preserved.
+
+**Docs / audits:**
+- **`docs/audits/2026-05-19-first-insight-confabulation.md`** — Captures a "subscription audit last ran as an open proposal already" LLM hallucination from Carlos's wow-moment narration. Audit confirmed the phrase appears nowhere in the prompt or payload; the model invented continuity. Deferred — one occurrence in staging isn't enough signal to grow the prompt or add validator rules. Note lists the triggers that would justify revisiting.
+
+### Bundled from prior sessions (already logged below — now finally on `main`)
+
+- **v2.3 — Experiment Engine** (`60a59f8`, migration `052_experiment_engine`, see v2.3 entry below)
+- **v2.2 — Chat Intelligence** (`888a867`, see v2.2 Session 26 entry below)
+- **v2.2 — Prod Readiness** (`dea946d`, migrations 052–054, see v2.2 entry below)
+- **Account-delete fix** (`e5a62ac`, #44)
+
+### Verification
+- `npm test` — 626/626 passing across 53 files
+- `npx tsc --noEmit` — clean
+- Staging migrations 053–057 applied to `qlbhvlssksnrhsleadzn`
+- Carlos staging walkthrough validated end-to-end: no negative uncategorised, honest category shares, no "biggest mover is uncategorised" hallucination
+
+### Known follow-ups (deferred)
+- Apply prod migrations 053–057 by hand after deploy lands (the staging walkthrough hit a snapshot-rewrite regression because old-code lambdas were still serving requests when the migration applied)
+- Recompute snapshots for any production user with negative `uncategorised` values — same SQL pattern used for Carlos
+- Run `prod-backfill-experiments.sql`, `prod-backfill-goals-currency.sql`, `prod-backfill-portrait-traits.sql` if not already applied
+- Re-evaluate the first-insight confabulation pattern if it appears in a production user's first_insight or in a different conversation type
+
+### Lessons learned
+- The snapshot bug was invisible until a user had null-categorised income transactions — Carlos was the first staging persona with that shape. Test data shapes lag bug visibility; canary users with realistic noise matter.
+- "Deploy + migrate" ordering matters when the bug being fixed is in code that writes the data the migration cleans. We hit it on staging: applied the dedupe migration, then a lambda still on old code re-ran detection and re-populated bloated rows. The same ordering risk applies to prod.
+- The LLM confabulation pattern surfaced two layers down: the prompt and payload were both clean, the model invented history anyway. Output-time validation is cheaper than prompt-time prohibition when the failure is hallucinatory rather than instructional.
+
+---
+
 ## v2.3 — Experiment Engine — 2026-05-18
 
 **Branch:** `claude/experiment-engine-oKzua`
