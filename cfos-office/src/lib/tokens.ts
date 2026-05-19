@@ -52,10 +52,6 @@ export const folderColors = {
   cashflow: '#22C55E',
   values: '#7C4D9E',
   networth: '#06B6D4',
-  // scenarios is removed in Phase 4 along with its only consumer
-  // (OfficeHomeClient ScenariosSection card). Kept here transiently so
-  // Phase 1's palette retoken doesn't break the build mid-session.
-  scenarios: '#F43F5E',
 } as const;
 
 export const valueCategories = {

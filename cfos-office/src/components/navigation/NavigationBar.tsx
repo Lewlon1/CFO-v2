@@ -9,7 +9,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   'cash-flow': 'Cash Flow',
   values: 'Values & You',
   'net-worth': 'Net Worth',
-  scenarios: 'Scenario Planning',
+  goals: 'Goals',
   inbox: 'Inbox',
   'monthly-overview': 'Monthly overview',
   'spending-breakdown': 'Spending',
@@ -24,15 +24,13 @@ const SEGMENT_LABELS: Record<string, string> = {
   'balance-sheet': 'Balance Sheet',
   assets: 'Assets',
   liabilities: 'Liabilities',
-  'what-if': 'What If',
-  trips: 'Trips',
 }
 
 const FOLDER_COLOR_MAP: Record<string, string> = {
   'cash-flow': folderColors.cashflow,
   values: folderColors.values,
   'net-worth': folderColors.networth,
-  scenarios: folderColors.scenarios,
+  goals: folderColors.goals,
 }
 
 function getLabel(segment: string): string {

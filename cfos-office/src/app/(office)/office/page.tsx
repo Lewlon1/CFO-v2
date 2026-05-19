@@ -18,7 +18,6 @@ export default async function OfficePage() {
     archetypeResult,
     assetsResult,
     liabilitiesResult,
-    tripResult,
     profileResult,
     primaryGoal,
   ] = await Promise.all([
@@ -61,17 +60,6 @@ export default async function OfficePage() {
       .select('outstanding_balance')
       .eq('user_id', user.id),
 
-    // Next event (travel + non-travel)
-    supabase
-      .from('events')
-      .select('name, start_date, end_date, total_estimated, currency')
-      .eq('user_id', user.id)
-      .gt('start_date', new Date().toISOString().split('T')[0])
-      .neq('status', 'cancelled')
-      .order('start_date', { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-
     // User profile (currency + completeness fields)
     supabase
       .from('user_profiles')
@@ -103,8 +91,6 @@ export default async function OfficePage() {
   const totalLiabilities = (liabilitiesResult.data ?? []).reduce((sum, l) => sum + (l.outstanding_balance ?? 0), 0)
   const hasBalanceSheet = (assetsResult.data?.length ?? 0) > 0 || (liabilitiesResult.data?.length ?? 0) > 0
 
-  const nextTrip = tripResult.data ?? null
-
   const currency = profileResult.data?.primary_currency ?? 'EUR'
   const profileCompleteness = profileResult.data
     ? calculateCompleteness(profileResult.data as Record<string, unknown>)
@@ -122,7 +108,6 @@ export default async function OfficePage() {
         totalAssets={totalAssets}
         totalLiabilities={totalLiabilities}
         hasBalanceSheet={hasBalanceSheet}
-        nextTrip={nextTrip}
         currency={currency}
         profileCompleteness={profileCompleteness}
         primaryGoal={primaryGoal}
