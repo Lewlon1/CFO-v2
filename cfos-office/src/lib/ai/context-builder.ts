@@ -1269,18 +1269,12 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
     if (latest.total_income) parts.push(`Total income: ${currency} ${latest.total_income}`);
     if (latest.surplus_deficit) parts.push(`Surplus/deficit: ${currency} ${latest.surplus_deficit}`);
     if (latest.spending_by_category && Object.keys(latest.spending_by_category).length > 0) {
-      // Filter out null/uncategorised keys so Claude doesn't present "uncategorised"
-      // as a meaningful spending category to the user.
-      const filtered = Object.fromEntries(
-        Object.entries(latest.spending_by_category).filter(([k]) => {
-          if (!k || k === 'null') return false;
-          const lc = k.toLowerCase();
-          return lc !== 'uncategorised' && lc !== 'uncategorized' && lc !== 'unknown' && lc !== 'other';
-        }),
-      );
-      if (Object.keys(filtered).length > 0) {
-        parts.push(`Spending by category: ${JSON.stringify(filtered)}`);
-      }
+      // Include uncategorised as a labelled signal. Hiding it caused the LLM
+      // to deny the bucket existed when users asked directly, and to invent
+      // terms like "no idea" to rationalise the gap. The user needs to see
+      // the gap honestly so they can re-categorise — that's how the system
+      // gets more accurate, per the trust-first principle.
+      parts.push(`Spending by category: ${JSON.stringify(latest.spending_by_category)}`);
     }
     if (latest.spending_by_value_category && Object.keys(latest.spending_by_value_category).length > 0) {
       parts.push(`Spending by value category: ${JSON.stringify(latest.spending_by_value_category)}`);
