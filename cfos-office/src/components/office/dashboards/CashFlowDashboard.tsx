@@ -12,13 +12,35 @@ import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
 import type { TrendsResponse } from '@/app/api/dashboard/trends/route'
+import { IncomeShapeBadge } from '@/components/dev/IncomeShapeBadge'
+import { getTransformPosture, type PostureProfile } from '@/lib/analytics/posture-helpers'
+import type { FinancialPosture } from '@/lib/analytics/posture'
+import type { BalanceTrajectory } from '@/lib/analytics/cashflow-aggregates'
 
 const ACCENT = '#22C55E'
+
+interface IncomeShapeData {
+  income_shape: string | null
+  income_volatility: number | null
+  income_shape_deposit_count: number | null
+  financial_posture: FinancialPosture | null
+  posture_confidence: number | null
+  runway_days: number | null
+  t3m_income_monthly: number | null
+  t3m_spend_monthly: number | null
+  balance_trajectory: BalanceTrajectory | null
+}
 
 const fetcher = async (url: string) => {
   const res = await fetch(url)
   if (!res.ok) throw new Error('Failed')
   return res.json() as Promise<TrendsResponse>
+}
+
+const shapeFetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Failed')
+  return res.json() as Promise<IncomeShapeData>
 }
 
 interface CashFlowDashboardProps {
@@ -29,6 +51,7 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
   const trackEvent = useTrackEvent()
   const { summary, isLoading } = useDashboardData()
   const { data: trends } = useSWR<TrendsResponse>('/api/dashboard/trends?months=6', fetcher)
+  const { data: incomeShape } = useSWR<IncomeShapeData>('/api/profile/income-shape', shapeFetcher)
 
   useEffect(() => {
     trackEvent('cashflow_dashboard_viewed', 'engagement')
@@ -58,6 +81,12 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
         />
       ) : (
         <>
+          <div className="mb-2">
+            <IncomeShapeBadge data={incomeShape ?? null} />
+          </div>
+
+          <PostureHero data={incomeShape ?? null} currency={currency} />
+
           <Briefing accentColor={ACCENT}>
             {buildBriefing(summary, currency)}
           </Briefing>
@@ -70,45 +99,11 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
 
           <CategoryBreakdown summary={summary} currency={currency} />
 
-          <div className="flex flex-col gap-2 mb-4">
-            <DrillDownRow
-              title="Monthly overview"
-              subtitle="dashboard · this month"
-              href="/office/cash-flow/monthly-overview"
-              icon="◉"
-              accentColor={ACCENT}
-            />
-            <DrillDownRow
-              title="Bills & subscriptions"
-              subtitle={summary.recurring?.items?.length
-                ? `${summary.recurring.items.length} recurring · ${formatCurrencyRounded(summary.recurring.monthly_total, currency)} / month`
-                : 'tracker · known providers'}
-              href="/office/cash-flow/bills"
-              icon="↻"
-              accentColor={ACCENT}
-            />
-            <DrillDownRow
-              title="Spending breakdown"
-              subtitle="dashboard · by category"
-              href="/office/cash-flow/spending-breakdown"
-              icon="⊞"
-              accentColor={ACCENT}
-            />
-            <DrillDownRow
-              title="Spending patterns"
-              subtitle="insights · regular habits"
-              href="/office/cash-flow/patterns"
-              icon="◈"
-              accentColor={ACCENT}
-            />
-            <DrillDownRow
-              title="All transactions"
-              subtitle={`${summary.transaction_count} this month · searchable`}
-              href="/office/cash-flow/transactions"
-              icon="≡"
-              accentColor={ACCENT}
-            />
-          </div>
+          <DrillDowns
+            posture={incomeShape ?? null}
+            summary={summary}
+            currency={currency}
+          />
 
           <Link
             href="/office/cash-flow/upload"
@@ -318,6 +313,147 @@ function CategoryBreakdown({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Posture-aware hero. Renders nothing for stable/unknown/low-confidence users —
+// the existing Briefing/MetricsRow stack remains the headline in those cases.
+// If a required field is null when the transform fires, render nothing — no
+// half-rendered transforms.
+
+function PostureHero({ data, currency }: { data: IncomeShapeData | null; currency: string }) {
+  const profile: PostureProfile = {
+    financial_posture: data?.financial_posture ?? null,
+    posture_confidence: data?.posture_confidence ?? null,
+  }
+  const transform = getTransformPosture(profile)
+  if (!transform) return null
+
+  if (transform === 'surviving') {
+    if (data?.runway_days == null) return null
+    return (
+      <div className="mb-3">
+        <div className="font-data text-[28px] tabular-nums text-text-primary leading-tight">
+          Runway: {data.runway_days} days
+        </div>
+        <div className="text-[11px] text-text-secondary mt-0.5">
+          {trajectoryCopy(data.balance_trajectory)}
+        </div>
+      </div>
+    )
+  }
+
+  // planning
+  if (data?.t3m_income_monthly == null || data?.t3m_spend_monthly == null) return null
+  const t3mNet = Math.round((data.t3m_income_monthly - data.t3m_spend_monthly) * 3)
+  const sign = t3mNet >= 0 ? '+' : '−'
+  return (
+    <div className="mb-3">
+      <div className="font-data text-[28px] tabular-nums text-text-primary leading-tight">
+        Last 3 months: {sign}{formatCurrencyRounded(Math.abs(t3mNet), currency)} net
+      </div>
+      <div className="text-[11px] text-text-secondary mt-0.5">
+        T3M income {formatCurrencyRounded(Math.round(data.t3m_income_monthly), currency)}/mo,
+        spend {formatCurrencyRounded(Math.round(data.t3m_spend_monthly), currency)}/mo.
+      </div>
+    </div>
+  )
+}
+
+function trajectoryCopy(t: BalanceTrajectory | null | undefined): string {
+  if (t === 'growing') return 'Balance trending up over the last 3 months.'
+  if (t === 'growing_slowly') return 'Balance edging up.'
+  if (t === 'flat') return 'Balance flat across the last 3 months.'
+  if (t === 'shrinking') return 'Balance shrinking — watch this.'
+  return ''
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Drill-down list with posture-aware ordering. Card configs are stable;
+// only render order changes per posture. Stable / unknown / below-threshold
+// fall through to the default order.
+
+type DrillDownKey = 'monthly-overview' | 'bills' | 'spending-breakdown' | 'patterns' | 'transactions'
+
+function DrillDowns({
+  posture,
+  summary,
+  currency,
+}: {
+  posture: IncomeShapeData | null
+  summary: NonNullable<ReturnType<typeof useDashboardData>['summary']>
+  currency: string
+}) {
+  const profile: PostureProfile = {
+    financial_posture: posture?.financial_posture ?? null,
+    posture_confidence: posture?.posture_confidence ?? null,
+  }
+  const transform = getTransformPosture(profile)
+
+  const cards: Record<DrillDownKey, { title: string; subtitle: string; href: string; icon: string }> = {
+    'monthly-overview': {
+      title: 'Monthly overview',
+      subtitle: 'dashboard · this month',
+      href: '/office/cash-flow/monthly-overview',
+      icon: '◉',
+    },
+    bills: {
+      title: 'Bills & subscriptions',
+      subtitle: summary.recurring?.items?.length
+        ? `${summary.recurring.items.length} recurring · ${formatCurrencyRounded(summary.recurring.monthly_total, currency)} / month`
+        : 'tracker · known providers',
+      href: '/office/cash-flow/bills',
+      icon: '↻',
+    },
+    'spending-breakdown': {
+      title: 'Spending breakdown',
+      subtitle: 'dashboard · by category',
+      href: '/office/cash-flow/spending-breakdown',
+      icon: '⊞',
+    },
+    patterns: {
+      title: 'Spending patterns',
+      subtitle: 'insights · regular habits',
+      href: '/office/cash-flow/patterns',
+      icon: '◈',
+    },
+    transactions: {
+      title: 'All transactions',
+      subtitle: `${summary.transaction_count} this month · searchable`,
+      href: '/office/cash-flow/transactions',
+      icon: '≡',
+    },
+  }
+
+  const order: DrillDownKey[] = (() => {
+    if (transform === 'surviving') {
+      // Bills first — subscription audit IS survival here.
+      return ['bills', 'monthly-overview', 'spending-breakdown', 'patterns', 'transactions']
+    }
+    if (transform === 'planning') {
+      // Most analytical card first.
+      return ['patterns', 'spending-breakdown', 'monthly-overview', 'bills', 'transactions']
+    }
+    return ['monthly-overview', 'bills', 'spending-breakdown', 'patterns', 'transactions']
+  })()
+
+  return (
+    <div className="flex flex-col gap-2 mb-4">
+      {order.map((key) => {
+        const c = cards[key]
+        return (
+          <DrillDownRow
+            key={key}
+            title={c.title}
+            subtitle={c.subtitle}
+            href={c.href}
+            icon={c.icon}
+            accentColor={ACCENT}
+          />
+        )
+      })}
     </div>
   )
 }

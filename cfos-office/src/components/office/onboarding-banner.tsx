@@ -21,6 +21,18 @@ export async function OnboardingBanner() {
   if (!profile?.entry_struggle) return null
   if (profile.onboarding_completed_at) return null
 
+  // Only render the banner when the user is at a step where the Value Map
+  // (or upload, after Value Map) is the legitimate next destination. Earlier
+  // steps mean the user hasn't finished the goal beat yet — sending them to
+  // /onboarding-v2/value-map would bounce them straight back via resumeRoute.
+  // Marcus path doesn't have a goal beat, so null/intro_shown is fine there.
+  const isMarcus = profile.entry_struggle === 'dont_know'
+  const step = profile.onboarding_step
+  const stepReadyForValueMap = isMarcus
+    ? step === null || ['intro_shown', 'goal_set', 'goal_skipped', 'value_map_started', 'value_map_done', 'upload_done'].includes(step)
+    : ['goal_set', 'goal_skipped', 'value_map_started', 'value_map_done', 'upload_done'].includes(step ?? '')
+  if (!stepReadyForValueMap) return null
+
   const [{ count: vmCount }, { count: txCount }] = await Promise.all([
     supabase
       .from('value_map_sessions')

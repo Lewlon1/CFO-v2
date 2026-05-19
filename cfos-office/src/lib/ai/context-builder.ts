@@ -10,6 +10,8 @@ import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
+import { getPosturePromptFragment } from './posture-prompts';
+import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -166,7 +168,8 @@ const CAPABILITY_FOCUS: Record<string, string> = {
   scenarios: 'The user is weighing a big decision. Frame patterns in terms of financial headroom and optionality. The hook should invite a forward-looking question: "what would it take to..."',
 }
 
-export function buildFirstInsightContext(payload: InsightPayload, selectedCapabilities?: string[]): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildFirstInsightContext(payload: InsightPayload, selectedCapabilities?: string[], profile?: any): string {
   const lines: string[] = [];
   lines.push('## First insight — data from the system');
   lines.push('The following patterns were computed deterministically. You MUST narrate ONLY these patterns.');
@@ -345,7 +348,12 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   for (const s of payload.suggestedResponses) lines.push(`- ${s}`);
   lines.push('');
   lines.push('#### NOT AVAILABLE — do not reference');
-  lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
+  const planningTransform = getTransformPosture(profile) === 'planning';
+  if (planningTransform) {
+    lines.push('- t3m_income_monthly is available — you may reference it as "trailing-3-month income" but never as "your monthly income" (the underlying flow is variable)');
+  } else {
+    lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
+  }
   lines.push('- Savings rate (requires income)');
   lines.push('- Surplus/deficit (requires income)');
   lines.push('- Any percentage "of income" (requires income)');
@@ -769,8 +777,6 @@ function buildGoalDeriveConfirmContext(
     return 'The user has not yet articulated a struggle.'
   })()
 
-  const isChatRoute = (profile?.onboarding_route ?? null) === 'chat'
-
   const lines = [
     '## Your task in this conversation',
     '',
@@ -819,23 +825,18 @@ function buildGoalDeriveConfirmContext(
     '',
     "### When the user can't articulate a goal",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly: \"That's fine — let's get visibility first, then come back to this.\" The user will move on; a goal will land later.",
+    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this.\" — and hand off to the Value Map in the same response by including this token verbatim: <ACTION:start_value_map>. A goal will land later, once they have reflection and transactions to anchor it on. Do not describe the token to the user; the system renders an action button for them.",
+    '',
+    '### After create_goal succeeds — hand off to the Value Map',
+    '',
+    'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
+    '',
+    'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
+    '- Briefly confirm the goal you have set.',
+    '- Say (in your own voice): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
+    '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
+    '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
   ]
-
-  if (isChatRoute) {
-    lines.push(
-      '',
-      '### After create_goal succeeds — hand off to the Value Map',
-      '',
-      'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
-      '',
-      'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
-      '- Briefly confirm the goal you have set.',
-      '- Say (in your own voice, matching the VALUE MAP BRIDGE framing for their struggle): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
-      '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
-      '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
-    )
-  }
 
   return lines.join('\n')
 }
@@ -978,6 +979,12 @@ export async function buildSystemPrompt(
   // profile, and the derive-and-confirm task — no portrait, no goals context
   // (none exist yet), no value-map context, no benchmarks. Keeps the CFO
   // focused on one job: turn entry_struggle into a concrete confirmed goal.
+  //
+  // No posture fragment here. Posture-aware modulation is for users who have
+  // ingested ≥2 months of data — i.e. past onboarding. Layering the surviving
+  // fragment's "no forward planning beyond 30 days" over the goal-derive task
+  // produces an LLM that hedges goal commit (agrees to the goal concept but
+  // defers the amount), which leaves onboarding_step stuck at goal_chat_started.
   const isGoalDeriveConfirm = conversationType === 'onboarding_goal_chat';
   if (isGoalDeriveConfirm) {
     const sections = [
@@ -1111,6 +1118,7 @@ export async function buildSystemPrompt(
       ),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
       buildToolUsageInstructions(),
+      getPosturePromptFragment(profile),
     ].filter(Boolean);
 
     return sections.join('\n\n---\n\n');
@@ -1120,9 +1128,10 @@ export async function buildSystemPrompt(
     const sections = [
       BASE_PERSONA + styleModifier,
       buildCurrentDateContext(),
-      buildFirstInsightContext(firstInsightPayload),
+      buildFirstInsightContext(firstInsightPayload, undefined, profile),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
       buildToolUsageInstructions(),
+      getPosturePromptFragment(profile),
     ].filter(Boolean);
 
     return sections.join('\n\n---\n\n');
@@ -1135,6 +1144,7 @@ export async function buildSystemPrompt(
     buildOnboardingEntryContext(profile),
     await buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     buildFinancialContext(snapshots, recurring, profile),
+    buildPostureContext(profile, recurring),
     await getCountryBenchmarks(profile, supabase),
     await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
     buildPortraitContext(portrait, valueMap),
@@ -1148,6 +1158,7 @@ export async function buildSystemPrompt(
     await getRetakeSuggestionContext(userId, supabase, conversationType),
     await getPredictionQualityContext(userId, supabase),
     await buildProfilingContext(userId, supabase),
+    getPosturePromptFragment(profile),
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
@@ -1258,18 +1269,12 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
     if (latest.total_income) parts.push(`Total income: ${currency} ${latest.total_income}`);
     if (latest.surplus_deficit) parts.push(`Surplus/deficit: ${currency} ${latest.surplus_deficit}`);
     if (latest.spending_by_category && Object.keys(latest.spending_by_category).length > 0) {
-      // Filter out null/uncategorised keys so Claude doesn't present "uncategorised"
-      // as a meaningful spending category to the user.
-      const filtered = Object.fromEntries(
-        Object.entries(latest.spending_by_category).filter(([k]) => {
-          if (!k || k === 'null') return false;
-          const lc = k.toLowerCase();
-          return lc !== 'uncategorised' && lc !== 'uncategorized' && lc !== 'unknown' && lc !== 'other';
-        }),
-      );
-      if (Object.keys(filtered).length > 0) {
-        parts.push(`Spending by category: ${JSON.stringify(filtered)}`);
-      }
+      // Include uncategorised as a labelled signal. Hiding it caused the LLM
+      // to deny the bucket existed when users asked directly, and to invent
+      // terms like "no idea" to rationalise the gap. The user needs to see
+      // the gap honestly so they can re-categorise — that's how the system
+      // gets more accurate, per the trust-first principle.
+      parts.push(`Spending by category: ${JSON.stringify(latest.spending_by_category)}`);
     }
     if (latest.spending_by_value_category && Object.keys(latest.spending_by_value_category).length > 0) {
       parts.push(`Spending by value category: ${JSON.stringify(latest.spending_by_value_category)}`);
@@ -1422,6 +1427,70 @@ async function getCountryBenchmarks(
   } catch {
     return '';
   }
+}
+
+// Posture-aware quotable facts. Only emits a section when the user has a
+// surviving or planning posture above the confidence gate (see posture-helpers).
+// These facts come from the deterministic detector layer in Session B —
+// the LLM may quote them without anti-hallucination concern.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildPostureContext(profile: any, recurring: any[] | null): string {
+  const transform = getTransformPosture(profile);
+  if (!transform) return '';
+
+  const currency = profile?.primary_currency || 'EUR';
+  const sym = currencySymbol(currency);
+  const trajectory = profile?.balance_trajectory as string | null | undefined;
+  const lines: string[] = [];
+
+  if (transform === 'surviving') {
+    const runway = profile?.runway_days;
+    if (runway == null) return '';
+
+    lines.push('## Posture: surviving (runway-aware)');
+    lines.push('### QUOTABLE POSTURE FACTS — these are computed, the LLM may cite them');
+    lines.push(`- "Runway: ${runway} days at current spend rate"`);
+    if (trajectory) {
+      lines.push(`- "Balance trajectory over the last 3 months: ${trajectory.replace(/_/g, ' ')}"`);
+    }
+
+    // Count recurring bills falling within the next 14 days based on billing_day.
+    const today = new Date();
+    const todayDay = today.getDate();
+    const dueIn14 = (recurring ?? []).filter((r: { billing_day?: number | null }) => {
+      const bd = r?.billing_day;
+      if (bd == null || bd < 1 || bd > 31) return false;
+      const daysUntil = bd >= todayDay
+        ? bd - todayDay
+        : (30 - todayDay) + bd; // next month occurrence, ~30-day approx
+      return daysUntil <= 14;
+    }).length;
+    lines.push(`- "Recurring bills due in the next 14 days: ${dueIn14}"`);
+  }
+
+  if (transform === 'planning') {
+    const t3mIncome = profile?.t3m_income_monthly;
+    const t3mSpend = profile?.t3m_spend_monthly;
+    if (t3mIncome == null || t3mSpend == null) return '';
+
+    const t3mNet = Math.round((Number(t3mIncome) - Number(t3mSpend)) * 3);
+    const incomeRounded = Math.round(Number(t3mIncome));
+    const spendRounded = Math.round(Number(t3mSpend));
+    const netSign = t3mNet >= 0 ? '+' : '−';
+
+    lines.push('## Posture: planning (T3M-aware)');
+    lines.push('### QUOTABLE POSTURE FACTS — these are computed, the LLM may cite them');
+    lines.push(`- "Trailing-3-month income: ${sym}${incomeRounded.toLocaleString('en-GB')}/month"`);
+    lines.push(`- "Trailing-3-month spend: ${sym}${spendRounded.toLocaleString('en-GB')}/month"`);
+    lines.push(`- "Last 3 months net: ${netSign}${sym}${Math.abs(t3mNet).toLocaleString('en-GB')}"`);
+    if (trajectory) {
+      lines.push(`- "Balance trajectory over the last 3 months: ${trajectory.replace(/_/g, ' ')}"`);
+    }
+    lines.push('');
+    lines.push('AVAILABLE: t3m_income_monthly may be cited as "trailing-3-month income" but never as "your monthly income" — the underlying flow is variable.');
+  }
+
+  return lines.join('\n');
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

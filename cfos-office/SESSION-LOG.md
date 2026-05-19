@@ -9,6 +9,68 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.5 — Posture-aware experience + onboarding & insight hardening — 2026-05-19
+
+**Branch:** `claude/posture-aware-experience-YK28W`
+**Scope:** The shipping unit that lands posture-aware Cash Flow, hardens the onboarding-v2 chat-path, and fixes a chain of data-layer bugs surfaced by Carlos's staging audit. Also the merge that finally carries the previously-logged v2.2 (Chat Intelligence + Prod Readiness) and v2.3 (Experiment Engine) work onto `main` — both sessions had landed in this branch but had never been git-tagged. v2.4 stays reserved (Phase B — Primitive layer expansion).
+
+### What shipped (new this version)
+
+**Posture-aware experience (Sessions A→C):**
+- **Session A — Income shape detector** (`src/lib/analytics/income-shape.ts`): classifies users as `regular | variable | sawtooth` based on 12-month deposit volatility and gap variance. Persisted on `user_profiles` (`income_shape`, `income_volatility`, `income_shape_deposit_count`, `income_shape_detected_at`). Recomputed at the end of each monthly-snapshot refresh.
+- **Session B — Posture detector + runway** (`src/lib/posture/`): derives `financial_posture ∈ {planning, surviving, transforming}` from income shape, runway months, and savings velocity. Runway calculation uses balance-sheet liquid assets divided by trailing-3-month essential spend.
+- **Session C — Posture-aware experience:**
+  - Cash Flow dashboard switches headline metric, hero card framing, and section ordering per posture
+  - Voice fragments in `BASE_PERSONA` and per-conversation-type prompts adapt language (transforming → forward-looking; surviving → triage; planning → optimisation)
+  - `getPosturePromptFragment(profile)` injected as the final section of every chat assembly
+- **Migrations (staging applied):** `055_add_income_shape_fields`, `056_add_financial_posture`
+
+**Onboarding-v2 hardening (post-Session-C bugfix sweep):**
+- **`b29332f`** — Posture prompt fragment removed from `onboarding_goal_chat`. The fragment was orienting the CFO to surviving/planning/transforming framings before the goal beat had captured the user's actual struggle, causing chat-path users to stall mid-flow with off-topic suggestions.
+- **`dd14ed1`** — Marcus exit: the in-chat `<ACTION:start_value_map>` chip is now emitted at the goal-chat wrap-up beat for both routes. Marcus had been routed back to the onboarding modal with no chip-based forward path.
+- **`39e27b3`** — Value Map handoff hardened: Marcus is no longer yanked mid-stream when the goal_chat conversation completes — the redirect waits for the chip click. Removed the race where Marcus's session was force-redirected before the wrap-up message rendered.
+- **`10ccc29`** — `onboarding_completed_at` is now stamped when the archetype is generated (was being missed for archetype-only completions where the user never returned to the modal handoff). Stamp is a one-way ratchet, gated `.is('onboarding_completed_at', null)`.
+
+**Insight payload + analytics fixes (Carlos staging audit):**
+- **`4e1b5e4`** — Three bugs in `lib/analytics/pattern-detectors.ts`:
+  - `categoryConcentration.topPct` denominator now includes uncategorised spend. Carlos's "housing 48% of total spending" was a denominator-excluding-uncategorised artifact; the honest share is 17%.
+  - `recurringExpenseTotal.recurringPct` averages across non-zero snapshots instead of using the latest month. Carlos's 149% was 5,173 / 3,465 instead of the true 5,173 / 7,888 = 66%.
+  - `monthOverMonthTrend.biggestShiftCategory` skips uncategorised/unknown/other/null pseudo-buckets when picking the headline mover. The "biggest shift is the gap you haven't filled in" hallucination chain is now impossible.
+  - Also `context-builder.ts:1271-1284` no longer strips uncategorised from the LLM's spending_by_category briefing.
+- **`c956a1f`** — Three bugs in the recurring-expense + snapshot pipeline:
+  - `aggregate-month-spending` (now `monthly-snapshot.ts`) was bucketing null-categorised income transactions as uncategorised SPEND with negated sign, producing -€9k values that poisoned every downstream `% of total` calculation.
+  - Recurring detector gained a regularity gate (`qualifiesAsRecurring`): min 3 occurrences, amount CV ≤ 0.20, gap CV ≤ 0.35, monthly equivalent ≥ €5. Carlos went from 55 false-positive "recurring bills" (Satans Coffee, El Corte Inglés trips) to 23 real recurring bills under the gated detector.
+  - **Migration `057_dedupe_recurring_expenses_by_lower_name`** — collapses case-duplicate rows per `(user_id, lower(name))`, preserves status priority (`tracked > detected > dismissed`), adds a lowercase-name unique constraint. Staging: 1056 → 869 rows; all 6 user-tracked rows preserved.
+
+**Docs / audits:**
+- **`docs/audits/2026-05-19-first-insight-confabulation.md`** — Captures a "subscription audit last ran as an open proposal already" LLM hallucination from Carlos's wow-moment narration. Audit confirmed the phrase appears nowhere in the prompt or payload; the model invented continuity. Deferred — one occurrence in staging isn't enough signal to grow the prompt or add validator rules. Note lists the triggers that would justify revisiting.
+
+### Bundled from prior sessions (already logged below — now finally on `main`)
+
+- **v2.3 — Experiment Engine** (`60a59f8`, migration `052_experiment_engine`, see v2.3 entry below)
+- **v2.2 — Chat Intelligence** (`888a867`, see v2.2 Session 26 entry below)
+- **v2.2 — Prod Readiness** (`dea946d`, migrations 052–054, see v2.2 entry below)
+- **Account-delete fix** (`e5a62ac`, #44)
+
+### Verification
+- `npm test` — 626/626 passing across 53 files
+- `npx tsc --noEmit` — clean
+- Staging migrations 053–057 applied to `qlbhvlssksnrhsleadzn`
+- Carlos staging walkthrough validated end-to-end: no negative uncategorised, honest category shares, no "biggest mover is uncategorised" hallucination
+
+### Known follow-ups (deferred)
+- Apply prod migrations 053–057 by hand after deploy lands (the staging walkthrough hit a snapshot-rewrite regression because old-code lambdas were still serving requests when the migration applied)
+- Recompute snapshots for any production user with negative `uncategorised` values — same SQL pattern used for Carlos
+- Run `prod-backfill-experiments.sql`, `prod-backfill-goals-currency.sql`, `prod-backfill-portrait-traits.sql` if not already applied
+- Re-evaluate the first-insight confabulation pattern if it appears in a production user's first_insight or in a different conversation type
+
+### Lessons learned
+- The snapshot bug was invisible until a user had null-categorised income transactions — Carlos was the first staging persona with that shape. Test data shapes lag bug visibility; canary users with realistic noise matter.
+- "Deploy + migrate" ordering matters when the bug being fixed is in code that writes the data the migration cleans. We hit it on staging: applied the dedupe migration, then a lambda still on old code re-ran detection and re-populated bloated rows. The same ordering risk applies to prod.
+- The LLM confabulation pattern surfaced two layers down: the prompt and payload were both clean, the model invented history anyway. Output-time validation is cheaper than prompt-time prohibition when the failure is hallucinatory rather than instructional.
+
+---
+
 ## v2.3 — Experiment Engine — 2026-05-18
 
 **Branch:** `claude/experiment-engine-oKzua`
@@ -1020,3 +1082,163 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 
 ### Unblocks
 - Session v2.1 (Phase A) can now be run against a clean main
+
+---
+
+## Session A — Income Shape Detector — 2026-05-18
+
+**Branch:** `claude/income-shape-detector-BB3Pe` (harness-assigned; task spec referenced `feature/income-shape-detector` — naming reconciled at merge)
+**Scope:** foundation layer for variable-income support. Detector + persistence + dev verification surface only. No CFO behaviour change, no frame switching, no runway.
+
+### What shipped
+
+**Migration (staging — applied):**
+- **`055_add_income_shape_fields`** — adds `income_shape` (text, check constraint covers `salaried | salaried_with_bonus | variable | unknown`), `income_volatility` (numeric), `income_shape_deposit_count` (integer), `income_shape_detected_at` (timestamptz) to `user_profiles`. Forward-only — no backfill of existing beta users. Production migration is Lewis's manual step.
+
+**Code:**
+- New pure detector in `src/lib/analytics/income-shape.ts`. Coefficient of variation over the 12-month window, filtered by `isIncomeRow`. `TUNABLE_CONSTANTS` block at top: `SALARIED_CV_MAX = 0.05`, `SALARIED_WITH_BONUS_CV_MAX = 0.20`, `MIN_DEPOSITS_FOR_DETECTION = 4`. Returns shape + CV + count — never the income amount itself, by design.
+- `updateIncomeShape()` appended to `src/lib/analytics/monthly-snapshot.ts` and wired into `refreshMonthlySnapshots()` after the month loop. Best-effort: failures logged, do not block ingest.
+- `IncomeShapeBadge` component in `src/components/dev/IncomeShapeBadge.tsx`, gated by `NEXT_PUBLIC_DEV_BADGES=true`. Renders inline above the Cash Flow folder briefing.
+- `GET /api/profile/income-shape` route returns the four fields for the authenticated user. Read-only.
+- CLI verification script `scripts/show-income-shape.ts` — persisted vs live recomputation side-by-side.
+
+**Files left untouched (Session B+ territory):**
+- `src/lib/ai/context-builder.ts`, `src/lib/analytics/pattern-detectors.ts`, all system prompts, `api/onboarding/generate-insight`.
+
+### Verification
+- 7/7 unit tests in `__tests__/income-shape.test.ts` green. Full suite 576/576 passing.
+- `npx tsc --noEmit` clean.
+- Staging schema verified: 4 columns + check constraint + migration registry entry. `get_advisors` returned no new flags introduced by this migration.
+- Production (`iccelmjenljanqrhhzdv`) confirmed untouched — `information_schema.columns` for the four target columns returns empty.
+
+### Lessons learned
+
+1. **Spec test data conflicted with its own thresholds.** The session prompt's `salaried_with_bonus` test used literal Spain 14-payment values (10×£2500 + 2×£5000), but that mix produces CV ≈ 0.32 — well above the `< 0.20` threshold the same prompt specified. The cofounder note that "Spain 14-payment sits in 0.10–0.18" is correct for *modest* bonus months, not literal double-pay. Adjusted the test data to 10×£2500 + 2×£3500 (CV ≈ 0.14) so the assertion holds. The threshold itself stays at `< 0.20` per the prompt's non-negotiable list — literal double-pay is, mathematically, structural lumpiness rather than predictable bonus noise.
+
+2. **Migration MCP returned an error response when the migration had actually applied.** First `apply_migration` call surfaced "Tool result missing due to internal error" but the columns + constraint were created server-side. The retry then failed cleanly on the duplicate constraint. Verifying via `information_schema` + `pg_constraint` directly is the only safe way to confirm migration state when the MCP transport is flaky. The migration is in the registry (`055_add_income_shape_fields`) and only ran once.
+
+3. **`refreshMonthlySnapshots` absorbed the new call cleanly.** No existing tests broke. The function has three production callers (`/api/upload`, `/api/value-map/checkin/save`, `/api/value-map/personal`); all now trigger detection automatically because the call is internal to the function. No call-site changes needed.
+
+4. **The dashboard hook surface didn't fit the badge.** `useDashboardData` returns a heavily-typed `DashboardSummary` keyed on the monthly snapshot, and bolting the four profile fields onto it would pollute a shared type for a dev-only badge. Solved by a dedicated `GET /api/profile/income-shape` route + a local SWR fetch inside `CashFlowDashboard`. Keeps the badge orthogonal to the production data path.
+
+5. **Test-persona-verified-via-the-CLI step is deferred to manual.** The success criteria call for uploading Maya/Carlos CSVs to fresh staging users and running `show-income-shape.ts`. That's a Lewis-driven step (requires staging session, the fixture CSVs, and an account flow) — the script + migration + detector are ready for it.
+
+### Open questions for Session B
+
+- **12-month window appropriate?** For surviving-style users (Maya) whose income shape may be drifting fast, a shorter window (6 months) might react faster. For tax-year analytics, longer (24 months) would be better. v1 is a single fixed window; Session B should validate whether multi-window detection is worth the complexity.
+- **Reconciliation with existing `incomeDetected` pattern detector.** That detector does similar deposit-grouping for first-insight narration. Two sources of truth on "income deposits" is a smell — Session B should pick one as canonical, or make one delegate to the other.
+- **Unknown vs salaried for sparse-but-flat data.** A user with 4 perfectly identical deposits gets `salaried`. A user with 3 perfectly identical gets `unknown`. The cliff is sharp — Session B should consider whether `unknown` warrants a "tentative" sub-state for 2–3 deposit users so the UI can show partial confidence.
+- **What does `variable` actually unlock?** This session ships the signal but no consumer. Session B (posture detector + runway) is where the value lands; if the signal turns out to be wrong on real users, that's where it'll show up first.
+
+---
+
+## Session B — Posture Detector + Runway — 2026-05-18
+
+**Branch:** `claude/add-posture-detector-gObY0` (harness-assigned; spec referenced `feature/posture-detector` — naming reconciled at merge).
+**Scope:** the **posture** layer on top of Session A's shape. Detection + verification + dev badge extension only. **No CFO behaviour change, no frame switching, no UI changes beyond the dev badge.**
+
+### What shipped
+
+**Migration (staging — applied):**
+- **`056_add_financial_posture`** — adds 7 columns to `user_profiles` (`financial_posture`, `posture_confidence`, `runway_days`, `t3m_income_monthly`, `t3m_spend_monthly`, `balance_trajectory`, `posture_detected_at`) plus `closing_balance` on `monthly_snapshots`. Check constraints lock the enum domains. Forward-only — no backfill of existing beta users. Production migration is Lewis's manual step.
+
+**Code:**
+- New pure detector `src/lib/analytics/posture.ts` — `detectPosture(shape, aggregates)` returns posture + confidence. TUNABLE_CONSTANTS block: runway cutoffs (30, 90), `MIN_MONTHS_FOR_CONFIDENT_POSTURE = 3`, four confidence dampers.
+- New pure aggregator `src/lib/analytics/cashflow-aggregates.ts` — `computeCashFlowAggregates(snapshots, liquid_balance)` returns T3M income/spend, runway days, and balance trajectory. Below 2 months → all nulls + `'unknown'` trajectory.
+- `backfillClosingBalances()` and `updateFinancialPosture()` appended to `src/lib/analytics/monthly-snapshot.ts` and wired into `refreshMonthlySnapshots()` immediately after `updateIncomeShape()`. The order is critical: closing balances first (posture reads them), shape next (posture reads it from `user_profiles`), posture last.
+- `<IncomeShapeBadge>` extended with posture + runway chips when the new fields are present.
+- `GET /api/profile/income-shape` route widened to return all 11 derived fields (URL kept stable for the SWR fetcher hook key; JSDoc updated to reflect the broader role).
+- `CashFlowDashboard`'s `IncomeShapeData` interface extended with `financial_posture` and `runway_days`.
+- CLI script renamed `scripts/show-income-shape.ts` → `scripts/show-shape-and-posture.ts` via `git mv` (history preserved) and extended to print + compare both layers.
+- `src/lib/supabase/types.ts` regenerated via Supabase MCP `generate_typescript_types` after the migration applied — the 8 new columns now narrow correctly in client code.
+
+**Files left untouched (Session C+ territory):**
+- `src/lib/ai/context-builder.ts`, `src/lib/ai/system-prompt*`, `src/lib/chat/folder-prompts.ts`, NetWorth/Scenarios dashboards, inbox/monthly-review cadence code, `src/lib/analytics/pattern-detectors.ts` (existing `incomeDetected` — reconciliation deferred).
+
+### Verification
+- 13/13 new unit tests across `cashflow-aggregates.test.ts` and `posture.test.ts` green. Full suite **589/589 passing**.
+- `npx tsc --noEmit` clean.
+- Staging schema verified: all 8 new columns confirmed via `information_schema.columns`; `get_advisors` returns no new flags introduced by this migration (the lints surfaced are all pre-existing).
+- Production (`iccelmjenljanqrhhzdv`) untouched — Lewis's manual step.
+
+### Resolved design calls (during planning)
+
+1. **Closing-balance derivation.** Original prompt suggested extending `refreshOneMonth` to populate `closing_balance`. The function only sees one month's transactions and has no liquid-balance context — threading state through would have required either passing accounts in or recomputing all months whenever any one changes. Chose instead to add a single-pass `backfillClosingBalances()` that walks all snapshots desc once per refresh, deriving closing[N] = closing[N+1] − surplus[N+1] from `accounts.current_balance`. `refreshOneMonth` was left untouched. Edge handling: stop walking at first NULL surplus (don't poison older history); skip months with no snapshot row (zero-txn months — real drift via interest/fees in those gaps is not reconstructed, acceptable for v1).
+2. **API route widening.** Widened the existing `/api/profile/income-shape` to also return posture fields rather than spinning up a parallel `/api/profile/posture` route. Doubling requests for a dev-only badge wasn't worth the cleanliness. URL path kept stable for the SWR hook key; JSDoc updated to reflect broader role.
+3. **Accepted LLM context leak.** `context-builder.ts` does `select('*')` from `user_profiles`, so the 7 posture columns will silently land in the CFO's system prompt as soon as the migration applies. Session A's 4 shape columns already leak the same way. Confirmed with Lewis that this is fine — Session C will deliberately use these fields, so the leak is forward-compatible.
+4. **Liquid balance filter.** `type != 'credit_card' AND deleted_at IS NULL`. Intentionally broader than the existing `loadSavingsBalance` helper (which is `type IN ('savings','investment')`) — runway needs *all* spendable liquid. Documented the divergence in the function comment.
+
+### Lessons learned
+
+1. **The schema's column was `type`, not `account_type` — the spec wrote it wrong.** The session prompt repeatedly referenced `accounts.account_type` but the actual column is `accounts.type` (enum: `'checking' | 'savings' | 'credit_card' | 'cash' | 'other'`). Phase 0 caught it during the `information_schema.columns` audit. Always cross-check spec text against the live schema before writing SQL — a copy-paste from spec to code would have produced a runtime error on every ingest.
+
+2. **`monthly_snapshots.closing_balance` did not exist before this session.** The original spec text said "Phase 0 must confirm whether `monthly_snapshots.closing_balance` already exists" — it did not. Added it to migration 056 and populated via the backfill pass. Worth keeping spec language tentative on schema state and forcing Phase 0 to be the source of truth.
+
+3. **`.select()` string concatenation defeats Supabase's type narrowing.** First draft of the widened API route + CLI script split the long select into `'col1,' + 'col2,' + 'col3'` for readability — typecheck immediately flagged every field as missing because PostgREST's TypeScript types parse the literal at compile time. Single string literal is the only form the type system can see through. Logged here so the next person reading widens their selects in one line.
+
+4. **Types regeneration is a mandatory step, not optional.** `src/lib/supabase/types.ts` is hand-committed; the new columns wouldn't have narrowed in the upsert/`select` calls without regenerating. Without it, `npx tsc --noEmit` would have failed on the new `closing_balance` insert paths. Should be a permanent line on every migration checklist.
+
+5. **The Plan agent caught the types-regen omission before I did.** Worth keeping the practice of running a Plan agent against the draft, even when the spec is detailed — it catches the systemic gaps that easily slip past a checklist read-through.
+
+### Open questions for Session C
+
+1. **`incomeDetected` vs persisted `income_shape` reconciliation** — still deferred. Two income-detection paths coexist; cleanup is C's job.
+2. **CSV ingest should write `accounts.current_balance` from closing balance** — backlog item recorded. Currently a manual UPDATE is required after ingest for the persona test flow. Replaces manual entry once shipped.
+3. **Frame switching, voice fragments, folder-prompt variants** — all Session C deliverables. The data is in place; the UX divergence is not.
+4. **Maya/Carlos persona verification** — pending Lewis's manual staging step (set `accounts.current_balance` to CSV closing for each test user, re-trigger ingest, run `show-shape-and-posture.ts`). The detector + CLI are ready.
+5. **Posture stability at boundaries** — the confidence dampers should help, but real users will surface whether 30-day / 90-day cutoffs are stable enough. If runway breathes around 30d week-to-week, Session C will need to debounce or smooth the frame-switching trigger.
+
+---
+
+## Session C — Posture-Aware Experience — 2026-05-18
+
+**Branch:** `claude/posture-aware-experience-YK28W` (Session B merged in before any new work via `git merge --no-ff origin/claude/add-posture-detector-gObY0`).
+**Scope:** make the posture signal visible. Cash Flow folder, suggested chat prompts, and CFO voice all modulate for `surviving` and `planning` users (confidence ≥ 0.80). **No schema changes.** Stable, unknown, and below-threshold users continue to see the existing default experience.
+
+### What shipped
+
+**New files:**
+- `src/lib/analytics/posture-helpers.ts` — single source of truth for the confidence gate. Exports `getTransformPosture(profile): 'surviving' | 'planning' | null`. `MIN_CONFIDENCE_FOR_TRANSFORM = 0.80`. Returns null for stable, unknown, null posture, or below-threshold confidence.
+- `src/lib/analytics/__tests__/posture-helpers.test.ts` — 7 cases covering null profile, stable + high confidence, unknown, surviving below threshold, surviving + planning above threshold, and the boundary at exactly 0.80. All green.
+- `src/lib/ai/posture-prompts/surviving.ts` + `planning.ts` + `index.ts` — first-pass voice fragments (status flagged in COPY-DECK.md). Router returns `''` when no transform applies, so `.filter(Boolean)` in the section assembler drops it cleanly.
+
+**Modified:**
+- `src/lib/ai/context-builder.ts` — appended `getPosturePromptFragment(profile)` to all three section arrays (goal-derive-confirm, first-insight v2, default chat). Added new helper `buildPostureContext(profile, recurring)` that emits posture-aware quotable facts: runway + trajectory + recurring-due-in-14d for surviving; T3M income/spend/net + trajectory for planning. `buildFirstInsightContext` accepts an optional `profile` arg and swaps the income-amount block in the NOT AVAILABLE list when planning posture is active (T3M income may then be cited as "trailing-3-month income").
+- `src/lib/chat/folder-prompts.ts` — added `getFolderChatMeta(folder, profile)` returning the static `CHAT_SUBJECTS[folder]` for every key except `'cash-flow'`, where prompts swap on transform. Three Cash Flow prompt arrays: existing default, `CASH_FLOW_SURVIVING_PROMPTS`, `CASH_FLOW_PLANNING_PROMPTS`.
+- `src/components/chat/ChatSheet.tsx` — `FolderEmptyState` now fetches the same `/api/profile/income-shape` SWR key already used by Cash Flow (deduped), feeds it into `getFolderChatMeta` to pick the right prompt set.
+- `src/components/office/dashboards/CashFlowDashboard.tsx` — widened `IncomeShapeData` interface with `posture_confidence`, `t3m_income_monthly`, `t3m_spend_monthly`, `balance_trajectory` (route already returned them post-Session B; the type just needed to match). Added inline `<PostureHero>` between the dev badge and the existing `<Briefing>` — renders `Runway: N days` for surviving and `Last 3 months: ±X net` for planning. Renders `null` for stable/unknown/below-threshold so the existing Briefing remains the headline. Added inline `<DrillDowns>` that consolidates the 5 drill-down rows into a config map keyed by `DrillDownKey` and walks them in posture-driven order (bills first for surviving, patterns first for planning).
+- `BUILD-STATUS.md` — added "Session C — Posture-Aware Experience" section with the surface-by-surface variant matrix.
+- `COPY-DECK.md` — **new file** at repo root; the session prompt referenced it as existing but it didn't. Created with two sections (voice fragments + folder prompts), both marked `STATUS: first pass — Lewis to refine`.
+
+### Verification
+
+- `npm test -- posture-helpers --run` → 7/7 green.
+- `npm test -- --run` → 596/596 green across the full suite (up from 589 in Session B; new posture-helpers tests added, none regressed).
+- `npx tsc --noEmit` → clean.
+- No new files under `cfos-office/supabase/migrations/` — Session C is application-code only.
+- Staging persona verification (Maya, Carlos, low-confidence) was not run from this session — requires Lewis's manual step of seeding the test users' profile rows with the persona values + applying migration 056 to the staging project if not already done in Session B.
+
+### Resolved design calls (during execution)
+
+1. **Phase 0 caught the wrong base branch.** The session prompt said "branch off main after Sessions A + B merge", but neither A nor B were on main — A was on the working branch as the previous commit, and B lived on `claude/add-posture-detector-gObY0` (unmerged). Surfaced via AskUserQuestion; Lewis confirmed Session B's branch as the foundation. Merged it into the working branch as Phase 0 before any new code.
+2. **`buildPostureContext` lives in `context-builder.ts`, not a new file.** The session prompt didn't specify location explicitly. Kept it inline next to `buildFinancialContext` and `buildPortraitContext` — same shape, same calling convention, same lifecycle. Avoids creating a one-function helper file.
+3. **`FolderEmptyState` fetches its own SWR key rather than threading profile through `ChatProvider`.** Considered adding posture data to `ChatContextValue` (`userCurrency` style) but that would have required four touch points (provider state, value, consumer, context type). SWR dedupes the `/api/profile/income-shape` key with `CashFlowDashboard`'s existing call, so the cost is one extra hook in one component vs. propagation through a 432-line provider. Took the smaller blast radius.
+4. **First-insight NOT AVAILABLE adjustment uses an optional `profile` arg.** `buildFirstInsightContext` had a single-arg signature pre-Session C. Adding a required arg would have broken downstream callers I might have missed; an optional `profile?: any` preserves the v1 path and the existing eval harness calls.
+5. **Recurring-bills-due-in-14d count uses `billing_day` only.** `recurring_expenses` doesn't store an explicit `next_due_date` — only `billing_day` + `frequency`. Computed next occurrence of `billing_day` from today (carries to next month if `billing_day < today_day`) and counted if within 14 days. Other frequencies (biannual/quarterly) are excluded from the count — the slight underestimate is acceptable since the user-facing fact is "bills coming up", not a contract.
+
+### Lessons learned
+
+1. **Always re-audit the branch before trusting "Session X is merged".** The session prompt confidently said "Sessions A and B installed the detection layer" — Phase 0 caught that B was on a parallel branch. A two-minute `git log` + `ls cfos-office/src/lib/analytics/` is the cheapest insurance against three phases of building on a phantom interface.
+2. **The session prompt's drill-down placeholder count was wrong (4 vs actual 5).** Worth keeping spec text tentative on UI surface counts; Phase 0 audit is the source of truth. The plan adjusted to 5 rows.
+3. **`COPY-DECK.md` existed in the spec but not in the tree.** Created it as a new file. Future sessions should treat any referenced doc artifact as "either exists or needs creating with the right structure"; don't assume.
+4. **Single `getTransformPosture` helper paid off immediately.** Five consumers (UI hero, drill-down order, system prompt, folder prompts, context-builder facts). Tuning the threshold is one line in one file. Worth doing this kind of single-source-of-truth gate from day one for any cross-surface decision.
+5. **Conditional sections that return empty strings + `.filter(Boolean)` is the cleanest pattern for posture-aware prompt assembly.** No branching in the section array, no conditional spread, just a regular function that knows when to no-op. Drops in next to the other helpers without disturbing existing flow.
+
+### Open questions for the next session
+
+1. **Reconciling legacy `incomeDetected`** — still parallel to the persistent shape field; cleanup deferred from Sessions A and B. The Session C voice fragments don't depend on it, but the first-insight flow still triggers off the pattern detector. Worth a dedicated cleanup session before posture-aware first insights ship to real users.
+2. **Inbox cadence per posture** — surviving users want weekly digests, planning users want monthly + quarterly. Out of scope this session because of scheduling/DST/opt-out complexity. Currently in `BACKLOG.md`.
+3. **Net Worth folder posture gentleness** — explicitly excluded this session per the "do not touch" list. Worth designing a separate variant for surviving users on the Net Worth view; the current numbers may feel discouraging at low runway.
+4. **First-insight × posture integration** — the NOT AVAILABLE list now flips for planning posture, but first-insight users are typically too new to have posture detected (need 2+ months of snapshots). The flip will rarely fire in practice. Verify on first cohort users who upload 3+ months of CSV history.
+5. **Joy Signal (Session 31) × posture** — posture-aware Joy Signal framing wasn't designed yet. Surviving users likely need a different mood metric than planning users.
+6. **Drill-down ordering on touch:** does putting "Spending patterns" first for planning users actually drive engagement, or does it feel academic when they just want to see the breakdown? Worth measuring via track events on Cash Flow drill-down clicks.

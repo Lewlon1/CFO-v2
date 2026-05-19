@@ -138,29 +138,39 @@ export const categoryConcentration: PatternDetector = {
   requires: ['transactions'],
   detect: (ctx) => {
     const EXCLUDED = new Set(['rent', 'mortgage']);
-    const txns = ctx.transactions.filter(
+    const categorisedTxns = ctx.transactions.filter(
       (t) =>
         isPlSpend(t) &&
         t.category_id !== null &&
         !EXCLUDED.has(t.category_id)
     );
-    if (txns.length < 15) return null;
+    if (categorisedTxns.length < 15) return null;
 
+    // Sort + name top categories using categorised-only aggregation.
     const byCategory = new Map<string, number>();
-    let total = 0;
-    for (const t of txns) {
+    for (const t of categorisedTxns) {
       const cat = t.category_id as string;
       const abs = absExpense(Number(t.amount));
       byCategory.set(cat, (byCategory.get(cat) ?? 0) + abs);
-      total += abs;
     }
-    if (total <= 0) return null;
+
+    // Compute the denominator over ALL P/L spend (including uncategorised) so
+    // topPct reports honest share of total spending — not "share of what
+    // happens to be categorised". Without this, a user with 60% uncategorised
+    // spend gets told their top category is 48% of total when it's actually 17%.
+    let totalAllSpend = 0;
+    for (const t of ctx.transactions) {
+      if (!isPlSpend(t)) continue;
+      if (t.category_id && EXCLUDED.has(t.category_id)) continue;
+      totalAllSpend += absExpense(Number(t.amount));
+    }
+    if (totalAllSpend <= 0) return null;
 
     const sorted = [...byCategory.entries()].sort((a, b) => b[1] - a[1]);
     const top1 = sorted[0];
     const top2 = sorted[1] ?? null;
-    const top1Pct = top1[1] / total;
-    const top2Pct = top2 ? (top1[1] + top2[1]) / total : top1Pct;
+    const top1Pct = top1[1] / totalAllSpend;
+    const top2Pct = top2 ? (top1[1] + top2[1]) / totalAllSpend : top1Pct;
 
     let score = 0;
     if (top1Pct > 0.35) score += 50;
@@ -311,10 +321,20 @@ export const recurringExpenseTotal: PatternDetector = {
       }
     }
 
-    // Compare against the most recent monthly snapshot if available.
-    const avgMonthly = ctx.snapshots[0]?.total_spending ?? null;
+    // Compare against the true average monthly spend across available snapshots.
+    // Earlier this read snapshots[0].total_spending (the latest month only),
+    // which produced a misleading ratio whenever the latest month diverged
+    // from the average — e.g. recurring €5k / latest €3.5k = 149% even when
+    // the 3-month average was €7.8k (true ratio 66%).
+    const snapshotSpending = ctx.snapshots
+      .map((s) => Number(s?.total_spending ?? 0))
+      .filter((n) => n > 0);
+    const avgMonthly =
+      snapshotSpending.length > 0
+        ? snapshotSpending.reduce((a, b) => a + b, 0) / snapshotSpending.length
+        : null;
     const recurringPct =
-      avgMonthly && avgMonthly > 0 ? total / avgMonthly : null;
+      avgMonthly !== null && avgMonthly > 0 ? total / avgMonthly : null;
 
     let score = 0;
     if (overlaps.length > 0) score += 45;
@@ -703,10 +723,24 @@ export const monthOverMonthTrend: PatternDetector = {
         ? (prior.spending_by_category as Record<string, number>)
         : {};
 
+    // Skip pseudo-buckets when picking the biggest mover. "uncategorised"
+    // winning the slot is communicatively useless — it tells the user "the
+    // biggest mover is the gap you haven't filled in" rather than naming a
+    // real spending shift. The uncategorised gap surfaces as its own signal
+    // via the spending-by-category breakdown.
+    const UNCATEGORISED_KEYS = new Set([
+      '',
+      'null',
+      'uncategorised',
+      'uncategorized',
+      'unknown',
+      'other',
+    ]);
     let biggestShiftCategory: string | null = null;
     let biggestShiftDelta: number | null = null;
     let biggestShiftAbs = 0;
     for (const key of Object.keys(currentCat)) {
+      if (!key || UNCATEGORISED_KEYS.has(key.toLowerCase())) continue;
       if (!(key in priorCat)) continue;
       const cur = Number(currentCat[key] ?? 0);
       const pri = Number(priorCat[key] ?? 0);

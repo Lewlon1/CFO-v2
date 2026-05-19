@@ -706,6 +706,21 @@ export async function POST(req: Request) {
             .eq('value_map_offered_in_chat', false);
         }
 
+        // Server-side fallback: if create_goal fired inside the goal-derive
+        // beat and the LLM didn't emit the <ACTION:start_value_map> token,
+        // inject the action so the chip renders. The chip is the universal
+        // exit from the goal beat — losing it strands the user (the watcher
+        // no longer force-redirects Marcus, so the chip is the only handoff).
+        if (
+          conversationType === 'onboarding_goal_chat' &&
+          toolsUsed.includes('create_goal') &&
+          !actionsCreated.some(
+            (a) => (a as { type?: string }).type === 'start_value_map',
+          )
+        ) {
+          actionsCreated.push({ type: 'start_value_map' });
+        }
+
         // ── Hallucination guard for record_value_classifications ─────────
         // Detect when the model says "saved/got it/etc." in a value-mapping
         // context but didn't actually call record_value_classifications,
