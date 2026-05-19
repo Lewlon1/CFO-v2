@@ -7,8 +7,8 @@ export default async function TripsPage() {
   if (!user) return null
 
   const { data: trips } = await supabase
-    .from('trips')
-    .select('id, name, destination, start_date, end_date, total_estimated, total_actual, status, currency, goal_id, conversation_id, funding_plan')
+    .from('events')
+    .select('id, name, destination, start_date, end_date, total_estimated, total_actual, status, currency, goal_id, conversation_id, funding_plan, kind')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 

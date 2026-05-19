@@ -61,9 +61,9 @@ export default async function OfficePage() {
       .select('outstanding_balance')
       .eq('user_id', user.id),
 
-    // Next trip
+    // Next event (travel + non-travel)
     supabase
-      .from('trips')
+      .from('events')
       .select('name, start_date, end_date, total_estimated, currency')
       .eq('user_id', user.id)
       .gt('start_date', new Date().toISOString().split('T')[0])

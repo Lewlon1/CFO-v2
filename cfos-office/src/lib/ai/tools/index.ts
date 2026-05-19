@@ -13,7 +13,7 @@ import { createRecordValueClassificationsTool } from './record-value-classificat
 import { createDeleteValueRuleTool } from './delete-value-rule';
 import { createCheckValueCheckinReadyTool } from './check-value-checkin-ready';
 import { createSearchBillAlternativesTool } from './search-bill-alternatives';
-import { createPlanTripTool } from './plan-trip';
+import { createPlanEventTool } from './plan-event';
 import { createUpsertAssetTool } from './upsert-asset';
 import { createUpsertLiabilityTool } from './upsert-liability';
 import { createGetBalanceSheetTool } from './get-balance-sheet';
@@ -60,7 +60,7 @@ export function createToolbox(ctx: ToolContext) {
     delete_value_rule: createDeleteValueRuleTool(ctx),
     check_value_checkin_ready: createCheckValueCheckinReadyTool(ctx),
     search_bill_alternatives: createSearchBillAlternativesTool(ctx),
-    plan_trip: createPlanTripTool(ctx),
+    plan_event: createPlanEventTool(ctx),
     upsert_asset: createUpsertAssetTool(ctx),
     upsert_liability: createUpsertLiabilityTool(ctx),
     get_balance_sheet: createGetBalanceSheetTool(ctx),

@@ -3,15 +3,23 @@ import type { ToolContext } from './types';
 import { loadCurrentBudget, loadAverageDiscretionary } from './helpers';
 import { recomputeGoal } from '@/lib/goals/recompute';
 
-const LONG_TRIP_DAYS = 56; // 8 weeks
+const LONG_EVENT_DAYS = 56; // 8 weeks
 
-export function createPlanTripTool(ctx: ToolContext) {
+const EVENT_KINDS = ['travel', 'celebration', 'gift', 'other'] as const;
+type EventKind = (typeof EVENT_KINDS)[number];
+
+export function createPlanEventTool(ctx: ToolContext) {
   return {
     description:
-      'Create or update a trip plan with budget breakdown and funding strategy. Call this AFTER you\'ve collected destination, dates, duration, travel style, and companions from the user, and AFTER you\'ve researched costs. Pass in the researched cost estimates.\n\nThis tool is idempotent within a conversation: if a trip already exists for this conversation (or matches the destination), it will be updated rather than duplicated. When the user corrects a date, split, or duration, simply re-call plan_trip with the new values.\n\nAll calculations are server-side — never estimate costs or compute savings yourself.',
+      'Create or update a plan for a time-bound spending occasion — a trip, celebration (wedding, birthday), gift, or other event — with budget breakdown and funding strategy. Call this AFTER you\'ve collected destination/occasion, dates, duration, style, and companions from the user, and AFTER you\'ve researched costs. Pass in the researched cost estimates and the `kind` (travel | celebration | gift | other).\n\nThis tool is idempotent within a conversation: if an event already exists for this conversation (or matches the destination/name), it will be updated rather than duplicated. When the user corrects a date, split, or duration, simply re-call plan_event with the new values.\n\nAll calculations are server-side — never estimate costs or compute savings yourself.',
     inputSchema: z.object({
-      name: z.string().describe('Short trip label, e.g. "Japan Oct 2026"'),
-      destination: z.string().describe('Where the user is going'),
+      name: z.string().describe('Short event label, e.g. "Japan Oct 2026" or "Sister\'s wedding gift"'),
+      destination: z.string().describe(
+        'For travel: where the user is going. For non-travel: a short location/context label (e.g. "London" for a wedding, or the recipient\'s name for a gift).',
+      ),
+      kind: z.enum(EVENT_KINDS).default('travel').describe(
+        'Type of event. travel = trips; celebration = weddings/birthdays/other occasions; gift = giving occasions; other = catch-all.',
+      ),
       start_date: z.string().optional().describe('ISO date YYYY-MM-DD'),
       end_date: z.string().optional().describe('ISO date YYYY-MM-DD'),
       duration_days: z.number().describe('Number of days'),
@@ -22,14 +30,14 @@ export function createPlanTripTool(ctx: ToolContext) {
         "User's share of the total cost as a percentage (e.g. 60 means the user pays 60%, partner/group pays 40%). If omitted, defaults to an even split based on companions (50% with partner, 1/N for friends/group, 100% solo). ONLY set this when the user has explicitly stated a non-even split."
       ),
       user_confirmed_long_duration: z.boolean().optional().describe(
-        'Set to true ONLY after the user has explicitly confirmed a trip longer than 8 weeks (56 days) in their last message. Required to bypass the long-duration guard. Never set this true without an explicit user statement confirming the duration.'
+        'Set to true ONLY after the user has explicitly confirmed an event longer than 8 weeks (56 days) in their last message. Required to bypass the long-duration guard. Never set this true without an explicit user statement confirming the duration.'
       ),
       estimated_costs: z.object({
-        flights: z.number().describe('Round-trip flight cost total (all travellers)'),
-        accommodation: z.number().describe('Total accommodation cost'),
+        flights: z.number().describe('Round-trip flight cost total (all travellers). Use 0 for non-travel events.'),
+        accommodation: z.number().describe('Total accommodation cost. Use 0 for non-travel events.'),
         food: z.number().describe('Total food/dining estimate'),
-        activities: z.number().describe('Excursions, entry fees, experiences'),
-        local_transport: z.number().describe('Trains, taxis, buses at destination'),
+        activities: z.number().describe('Excursions, entry fees, experiences, or for gifts/celebrations the cost of the occasion itself'),
+        local_transport: z.number().describe('Trains, taxis, buses'),
         misc: z.number().describe('Shopping, souvenirs, buffer'),
       }),
       currency: z.string().default('EUR'),
@@ -38,6 +46,7 @@ export function createPlanTripTool(ctx: ToolContext) {
     execute: async (input: {
       name: string;
       destination: string;
+      kind: EventKind;
       start_date?: string;
       end_date?: string;
       duration_days: number;
@@ -59,17 +68,18 @@ export function createPlanTripTool(ctx: ToolContext) {
     }) => {
       try {
         // Long-duration guard: block before any DB read or write.
-        if (input.duration_days > LONG_TRIP_DAYS && !input.user_confirmed_long_duration) {
-          console.warn('[tool:plan_trip] long-duration guard tripped', {
+        if (input.duration_days > LONG_EVENT_DAYS && !input.user_confirmed_long_duration) {
+          console.warn('[tool:plan_event] long-duration guard tripped', {
             userId: ctx.userId,
             conversationId: ctx.conversationId,
             destination: input.destination,
             duration_days: input.duration_days,
+            kind: input.kind,
           });
           return {
             requires_confirmation: true,
             reason: 'long_duration',
-            message: `${input.duration_days} days is over 8 weeks. Confirm with the user that this duration is correct, then re-call plan_trip with user_confirmed_long_duration: true.`,
+            message: `${input.duration_days} days is over 8 weeks. Confirm with the user that this duration is correct, then re-call plan_event with user_confirmed_long_duration: true.`,
             echo: { destination: input.destination, duration_days: input.duration_days },
           };
         }
@@ -109,13 +119,13 @@ export function createPlanTripTool(ctx: ToolContext) {
         ]);
 
         // Calculate funding plan
-        let monthsUntilTrip = 0;
+        let monthsUntilEvent = 0;
         if (input.start_date) {
-          const tripDate = new Date(input.start_date);
+          const eventDate = new Date(input.start_date);
           const now = new Date();
-          monthsUntilTrip = Math.max(0,
-            (tripDate.getFullYear() - now.getFullYear()) * 12
-            + (tripDate.getMonth() - now.getMonth())
+          monthsUntilEvent = Math.max(0,
+            (eventDate.getFullYear() - now.getFullYear()) * 12
+            + (eventDate.getMonth() - now.getMonth())
           );
         }
 
@@ -123,8 +133,8 @@ export function createPlanTripTool(ctx: ToolContext) {
           ? budget.netIncome + budget.partnerContribution - budget.fixedCosts - (avgDiscretionary ?? 0)
           : null;
 
-        const monthlySavingRequired = monthsUntilTrip > 0
-          ? userShare / monthsUntilTrip
+        const monthlySavingRequired = monthsUntilEvent > 0
+          ? userShare / monthsUntilEvent
           : userShare; // Needs immediate funding
 
         // Feasibility rating
@@ -171,22 +181,22 @@ export function createPlanTripTool(ctx: ToolContext) {
         const fundingPlan = {
           user_share: Math.round(userShare),
           split_note: splitNote,
-          months_until_trip: monthsUntilTrip,
+          months_until_trip: monthsUntilEvent,
           monthly_saving_required: Math.round(monthlySavingRequired),
           current_monthly_surplus: currentSurplus != null ? Math.round(currentSurplus) : null,
           feasibility: feasibilityRating,
           suggested_cuts: suggestedCuts.length > 0 ? suggestedCuts : undefined,
         };
 
-        // Dedup: find an existing trip to update before inserting a new one.
+        // Dedup: find an existing event to update before inserting a new one.
         // Priority 1: same conversation (handles in-conversation refinements).
         // Priority 2: same destination (case-insensitive) in planning/booked status.
-        type ExistingTrip = { id: string; goal_id: string | null };
-        let existingTrip: ExistingTrip | null = null;
+        type ExistingEvent = { id: string; goal_id: string | null };
+        let existingEvent: ExistingEvent | null = null;
 
         if (ctx.conversationId) {
           const { data } = await ctx.supabase
-            .from('trips')
+            .from('events')
             .select('id, goal_id')
             .eq('user_id', ctx.userId)
             .eq('conversation_id', ctx.conversationId)
@@ -195,12 +205,12 @@ export function createPlanTripTool(ctx: ToolContext) {
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
-          existingTrip = data ?? null;
+          existingEvent = data ?? null;
         }
 
-        if (!existingTrip) {
+        if (!existingEvent) {
           const { data } = await ctx.supabase
-            .from('trips')
+            .from('events')
             .select('id, goal_id')
             .eq('user_id', ctx.userId)
             .ilike('destination', input.destination.trim())
@@ -209,13 +219,14 @@ export function createPlanTripTool(ctx: ToolContext) {
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
-          existingTrip = data ?? null;
+          existingEvent = data ?? null;
         }
 
-        const tripPayload = {
+        const eventPayload = {
           user_id: ctx.userId,
           name: input.name,
           destination: input.destination,
+          kind: input.kind,
           start_date: input.start_date || null,
           end_date: input.end_date || null,
           duration_days: input.duration_days,
@@ -232,13 +243,14 @@ export function createPlanTripTool(ctx: ToolContext) {
         };
 
         // Pace/on_track are deliberately omitted here — they're set by the
-        // shared recompute pass below so trip-linked goals and CFO-created
+        // shared recompute pass below so event-linked goals and CFO-created
         // goals use the same surplus-vs-required formula. feasibilityRating
-        // (used by funding_plan) is a finer trip-specific classification
+        // (used by funding_plan) is a finer event-specific classification
         // that lives only in the response payload.
+        const goalLabel = input.kind === 'travel' ? 'Trip' : 'Event';
         const goalPayload = {
           user_id: ctx.userId,
-          name: `Trip: ${input.destination}`,
+          name: `${goalLabel}: ${input.destination}`,
           description: `Savings goal for ${input.name}`,
           target_amount: Math.round(userShare),
           target_date: input.start_date || null,
@@ -246,21 +258,21 @@ export function createPlanTripTool(ctx: ToolContext) {
           status: 'active' as const,
         };
 
-        let tripId: string;
+        let eventId: string;
         let goalId: string;
         let goalName: string;
 
-        if (existingTrip) {
-          // UPDATE the existing trip + its linked goal (preserve goal_id where present).
-          if (existingTrip.goal_id) {
+        if (existingEvent) {
+          // UPDATE the existing event + its linked goal (preserve goal_id where present).
+          if (existingEvent.goal_id) {
             const { data: updatedGoal, error: goalError } = await ctx.supabase
               .from('goals')
               .update(goalPayload)
-              .eq('id', existingTrip.goal_id)
+              .eq('id', existingEvent.goal_id)
               .select('id, name')
               .single();
             if (goalError) {
-              console.error('[tool:plan_trip] goal update error:', goalError);
+              console.error('[tool:plan_event] goal update error:', goalError);
               return { error: 'Failed to update the savings goal. Please try again.' };
             }
             goalId = updatedGoal.id;
@@ -272,46 +284,46 @@ export function createPlanTripTool(ctx: ToolContext) {
               .select('id, name')
               .single();
             if (goalError) {
-              console.error('[tool:plan_trip] goal insert error (existing trip without goal):', goalError);
+              console.error('[tool:plan_event] goal insert error (existing event without goal):', goalError);
               return { error: 'Failed to create the savings goal. Please try again.' };
             }
             goalId = newGoal.id;
             goalName = newGoal.name;
           }
 
-          const { error: tripError } = await ctx.supabase
-            .from('trips')
-            .update({ ...tripPayload, goal_id: goalId })
-            .eq('id', existingTrip.id);
-          if (tripError) {
-            console.error('[tool:plan_trip] trip update error:', tripError);
-            return { error: 'Trip record failed to save. Please try again.' };
+          const { error: eventError } = await ctx.supabase
+            .from('events')
+            .update({ ...eventPayload, goal_id: goalId })
+            .eq('id', existingEvent.id);
+          if (eventError) {
+            console.error('[tool:plan_event] event update error:', eventError);
+            return { error: 'Event record failed to save. Please try again.' };
           }
-          tripId = existingTrip.id;
+          eventId = existingEvent.id;
         } else {
-          // INSERT new goal + new trip.
+          // INSERT new goal + new event.
           const { data: goal, error: goalError } = await ctx.supabase
             .from('goals')
             .insert({ ...goalPayload, current_amount: 0 })
             .select('id, name')
             .single();
           if (goalError) {
-            console.error('[tool:plan_trip] goal insert error:', goalError);
+            console.error('[tool:plan_event] goal insert error:', goalError);
             return { error: 'Failed to create the savings goal. Please try again.' };
           }
           goalId = goal.id;
           goalName = goal.name;
 
-          const { data: trip, error: tripError } = await ctx.supabase
-            .from('trips')
-            .insert({ ...tripPayload, goal_id: goalId })
+          const { data: event, error: eventError } = await ctx.supabase
+            .from('events')
+            .insert({ ...eventPayload, goal_id: goalId })
             .select('id')
             .single();
-          if (tripError) {
-            console.error('[tool:plan_trip] trip insert error:', tripError);
-            return { error: 'Trip record failed to save, but your savings goal was created. Please try again.' };
+          if (eventError) {
+            console.error('[tool:plan_event] event insert error:', eventError);
+            return { error: 'Event record failed to save, but your savings goal was created. Please try again.' };
           }
-          tripId = trip.id;
+          eventId = event.id;
         }
 
         // Set pace/on_track via the shared recompute. For new goals (no
@@ -322,13 +334,14 @@ export function createPlanTripTool(ctx: ToolContext) {
         try {
           await recomputeGoal(ctx.supabase, ctx.userId, goalId);
         } catch (recomputeErr) {
-          console.error('[tool:plan_trip] post-create recompute failed:', recomputeErr);
+          console.error('[tool:plan_event] post-create recompute failed:', recomputeErr);
         }
 
         return {
-          type: 'trip_plan',
-          trip_id: tripId,
-          updated_existing: existingTrip != null,
+          type: 'event_plan',
+          event_id: eventId,
+          kind: input.kind,
+          updated_existing: existingEvent != null,
           name: input.name,
           destination: input.destination,
           dates: input.start_date && input.end_date
@@ -356,8 +369,8 @@ export function createPlanTripTool(ctx: ToolContext) {
           currency: input.currency,
         };
       } catch (err) {
-        console.error('[tool:plan_trip] unexpected error:', err);
-        return { error: 'Something went wrong creating the trip plan. Please try again.' };
+        console.error('[tool:plan_event] unexpected error:', err);
+        return { error: 'Something went wrong creating the event plan. Please try again.' };
       }
     },
   };

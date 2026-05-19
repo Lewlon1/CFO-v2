@@ -12,7 +12,7 @@ export interface PaceResult {
   on_track: boolean | null;
 }
 
-// Extracted from create-goal.ts lines 50-77 so create_goal, plan_trip, and the
+// Extracted from create-goal.ts lines 50-77 so create_goal, plan_event, and the
 // recompute engine all use the same formula. Drift between creators and the
 // recompute would mean a goal could say "on track" at creation and "off track"
 // after the first login with nothing else changed.

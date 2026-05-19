@@ -30,7 +30,7 @@ export default async function ScenariosPage() {
       .order('target_date', { ascending: true, nullsFirst: false })
       .limit(5),
     supabase
-      .from('trips')
+      .from('events')
       .select('id, name, destination, start_date, end_date, total_estimated, currency, status')
       .eq('user_id', user.id)
       .gte('start_date', today)

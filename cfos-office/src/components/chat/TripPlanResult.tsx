@@ -40,7 +40,7 @@ function FeasibilityBadge({ rating }: { rating: string }) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function TripPlanResult({ result }: { result: any }) {
-  if (!result || result.error || result.type !== 'trip_plan') return null;
+  if (!result || result.error || result.type !== 'event_plan') return null;
 
   const budget = result.budget;
   const funding = result.funding;

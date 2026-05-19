@@ -84,7 +84,7 @@ const TOOL_LABELS: Record<string, string> = {
   suggest_value_recategorisation: 'Looking for miscategorised transactions...',
   update_value_category: 'Updating your value categories...',
   update_user_profile: 'Saving to your profile...',
-  plan_trip: 'Planning your trip...',
+  plan_event: 'Planning your event...',
   search_bill_alternatives: 'Researching alternatives...',
 };
 
@@ -260,12 +260,12 @@ export function MessageList({
                   scenarioResults.push(output);
                 }
 
-                // Trip plan visualisation
+                // Event plan visualisation (trips + celebrations + gifts + other)
                 if (
-                  toolName === 'plan_trip' &&
+                  toolName === 'plan_event' &&
                   output &&
                   typeof output === 'object' &&
-                  (output as { type?: unknown }).type === 'trip_plan'
+                  (output as { type?: unknown }).type === 'event_plan'
                 ) {
                   tripPlanResults.push(output);
                 }

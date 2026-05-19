@@ -6,7 +6,7 @@ import { logContribution } from '@/lib/goals/contributions';
 export function createCreateGoalTool(ctx: ToolContext) {
   return {
     description:
-      'Create a savings goal for the user. Use when the user wants to set a financial target — e.g. emergency fund, house deposit, big purchase, or any non-trip savings goal. Confirm the goal details with the user before calling. For trip-related goals, use plan_trip instead.',
+      'Create a savings goal for the user. Use when the user wants to set a financial target — e.g. emergency fund, house deposit, big purchase, or any non-event savings goal. Confirm the goal details with the user before calling. For trips, weddings, gifts, or other time-bound events, use plan_event instead.',
     inputSchema: z.object({
       name: z.string().max(200).describe('Goal name, e.g. "Emergency fund" or "House deposit"'),
       description: z.string().max(500).optional().describe('Additional context'),

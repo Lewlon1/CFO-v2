@@ -902,8 +902,8 @@ export async function buildSystemPrompt(
       .eq('user_id', userId)
       .eq('status', 'pending'),
     supabase
-      .from('trips')
-      .select('id, name, destination, start_date, end_date, total_estimated, status, currency, updated_at')
+      .from('events')
+      .select('id, name, destination, kind, start_date, end_date, total_estimated, status, currency, updated_at')
       .eq('user_id', userId)
       .in('status', ['planning', 'booked'])
       .is('deleted_at', null)
@@ -936,7 +936,7 @@ export async function buildSystemPrompt(
   const actions = actionsResult.status === 'fulfilled' ? actionsResult.value.data : null;
   const trips = tripsResult.status === 'fulfilled' ? tripsResult.value.data : null;
   // Defensive read-side dedup: collapse rows with the same destination+month, keep most recent.
-  // Protects against any legacy duplicates created before plan_trip's UPSERT path landed.
+  // Protects against any legacy duplicates created before plan_event's UPSERT path landed.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dedupedTrips: any[] | null = (() => {
     if (!trips) return trips;
@@ -1816,9 +1816,9 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **calculate_monthly_budget**: "What's my budget?" or "How much can I spend?" Also use as context when discussing any spending number relative to income.
 - **get_action_items**: "What's on my to-do list?" or "What should I be working on?"
 - **create_action_item**: When a conversation produces a concrete next step. Always confirm with the user before creating.
-- **create_goal**: "I want to save for X" / "Set a goal to save €Y" / any non-trip savings target (emergency fund, house deposit, big purchase, etc.). Confirm goal name, target amount, and optional deadline with the user, then call. For trip-related savings, use plan_trip instead.
+- **create_goal**: "I want to save for X" / "Set a goal to save €Y" / any non-event savings target (emergency fund, house deposit, big purchase, etc.). Confirm goal name, target amount, and optional deadline with the user, then call. For trips, weddings, gifts, or other time-bound events, use plan_event instead.
 - **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" / "What if I had kids?" / "What if I changed careers?" / "How would my investments grow?" All 6 scenario types are available. All calculations are server-side.
-- **plan_trip**: "Help me plan a trip" — create a trip budget, funding plan, and savings goal. Call this AFTER collecting destination, dates, travel style, and companions, and AFTER researching real costs. All funding calculations are server-side.
+- **plan_event**: "Help me plan a trip" / "I need to budget for my sister's wedding" / "I want to plan a gift for X" — create a budget, funding plan, and savings goal for any time-bound spending occasion. Pass kind (travel | celebration | gift | other) to disambiguate. Call this AFTER collecting destination/occasion, dates, style, and companions, and AFTER researching real costs. All funding calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
 - **suggest_value_recategorisation**: "Are any of my categories wrong?" Find potentially miscategorised transactions.
 - **check_value_checkin_ready**: THE ONLY tool to use when the user asks for a "value check-in", "check-in", "Value Map", "let me classify some transactions", or any variant. It checks availability then you emit a tappable CTA block that opens a dedicated card-based UI at /value-map?mode=checkin. DO NOT classify transactions inline in chat when the user asks for a check-in — always route to the CTA. If available, reply with one casual sentence ("Yep, 12 transactions ready — want to go?") plus this exact block on its own line: \`[CTA:value_checkin]Start value check-in (N transactions)[/CTA]\`.
@@ -2168,8 +2168,8 @@ Estimate current prices for:
 - Local transport costs
 Be specific with real price ranges and practical tips.
 
-STEP 3 — BUDGET (call plan_trip tool):
-Once you have cost estimates, call the plan_trip tool with your estimates.
+STEP 3 — BUDGET (call plan_event tool):
+Once you have cost estimates, call the plan_event tool with your estimates and kind: 'travel'.
 Present the results conversationally:
 - Total budget with per-category breakdown
 - Their share (if splitting)
@@ -2179,14 +2179,14 @@ Present the results conversationally:
 
 STEP 4 — REFINE:
 Let the user adjust. They might say "that's too much for accommodation" or "we'll definitely do X activity."
-Update the budget accordingly (call plan_trip again with revised estimates if significant changes).
+Update the budget accordingly (call plan_event again with revised estimates if significant changes).
 
 STEP 5 — COMMIT:
 Confirm the plan is saved as a goal. Let them know they'll see progress on the dashboard.
 If relevant, create action items: "Book flights when prices drop below €X", "Set up a trip savings pot", etc.
 
 IMPORTANT:
-- All calculations come from the plan_trip tool, not from your head.
+- All calculations come from the plan_event tool, not from your head.
 - Reference their actual surplus/discretionary spending when discussing feasibility.
 - If experiences rank high in their values, acknowledge that this trip aligns with their values.
 - If the trip is expensive but important, find a way to make the numbers work. Only flag "unrealistic" when the numbers genuinely don't work.`;
