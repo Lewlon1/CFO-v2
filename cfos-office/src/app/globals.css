@@ -48,7 +48,12 @@
   --negative: #F43F5E;
   --info: #3B82F6;
   --accent-cyan: #06B6D4;
-  --accent-purple: #8B5CF6;
+  /* Burden category (retoken v2.5 — warm grey honours the semantic "necessary
+     but heavy" better than the previous bright violet did). */
+  --accent-purple: #9C8B7A;
+
+  /* Values folder — royal purple (retoken v2.5; was amber #E8A84C). */
+  --folder-values: #7C4D9E;
 
   /* Borders */
   --border-subtle: rgba(244, 237, 217, 0.04);
@@ -125,7 +130,13 @@
   --negative: #B91C1C;
   --info: #1D4ED8;
   --accent-cyan: #0E7490;
-  --accent-purple: #6D28D9;
+  /* Burden category (retoken v2.5) — warm grey deepened to #6E5E4A for AA
+     contrast on cream (≈5.4:1). Dark-mode counterpart: #9C8B7A. */
+  --accent-purple: #6E5E4A;
+
+  /* Values folder — deeper royal purple #5E3A7C for AA on cream (≈5.1:1).
+     Dark-mode counterpart: #7C4D9E. */
+  --folder-values: #5E3A7C;
 
   /* Borders */
   --border-subtle: rgba(26, 22, 16, 0.08);

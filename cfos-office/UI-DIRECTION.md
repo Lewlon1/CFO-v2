@@ -62,7 +62,7 @@
 --negative:       #F43F5E       /* Spending (in context), Leak, misaligned, unread badge */
 --info:           #3B82F6       /* Investment category, secondary charts */
 --accent-cyan:    #06B6D4       /* Net Worth folder, balance sheet */
---accent-purple:  #8B5CF6       /* Burden category */
+--accent-purple:  #9C8B7A       /* Burden category — warm grey (retoken v2.5) */
 
 /* === Borders === */
 --border-subtle:  rgba(255,255,255,0.04)    /* Card edges, dividers */
@@ -75,14 +75,16 @@
 
 ### Folder Colours
 
-Each folder has a signature colour used for its tab, icon, border-left, "Open" text, and child file accents:
+Each folder has a signature colour used for its tab, icon, border-left, "Open" text, and child file accents. Four folders as of v2.5 — Scenarios was dropped (What-If lives in chat).
 
 | Folder            | Colour    | Token               |
 |-------------------|-----------|----------------------|
+| Goals               | `#9C7B2C` | `--folder-goals`     |
 | Cash Flow           | `#22C55E` | `--folder-cashflow`  |
-| Financial Portrait  | `#E8A84C` | `--folder-portrait`  |
+| Values & You        | `#7C4D9E` | `--folder-values`    |
 | Net Worth           | `#06B6D4` | `--folder-networth`  |
-| Scenario Planning   | `#F43F5E` | `--folder-scenarios` |
+
+Gold (`#E8A84C`) is reserved for the CFO voice — avatar, briefing border, send button, archetype badge, confidence flags. It is **not** a folder colour.
 
 ### Value Category Colours
 
@@ -91,8 +93,18 @@ Each folder has a signature colour used for its tab, icon, border-left, "Open" t
 | Foundation  | `#22C55E` | Bar segments, badges, labels |
 | Investment  | `#3B82F6` | Bar segments, badges, labels |
 | Leak        | `#F43F5E` | Bar segments, badges, labels |
-| Burden      | `#8B5CF6` | Bar segments, badges, labels |
+| Burden      | `#9C8B7A` | Bar segments, badges, labels |
 | No Idea     | `#9CA3AF` | Bar segments, badges, labels |
+
+**Burden** — necessary but heavy. Warm grey honours the semantic better than the previous bright violet did; users described `#8B5CF6` as "too playful for what burdens are."
+
+### v2.5 palette migration
+
+Two shifts moved together, and the rationale was the same: untangle four-way overlap.
+
+1. **Values folder: amber → royal purple (`#7C4D9E`).** Amber competed with Gold (CFO voice) and read as warmth-on-warmth alongside Goals brass (`#9C7B2C`). Royal purple gives Values an unmistakable identity and frees gold from dual-duty as both folder accent and persona signal.
+2. **Burden category: bright violet → warm grey (`#9C8B7A`).** Burden is the "necessary but heavy" category — a saturated violet was too declarative. Warm grey reads as the right shape of weight.
+3. **Scenarios folder removed.** With Scenarios deleted from the IA in v2.5, `#F43F5E` is no longer a folder colour. It stays in the system as `--negative` (overspend deltas, leak indicators, alert states).
 
 **"No Idea" intent:** This is not a passive bucket for uncategorised leftovers. It's an active awareness nudge. The user *should* be able to recall what they spent money on. "No Idea" names the gap honestly and surfaces items for the user to resolve. The UI should present No Idea items as questions to answer, not noise to ignore.
 

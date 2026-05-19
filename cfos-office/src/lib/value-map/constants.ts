@@ -24,7 +24,7 @@ export const QUADRANTS: Record<string, QuadrantDef> = {
   burden: {
     id: 'burden',
     name: 'Burden',
-    colour: '#E8A84C',
+    colour: '#9C8B7A',
     emoji: '\u2693', // ⚓
     tagline: 'Had to, but it hurts',
     description:

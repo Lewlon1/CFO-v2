@@ -6,7 +6,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   gold: '#F59E0B',
   orange: '#F97316',
   teal: '#14B8A6',
-  purple: '#8B5CF6',
+  purple: '#9C8B7A',
   warning: '#EAB308',
   pink: '#EC4899',
 }
@@ -37,9 +37,9 @@ export const VALUE_COLORS: Record<
     description: 'Drains without return',
   },
   burden: {
-    bg: 'bg-amber-500/10',
-    text: 'text-amber-400',
-    border: 'border-amber-500/20',
+    bg: 'bg-stone-500/10',
+    text: 'text-stone-400',
+    border: 'border-stone-500/20',
     label: 'Burden',
     description: 'Necessary but resented',
   },
