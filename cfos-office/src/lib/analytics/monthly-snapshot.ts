@@ -10,6 +10,98 @@ import { detectIncomeShape } from './income-shape'
 import { computeCashFlowAggregates } from './cashflow-aggregates'
 import { detectPosture } from './posture'
 
+type SnapshotTxn = {
+  amount: number | string
+  category_id: string | null
+  value_category: string | null
+  description: string
+}
+
+export type MonthAggregate = {
+  totalIncome: number
+  totalSpending: number
+  spendingByCategory: Record<string, number>
+  spendingByValueCategory: Record<string, number>
+  largestTxn: number
+  largestTxnDesc: string
+  spendingRowCount: number
+}
+
+/**
+ * Pure month-aggregation: turn a list of transactions into the snapshot
+ * fields (income, spend, breakdowns, largest). Extracted from refreshOneMonth
+ * so the bucketing rules can be unit-tested in isolation — they are the
+ * source of nuanced bugs (income leaking into uncategorised, refund netting,
+ * etc.).
+ */
+export function aggregateMonthSpending(txns: SnapshotTxn[]): MonthAggregate {
+  // Income: positive amounts on the dedicated 'income' category only.
+  // Refunds (positive amounts on a spending category) net against that
+  // category, not income.
+  const totalIncome = txns
+    .filter((t) => isIncomeRow(t.amount, t.category_id))
+    .reduce((s, t) => s + Number(t.amount), 0)
+
+  // Net spend per category: outflow contributes positive, refund contributes negative.
+  const spendingByCategory: Record<string, number> = {}
+  const spendingByValueCategory: Record<string, number> = {}
+  let largestTxn = 0
+  let largestTxnDesc = ''
+  let spendingRowCount = 0
+
+  for (const txn of txns) {
+    // Drop neutrals (transfers/debt/savings) and income — the same exclusions
+    // affectsSpendingBreakdown enforced. NULL category rows fall through and
+    // get bucketed under the synthetic 'uncategorised' slug so they still
+    // count toward total_spending instead of vanishing silently.
+    if (txn.category_id === INCOME_CATEGORY_ID) continue
+    if (isNeutralCategory(txn.category_id)) continue
+
+    // Null-categorised positive amounts are inflows (income / interest /
+    // unclassified credits) that escaped the categoriser — they must not net
+    // against uncategorised spend in the same bucket. Without this guard, a
+    // user with €36k of null-categorised income produces large negative
+    // values in spending_by_category.uncategorised which then poison every
+    // downstream consumer (dashboard pct, pattern detectors, chat context).
+    // Refunds with a valid spending category (positive amount, category_id
+    // set) still net correctly below.
+    if (Number(txn.amount) > 0 && !txn.category_id) continue
+
+    const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
+    const delta = -Number(txn.amount) // outflow → +ve, refund → -ve
+    spendingByCategory[cid] = (spendingByCategory[cid] ?? 0) + delta
+    const vc = txn.value_category ?? 'unsure'
+    spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + delta
+
+    if (isSpendRow(txn.amount, txn.category_id) || (Number(txn.amount) < 0 && !txn.category_id)) {
+      spendingRowCount += 1
+      const abs = -Number(txn.amount)
+      if (abs > largestTxn) {
+        largestTxn = abs
+        largestTxnDesc = txn.description
+      }
+    }
+  }
+
+  // Total spending = sum of net category spends; clamp categories that net
+  // negative (refund-heavy) to 0 so a single large refund can't make the
+  // headline total negative.
+  const totalSpending = Object.values(spendingByCategory).reduce(
+    (s, v) => s + Math.max(v, 0),
+    0,
+  )
+
+  return {
+    totalIncome,
+    totalSpending,
+    spendingByCategory,
+    spendingByValueCategory,
+    largestTxn,
+    largestTxnDesc,
+    spendingRowCount,
+  }
+}
+
 export async function refreshMonthlySnapshots(
   supabase: SupabaseClient,
   userId: string,
@@ -48,46 +140,15 @@ async function refreshOneMonth(
 
   if (!txns || txns.length === 0) return
 
-  // Income: positive amounts on the dedicated 'income' category only.
-  // Refunds (positive amounts on a spending category) net against that category, not income.
-  const totalIncome = txns
-    .filter((t) => isIncomeRow(t.amount, t.category_id))
-    .reduce((s, t) => s + Number(t.amount), 0)
-
-  // Net spend per category: outflow contributes positive, refund contributes negative.
-  const spendingByCategory: Record<string, number> = {}
-  const spendingByValueCategory: Record<string, number> = {}
-  let largestTxn = 0
-  let largestTxnDesc = ''
-  let spendingRowCount = 0
-
-  for (const txn of txns) {
-    // Drop neutrals (transfers/debt/savings) and income — the same exclusions
-    // affectsSpendingBreakdown enforced. NULL category rows fall through and
-    // get bucketed under the synthetic 'uncategorised' slug so they still
-    // count toward total_spending instead of vanishing silently.
-    if (txn.category_id === INCOME_CATEGORY_ID) continue
-    if (isNeutralCategory(txn.category_id)) continue
-
-    const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
-    const delta = -Number(txn.amount) // outflow → +ve, refund → -ve
-    spendingByCategory[cid] = (spendingByCategory[cid] ?? 0) + delta
-    const vc = txn.value_category ?? 'unsure'
-    spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + delta
-
-    if (isSpendRow(txn.amount, txn.category_id) || (Number(txn.amount) < 0 && !txn.category_id)) {
-      spendingRowCount += 1
-      const abs = -Number(txn.amount)
-      if (abs > largestTxn) {
-        largestTxn = abs
-        largestTxnDesc = txn.description
-      }
-    }
-  }
-
-  // Total spending = sum of net category spends; clamp categories that net negative (refund-heavy) to 0
-  // so a single large refund can't make the headline total negative.
-  const totalSpending = Object.values(spendingByCategory).reduce((s, v) => s + Math.max(v, 0), 0)
+  const {
+    totalIncome,
+    totalSpending,
+    spendingByCategory,
+    spendingByValueCategory,
+    largestTxn,
+    largestTxnDesc,
+    spendingRowCount,
+  } = aggregateMonthSpending(txns)
   const avgTxnSize = spendingRowCount > 0 ? totalSpending / spendingRowCount : 0
 
   // Previous month comparison
