@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { extractFromConversation } from '@/lib/ai/portrait-extraction'
+import { extractProfileFields } from '@/lib/ai/profile-extraction'
 import { sendAlert } from '@/lib/alerts/notify'
 
 export async function POST(req: NextRequest) {
@@ -80,6 +81,26 @@ export async function POST(req: NextRequest) {
           await sendAlert({
             severity: 'critical',
             event: 'portrait_extraction_after_failed',
+            user_id: user.id,
+            details: message,
+            metadata: { conversationId: conv.id, callSite: 'review_start_route' },
+          }).catch(() => {})
+        }
+      })
+
+      after(async () => {
+        try {
+          const serviceSupabase = createServiceClient()
+          await extractProfileFields(serviceSupabase, {
+            conversationId: conv.id,
+            userId: user.id,
+          })
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.error('[review/start] post-conversation profile extraction failed:', message)
+          await sendAlert({
+            severity: 'critical',
+            event: 'profile_extraction_after_failed',
             user_id: user.id,
             details: message,
             metadata: { conversationId: conv.id, callSite: 'review_start_route' },

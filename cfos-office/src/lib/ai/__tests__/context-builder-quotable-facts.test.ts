@@ -27,6 +27,7 @@ const BASE: InsightPayload = {
   },
   suggestedResponses: [],
   userIntent: null,
+  experiment_proposal: null,
 };
 
 function allNumbers(facts: ReturnType<typeof buildQuotableFacts>): Set<number> {

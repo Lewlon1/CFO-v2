@@ -9,6 +9,110 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.3 — Experiment Engine — 2026-05-18
+
+**Branch:** `claude/experiment-engine-oKzua`
+**Headline principle:** the system observes, Claude experiments. Every named behavioural pattern must fork into a measurable experiment with a self-reported outcome.
+
+### What shipped
+
+**Migration (staging — applied):**
+- **`052_experiment_engine`** — extends `proposed_experiments` in place with the catalog/lifecycle model (`template_id`, `source_pattern_id`, `title`, `hypothesis`, `success_criterion`, `duration_days`, `target_metric`, `proposal_score`, `scoring_breakdown`, `accepted_at`, `starts_at`, `ends_at`, `outcome_reported_at`, `outcome_self_report`, `user_note`, `related_goal_id`, `deleted_at`, `anonymised_at`, `updated_at`); migrates legacy `dismissed→declined` and `completed→succeeded`; new status enum covers `proposed | accepted | active | succeeded | partial | failed | expired | declined`. Adds `goals.type` with keyword-inference backfill (`debt_clearance | savings | investment | general`). RLS refreshed to filter soft-deleted rows.
+- Companion `prod-backfill-experiments.sql` drafted for Lewis to apply by hand.
+
+**Code:**
+- 10-template catalog in `src/lib/experiments/templates.ts` (subscription_audit, merchant_cap, convenience_swap, weekend_cap, cap_top_category, velocity_brake, value_leak_pause, redirect_windfall_to_goal, creep_reverse, sawtooth_smooth). Two templates from the original v2.3 spec (`no_eat_out_week`, `cash_only_week`) dropped — their trigger patterns don't exist in `pattern-detectors.ts`; reintroduce by writing the detector first.
+- Scoring engine in `src/lib/experiments/scoring.ts` with locked weights (goal_alignment 0.40 / measurability 0.25 / effort 0.20 / reach 0.15) and an alias map for the four prompt-side pattern IDs that diverged from canonical detector IDs.
+- Active-experiment limit + 90-day novelty filter in `src/lib/experiments/limit.ts` (formula `max(1, min(3, ceil(rate * 3)))` over last 4 completed; expired rows excluded).
+- New top-level `experiment_proposal` field on `InsightPayload`; legacy `PatternResult.experiment` and the `Experiment`/`template_kind` interface removed; the three legacy savings-band detectors (`merchant_fragmentation`, `recurring_expense_total`, `convenience_vs_planned`) no longer emit `experiment`.
+- Five new CFO tools: `propose_catalog_experiment`, `accept_experiment`, `decline_experiment`, `record_experiment_outcome`, `list_active_experiments`. Existing `propose_experiment` kept and marked deprecated in its description for the custom-impact path. `create_goal` now accepts a `type` argument.
+- `buildExperimentContext` injects Active / Outcome owed / Open proposals sections into the system prompt; vocabulary lock ("experiment", banned: challenge/task/habit/rule/commitment) appended to `BASE_PERSONA`.
+- Cron `/api/cron/expire-experiments` (03:00 UTC daily, registered in `vercel.json`) auto-declines stale `proposed` rows older than 7d and auto-expires `active|accepted` rows past `ends_at + 14d` without outcome.
+- Dead `experiment_template` conversation type removed (no producers — superseded by the catalog flow).
+
+### Verification
+- `npm run typecheck` + `npm run build` green at end of every phase.
+- 554 tests passing (45 files), including 34 new tests for the experiment engine (scoring, limit, lifecycle tools).
+- Staging migration applied to `qlbhvlssksnrhsleadzn`; Dorcas's "Clear the debt" goal correctly classified as `debt_clearance`.
+
+### Known follow-ups (deferred)
+- `no_eat_out_week`, `cash_only_week` templates — need new detectors first.
+- Full removal of legacy `propose_experiment` tool (kept deprecated this session for the custom-impact path).
+- UI for accept/decline / outcome-owed banner (relies on generic `[OPTIONS]` renderer this session).
+- Joy Signal integration of experiment outcomes (Session 31).
+- Multi-experiment dashboard, user-authored experiments, expanded catalog past 10.
+- Transaction-based outcome auto-verification (out of scope — self-report only this session).
+
+### Lessons learned
+- Run the spec's Phase 0 audit before writing code. The original v2.3 spec called for a new `experiments` table and `propose_experiment` tool; the codebase already had both, with sophisticated 90-day impact math in the existing tool. Surfacing the conflict before drafting avoided a parallel architecture.
+- Detector IDs in `pattern-detectors.ts` are canonical; specs written from memory will diverge. Grep first.
+- The `updated_at` trigger function is `public.handle_updated_at()`; older migrations also reference `set_updated_at` / `_set_updated_at` (defunct names).
+
+---
+
+## v2.2 — Prod Readiness — 2026-05-18
+
+**Branch:** `claude/prod-readiness-v2-2-2jjhs`
+**Scope:** Wave-2 blockers from the audit of `gsbs@test.com` (prod), `lewis@test.com` (prod), and `dorcas@test.com` (staging). The CFO was stating wrong facts about users, dropping them mid-onboarding, and projecting fabricated classifications back at them. None of v2.2 (Chat Intelligence) makes a difference if the trait layer is poisoned.
+
+### What changed
+
+**Balance-sheet portrait derivation — the headline fix:**
+- **`cfos-office/src/lib/balance-sheet/portrait.ts`** — `computeTraits` rewritten:
+  - `has_property` now also infers from `liability_type='mortgage'` (mortgage without paired property asset still proves ownership)
+  - `has_high_interest_debt` now defaults to high-interest when `interest_rate IS NULL` AND `liability_type IN ('credit_card', 'overdraft', 'bnpl')` — the trait_value carries `"<name> (rate not declared — treated as high-interest)"` for that path
+  - `net_worth_bracket` returns `'unknown'` when the user has zero assets, regardless of liabilities; only computes a numeric bracket when at least one asset row exists
+- **`cfos-office/src/lib/balance-sheet/__tests__/portrait.test.ts`** — 15 unit tests covering Lewis-shape (2 mortgages + null-rate card, no assets), Dorcas-shape (government loan, no card), property-with-mortgage, and empty input
+- **`cfos-office/scripts/backfill-balance-sheet-portrait.ts`** — loops every user with at least one asset/liability row and calls `updateAssetPortrait`. Companion `supabase/prod-backfill-portrait-traits.sql` is a Lewis-facing instruction (not auto-applied) — the derivation is TS, not SQL, so backfill is via the script with prod env vars
+
+**Profile-field extractor (new module):**
+- **`cfos-office/src/lib/ai/profile-extraction.ts`** — Haiku-backed post-conversation extractor for 14 profile fields (display_name, age_range, employment_status, net_monthly_income, gross_salary, pay_frequency, housing_type, monthly_rent, relationship_status, partner_employment_status, dependents, country, tax_residency_country, years_in_country). Confidence rules: ≥0.7 → upsert to `user_profiles` only where currently NULL; 0.4–0.7 → row in `profile_extraction_candidates`; <0.4 → drop. Mirrors `portrait-extraction.ts` for triggers, logging, and alerting
+- **`cfos-office/src/app/api/cron/profile-extraction/route.ts`** — daily fallback sweep registered at 06:15 UTC in `vercel.json` (15 min after portrait-extraction so they don't contend)
+- **`cfos-office/src/app/api/chat/route.ts`** + **`/api/review/start/route.ts`** — both wrap profile-extraction in their own `after()` block alongside the existing portrait-extraction call, so a Bedrock failure in one path doesn't poison the other
+- **Migrations (staging applied):** `052_profile_extraction_candidates`, `053_conversations_profile_extracted_at`
+
+**Goal-completion enforcement:**
+- **`cfos-office/src/lib/ai/context-builder.ts`** — `buildGoalDeriveConfirmContext` gets a new `### Goal draft rule (REQUIRED)` block: once the user gives an amount OR a target window, the CFO MUST draft a formatted goal on the next turn (max 2 clarifying questions ever)
+- **`cfos-office/src/app/api/chat/route.ts`** — stall handler: ≥5 user turns in an `onboarding_goal_chat` conversation with 0 active goals → `onboarding_step` flips to `goal_chat_tentative` and a transient system note tells the CFO to pivot to the Value Map
+- **`cfos-office/src/lib/onboarding-v2/types.ts`** — `goal_chat_tentative` added to `OnboardingStep` (no DB migration needed; column is plain text)
+
+**Currency on goals + arithmetic tools:**
+- **Migration (staging applied):** `054_goals_currency` — adds `currency text NOT NULL DEFAULT 'EUR'` and backfills existing rows from each user's `primary_currency`. Verified: every staging goal's currency now matches its owner's `primary_currency` (USD users → USD goals, GBP users → GBP, etc.)
+- **`cfos-office/src/lib/ai/tools/create-goal.ts`** — persists `ctx.currency` on insert
+- **`cfos-office/src/lib/ai/tools/compute-goal-pace.ts`** + **`compute-period-average.ts`** — two new tools registered in `createToolbox`. `compute_goal_pace` returns pre-computed pace from `goals.monthly_required_saving`; `compute_period_average` is a guarded divisor for "X over N periods → per-period" phrasing. Existing `get_balance_sheet` covers the proposed `get_balance_sheet_summary` — not added.
+- Companion **`supabase/prod-backfill-goals-currency.sql`** — the same SQL for Lewis to apply to prod manually
+
+**Prompt hardening (`cfos-office/src/lib/ai/system-prompt.ts`):**
+- New `## Arithmetic — DO NOT CALCULATE` section with forbidden examples (forward projections, halvings, multi-value sums) — points the CFO at `compute_goal_pace`, `compute_period_average`, `get_balance_sheet`
+- New `## Value Map attribution` section — "flagged by you" reserved for merchants the user actually classified in their Value Map; otherwise inferential phrasing required ("Your Value Map suggests…"). Cheap-but-correct fix until Session 30 lands the real-merchant Value Map
+- New `## Tool acknowledgments — paragraph spacing` section — paragraph break between tool acknowledgment and next-thought transition. Addresses the `.Good`-style concat glitches observed in prod conversations; full reproduction wasn't findable in source (not template-based), follow-up is to grep production logs post-deploy
+
+### Lessons learned
+
+- The session draft assumed `app/api/analyze-conversation/route.ts` existed as an existing extractor to expand. It didn't — `lib/ai/portrait-extraction.ts` is the only post-conversation extractor in the codebase, and it writes behavioural traits to `financial_portrait`, not profile fields. Profile-field extraction has been a missing layer all along; this session is the first time it exists.
+- `liability_type` in code is `mortgage, student_loan, credit_card, personal_loan, car_finance, bnpl, overdraft, other` — no `payday_loan` as the session draft mentioned. `bnpl` is the right inclusion in the null-rate auto-flag set.
+- `goals` had no `currency` column AND no `related_liability_id` column. The plan's "linked liability → primary_currency → fail closed" cascade collapsed to just `ctx.currency`. Simpler and identical in outcome since `ctx.currency` already resolves from the user's `primary_currency`.
+- `financial_portrait.UNIQUE(user_id, trait_key)` means backfill is upsert, not delete-and-regenerate. The plan briefly considered a `DELETE FROM financial_portrait WHERE source='balance_sheet'` step — unnecessary.
+- The `.Good` concatenation bug is LLM-emitted, not template-emitted. `npm run lint` / `grep` across the source returned zero matches. Treating it as a prompt issue (Phase 5 spacing rule) and reserving a log-search follow-up.
+
+### Verification artifacts
+
+- 535 vitest tests pass (incl. 15 new in `portrait.test.ts`)
+- `npx tsc --noEmit` clean
+- `npm run build` succeeds; `/api/cron/profile-extraction` registered
+- Staging migrations 052/053/054 confirmed via `information_schema.columns` and a goals join against `user_profiles.primary_currency` showing every row backfilled correctly
+- ESLint: no new errors introduced (28 pre-existing errors in unrelated files)
+
+### Known follow-ups
+
+- Run `scripts/backfill-balance-sheet-portrait.ts` against staging (post-merge) to refresh existing wrong asset_profile traits. Once verified, Lewis runs the same against prod env vars (see `supabase/prod-backfill-portrait-traits.sql`).
+- Apply `supabase/prod-backfill-goals-currency.sql` to prod after merge.
+- Production log grep for `.Good`-style concatenation glitches — confirm Phase 5 paragraph-spacing rule resolved it.
+- Replay Dorcas's onboarding conversation through `extractProfileFields` to verify `housing_type='owner'` is captured from "I bought a property in 2011".
+- Session 30 (Personal Value Map retake) will replace the inferential Leak-attribution phrasing with direct user-classified merchants.
+
+---
+
 ## v2.2 — Session 26: Chat Intelligence (Dialogue-as-Moat) — 2026-05-16
 
 **Branch:** `feature/v2.2-chat-intelligence`

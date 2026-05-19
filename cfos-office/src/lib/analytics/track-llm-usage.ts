@@ -14,7 +14,8 @@ interface LLMUsageParams {
     | 'format_detection'
     | 'pdf_vision_extraction'
     | 'onboarding_v2_free_text_opener'
-    | 'onboarding_v2_value_map_decline';
+    | 'onboarding_v2_value_map_decline'
+    | 'post_conversation_profile_extraction';
   model: string;
   inputTokens?: number;
   outputTokens?: number;
