@@ -9,6 +9,113 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.5 — IA Simplification + Palette Reset + Component Reuse — 2026-05-19
+
+**Branch:** `claude/v2.5-ia-simplification-AWnKN`
+**Headline principle:** four folders, not five. The Values folder reclaims its purple; gold returns to the CFO voice exclusively. `trips` becomes `events` with a `kind` discriminator. Audit before you touch — drift catches you cheap.
+
+### Phase 0 — Component reuse audit
+
+Produced `cfos-office/audit/v2.5-component-reuse.md` before any code change. Catalogues:
+
+- **Primitive adoption (Q1)** — the four office dashboard primitives (`Briefing`, `DetailHeader`, `DrillDownRow`, `DashboardEmptyState`) are well-adopted across the four `<Folder>Dashboard` files. `FolderCard` at `src/components/data/FolderCard.tsx` has zero consumers — dead code.
+- **Inline helper duplication (Q2)** — `formatCurrency` lives in 7 places with 5 inline variants. `buildBriefing` per-dashboard is semantically distinct (kept). `formatMonth` has 3 separate implementations.
+- **Token vs hex (Q3)** — ~30 hardcoded folder-hex sites; the four dashboards' `ACCENT` literals are the in-scope subset. The four-way Burden colour disagreement (tokens.ts, globals.css, dashboard.ts, value-map/constants.ts) was confirmed and called out.
+- **Dashboard parity (Q4)** — three of four dashboards aligned; Scenarios was the outlier (inline empty state, going anyway).
+- **What-If preservation (Q5)** — `model_scenario` tool exists in `src/lib/ai/tools/model-scenario.ts` and is registered in the toolbox. Safe to delete `/office/scenarios/what-if` page.
+
+13 findings total: 6 MUST FIX (in-scope for v2.5), 1 SHOULD FIX (formatCurrency extraction), 6 BACKLOG.
+
+### Phase 1 — Palette retoken
+
+- `tokens.ts` — `folderColors.values`: `#E8A84C` → `#7C4D9E` (royal purple); `valueCategories.burden`: `#8B5CF6` → `#9C8B7A` (warm grey).
+- `globals.css` — `--accent-purple` updated dark + light; new `--folder-values` token (dark `#7C4D9E`, light `#5E3A7C` for AA contrast on cream).
+- `dashboard.ts` — `VALUE_COLORS.burden` Tailwind chain: `amber-*` → `stone-*`; `CATEGORY_COLORS.purple` shifted to warm grey.
+- `value-map/constants.ts` — Burden quadrant hex updated to match.
+- `UI-DIRECTION.md` — four-folder palette table; gold reserved for the CFO voice; rationale block for the v2.5 shift.
+- `folderColors.scenarios` kept transiently with a comment, removed at Phase 3 when its consumer (`OfficeHomeClient` Scenarios card) went.
+
+Build + 569 tests pass.
+
+### Phase 2 — Schema rename `trips` → `events`
+
+- Migration `045_rename_trips_to_events.sql` applied to staging (`qlbhvlssksnrhsleadzn`). 4 rows backfilled to `kind = 'travel'`. Indexes (6), RLS policies (4), FK constraints renamed.
+- `prod-backfill-v2.5.sql` created (transaction-wrapped + `supabase_migrations.schema_migrations` insert) for Lewis to apply manually.
+- Types regenerated from staging into `src/lib/supabase/types.ts`.
+- Tool renamed `plan-trip.ts` → `plan-event.ts` via `git mv`. Tool name in toolbox: `plan_trip` → `plan_event`. Zod schema gains `kind: 'travel' | 'celebration' | 'gift' | 'other'`. Goal label adapts to kind ("Trip:" for travel, "Event:" otherwise). Output type renamed `trip_plan` → `event_plan`.
+- All `from('trips')` reads switched to `from('events')`: `context-builder`, `office/page.tsx`, `office/scenarios/page.tsx`, `office/scenarios/trips/page.tsx`.
+- System-prompt copy: `plan_trip` references → `plan_event` with `kind` parameter documented.
+- Smoke-tested `kind = 'celebration'` insert on staging.
+- `Supabase:get_advisors` clean — the one `events`-related advisory (`idx_events_user_id` unused) is the renamed copy of an inherited pre-existing trips advisory.
+
+Build + 569 tests pass.
+
+### Phase 3 — Drop Scenarios folder
+
+- Deleted: `src/app/(office)/office/scenarios/page.tsx`, `src/app/(office)/office/scenarios/what-if/`, `src/components/office/dashboards/ScenariosDashboard.tsx`, `src/components/office/sections/ScenariosSection.tsx`.
+- `OfficeHomeClient` — Scenarios card removed; `nextTrip` prop dropped; cleaner four-folder layout.
+- `office/page.tsx` — drops the nextTrip fetch.
+- `next.config.ts` — `/office/scenarios` → `/office/goals` (308); `/office/scenarios/what-if` → `/office/goals` (308). Short-links `/scenarios` and `/trips` retargeted.
+- `NavigationBar` — segment labels for `scenarios`, `what-if`, `trips` removed; `goals` added to `FOLDER_COLOR_MAP`.
+- `folder-prompts` — `FolderKey`: `scenarios` → `goals`; `CHAT_SUBJECTS` entry renamed to "Re: Goals".
+- `folder-subtitles` + tests — `scenariosSubtitle` deleted; two test cases removed.
+- `tokens.ts` — `folderColors.scenarios` removed (consumer gone).
+
+Build + 567 tests pass (2 fewer for the removed scenariosSubtitle cases).
+
+### Phase 4 — Goals folder expansion + route relocation
+
+- `git mv src/app/(office)/office/scenarios/goals → office/goals` (preserves history of `page.tsx`, `GoalCard.tsx`, `GoalsEmptyStateCTA.tsx`).
+- `git mv src/app/(office)/office/scenarios/trips → office/goals/travel-events`.
+- `travel-events/page.tsx` — variable rename `trips` → `events`; component rename `TripsPage` → `TravelEventsPage`.
+- `TripsClient` — heading "Your Trips" → "Travel & Events"; CTA "+ Plan a trip" → "+ Plan an event"; empty-state copy broadened ("Tell your CFO about an upcoming trip, wedding, or other event"). Kind field added to `Trip` interface (future-proofing).
+- `GoalsEmptyState` — import path follows the move.
+- `GoalsSection` — renders active-goal summary + Travel & Events link row with upcoming-event count (or "None planned"). Falls through to empty state only when both are absent.
+- `OfficeHomeClient` — Goals `openHref` → `/office/goals`; passes `upcomingEventsCount`. Inline comment marks the experiments slot for v2.6.
+- `office/page.tsx` — fetches upcoming-events count (head:true on events table filtered by `status='planning'`, `deleted_at IS NULL`).
+- `next.config.ts` — adds passthrough redirects for `/office/scenarios/goals/*` and `/office/scenarios/trips/*`.
+- `NavigationBar` — `travel-events` segment label "Travel & Events" added.
+- `primary-goal.ts` — stale comment reference to old path updated.
+
+Build passes.
+
+### Phase 5 — Audit MUST FIX + SHOULD FIX
+
+- Dashboard `ACCENT` literals (3 files) migrate from raw hex to `folderColors.*` token references.
+- `src/lib/format/currency.ts` extracted as canonical helper. Supports null/undefined input (returns `—`), configurable decimals + locale, fallback `<code> ` prefix for unknown currencies. 13 unit tests added.
+- Migrated four duplicates: `TripsClient`, `TripPlanResult`, `ScenarioResult`, `savedCardBuilders`.
+- `PatternsClient` deferred — its `maxFractionDigits-only` shape would force a visual shift to "€45.00" everywhere. Helper extension `{ minDecimals, maxDecimals }` BACKLOG'd.
+- `BACKLOG.md` — six v2.5 audit deferrals catalogued: Foundation/Investment colour inversion, FolderCard dead code, formatCurrencyRounded consolidation, GoalCard purple, hardcoded folder hexes in non-dashboard files, formatMonth triple-implementation, PatternsClient signature mismatch.
+- Audit file updated with commit SHAs for each MUST FIX.
+
+Build + 580 tests pass (13 new from the formatCurrency suite).
+
+### Phase 6 — Verification
+
+- `npm run build` ✓
+- `npm test` ✓ (47 files, 580 tests)
+- `npm run lint` informational — 29 pre-existing errors (none introduced this session)
+- Staging migration applied; `Supabase:get_advisors` shows no new warnings introduced
+- `prod-backfill-v2.5.sql` ready for Lewis to apply
+
+### Lessons learned
+
+- **Phase-build constraint forced a careful reading.** Phase 1's literal "remove `folderColors.scenarios`" would have broken the build between Phase 1 and Phase 3. Kept it transiently with a `// removed in Phase 4` comment and removed it when its consumer left. The "build passes after every phase" rule wins over the literal phase wording.
+- **Audit-before-touch paid off.** The Phase 0 audit correctly predicted the four-way Burden disagreement was bigger than the plan assumed (the value-map quadrant also disagreed). Foundation/Investment colour inversion was a surprise — BACKLOG'd since it's UX-bearing, not refactor.
+- **`PatternsClient` carve-out.** The shared helper API `{ decimals }` is a fixed-min-max model. `PatternsClient` used max-only. Tempting to force-migrate; the right call was to BACKLOG with a concrete API extension idea (`{ minDecimals, maxDecimals }`). Five-of-five became four-of-five with an honest reason in the audit file.
+- **The `kind` enum migration was painless because the audit caught every read.** No mid-session "what about this other place" — Phase 0's grep was exhaustive.
+
+### Unblocks
+
+- v2.6 — wire `claude/experiment-engine-oKzua` engine into `/office/goals/experiments` sub-page. The experiments slot is marked in `OfficeHomeClient.tsx`.
+
+### Next on branch
+
+- Open PR to `main`. Once merged, Lewis applies `cfos-office/supabase/prod-backfill-v2.5.sql` to production.
+- Tag `v2.5` on main after the PR merges + prod backfill confirmed.
+
+---
+
 ## v2.3 — Experiment Engine — 2026-05-18
 
 **Branch:** `claude/experiment-engine-oKzua`
