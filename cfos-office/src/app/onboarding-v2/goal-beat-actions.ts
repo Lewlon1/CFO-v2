@@ -18,11 +18,10 @@ export type CompleteGoalBeatResult = {
  * so chat-path users finish onboarding via the VM, same as Marcus.
  *
  * For Marcus (entry_struggle = 'dont_know'): marks the goal-chat conversation
- * completed and returns the value-map URL so the watcher force-redirects there.
- *
- * For chat-path users: returns null so the watcher refreshes /office; the
- * <ACTION:start_value_map> CTA emitted in the goal-chat wrap-up message
- * carries the user into the Value Map at their pace.
+ * completed so the watcher's refresh doesn't reopen it. Does NOT force-redirect
+ * — that yanked the user mid-stream and they missed the wrap-up message + chip.
+ * Both routes now rely on the in-chat <ACTION:start_value_map> chip (or the
+ * office banner as backup) to hand off into the Value Map at the user's pace.
  */
 export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
   const supabase = await createClient()
@@ -64,10 +63,7 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
     throw new Error('Failed to complete goal beat')
   }
 
-  return {
-    redirectTo: isMarcus ? '/onboarding-v2/value-map' : null,
-    alreadyComplete: false,
-  }
+  return { redirectTo: null, alreadyComplete: false }
 }
 
 /**
