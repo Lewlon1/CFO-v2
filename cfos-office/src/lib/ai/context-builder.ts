@@ -986,6 +986,12 @@ export async function buildSystemPrompt(
   // profile, and the derive-and-confirm task — no portrait, no goals context
   // (none exist yet), no value-map context, no benchmarks. Keeps the CFO
   // focused on one job: turn entry_struggle into a concrete confirmed goal.
+  //
+  // No posture fragment here. Posture-aware modulation is for users who have
+  // ingested ≥2 months of data — i.e. past onboarding. Layering the surviving
+  // fragment's "no forward planning beyond 30 days" over the goal-derive task
+  // produces an LLM that hedges goal commit (agrees to the goal concept but
+  // defers the amount), which leaves onboarding_step stuck at goal_chat_started.
   const isGoalDeriveConfirm = conversationType === 'onboarding_goal_chat';
   if (isGoalDeriveConfirm) {
     const sections = [
@@ -994,7 +1000,6 @@ export async function buildSystemPrompt(
       buildProfileContext(profile),
       buildGoalDeriveConfirmContext(profile, goals),
       buildToolUsageInstructions(),
-      getPosturePromptFragment(profile),
     ].filter(Boolean);
 
     return sections.join('\n\n---\n\n');
