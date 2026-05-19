@@ -1,4 +1,4 @@
-import { GoalsEmptyStateCTA } from '@/app/(office)/office/scenarios/goals/GoalsEmptyStateCTA'
+import { GoalsEmptyStateCTA } from '@/app/(office)/office/goals/GoalsEmptyStateCTA'
 
 export function GoalsEmptyState() {
   return (

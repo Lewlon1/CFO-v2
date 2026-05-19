@@ -18,6 +18,7 @@ export default async function OfficePage() {
     archetypeResult,
     assetsResult,
     liabilitiesResult,
+    upcomingEventsResult,
     profileResult,
     primaryGoal,
   ] = await Promise.all([
@@ -60,6 +61,14 @@ export default async function OfficePage() {
       .select('outstanding_balance')
       .eq('user_id', user.id),
 
+    // Upcoming Travel & Events count for the Goals home preview row
+    supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'planning')
+      .is('deleted_at', null),
+
     // User profile (currency + completeness fields)
     supabase
       .from('user_profiles')
@@ -90,6 +99,7 @@ export default async function OfficePage() {
   const totalAssets = (assetsResult.data ?? []).reduce((sum, a) => sum + (a.current_value ?? 0), 0)
   const totalLiabilities = (liabilitiesResult.data ?? []).reduce((sum, l) => sum + (l.outstanding_balance ?? 0), 0)
   const hasBalanceSheet = (assetsResult.data?.length ?? 0) > 0 || (liabilitiesResult.data?.length ?? 0) > 0
+  const upcomingEventsCount = upcomingEventsResult.count ?? 0
 
   const currency = profileResult.data?.primary_currency ?? 'EUR'
   const profileCompleteness = profileResult.data
@@ -111,6 +121,7 @@ export default async function OfficePage() {
         currency={currency}
         profileCompleteness={profileCompleteness}
         primaryGoal={primaryGoal}
+        upcomingEventsCount={upcomingEventsCount}
       />
     </>
   )

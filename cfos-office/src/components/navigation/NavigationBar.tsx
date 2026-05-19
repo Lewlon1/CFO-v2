@@ -10,6 +10,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   values: 'Values & You',
   'net-worth': 'Net Worth',
   goals: 'Goals',
+  'travel-events': 'Travel & Events',
   inbox: 'Inbox',
   'monthly-overview': 'Monthly overview',
   'spending-breakdown': 'Spending',

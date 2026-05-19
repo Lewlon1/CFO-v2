@@ -27,6 +27,7 @@ interface OfficeHomeClientProps {
   currency: string
   profileCompleteness: number
   primaryGoal: PrimaryGoal | null
+  upcomingEventsCount: number
 }
 
 export function OfficeHomeClient({
@@ -39,6 +40,7 @@ export function OfficeHomeClient({
   currency,
   profileCompleteness,
   primaryGoal,
+  upcomingEventsCount,
 }: OfficeHomeClientProps) {
   const { summary, isLoading } = useDashboardData()
   const trackEvent = useTrackEvent()
@@ -71,9 +73,14 @@ export function OfficeHomeClient({
         label="Goals"
         subtitle={goalsSubtitle}
         accentColor={folderColors.goals}
-        openHref="/office/scenarios/goals"
+        openHref="/office/goals"
       >
-        <GoalsSection goal={primaryGoal} currency={currency} />
+        {/* Experiments slot — wired by v2.6 once claude/experiment-engine-oKzua lands. */}
+        <GoalsSection
+          goal={primaryGoal}
+          currency={currency}
+          upcomingEventsCount={upcomingEventsCount}
+        />
       </FolderSection>
 
       <FolderSection

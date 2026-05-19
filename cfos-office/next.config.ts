@@ -71,6 +71,26 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: '/office/scenarios/goals',
+        destination: '/office/goals',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/goals/:path*',
+        destination: '/office/goals/:path*',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/trips',
+        destination: '/office/goals/travel-events',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/trips/:path*',
+        destination: '/office/goals/travel-events/:path*',
+        permanent: true,
+      },
+      {
         source: '/settings',
         destination: '/office/settings',
         permanent: true,

@@ -1,18 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { TripsClient } from '@/components/trips/TripsClient'
 
-export default async function TripsPage() {
+export default async function TravelEventsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: trips } = await supabase
+  const { data: events } = await supabase
     .from('events')
     .select('id, name, destination, start_date, end_date, total_estimated, total_actual, status, currency, goal_id, conversation_id, funding_plan, kind')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const goalIds = (trips ?? []).map(t => t.goal_id).filter(Boolean)
+  const goalIds = (events ?? []).map(t => t.goal_id).filter(Boolean)
   let goals: Record<string, { current_amount: number; target_amount: number }> = {}
   if (goalIds.length > 0) {
     const { data: goalData } = await supabase
@@ -24,5 +24,5 @@ export default async function TripsPage() {
     }
   }
 
-  return <TripsClient trips={trips ?? []} goals={goals} />
+  return <TripsClient trips={events ?? []} goals={goals} />
 }

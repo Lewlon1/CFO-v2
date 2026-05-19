@@ -31,6 +31,7 @@ interface Trip {
   goal_id: string | null;
   conversation_id: string | null;
   funding_plan: { feasibility?: string } | null;
+  kind?: string | null;
 }
 
 interface GoalProgress {
@@ -56,13 +57,13 @@ export function TripsClient({
     // Not inside ChatProvider
   }
 
-  function handlePlanTrip() {
+  function handlePlanEvent() {
     if (loading) return;
     setLoading(true);
 
     if (chatCtx) {
       chatCtx.startConversation('trip_planning')
-      chatCtx.setInput('Help me plan a trip')
+      chatCtx.setInput('Tell your CFO about an upcoming trip, wedding, or other event')
       setLoading(false);
       return;
     }
@@ -79,28 +80,28 @@ export function TripsClient({
     <div className="p-4 md:p-8 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Your Trips</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Plan, budget, and track your travels</p>
+          <h1 className="text-xl font-semibold text-foreground">Travel &amp; Events</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Trips, weddings, gifts — plan, budget, track</p>
         </div>
         <button
-          onClick={handlePlanTrip}
+          onClick={handlePlanEvent}
           disabled={loading}
           className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
-          {loading ? 'Starting...' : '+ Plan a trip'}
+          {loading ? 'Starting...' : '+ Plan an event'}
         </button>
       </div>
 
       {trips.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-3xl mb-3">✈️</p>
-          <p className="text-sm text-muted-foreground mb-4">No trips planned yet</p>
+          <p className="text-sm text-muted-foreground mb-4">Nothing planned yet</p>
           <button
-            onClick={handlePlanTrip}
+            onClick={handlePlanEvent}
             disabled={loading}
             className="text-sm text-primary hover:underline"
           >
-            Plan your first trip
+            Tell your CFO about an upcoming trip, wedding, or other event
           </button>
         </div>
       ) : (
@@ -122,7 +123,7 @@ export function TripsClient({
 
           {pastTrips.length > 0 && (
             <div>
-              <h2 className="text-sm font-medium text-muted-foreground mb-3">Past trips</h2>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">Past</h2>
               <div className="space-y-2">
                 {pastTrips.map((trip) => (
                   <TripCard key={trip.id} trip={trip} goal={trip.goal_id ? goals[trip.goal_id] : undefined} onOpenConversation={(id) => {
