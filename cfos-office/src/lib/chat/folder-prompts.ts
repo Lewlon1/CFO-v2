@@ -5,6 +5,8 @@
 // to whichever folder the user is sitting on. The prompts fill the
 // input on tap, letting the user edit before sending.
 
+import { getTransformPosture, type PostureProfile } from '@/lib/analytics/posture-helpers'
+
 export type FolderKey = 'home' | 'cash-flow' | 'values' | 'net-worth' | 'goals'
 
 export interface FolderChatMeta {
@@ -73,4 +75,41 @@ export function folderKeyFromPath(pathname: string | null): FolderKey {
   if (pathname.startsWith('/office/net-worth')) return 'net-worth'
   if (pathname.startsWith('/office/goals')) return 'goals'
   return 'home'
+}
+
+// STATUS: first pass — Lewis to refine.
+// Cash Flow prompts shift on posture. See COPY-DECK.md.
+const CASH_FLOW_SURVIVING_PROMPTS: string[] = [
+  'Can I cover rent next month?',
+  "When's my next invoice likely to land?",
+  "What's the biggest leak right now?",
+  'Walk me through the next 14 days',
+]
+
+const CASH_FLOW_PLANNING_PROMPTS: string[] = [
+  "Where's my surplus going?",
+  'What does the last 3 months look like net?',
+  'Am I deploying capital well?',
+  'What would a 3-month income gap look like?',
+]
+
+// Returns folder chat metadata for the given folder and profile.
+// All folders return the static CHAT_SUBJECTS entry unchanged, except
+// Cash Flow which swaps prompts when the user has a surviving or planning
+// posture above the confidence gate. Stable, unknown, and below-threshold
+// users see the default prompts.
+export function getFolderChatMeta(
+  folder: FolderKey,
+  profile: PostureProfile | null | undefined,
+): FolderChatMeta {
+  const base = CHAT_SUBJECTS[folder]
+  if (folder !== 'cash-flow') return base
+  const transform = getTransformPosture(profile)
+  if (transform === 'surviving') {
+    return { ...base, prompts: CASH_FLOW_SURVIVING_PROMPTS }
+  }
+  if (transform === 'planning') {
+    return { ...base, prompts: CASH_FLOW_PLANNING_PROMPTS }
+  }
+  return base
 }

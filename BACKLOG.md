@@ -260,3 +260,19 @@ The v2.5 audit catalogued ~25 sites outside the four office dashboards that hard
 ### PatternsClient maxFractionDigits-only signature (v2.5 Phase 5 carve-out)
 
 The `src/lib/format/currency.ts` helper extracted in Phase 5 supports `{ decimals }` (fixed min+max). `src/app/(office)/office/cash-flow/patterns/PatternsClient.tsx` previously used `maxFractionDigits: 2` without a min — €45 stayed "€45", not "€45.00". Migration would force a visual shift to "€45.00" everywhere. If we extend the helper with `{ minDecimals, maxDecimals }`, PatternsClient becomes a one-line migration; until then it keeps its local helper.
+
+---
+
+## CSV ingest writes `accounts.current_balance` from closing balance — DEFERRED (Session B)
+
+Session B's posture/runway detection depends on `accounts.current_balance` for liquid balance, but ingest currently does not write that field from the CSV closing balance. Test personas (Maya, Carlos) require manual UPDATE in staging to set `current_balance` to the CSV closing value before posture lands correctly.
+
+**Follow-up:** during upload, write `accounts.current_balance` from the parsed CSV's closing balance (where the parser exposes it — Revolut and Santander both do). Replaces manual entry for new ingests. Stale-balance handling and confidence damping are already in `posture.ts`; this work just feeds the input.
+
+---
+
+## Reconcile `incomeDetected` pattern detector with persisted `income_shape` — DEFERRED (Sessions A + B)
+
+`src/lib/analytics/pattern-detectors.ts` still ships an `incomeDetected` pattern detector that derives income signals at request time. Session A added persisted `income_shape` (writeable source of truth) and Session B layered posture on it. The two paths can disagree without breaking anything (`incomeDetected` still serves first-insight narration; the persisted field serves anything context-builder-driven), but the duplication is a latent foot-gun.
+
+**Follow-up:** Session C cleanup. Decide whether `incomeDetected` should be (a) deleted in favour of reading the persisted field, (b) repurposed as a narration-only helper, or (c) kept as a fallback for users who haven't run an ingest. Whichever, codify the boundary.

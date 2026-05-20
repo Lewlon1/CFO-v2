@@ -5,8 +5,10 @@ import { X, MoreVertical, Plus, MessageSquare, ArrowRight } from 'lucide-react'
 import { useChatContext } from './ChatProvider'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
+import useSWR from 'swr'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
-import { CHAT_SUBJECTS, type FolderKey } from '@/lib/chat/folder-prompts'
+import { CHAT_SUBJECTS, getFolderChatMeta, type FolderKey } from '@/lib/chat/folder-prompts'
+import type { PostureProfile } from '@/lib/analytics/posture-helpers'
 
 export function ChatSheet() {
   const {
@@ -252,6 +254,12 @@ export function ChatSheet() {
 
 // ── Contextual empty state — folder-aware subject + pre-prompts ────────────
 
+const postureProfileFetcher = async (url: string): Promise<PostureProfile | null> => {
+  const res = await fetch(url)
+  if (!res.ok) return null
+  return res.json() as Promise<PostureProfile>
+}
+
 function FolderEmptyState({
   folder,
   onFillInput,
@@ -259,7 +267,12 @@ function FolderEmptyState({
   folder: FolderKey
   onFillInput: (text: string) => void
 }) {
-  const meta = CHAT_SUBJECTS[folder] ?? CHAT_SUBJECTS.home
+  // Same SWR key as CashFlowDashboard — deduped by useSWR.
+  const { data: postureProfile } = useSWR<PostureProfile | null>(
+    '/api/profile/income-shape',
+    postureProfileFetcher,
+  )
+  const meta = getFolderChatMeta(folder, postureProfile ?? null) ?? CHAT_SUBJECTS.home
 
   return (
     <div className="px-4 pt-4 pb-6">

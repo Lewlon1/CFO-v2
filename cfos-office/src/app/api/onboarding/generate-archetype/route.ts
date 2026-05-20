@@ -8,6 +8,7 @@ import {
   getFallbackArchetype,
   type ArchetypeResult,
 } from '@/lib/onboarding/archetype-prompt'
+import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
 import type { ValueMapResult } from '@/lib/value-map/types'
 
 const BEDROCK_MODEL = process.env.BEDROCK_CLAUDE_MODEL ?? 'eu.anthropic.claude-sonnet-4-6'
@@ -193,6 +194,16 @@ export async function POST(req: Request) {
     if (updateError) {
       console.error('[archetype] Failed to persist to value_map_sessions:', updateError)
     }
+
+    // The onboarding VM session exists (verified by latestSession lookup above)
+    // so the user is now eligible for onboarding completion. The other callers
+    // of this helper (/api/upload, /api/chat) only fire on later actions, which
+    // left Marcus users with onboarding_step='complete' but onboarding_completed_at
+    // NULL until they happened to type or upload. Fire-and-forget; the helper
+    // is idempotent and gates its own UPDATE on null timestamp + null anonymised.
+    markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
+      console.error('[archetype] markOnboardingCompleteIfReady failed:', err)
+    })
   } else {
     console.warn('[archetype] No onboarding value_map_sessions row found for user — cannot persist archetype. value-map-flow.tsx should insert the session before this endpoint is called.')
   }

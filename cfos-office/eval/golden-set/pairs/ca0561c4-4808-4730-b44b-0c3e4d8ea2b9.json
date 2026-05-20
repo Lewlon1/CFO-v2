@@ -1,0 +1,646 @@
+{
+  "pair_id": "ca0561c4-4808-4730-b44b-0c3e4d8ea2b9",
+  "created_at": "2026-05-20T11:04:17.320Z",
+  "source": "compare-first-insight",
+  "fold": "train",
+  "input": {
+    "persona_id": null,
+    "user_id": "1c91cc25-2365-470b-80a0-cfe2fff1a9d2",
+    "trigger_message": "[System: Post-upload analysis triggered. Deliver your first insight.]",
+    "known_merchants": [
+      "Supermercado Muntades 16",
+      "Aldi",
+      "Bar Schuss",
+      "Flaherty´s Irish Pub",
+      "PENNY",
+      "Credit card repayment",
+      "Fruites I Verduras Naima-ridoy SL",
+      "Carrefour",
+      "Supermercados Molina",
+      "Shell",
+      "Pan Laude",
+      "El Corte Inglés",
+      "Primaprix",
+      "Cafeteria Restaurant Pist",
+      "Rewe",
+      "Cines Verdi",
+      "Tutto Italia Ug",
+      "Frontier Airlines",
+      "To EUR",
+      "Caprabo",
+      "Cifci Kaiserslautern",
+      "La Salumeria",
+      "Xiaoli Pan",
+      "Backerei Gillen 168",
+      "BudgetAir",
+      "Premmia Mercat"
+    ],
+    "user_brief": "(no entry brief / goal recorded)",
+    "prompt_variants": {
+      "a": {
+        "label": "v1",
+        "hash": "1d336c0173b26cf6"
+      },
+      "b": {
+        "label": "v2",
+        "hash": "d957ae5c0e7df2d7"
+      }
+    }
+  },
+  "responses": {
+    "a": {
+      "text": "Right. Three months of data, 132 transactions, and the goal is clear — £1,000 more into the emergency fund by July.\n\nHere's what the numbers show.\n\n---\n\nTravel is doing the heavy lifting in your spending — 45% of everything tracked, at £1,388. That's the single biggest lever in the picture. Whether that's a one-off period or a standing pattern is the first question worth answering, because it directly shapes how quickly the fund gets to £2,000.\n\n---\n\nThe direction of travel is good, though. Spending dropped 30% month-over-month — £1,451 this past month versus £2,085 the month before. The biggest single shift was groceries. That kind of move creates real room.\n\n[STATS]\nTracked spend | £3,436\ntravel | 45%\nFood stores | 14\n[/STATS]\n\n---\n\nOn food specifically: across 14 different stores, the average trip comes in at £12, and 19 of those trips were under £5. That's a lot of small, scattered runs rather than consolidated shops. No judgement on the pattern — but it's worth knowing it's there.\n\n---\n\nOne experiment worth trying: move a fixed amount toward the emergency fund on payday, before anything else gets a look at it. The hypothesis is simple — pay yourself first, and the goal fills without requiring willpower later. The success criterion: the agreed amount lands in the fund on payday and stays there for 30 days.\n\n[OPTIONS]\n- Yes, let's try it\n- Pick a different one\n- Break down my travel\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [],
+      "tokens": {
+        "in": 23235,
+        "out": 372
+      }
+    },
+    "b": {
+      "text": "Two numbers stand out immediately in February.\n\nFirst, a £252.56 BudgetAir flight — your single largest transaction, accounting for 20% of everything you spent that month. That's a one-off, so it doesn't define the month on its own.\n\nWhat does define it: eating and drinking out ran £267.77 — nearly 3.6× your historical daily rate. KimchiMama alone was £93.80 in a single visit on 15 Feb, Bar Schuss £30, Flaherty's £30.60. Those three together are £154.40. If that's a pattern rather than a one-off occasion, it's the biggest obstacle to building your emergency fund.\n\nOn the positive side, groceries are clearly Foundation-anchored — Aldi, Caprabo, Primaprix all showing up consistently and classified exactly how you said they should be.\n\nWas the KimchiMama visit a one-off (birthday, group dinner), or is that the new normal?\n\n[OPTIONS]\n- It was a special occasion, one-off\n- That's a typical month for eating out\n- Show me the full eating-out breakdown\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "find_money_clusters",
+          "args": {
+            "date_from": "2026-02-01",
+            "date_to": "2026-02-28",
+            "min_share_pct": 25
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-02-01",
+              "date_to": "2026-02-28",
+              "min_share_pct": 25
+            },
+            "currency": "GBP",
+            "window": {
+              "n_transactions": 62,
+              "n_days": 28
+            },
+            "data_confidence": "medium",
+            "stories": [
+              {
+                "type": "merchant_in_category",
+                "headline": "aldi is 48% of your groceries spend",
+                "magnitude": {
+                  "amount": 180.48,
+                  "currency": "GBP",
+                  "share_pct": 48
+                },
+                "merchants": [
+                  "aldi"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "106f0a36-45f9-47c3-a169-29dd659e01a2",
+                    "date": "2026-02-08T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -42.94
+                  },
+                  {
+                    "id": "f64dfd9b-2e56-40e0-a4fe-61884be97070",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -41.51
+                  },
+                  {
+                    "id": "9c8b594c-1935-4cdd-906d-2941923ecc13",
+                    "date": "2026-02-21T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -21.37
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "farmacia bertolin is 100% of your health spend",
+                "magnitude": {
+                  "amount": 10.07,
+                  "currency": "GBP",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "farmacia bertolin"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "7eda9bd5-c5aa-4579-b730-49fd28fba52d",
+                    "date": "2026-02-11T00:00:00+00:00",
+                    "merchant": "Farmacia Bertolin",
+                    "amount": -10.07
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "sagal s is 79.8% of your transport spend",
+                "magnitude": {
+                  "amount": 164,
+                  "currency": "GBP",
+                  "share_pct": 79.8
+                },
+                "merchants": [
+                  "sagal s"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "9bb4469a-fd8b-4770-9e26-6755c775f961",
+                    "date": "2026-02-16T00:00:00+00:00",
+                    "merchant": "Sagalés",
+                    "amount": -164
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "renta shusski is 100% of your housing spend",
+                "magnitude": {
+                  "amount": 24,
+                  "currency": "GBP",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "renta shusski"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "2e2d2b52-9652-4641-821e-32948c471ddf",
+                    "date": "2026-02-16T00:00:00+00:00",
+                    "merchant": "Renta Shusski",
+                    "amount": -24
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "el corte ingl s is 100% of your shopping spend",
+                "magnitude": {
+                  "amount": 24.9,
+                  "currency": "GBP",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "el corte ingl s"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "ed5ba099-7dd5-4c84-ba45-c0891a11b4bc",
+                    "date": "2026-02-20T00:00:00+00:00",
+                    "merchant": "El Corte Inglés",
+                    "amount": -24.9
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "cines verdi barcelona is 69.6% of your entertainment spend",
+                "magnitude": {
+                  "amount": 51,
+                  "currency": "GBP",
+                  "share_pct": 69.6
+                },
+                "merchants": [
+                  "cines verdi barcelona"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "5d93ec5d-1358-4302-9cdd-7dcdbd758785",
+                    "date": "2026-02-17T00:00:00+00:00",
+                    "merchant": "Cines Verdi Barcelona",
+                    "amount": -51
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "budgetair is 100% of your travel spend",
+                "magnitude": {
+                  "amount": 252.56,
+                  "currency": "GBP",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "budgetair"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "1d26319e-4929-402d-99bb-ab7adb8803d5",
+                    "date": "2026-02-19T00:00:00+00:00",
+                    "merchant": "BudgetAir",
+                    "amount": -252.56
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "groceries is 30.4% of your total spend (£376)",
+                "magnitude": {
+                  "amount": 375.61,
+                  "currency": "GBP",
+                  "share_pct": 30.4
+                },
+                "merchants": [
+                  "aldi",
+                  "caprabo",
+                  "primaprix"
+                ],
+                "comparison": "This category alone takes up 30.4% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "106f0a36-45f9-47c3-a169-29dd659e01a2",
+                    "date": "2026-02-08T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -42.94
+                  },
+                  {
+                    "id": "f64dfd9b-2e56-40e0-a4fe-61884be97070",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -41.51
+                  },
+                  {
+                    "id": "be749f3f-f5cf-4847-b62d-83c875ea45aa",
+                    "date": "2026-02-15T00:00:00+00:00",
+                    "merchant": "Caprabo",
+                    "amount": -37.64
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "medium"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "find_outliers",
+          "args": {
+            "date_from": "2026-02-01",
+            "date_to": "2026-02-28",
+            "baseline_lookback_days": 90
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-02-01",
+              "date_to": "2026-02-28",
+              "baseline_lookback_days": 90
+            },
+            "currency": "GBP",
+            "window": {
+              "n_transactions": 62,
+              "n_days": 28,
+              "total_spend": 1233.56
+            },
+            "baseline": {
+              "n_transactions": 52,
+              "n_days": 90
+            },
+            "outliers": [
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "1d26319e-4929-402d-99bb-ab7adb8803d5",
+                  "date": "2026-02-19T00:00:00+00:00",
+                  "merchant": "BudgetAir",
+                  "amount": -252.56,
+                  "category": "travel"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 25.26
+                },
+                "why_unusual": "This one transaction is 25.26× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "9bb4469a-fd8b-4770-9e26-6755c775f961",
+                  "date": "2026-02-16T00:00:00+00:00",
+                  "merchant": "Sagalés",
+                  "amount": -164,
+                  "category": "transport"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 16.4
+                },
+                "why_unusual": "This one transaction is 16.4× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "3d67ab7d-8cb8-4bce-8ca5-881aef81dc15",
+                  "date": "2026-02-15T00:00:00+00:00",
+                  "merchant": "KimchiMama",
+                  "amount": -93.8,
+                  "category": "eat_drinking_out"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 9.38
+                },
+                "why_unusual": "This one transaction is 9.38× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "5d93ec5d-1358-4302-9cdd-7dcdbd758785",
+                  "date": "2026-02-17T00:00:00+00:00",
+                  "merchant": "Cines Verdi Barcelona",
+                  "amount": -51,
+                  "category": "entertainment"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 5.1
+                },
+                "why_unusual": "This one transaction is 5.1× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "106f0a36-45f9-47c3-a169-29dd659e01a2",
+                  "date": "2026-02-08T00:00:00+00:00",
+                  "merchant": "Aldi",
+                  "amount": -42.94,
+                  "category": "groceries"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 4.29
+                },
+                "why_unusual": "This one transaction is 4.29× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "f64dfd9b-2e56-40e0-a4fe-61884be97070",
+                  "date": "2026-02-01T00:00:00+00:00",
+                  "merchant": "Aldi",
+                  "amount": -41.51,
+                  "category": "groceries"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 4.15
+                },
+                "why_unusual": "This one transaction is 4.15× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "db2459a6-173d-4106-bf1c-0a7f317deed5",
+                  "date": "2026-02-27T00:00:00+00:00",
+                  "merchant": "Shell",
+                  "amount": -41.39,
+                  "category": "transport"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 4.14
+                },
+                "why_unusual": "This one transaction is 4.14× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "be749f3f-f5cf-4847-b62d-83c875ea45aa",
+                  "date": "2026-02-15T00:00:00+00:00",
+                  "merchant": "Caprabo",
+                  "amount": -37.64,
+                  "category": "groceries"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 3.76
+                },
+                "why_unusual": "This one transaction is 3.76× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "1fd5e58e-97dd-4f86-9fcc-b081ed0b1d82",
+                  "date": "2026-02-22T00:00:00+00:00",
+                  "merchant": "Bar Schuss",
+                  "amount": -30,
+                  "category": "eat_drinking_out"
+                },
+                "context": {
+                  "median_amount": 10,
+                  "multiplier": 3
+                },
+                "why_unusual": "This one transaction is 3× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "budgetair",
+                "context": {
+                  "window_spend": 252.56,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 20.5,
+                  "sample_transactions": [
+                    {
+                      "id": "1d26319e-4929-402d-99bb-ab7adb8803d5",
+                      "date": "2026-02-19T00:00:00+00:00",
+                      "amount": -252.56
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 252.56 across 1 visit, 20.5% of your window spend."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "sagal s",
+                "context": {
+                  "window_spend": 164,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 13.3,
+                  "sample_transactions": [
+                    {
+                      "id": "9bb4469a-fd8b-4770-9e26-6755c775f961",
+                      "date": "2026-02-16T00:00:00+00:00",
+                      "amount": -164
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 164 across 1 visit, 13.3% of your window spend."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "kimchimama",
+                "context": {
+                  "window_spend": 93.8,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 7.6,
+                  "sample_transactions": [
+                    {
+                      "id": "3d67ab7d-8cb8-4bce-8ca5-881aef81dc15",
+                      "date": "2026-02-15T00:00:00+00:00",
+                      "amount": -93.8
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 93.8 across 1 visit, 7.6% of your window spend."
+              },
+              {
+                "type": "category_swing",
+                "category": "transport",
+                "context": {
+                  "window_spend": 205.39,
+                  "window_per_day": 7.34,
+                  "baseline_per_day": 0.54,
+                  "multiplier": 13.61,
+                  "driving_merchants": [
+                    {
+                      "merchant": "sagal s",
+                      "amount": 164
+                    },
+                    {
+                      "merchant": "shell",
+                      "amount": 41.39
+                    }
+                  ]
+                },
+                "why_unusual": "transport per-day rate jumped from 0.54 to 7.34 this period."
+              },
+              {
+                "type": "category_swing",
+                "category": "groceries",
+                "context": {
+                  "window_spend": 375.61,
+                  "window_per_day": 13.41,
+                  "baseline_per_day": 2.58,
+                  "multiplier": 5.19,
+                  "driving_merchants": [
+                    {
+                      "merchant": "aldi",
+                      "amount": 180.48
+                    },
+                    {
+                      "merchant": "caprabo",
+                      "amount": 47.48
+                    },
+                    {
+                      "merchant": "primaprix",
+                      "amount": 38.35
+                    }
+                  ]
+                },
+                "why_unusual": "groceries per-day rate jumped from 2.58 to 13.41 this period."
+              },
+              {
+                "type": "category_swing",
+                "category": "eat_drinking_out",
+                "context": {
+                  "window_spend": 267.77,
+                  "window_per_day": 9.56,
+                  "baseline_per_day": 2.63,
+                  "multiplier": 3.64,
+                  "driving_merchants": [
+                    {
+                      "merchant": "kimchimama",
+                      "amount": 93.8
+                    },
+                    {
+                      "merchant": "flaherty s irish pub",
+                      "amount": 30.6
+                    },
+                    {
+                      "merchant": "bar schuss",
+                      "amount": 30
+                    }
+                  ]
+                },
+                "why_unusual": "eat_drinking_out per-day rate jumped from 2.63 to 9.56 this period."
+              },
+              {
+                "type": "category_swing",
+                "category": "entertainment",
+                "context": {
+                  "window_spend": 73.26,
+                  "window_per_day": 2.62,
+                  "baseline_per_day": 0.78,
+                  "multiplier": 3.37,
+                  "driving_merchants": [
+                    {
+                      "merchant": "cines verdi barcelona",
+                      "amount": 51
+                    },
+                    {
+                      "merchant": "playtomic",
+                      "amount": 13.26
+                    },
+                    {
+                      "merchant": "cines verdi",
+                      "amount": 9
+                    }
+                  ]
+                },
+                "why_unusual": "entertainment per-day rate jumped from 0.78 to 2.62 this period."
+              }
+            ],
+            "data_confidence": {
+              "level": "high",
+              "reason": "114 transactions across 118 days is a solid baseline."
+            }
+          }
+        }
+      ],
+      "tokens": {
+        "in": 28125,
+        "out": 274
+      }
+    }
+  },
+  "rating": {
+    "winner": "a",
+    "rater": "lewis",
+    "rated_at": "2026-05-20T11:44:14.014Z",
+    "notes": null
+  },
+  "judge_predictions": [
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T11:04:54.245Z",
+      "score_a": 0.62,
+      "score_b": 0.25,
+      "predicted_winner": "a",
+      "diagnostic": {
+        "a.recognition": 0.35,
+        "a.goal_calibration": 0.75,
+        "a.surprise": 0.68,
+        "a.trust": 0.72,
+        "a.tangibility": 0.58,
+        "a.voice": 0.55,
+        "b.recognition": 0.15,
+        "b.goal_calibration": 0.5,
+        "b.surprise": 0.6,
+        "b.trust": 0.4,
+        "b.tangibility": 0.5,
+        "b.voice": 0.2
+      },
+      "reasoning_a": "Strong goal-calibration and surprise (the 14-store grocery scatter and month-over-month drop are non-obvious patterns) push this into solid territory, but recognition tanks hard — no merchant names cited despite 23 known merchants available, and currency is GBP while user data appears to be EUR-denominated (Aldi, PENNY, Rewe are German/EU chains). The \"no judgement\" opener and \"worth knowing\" violate voice rules; body word count (~250 words) substantially exceeds the 100–180 ceiling.",
+      "reasoning_b": "The response names a merchant (KimchiMama) not in the grounding list, fabricating specificity and tanking recognition to 0.15. Critical voice failure: uses banned word \"advice\" and phrase \"worth knowing\" repeatedly. Without a stated goal, calibration stays neutral; surprise is moderate (eating-out clustering is valid) but undermined by the hallucinated data. Trust collapses when unverifiable claims anchor the insight, and voice missteps destroy peer credibility — this reads like a coach, not a CFO peer.\""
+    }
+  ]
+}
