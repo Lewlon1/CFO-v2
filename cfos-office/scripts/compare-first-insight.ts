@@ -157,26 +157,27 @@ async function runVariant(
   variant: 'v1' | 'v2',
   conversationId: string,
 ): Promise<RunResult> {
-  // Toggle the v2 force flag. The chat-intelligence-v2 feature flag check
-  // reads this lazily, so flipping it here is sufficient for buildSystemPrompt.
-  if (variant === 'v2') {
-    process.env.CHAT_INTELLIGENCE_V2_FORCE = '1';
+  // Toggle the v2 force flag. V2 is now default — set '0' to force V1.
+  if (variant === 'v1') {
+    process.env.CHAT_INTELLIGENCE_V2_FORCE = '0';
   } else {
     delete process.env.CHAT_INTELLIGENCE_V2_FORCE;
   }
 
-  // V1 needs first_insight_payload in metadata; V2 does not (it pulls
-  // numbers via the 10 detective tools). Match post-upload route behaviour.
-  let conversationMetadata: Record<string, unknown> | null = null;
-  if (variant === 'v1') {
-    const payload = await computeFirstInsight(serviceClient as any, userId);
-    conversationMetadata = {
-      first_insight_payload: payload,
-      transaction_count: payload?.transactionCount,
-    };
-  } else {
-    conversationMetadata = { chat_intelligence_v2: true };
-  }
+  // Both variants compute the payload (post-upload route does this for
+  // every user now — V1 stores the full payload; V2 only keeps the
+  // experiment_proposal slice for the closing-beat block).
+  const payload = await computeFirstInsight(serviceClient as any, userId);
+  const conversationMetadata: Record<string, unknown> =
+    variant === 'v1'
+      ? {
+          first_insight_payload: payload,
+          transaction_count: payload?.transactionCount,
+        }
+      : {
+          chat_intelligence_v2: true,
+          experiment_proposal: payload?.experiment_proposal ?? null,
+        };
 
   const prompt: string = await buildSystemPrompt(
     userId,

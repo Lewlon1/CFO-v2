@@ -9,6 +9,51 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.5.1 — V2 first-insight default + experiment closing beat — 2026-05-20
+
+**Branch:** `v2.5.1-v2-default-with-experiment`
+**Scope:** Make Chat Intelligence V2 the default first-insight path for every user (previously gated to `beta_cohort IN ('wave_1', 'wave_1_5')` — 1 user in staging), and port V1's REQUIRED experiment-closing beat into the V2 brief so V2 users get a proposed experiment whenever the catalog pipeline finds a viable match. Also fixes the V1 recurring-bills hallucination surfaced by the eval golden set.
+
+### What changed
+
+**Feature gate flip:**
+- `cfos-office/src/lib/features/chat-intelligence-v2.ts` — `isChatIntelligenceV2Enabled` now returns `true` by default. Env var semantics inverted: `CHAT_INTELLIGENCE_V2_FORCE=0` is the V1 escape hatch (previously `=1` was the V2 opt-in). `beta_cohort` is no longer consulted but kept in the schema for other features. Same gate controls The Gap page (`app/(office)/office/values/the-gap/page.tsx`), so The Gap flips to V2 with this change.
+
+**Experiment proposal in V2 brief:**
+- `cfos-office/src/app/api/insights/post-upload/route.ts` — `computeFirstInsight` now runs for every user (was V1-only). V2 metadata stores `{ chat_intelligence_v2: true, experiment_proposal: <ExperimentProposalLayer | null> }`; V1 metadata unchanged.
+- `cfos-office/src/lib/ai/context-builder.ts` — `buildFirstInsightContextV2` takes a new `experimentProposal` parameter (read from `conversationMetadata.experiment_proposal`). When `proposal.primary` exists, the brief appends a `## Experiment proposal (REQUIRED closing beat)` section mirroring V1's structure (template id, source pattern, title, hypothesis, success criterion, duration, alternatives, capacity warning, OPTIONS block, tool-call rules). Section 5's generic "end with a question, action, or labelling invitation" is suppressed when the experiment block is present so the model doesn't double-close. When no proposal exists (no patterns, no catalog match, or 90-day novelty filter excluded all matches) the block is skipped and V2 closes with its existing free-form ending — matching V1 behaviour.
+
+**Recurring-bills hallucination fix (V1):**
+- `cfos-office/src/lib/analytics/insight-engine.ts` — `loadRecurring` now filters `status = 'tracked'` AND `deleted_at IS NULL`. Previously it pulled every row, including auto-`detected` candidates (e.g. casual lunches the cron flagged as "recurring"). Three holdout pairs in the golden set caught the same bug: V1 confidently citing "79 recurring bills, $3,567/month, 113% of average monthly spend" for two unrelated users — both had 79 phantom `detected` rows from the recurring-expense detector with $3,776.53 fabricated total. With the filter, untouched users now correctly show `Recurring bills | 0` in the [STATS] card until they curate.
+
+**Judge robustness (eval harness):**
+- `cfos-office/eval/judges/2026-05-17-baseline.ts` — `reasoning.max(400)` → `reasoning.max(2000)`. The cap was rejecting valid scores from Haiku (which routinely produces 400–1000 char reasonings); the model still returns the same tokens, this just stops parse drops. No scoring-semantics change.
+
+**Eval set:**
+- 8 pairs rated and persisted under `cfos-office/eval/golden-set/pairs/`. Champion judge `2026-05-17-baseline` agreement: Train 70% (n=5), Holdout 83% (n=3). Lewis pattern: V2 wins 3/3 in holdout when V1 hallucinates; V1 wins 5/5 in train when its facts are clean (preferring its experiment-closing structure). That pattern motivated the V2-default + experiment-beat change.
+
+**Compare harness updated to match new gate:**
+- `cfos-office/scripts/compare-first-insight.ts` — V1/V2 variants now toggle `CHAT_INTELLIGENCE_V2_FORCE=0` (V1) vs unset (V2); V2 branch computes the payload and injects `experiment_proposal` into synthetic metadata, mirroring the prod post-upload route exactly.
+
+### Verification
+- `npx tsc --noEmit` → clean
+- `npx vitest run src/lib/ai/context-builder-v2.test.ts` → 14/14 pass
+- `compare-first-insight.ts` against Marcus (`bc32d6b1`): V2 now closes with a named experiment ("move a fixed amount to your investment pot on payday"), success criterion, and the required `[OPTIONS]` block (`Yes, let's try it / Pick a different one / Not right now`). Same user previously produced labelling chips instead.
+- `compare-first-insight.ts` against `114c3cae`: V1's `Recurring bills | 0` (was `| 79`); prose no longer cites `$3,567` or `113% of average monthly spend`.
+
+### Known follow-ups (deferred)
+- **Recurring-expense detector** still writes false positives (`purchase mcdonalds $8.01 weekly`) into `recurring_expenses` with `status='detected'`. The `tracked`-only filter masks this for V1 narration but the underlying detector should tighten — whitelist categories (utilities, subscriptions, mortgage/rent, insurance), raise periodicity/amount thresholds. Needs its own session.
+- **V1 code-path removal.** V1 remains as the env-var escape hatch (`CHAT_INTELLIGENCE_V2_FORCE=0`). Deletion can come once V2 is stable in prod.
+- **`beta_cohort` column** kept in schema even though no longer consulted by this gate — used by other features.
+- **Eval golden set is small.** 8 rated pairs gives wide CIs (Train [40%, 100%]). Capture 10–15 more before promoting any judge candidate via `tournament.ts`.
+
+### Lessons learned
+- The rating loop surfaces real bugs, not just judge calibration noise. Two unrelated holdout pairs flagging "79 recurring bills" was the signal — both users had identical phantom row counts in `recurring_expenses`. The hallucination was deterministic, not stochastic.
+- Loader filters are a security-of-truth boundary. The detector writing `status='detected'` is fine; the loader pulling unfiltered into the [STATS] payload is what surfaced the wrong number. Same shape as the `chat_intelligence_v2: true` breadcrumb that was set but never read — boundary discipline matters at the read-side.
+- When the eval judge schema is rejecting valid scores, the right fix is parse tolerance, not prompt pressure to shorten. Schema caps don't bound model output — they just drop it.
+
+---
+
 ## v2.5 — Posture-aware experience + onboarding & insight hardening — 2026-05-19
 
 **Branch:** `claude/posture-aware-experience-YK28W`

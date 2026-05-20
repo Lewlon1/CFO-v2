@@ -545,7 +545,9 @@ async function loadSnapshots(s: SupabaseClient, userId: string) {
 async function loadRecurring(s: SupabaseClient, userId: string) {
   const { data } = await s
     .from('recurring_expenses').select('*')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('status', 'tracked')
+    .is('deleted_at', null);
   return data ?? [];
 }
 

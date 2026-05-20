@@ -1,0 +1,665 @@
+{
+  "pair_id": "01e64b99-470a-4c13-9e48-29341a924784",
+  "created_at": "2026-05-20T11:02:22.940Z",
+  "source": "compare-first-insight",
+  "fold": "holdout",
+  "input": {
+    "persona_id": null,
+    "user_id": "c6b1dd54-0c90-47ab-b098-d724d27471f7",
+    "trigger_message": "[System: Post-upload analysis triggered. Deliver your first insight.]",
+    "known_merchants": [
+      "POS PURCHASE WENDYS #4501",
+      "POS PURCHASE CHURCHS CHICKEN #71 PR",
+      "POS PURCHASE PUEBLO SUPERMERCADO #22",
+      "POS PURCHASE LONGHORN STEAKHOUSE PLAZA",
+      "POS PURCHASE WALGREENS #6841",
+      "POS PURCHASE POLLO TROPICAL DRIVE THRU",
+      "POS PURCHASE BEST BUY #186 PLAZA LAS AMS",
+      "POS PURCHASE MCDONALDS #2218",
+      "POS PURCHASE POLLO TROPICAL #142",
+      "POS PURCHASE DENNYS #7012 SAN JUAN",
+      "POS PURCHASE AMAZON MKTPL US 9KT2P",
+      "POS PURCHASE WENDYS #4612",
+      "ATM WITHDRAWAL FIRSTBANK CAROLINA 003",
+      "POS PURCHASE SUBWAY #28912",
+      "ACH DEBIT HACIENDA PR PLAN PYMT 200000",
+      "POS PURCHASE TEXACO CAROLINA PR",
+      "ATH MOVIL OUT TO OSCAR R 7872345678",
+      "POS PURCHASE NOTARIO LOPEZ PSC SAN JUAN",
+      "POS PURCHASE ECONO PLAZA NORTE BAYAMON",
+      "POS PURCHASE BURGER KING #18",
+      "POS PURCHASE LCDA CARMEN ALVAREZ CONSULT",
+      "ACH DEBIT CLARO MOVIL POSTPAID",
+      "ACH DEBIT LIBERTY CABLEVISION PR",
+      "POS PURCHASE PUMA HATO REY PR",
+      "POS PURCHASE EL MESON SANDWICHES",
+      "ACH DEBIT AAA AUT ACUEDUCTOS",
+      "POS PURCHASE IHOP #1820 PLAZA LAS AMS",
+      "POS PURCHASE TOTAL 1109 BAYAMON PR",
+      "ACH DEBIT NETFLIX.COM",
+      "DIRECT DEP PAYROLL EMPLOYER PR",
+      "POS PURCHASE ECONO SUPER CAROLINA #18",
+      "POS PURCHASE COPIES EXPRESS SAN JUAN",
+      "POS PURCHASE DTOP RENOV LIC VEH",
+      "POS PURCHASE WALMART #3501 CAGUAS PR",
+      "POS PURCHASE KFC #1872",
+      "ATH MOVIL IN FROM MAMI 7872210000",
+      "POS PURCHASE CERRAJERIA CARIBE BAYAMON",
+      "POS PURCHASE HOSPITAL AUXILIO MUTUO COPAY",
+      "POS PURCHASE LCDO DIAZ ATTORNEY CONSULT",
+      "POS PURCHASE OLIVE GARDEN PLAZA LAS AMS",
+      "POS PURCHASE REGISTRO PROPIEDAD PR FILING",
+      "POS PURCHASE OFFICEMAX #4218 PLAZA",
+      "PAYMENT BPPR CREDIT CARD XXXX4419",
+      "POS PURCHASE UBER TRIP HELP.UBER.COM",
+      "POS PURCHASE MCDONALDS #2218 BREAKFAST",
+      "ATH MOVIL IN FROM YARI 7873334444",
+      "POS PURCHASE USPS CORREOS CERTIFIED PR",
+      "POS PURCHASE SAMS CLUB #6391 MAYAGUEZ",
+      "ATH MOVIL OUT TO BUFETE LEGAL ALVAREZ",
+      "ATH MOVIL OUT TO PARALEGAL HELP",
+      "POS PURCHASE PUMA AVE ASHFORD CONDADO",
+      "ACH DEBIT CRIM PROP TAX AUTOPAY",
+      "POS PURCHASE CVS PHARMACY #5719",
+      "POS PURCHASE DENNYS #7012",
+      "POS PURCHASE WALGREENS RX #6841",
+      "POS PURCHASE CHURCHS CHICKEN #71",
+      "POS PURCHASE POLLO TROPICAL #142 CAROLINA PR",
+      "POS PURCHASE MCDONALDS #2218 CAROLINA",
+      "POS PURCHASE AMAZON MKTPL US 8FQ2W",
+      "POS PURCHASE TOTAL 0451 CAROLINA PR",
+      "LATE FEE BPPR CREDIT CARD XXXX4419",
+      "POS PURCHASE WENDYS #4501 CAROLINA",
+      "ACH DEBIT BPPR MORTGAGE 7298",
+      "POS PURCHASE EL MESON SANDWICHES CAROLINA",
+      "ATH MOVIL OUT TO BUFETE LEGAL TRUST",
+      "ATH MOVIL OUT TO MAMI 7872210000",
+      "CHECK 1012 BUFETE LEGAL PSC RETAINER",
+      "POS PURCHASE WENDYS #4612 BAYAMON",
+      "POS PURCHASE COSTCO WHSE #1029 CAROLINA",
+      "POS PURCHASE SUBWAY #28912 SAN JUAN",
+      "POS PURCHASE KFC #1872 BAYAMON",
+      "POS PURCHASE WALGREENS #6841 CAROLINA PR",
+      "ATH MOVIL IN FROM MAMI",
+      "POS PURCHASE POLLO TROPICAL",
+      "ATH MOVIL IN FROM YARI",
+      "POS PURCHASE AMAZON MKTPL US 2HX4G",
+      "POS PURCHASE TEXACO MAYAGUEZ PR",
+      "ATH MOVIL OUT TO BUFETE LEGAL",
+      "ACH DEBIT LUMA ENERGY UTL PYMT",
+      "POS PURCHASE MARSHALLS #1054 PR",
+      "OVERDRAFT FEE FIRSTBANK",
+      "POS PURCHASE TOTAL 4188 TRUJILLO ALTO",
+      "POS PURCHASE CVS PHARMACY #5719 SAN JUAN",
+      "POS PURCHASE NETFLIX.COM",
+      "POS PURCHASE MCDONALDS DRIVE THRU",
+      "POS PURCHASE ECONO PLAZA NORTE",
+      "POS PURCHASE BURGER KING #18 CAROLINA",
+      "POS PURCHASE SPOTIFY USA"
+    ],
+    "user_brief": "(no entry brief / goal recorded)",
+    "prompt_variants": {
+      "a": {
+        "label": "v1",
+        "hash": "7c6f52a1bb2fd565"
+      },
+      "b": {
+        "label": "v2",
+        "hash": "c16361c9ecb7c7fc"
+      }
+    }
+  },
+  "responses": {
+    "a": {
+      "text": "The goal is clear — $15k of debt, gone by May 2030. Everything from here is about building a machine that makes that happen.\n\n---\n\nThe balance shape is the first thing worth naming. It's a **sawtooth** — peaks of $2,640 cycling down to $-133 before the next reset. That's a pay-cycle pattern: money arrives, gets spent down, bottoms out, repeats. Nothing alarming in the shape itself, but it tells you there's no structural separation between what comes in and what's earmarked for the debt. It all sits in one pool and gets consumed.\n\n---\n\nSpending ticked up last month — $3,149 against $2,795 the month before, a 13% move. The biggest single-category driver was uncategorised spend, which means there's a chunk of outflow that hasn't been mapped yet. That matters for the debt goal because unclassified spend is invisible spend — and invisible spend doesn't get redirected.\n\n[STATS]\nTracked spend | $10,252\nBalance shape | sawtooth\nRecurring bills | 79\n[/STATS]\n\n---\n\nNow the number that deserves the most attention: **79 recurring bills, totalling $3,567 per month.** That's 113% of your average monthly spend — meaning your committed recurring costs are running *above* what you're averaging as total spend. Overlap detected in transport specifically, which suggests you may be paying for the same type of service more than once. That's the place to look first.\n\n---\n\nOne structural fix maps directly onto that sawtooth pattern. The experiment: **move a fixed amount toward the debt on payday, before anything else moves.** The success criterion is simple — the transfer happens on payday and doesn't get pulled back. One month to test it.\n\n[OPTIONS]\n- Yes, let's try it\n- Pick a different one\n- Not right now\n[/OPTIONS]\n\nThe sawtooth shows the money exists at the top of each cycle. The question is whether it reaches the debt before the cycle runs it down.\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "list_active_experiments",
+          "args": {},
+          "output": {
+            "success": true,
+            "active": [],
+            "awaiting_outcome": [],
+            "open_proposals": [],
+            "counts": {
+              "active": 0,
+              "awaiting_outcome": 0,
+              "open_proposals": 0
+            }
+          }
+        }
+      ],
+      "tokens": {
+        "in": 23380,
+        "out": 471
+      }
+    },
+    "b": {
+      "text": "Dorcas, the headline is hard to miss.\n\nOver the past 3 months, **$1,300 has gone to legal fees and attorney costs** — a $500 retainer in April (Bufete Legal PSC), $350 to Bufete Legal Alvarez in March, $250 to Bufete Legal Trust, and a $200 attorney consult. That's the single biggest cluster in your data, sitting outside every normal spending category.\n\nOn top of that, **$200/month is going to Hacienda PR** — a payment plan, every month like clockwork.\n\nBoth of these sit against a goal you named as \"clear the debt.\" That changes the picture: these aren't lifestyle leaks, they may be the actual mechanism of debt resolution. But at $1,300 across 3 months, they're also the lever that explains why months look heavy.\n\nOne question before going further: is the legal spend related to the debt you want to clear, or is it a separate matter?\n\n[OPTIONS]\n- Legal fees are part of the debt situation\n- Legal fees are separate from the debt\n- Show me everything else in my spending\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "find_money_clusters",
+          "args": {
+            "date_from": "2026-04-01",
+            "date_to": "2026-04-30",
+            "min_share_pct": 25
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-04-01",
+              "date_to": "2026-04-30",
+              "min_share_pct": 25
+            },
+            "currency": "USD",
+            "window": {
+              "n_transactions": 16,
+              "n_days": 30
+            },
+            "data_confidence": "medium",
+            "stories": [
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase pueblo supermercado 22 is 100% of your groceries spend",
+                "magnitude": {
+                  "amount": 42.1,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase pueblo supermercado 22"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "f27fc753-388d-4705-843d-6b7a9ff62a72",
+                    "date": "2026-04-25T00:00:00+00:00",
+                    "merchant": "POS PURCHASE PUEBLO SUPERMERCADO #22",
+                    "amount": -42.1
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase netflix com is 58.5% of your subscriptions spend",
+                "magnitude": {
+                  "amount": 15.49,
+                  "currency": "USD",
+                  "share_pct": 58.5
+                },
+                "merchants": [
+                  "pos purchase netflix com"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "671f9791-156b-4fdd-af30-ba3cfcbf0a9c",
+                    "date": "2026-04-23T00:00:00+00:00",
+                    "merchant": "POS PURCHASE NETFLIX.COM",
+                    "amount": -15.49
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase texaco mayaguez pr is 100% of your transport spend",
+                "magnitude": {
+                  "amount": 28.5,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase texaco mayaguez pr"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "48a728af-1979-4ba3-84f7-a01ba6511065",
+                    "date": "2026-04-21T00:00:00+00:00",
+                    "merchant": "POS PURCHASE TEXACO MAYAGUEZ PR",
+                    "amount": -28.5
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase cvs pharmacy 5719 san juan is 100% of your health spend",
+                "magnitude": {
+                  "amount": 34.5,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase cvs pharmacy 5719 san juan"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "c99500f6-43e8-422d-a791-33600cbce335",
+                    "date": "2026-04-20T00:00:00+00:00",
+                    "merchant": "POS PURCHASE CVS PHARMACY #5719 SAN JUAN",
+                    "amount": -34.5
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase amazon mktpl us 2hx4g is 100% of your shopping spend",
+                "magnitude": {
+                  "amount": 34.99,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase amazon mktpl us 2hx4g"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "376635b4-a985-41ac-9fa9-5839cd86d5d3",
+                    "date": "2026-04-06T00:00:00+00:00",
+                    "merchant": "POS PURCHASE AMAZON MKTPL US 2HX4G",
+                    "amount": -34.99
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "ach debit luma energy utl pymt is 100% of your utilities_bills spend",
+                "magnitude": {
+                  "amount": 135.2,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "ach debit luma energy utl pymt"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "bd689f80-3225-4270-90e6-03fca54f5e09",
+                    "date": "2026-04-02T00:00:00+00:00",
+                    "merchant": "ACH DEBIT LUMA ENERGY UTL PYMT",
+                    "amount": -135.2
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "ach debit bppr mortgage 7298 is 100% of your housing spend",
+                "magnitude": {
+                  "amount": 120,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "ach debit bppr mortgage 7298"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "99a1226f-a926-4c2c-b554-56ef2f8e453b",
+                    "date": "2026-04-01T00:00:00+00:00",
+                    "merchant": "ACH DEBIT BPPR MORTGAGE 7298",
+                    "amount": -120
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "utilities_bills is 27.7% of your total spend ($135)",
+                "magnitude": {
+                  "amount": 135.2,
+                  "currency": "USD",
+                  "share_pct": 27.7
+                },
+                "merchants": [
+                  "ach debit luma energy utl pymt"
+                ],
+                "comparison": "This category alone takes up 27.7% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "bd689f80-3225-4270-90e6-03fca54f5e09",
+                    "date": "2026-04-02T00:00:00+00:00",
+                    "merchant": "ACH DEBIT LUMA ENERGY UTL PYMT",
+                    "amount": -135.2
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "medium"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "find_outliers",
+          "args": {
+            "date_from": "2026-04-01",
+            "date_to": "2026-04-30",
+            "baseline_lookback_days": 90
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-04-01",
+              "date_to": "2026-04-30",
+              "baseline_lookback_days": 90
+            },
+            "currency": "USD",
+            "window": {
+              "n_transactions": 16,
+              "n_days": 30,
+              "total_spend": 488.47
+            },
+            "baseline": {
+              "n_transactions": 43,
+              "n_days": 90
+            },
+            "outliers": [
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "376635b4-a985-41ac-9fa9-5839cd86d5d3",
+                  "date": "2026-04-06T00:00:00+00:00",
+                  "merchant": "POS PURCHASE AMAZON MKTPL US 2HX4G",
+                  "amount": -34.99,
+                  "category": "shopping"
+                },
+                "context": {
+                  "median_amount": 10.99,
+                  "multiplier": 3.18
+                },
+                "why_unusual": "This one transaction is 3.18× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "c99500f6-43e8-422d-a791-33600cbce335",
+                  "date": "2026-04-20T00:00:00+00:00",
+                  "merchant": "POS PURCHASE CVS PHARMACY #5719 SAN JUAN",
+                  "amount": -34.5,
+                  "category": "health"
+                },
+                "context": {
+                  "median_amount": 10.99,
+                  "multiplier": 3.14
+                },
+                "why_unusual": "This one transaction is 3.14× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "pos purchase amazon mktpl us 2hx4g",
+                "context": {
+                  "window_spend": 34.99,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 7.2,
+                  "sample_transactions": [
+                    {
+                      "id": "376635b4-a985-41ac-9fa9-5839cd86d5d3",
+                      "date": "2026-04-06T00:00:00+00:00",
+                      "amount": -34.99
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 34.99 across 1 visit, 7.2% of your window spend."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "pos purchase cvs pharmacy 5719 san juan",
+                "context": {
+                  "window_spend": 34.5,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 7.1,
+                  "sample_transactions": [
+                    {
+                      "id": "c99500f6-43e8-422d-a791-33600cbce335",
+                      "date": "2026-04-20T00:00:00+00:00",
+                      "amount": -34.5
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 34.5 across 1 visit, 7.1% of your window spend."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "pos purchase texaco mayaguez pr",
+                "context": {
+                  "window_spend": 28.5,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 5.8,
+                  "sample_transactions": [
+                    {
+                      "id": "48a728af-1979-4ba3-84f7-a01ba6511065",
+                      "date": "2026-04-21T00:00:00+00:00",
+                      "amount": -28.5
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 28.5 across 1 visit, 5.8% of your window spend."
+              }
+            ],
+            "data_confidence": {
+              "level": "high",
+              "reason": "59 transactions across 120 days is a solid baseline."
+            }
+          }
+        },
+        {
+          "toolName": "get_transactions",
+          "args": {
+            "date_from": "2026-02-01",
+            "date_to": "2026-04-30",
+            "min_amount": 400,
+            "direction": "spend",
+            "sort": "amount_desc",
+            "limit": 10
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-02-01",
+              "date_to": "2026-04-30",
+              "min_amount": 400,
+              "direction": "spend",
+              "sort": "amount_desc",
+              "limit": 10
+            },
+            "summary": {
+              "row_count": 0,
+              "truncated": false,
+              "total_matching_rows": 0,
+              "total_amount": 0,
+              "currency": "USD"
+            },
+            "transactions": [],
+            "error": "No transactions match these filters."
+          }
+        },
+        {
+          "toolName": "get_transactions",
+          "args": {
+            "date_from": "2026-02-01",
+            "date_to": "2026-04-30",
+            "min_amount": 200,
+            "direction": "spend",
+            "sort": "amount_desc",
+            "limit": 10
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-02-01",
+              "date_to": "2026-04-30",
+              "min_amount": 200,
+              "direction": "spend",
+              "sort": "amount_desc",
+              "limit": 10
+            },
+            "summary": {
+              "row_count": 0,
+              "truncated": false,
+              "total_matching_rows": 0,
+              "total_amount": 0,
+              "currency": "USD"
+            },
+            "transactions": [],
+            "error": "No transactions match these filters."
+          }
+        },
+        {
+          "toolName": "get_transactions",
+          "args": {
+            "date_from": "2026-02-01",
+            "date_to": "2026-04-30",
+            "direction": "all",
+            "sort": "amount_desc",
+            "limit": 10
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-02-01",
+              "date_to": "2026-04-30",
+              "direction": "all",
+              "sort": "amount_desc",
+              "limit": 10
+            },
+            "summary": {
+              "row_count": 10,
+              "truncated": true,
+              "total_matching_rows": 233,
+              "total_amount": -3050,
+              "currency": "USD"
+            },
+            "transactions": [
+              {
+                "id": "6631e418-cf24-4d08-b332-6e0a86ed2f6a",
+                "date": "2026-02-28T00:00:00+00:00",
+                "merchant": "ATH MOVIL OUT TO OSCAR R 7872345678",
+                "amount": -500,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "04bddc40-9e31-4428-a844-520f876ebf72",
+                "date": "2026-04-07T00:00:00+00:00",
+                "merchant": "CHECK 1012 BUFETE LEGAL PSC RETAINER",
+                "amount": -500,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "03484a6d-fdfe-4495-809b-a7ab7670c02f",
+                "date": "2026-03-04T00:00:00+00:00",
+                "merchant": "ATM WITHDRAWAL FIRSTBANK CAROLINA 003",
+                "amount": -400,
+                "category": "transfers",
+                "value_category": "no_idea"
+              },
+              {
+                "id": "1320e18f-03eb-4c95-91a3-0c36acaab3ed",
+                "date": "2026-03-26T00:00:00+00:00",
+                "merchant": "ATH MOVIL OUT TO BUFETE LEGAL ALVAREZ",
+                "amount": -350,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "46f61dff-a1b1-491e-8595-14bf6d1fb76d",
+                "date": "2026-02-16T00:00:00+00:00",
+                "merchant": "ATH MOVIL OUT TO OSCAR R 7872345678",
+                "amount": -250,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "aa6ae8d0-4db2-461a-a5ae-944b8fe61284",
+                "date": "2026-04-16T00:00:00+00:00",
+                "merchant": "ATH MOVIL OUT TO BUFETE LEGAL TRUST",
+                "amount": -250,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "2d831fe2-dd41-4250-98ab-d4c5cf8d9ffd",
+                "date": "2026-02-15T00:00:00+00:00",
+                "merchant": "ACH DEBIT HACIENDA PR PLAN PYMT 200000",
+                "amount": -200,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "ab12bdf1-f9a3-43ed-95f7-a4378062531c",
+                "date": "2026-03-15T00:00:00+00:00",
+                "merchant": "ACH DEBIT HACIENDA PR PLAN PYMT 200000",
+                "amount": -200,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "f1bc1754-98b6-42e4-bc4e-0c0d843066b9",
+                "date": "2026-03-14T00:00:00+00:00",
+                "merchant": "POS PURCHASE LCDO DIAZ ATTORNEY CONSULT",
+                "amount": -200,
+                "category": null,
+                "value_category": "no_idea"
+              },
+              {
+                "id": "259cf887-9eca-490b-968e-ea304fdc2d08",
+                "date": "2026-02-26T00:00:00+00:00",
+                "merchant": "ATM WITHDRAWAL FIRSTBANK CAROLINA 003",
+                "amount": -200,
+                "category": "transfers",
+                "value_category": "no_idea"
+              }
+            ]
+          }
+        }
+      ],
+      "tokens": {
+        "in": 28319,
+        "out": 268
+      }
+    }
+  },
+  "rating": {
+    "winner": "b",
+    "rater": "lewis",
+    "rated_at": "2026-05-20T11:17:37.527Z",
+    "notes": "L has incorrect facts **79 recurring bills, totalling $3,567 per month.** That's 113% of your average monthly spend"
+  },
+  "judge_predictions": [
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T11:04:46.289Z",
+      "score_a": 0.72,
+      "score_b": 0.78,
+      "predicted_winner": "b",
+      "diagnostic": {
+        "a.recognition": 0.85,
+        "a.goal_calibration": 0.88,
+        "a.surprise": 0.78,
+        "a.trust": 0.75,
+        "a.tangibility": 0.82,
+        "a.voice": 0.79,
+        "b.recognition": 0.85,
+        "b.goal_calibration": 0.9,
+        "b.surprise": 0.75,
+        "b.trust": 0.8,
+        "b.tangibility": 0.82,
+        "b.voice": 0.88
+      },
+      "reasoning_a": "Strong specificity (sawtooth pattern, $3,567 recurring bills, 13% monthly increase) and sharp calibration to the $15k debt goal drive the score. Recognition and tangibility are solid—the sawtooth feels grounded in actual cash flow cycles, the recurring-bill overlap heuristic is concrete and actionable. The main drag: no named merchants (Wendys, Econo Plaza, etc.) despite the available merchant list, and the unclassified-spend flag lacks a specific dollar amount or merchant cluster, which costs recognition points. Voice is crisp and peer-like, but at ~210 words (excluding signoff/options), it runs over the 100–180 target by ~30 words.",
+      "reasoning_b": "The response nails specificity (naming four distinct legal vendors with exact amounts: $500 Bufete Legal PSC, $350 Bufete Legal Alvarez, $250 Bufete Legal Trust, $200 consult; anchoring $200/month Hacienda PR) and directly reframes the legal cluster against the user's stated goal of \"clear the debt\"—transforming it from a leak into a potential mechanism. The non-obvious insight (that heavy months may reflect debt-clearing effort, not overspend) combined with crisp CFO voice and a calibrated question (\"is the legal spend related to debt or separate?\") drives the wow, though the brief being empty and trust capped by unverified tool outputs limits the score from 0.85+."
+    }
+  ]
+}

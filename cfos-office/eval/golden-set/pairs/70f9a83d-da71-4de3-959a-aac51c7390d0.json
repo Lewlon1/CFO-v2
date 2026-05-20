@@ -1,0 +1,991 @@
+{
+  "pair_id": "70f9a83d-da71-4de3-959a-aac51c7390d0",
+  "created_at": "2026-05-20T08:41:31.683Z",
+  "source": "compare-first-insight",
+  "fold": "holdout",
+  "input": {
+    "persona_id": null,
+    "user_id": "114c3cae-4f39-4a19-bc9d-403c9f47498e",
+    "trigger_message": "[System: Post-upload analysis triggered. Deliver your first insight.]",
+    "known_merchants": [
+      "DIRECT DEP PAYROLL EMPLOYER PR",
+      "POS PURCHASE MCDONALDS #2218",
+      "POS PURCHASE SUBWAY #28912",
+      "ACH DEBIT CLARO MOVIL POSTPAID",
+      "POS PURCHASE WENDYS #4501",
+      "POS PURCHASE WALGREENS #6841",
+      "POS PURCHASE POLLO TROPICAL #142",
+      "ATM WITHDRAWAL FIRSTBANK CAROLINA 003",
+      "POS PURCHASE LCDA CARMEN ALVAREZ CONSULT",
+      "POS PURCHASE WALMART #3501 CAGUAS PR",
+      "POS PURCHASE TOTAL 1109 BAYAMON PR",
+      "POS PURCHASE POLLO TROPICAL DRIVE THRU",
+      "POS PURCHASE EL MESON SANDWICHES",
+      "POS PURCHASE BURGER KING #18",
+      "POS PURCHASE LCDO DIAZ ATTORNEY CONSULT",
+      "POS PURCHASE REGISTRO PROPIEDAD PR FILING",
+      "POS PURCHASE HOSPITAL AUXILIO MUTUO COPAY",
+      "POS PURCHASE DENNYS #7012",
+      "ATH MOVIL IN FROM YARI 7873334444",
+      "POS PURCHASE LONGHORN STEAKHOUSE PLAZA",
+      "POS PURCHASE DTOP RENOV LIC VEH",
+      "POS PURCHASE IHOP #1820 PLAZA LAS AMS",
+      "POS PURCHASE PUMA HATO REY PR",
+      "POS PURCHASE ECONO SUPER CAROLINA #18",
+      "POS PURCHASE CVS PHARMACY #5719",
+      "POS PURCHASE MCDONALDS #2218 BREAKFAST",
+      "POS PURCHASE WENDYS #4501 CAROLINA",
+      "ACH DEBIT AAA AUT ACUEDUCTOS",
+      "POS PURCHASE WENDYS #4612",
+      "ATH MOVIL IN FROM MAMI 7872210000",
+      "ATH MOVIL OUT TO BUFETE LEGAL ALVAREZ",
+      "POS PURCHASE UBER TRIP HELP.UBER.COM",
+      "POS PURCHASE SPOTIFY USA",
+      "POS PURCHASE WALGREENS #6841 CAROLINA PR",
+      "POS PURCHASE COPIES EXPRESS SAN JUAN",
+      "ACH DEBIT HACIENDA PR PLAN PYMT 200000",
+      "POS PURCHASE TOTAL 0451 CAROLINA PR",
+      "POS PURCHASE SAMS CLUB #6391 MAYAGUEZ",
+      "POS PURCHASE AMAZON MKTPL US 8FQ2W",
+      "POS PURCHASE EL MESON SANDWICHES CAROLINA",
+      "ATH MOVIL IN FROM MAMI",
+      "POS PURCHASE MARSHALLS #1054 PR",
+      "POS PURCHASE CERRAJERIA CARIBE BAYAMON",
+      "PAYMENT BPPR CREDIT CARD XXXX4419",
+      "POS PURCHASE KFC #1872",
+      "POS PURCHASE USPS CORREOS CERTIFIED PR",
+      "POS PURCHASE OFFICEMAX #4218 PLAZA",
+      "POS PURCHASE NOTARIO LOPEZ PSC SAN JUAN",
+      "ACH DEBIT LIBERTY CABLEVISION PR",
+      "POS PURCHASE OLIVE GARDEN PLAZA LAS AMS",
+      "POS PURCHASE CHURCHS CHICKEN #71",
+      "POS PURCHASE KFC #1872 BAYAMON",
+      "POS PURCHASE TEXACO CAROLINA PR",
+      "POS PURCHASE WALGREENS RX #6841",
+      "POS PURCHASE PUMA AVE ASHFORD CONDADO",
+      "POS PURCHASE SUBWAY #28912 SAN JUAN",
+      "ATH MOVIL OUT TO BUFETE LEGAL TRUST",
+      "LATE FEE BPPR CREDIT CARD XXXX4419",
+      "POS PURCHASE MCDONALDS #2218 CAROLINA",
+      "POS PURCHASE WENDYS #4612 BAYAMON",
+      "POS PURCHASE CHURCHS CHICKEN #71 PR",
+      "ATH MOVIL OUT TO PARALEGAL HELP",
+      "POS PURCHASE AMAZON MKTPL US 2HX4G",
+      "POS PURCHASE NETFLIX.COM",
+      "ACH DEBIT BPPR MORTGAGE 7298",
+      "ACH DEBIT NETFLIX.COM",
+      "ACH DEBIT CRIM PROP TAX AUTOPAY",
+      "ATH MOVIL OUT TO MAMI 7872210000",
+      "OVERDRAFT FEE FIRSTBANK",
+      "ATH MOVIL OUT TO BUFETE LEGAL",
+      "CHECK 1012 BUFETE LEGAL PSC RETAINER",
+      "POS PURCHASE CVS PHARMACY #5719 SAN JUAN",
+      "POS PURCHASE COSTCO WHSE #1029 CAROLINA",
+      "POS PURCHASE ECONO PLAZA NORTE BAYAMON",
+      "POS PURCHASE POLLO TROPICAL",
+      "POS PURCHASE DENNYS #7012 SAN JUAN",
+      "POS PURCHASE BURGER KING #18 CAROLINA",
+      "POS PURCHASE TEXACO MAYAGUEZ PR",
+      "POS PURCHASE PUEBLO SUPERMERCADO #22",
+      "POS PURCHASE ECONO PLAZA NORTE",
+      "ATH MOVIL IN FROM YARI",
+      "POS PURCHASE TOTAL 4188 TRUJILLO ALTO",
+      "POS PURCHASE MCDONALDS DRIVE THRU",
+      "POS PURCHASE BEST BUY #186 PLAZA LAS AMS",
+      "ATH MOVIL OUT TO OSCAR R 7872345678",
+      "POS PURCHASE AMAZON MKTPL US 9KT2P",
+      "ACH DEBIT LUMA ENERGY UTL PYMT",
+      "POS PURCHASE POLLO TROPICAL #142 CAROLINA PR"
+    ],
+    "user_brief": "(no entry brief / goal recorded)",
+    "prompt_variants": {
+      "a": {
+        "label": "v1",
+        "hash": "8017df2618dd5557"
+      },
+      "b": {
+        "label": "v2",
+        "hash": "84c6ae1dd14423a4"
+      }
+    }
+  },
+  "responses": {
+    "a": {
+      "text": "**The balance shape tells the story.** Your account runs a sawtooth — peaks of $2,640 cycling down to $-133 before the next pay cycle resets it. That's a rhythm, not a crisis, but it means there's almost no float sitting between you and the credit card balance you came here to clear.\n\n**The numbers tightened last month.** Spend came in at $3,149 vs $2,795 the month before — a 13% step up. The biggest single shift was in uncategorised transactions, which makes it harder to see exactly where the pressure is coming from. That's worth pulling apart.\n\n[STATS]\nTracked spend | $10,252\nBalance shape | sawtooth\nRecurring bills | 79\n[/STATS]\n\n**Here's the buried number.** Seventy-nine recurring bills totalling $3,567 a month. That's 113% of your average monthly spend — meaning recurring commitments alone exceed what a typical month looks like in the data. Transport shows overlap specifically: charges appearing to duplicate or stack in a way that warrants a direct look. With $5k on the credit card as the target, $3,567 going out on autopilot every month is the first place to press.\n\n**On experiments** — there's a strong structural case for moving a fixed amount toward the credit card on payday, before the sawtooth has a chance to eat it. The hypothesis is simple: pay-yourself-first beats willpower. The success criterion is one transfer on payday that stays put. That said, you already have an active experiment running (\"Take two zero-spend days this week\") — finish that one first, then this is the natural next move.\n\n[OPTIONS]\n- Yes, let's try it\n- Pick a different one\n- Not right now\n[/OPTIONS]\n\nThe $5k target is clearable — the structure just needs to catch up with the intention. There's a lot more signal in here to work through.\n\n[OPTIONS]\n- Show me a different one\n- Show me the full breakdown\n- Let's get started\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "list_active_experiments",
+          "args": {},
+          "output": {
+            "success": true,
+            "active": [
+              {
+                "experiment_id": "a1844f06-6277-445a-92c2-b36048a96d66",
+                "template_id": "velocity_brake",
+                "title": "Take two zero-spend days this week",
+                "success_criterion": "2 days with no card or cash transactions",
+                "starts_at": "2026-05-19T11:30:19.205+00:00",
+                "ends_at": "2026-05-26T11:30:19.205+00:00"
+              }
+            ],
+            "awaiting_outcome": [],
+            "open_proposals": [],
+            "counts": {
+              "active": 1,
+              "awaiting_outcome": 0,
+              "open_proposals": 0
+            }
+          }
+        }
+      ],
+      "tokens": {
+        "in": 23530,
+        "out": 475
+      }
+    },
+    "b": {
+      "text": "Welcome, Dorcas. Here's what stands out immediately.\n\nYour electricity bill — LUMA Energy — is running **$135/month**, which is 27.7% of everything you spent in April. You classified electricity as a Burden, and that's the right read: it's not something you value, it's just leaving. Over 3 months it's averaged over $130/month. That's the single biggest lever in your spending right now, and it's directly in the way of clearing the credit card.\n\nThe $500 legal retainer in April is a different story — a real one-off, but worth watching if it recurs.\n\nWhat's working: housing ($120/month mortgage) and groceries ($42/month at Pueblo Supermercado) are tight and predictable.\n\nThe LUMA bill is the place to start — whether that's challenging usage or researching a better tariff.\n\n[OPTIONS]\n- Look for a better deal on the LUMA bill\n- Show me what's on the credit card\n- Break down all three months\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "find_money_clusters",
+          "args": {
+            "date_from": "2026-04-01",
+            "date_to": "2026-04-30",
+            "min_share_pct": 25
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-04-01",
+              "date_to": "2026-04-30",
+              "min_share_pct": 25
+            },
+            "currency": "USD",
+            "window": {
+              "n_transactions": 16,
+              "n_days": 30
+            },
+            "data_confidence": "medium",
+            "stories": [
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase pueblo supermercado 22 is 100% of your groceries spend",
+                "magnitude": {
+                  "amount": 42.1,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase pueblo supermercado 22"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "5a060447-00d2-4f53-b1d6-8ec5d5974fcd",
+                    "date": "2026-04-25T00:00:00+00:00",
+                    "merchant": "POS PURCHASE PUEBLO SUPERMERCADO #22",
+                    "amount": -42.1
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase netflix com is 58.5% of your subscriptions spend",
+                "magnitude": {
+                  "amount": 15.49,
+                  "currency": "USD",
+                  "share_pct": 58.5
+                },
+                "merchants": [
+                  "pos purchase netflix com"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "f26d815f-6ac6-4d5e-af48-168951a5aace",
+                    "date": "2026-04-23T00:00:00+00:00",
+                    "merchant": "POS PURCHASE NETFLIX.COM",
+                    "amount": -15.49
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase texaco mayaguez pr is 100% of your transport spend",
+                "magnitude": {
+                  "amount": 28.5,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase texaco mayaguez pr"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "b9c53475-8a1e-48d9-8a92-e6e4d1319f13",
+                    "date": "2026-04-21T00:00:00+00:00",
+                    "merchant": "POS PURCHASE TEXACO MAYAGUEZ PR",
+                    "amount": -28.5
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase cvs pharmacy 5719 san juan is 100% of your health spend",
+                "magnitude": {
+                  "amount": 34.5,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase cvs pharmacy 5719 san juan"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "28bf065b-5a31-40a3-9315-c4c6c029fde3",
+                    "date": "2026-04-20T00:00:00+00:00",
+                    "merchant": "POS PURCHASE CVS PHARMACY #5719 SAN JUAN",
+                    "amount": -34.5
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "pos purchase amazon mktpl us 2hx4g is 100% of your shopping spend",
+                "magnitude": {
+                  "amount": 34.99,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "pos purchase amazon mktpl us 2hx4g"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "5db752e5-6870-488f-addf-6bc6b9554b7b",
+                    "date": "2026-04-06T00:00:00+00:00",
+                    "merchant": "POS PURCHASE AMAZON MKTPL US 2HX4G",
+                    "amount": -34.99
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "ach debit luma energy utl pymt is 100% of your utilities_bills spend",
+                "magnitude": {
+                  "amount": 135.2,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "ach debit luma energy utl pymt"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "6fa9dbae-d5b9-422a-8cfa-7d13626c938b",
+                    "date": "2026-04-02T00:00:00+00:00",
+                    "merchant": "ACH DEBIT LUMA ENERGY UTL PYMT",
+                    "amount": -135.2
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "ach debit bppr mortgage 7298 is 100% of your housing spend",
+                "magnitude": {
+                  "amount": 120,
+                  "currency": "USD",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "ach debit bppr mortgage 7298"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "894909b7-adea-4180-924d-8977b80f649a",
+                    "date": "2026-04-01T00:00:00+00:00",
+                    "merchant": "ACH DEBIT BPPR MORTGAGE 7298",
+                    "amount": -120
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "medium"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "utilities_bills is 27.7% of your total spend ($135)",
+                "magnitude": {
+                  "amount": 135.2,
+                  "currency": "USD",
+                  "share_pct": 27.7
+                },
+                "merchants": [
+                  "ach debit luma energy utl pymt"
+                ],
+                "comparison": "This category alone takes up 27.7% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "6fa9dbae-d5b9-422a-8cfa-7d13626c938b",
+                    "date": "2026-04-02T00:00:00+00:00",
+                    "merchant": "ACH DEBIT LUMA ENERGY UTL PYMT",
+                    "amount": -135.2
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "medium"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "find_outliers",
+          "args": {
+            "date_from": "2026-04-01",
+            "date_to": "2026-04-30",
+            "baseline_lookback_days": 90
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-04-01",
+              "date_to": "2026-04-30",
+              "baseline_lookback_days": 90
+            },
+            "currency": "USD",
+            "window": {
+              "n_transactions": 16,
+              "n_days": 30,
+              "total_spend": 488.47
+            },
+            "baseline": {
+              "n_transactions": 43,
+              "n_days": 90
+            },
+            "outliers": [
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "5db752e5-6870-488f-addf-6bc6b9554b7b",
+                  "date": "2026-04-06T00:00:00+00:00",
+                  "merchant": "POS PURCHASE AMAZON MKTPL US 2HX4G",
+                  "amount": -34.99,
+                  "category": "shopping"
+                },
+                "context": {
+                  "median_amount": 10.99,
+                  "multiplier": 3.18
+                },
+                "why_unusual": "This one transaction is 3.18× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "large_one_off",
+                "transaction": {
+                  "id": "28bf065b-5a31-40a3-9315-c4c6c029fde3",
+                  "date": "2026-04-20T00:00:00+00:00",
+                  "merchant": "POS PURCHASE CVS PHARMACY #5719 SAN JUAN",
+                  "amount": -34.5,
+                  "category": "health"
+                },
+                "context": {
+                  "median_amount": 10.99,
+                  "multiplier": 3.14
+                },
+                "why_unusual": "This one transaction is 3.14× your typical purchase size in the last 90 days."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "pos purchase amazon mktpl us 2hx4g",
+                "context": {
+                  "window_spend": 34.99,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 7.2,
+                  "sample_transactions": [
+                    {
+                      "id": "5db752e5-6870-488f-addf-6bc6b9554b7b",
+                      "date": "2026-04-06T00:00:00+00:00",
+                      "amount": -34.99
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 34.99 across 1 visit, 7.2% of your window spend."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "pos purchase cvs pharmacy 5719 san juan",
+                "context": {
+                  "window_spend": 34.5,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 7.1,
+                  "sample_transactions": [
+                    {
+                      "id": "28bf065b-5a31-40a3-9315-c4c6c029fde3",
+                      "date": "2026-04-20T00:00:00+00:00",
+                      "amount": -34.5
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 34.5 across 1 visit, 7.1% of your window spend."
+              },
+              {
+                "type": "first_time_merchant",
+                "merchant": "pos purchase texaco mayaguez pr",
+                "context": {
+                  "window_spend": 28.5,
+                  "window_transaction_count": 1,
+                  "share_of_window_pct": 5.8,
+                  "sample_transactions": [
+                    {
+                      "id": "b9c53475-8a1e-48d9-8a92-e6e4d1319f13",
+                      "date": "2026-04-21T00:00:00+00:00",
+                      "amount": -28.5
+                    }
+                  ]
+                },
+                "why_unusual": "New merchant this period — 28.5 across 1 visit, 5.8% of your window spend."
+              }
+            ],
+            "data_confidence": {
+              "level": "high",
+              "reason": "59 transactions across 120 days is a solid baseline."
+            }
+          }
+        },
+        {
+          "toolName": "get_spending_summary",
+          "args": {
+            "date_from": "2026-04-01",
+            "date_to": "2026-04-30"
+          },
+          "output": {
+            "date_range": {
+              "from": "2026-04-01",
+              "to": "2026-04-30"
+            },
+            "total_spending": 488.47,
+            "transaction_count": 16,
+            "avg_transaction": 30.53,
+            "top_merchants": [
+              {
+                "description": "ACH DEBIT LUMA ENERGY UTL PYMT",
+                "total": 135.2,
+                "count": 1
+              },
+              {
+                "description": "ACH DEBIT BPPR MORTGAGE 7298",
+                "total": 120,
+                "count": 1
+              },
+              {
+                "description": "POS PURCHASE PUEBLO SUPERMERCADO #22",
+                "total": 42.1,
+                "count": 1
+              },
+              {
+                "description": "POS PURCHASE AMAZON MKTPL US 2HX4G",
+                "total": 34.99,
+                "count": 1
+              },
+              {
+                "description": "POS PURCHASE CVS PHARMACY #5719 SAN JUAN",
+                "total": 34.5,
+                "count": 1
+              }
+            ],
+            "category_breakdown": [
+              {
+                "category": "utilities_bills",
+                "total": 135.2,
+                "percentage": 27.7
+              },
+              {
+                "category": "housing",
+                "total": 120,
+                "percentage": 24.6
+              },
+              {
+                "category": "eat_drinking_out",
+                "total": 66.7,
+                "percentage": 13.7
+              },
+              {
+                "category": "groceries",
+                "total": 42.1,
+                "percentage": 8.6
+              },
+              {
+                "category": "shopping",
+                "total": 34.99,
+                "percentage": 7.2
+              },
+              {
+                "category": "health",
+                "total": 34.5,
+                "percentage": 7.1
+              },
+              {
+                "category": "transport",
+                "total": 28.5,
+                "percentage": 5.8
+              },
+              {
+                "category": "subscriptions",
+                "total": 26.48,
+                "percentage": 5.4
+              }
+            ],
+            "value_breakdown": {
+              "leak": 128.17,
+              "foundation": 325.8,
+              "investment": 34.5
+            },
+            "currency": "USD"
+          }
+        },
+        {
+          "toolName": "find_value_gaps",
+          "args": {
+            "months": 3
+          },
+          "output": {
+            "has_value_map": true,
+            "gaps": [
+              {
+                "shape": "single_intent",
+                "category_id": "housing",
+                "category_name": "housing",
+                "stated_quadrant": "foundation",
+                "stated_confidence": 3,
+                "actual_monthly_spend": 80,
+                "pct_of_total_spending": 18.8,
+                "actual_breakdown": {
+                  "foundation_pct": 100,
+                  "investment_pct": 0,
+                  "burden_pct": 0,
+                  "leak_pct": 0,
+                  "unsure_pct": 0
+                },
+                "gap_type": "aligned",
+                "gap_severity": "low",
+                "top_merchants": [
+                  {
+                    "merchant": "ach debit bppr mortgage 7298",
+                    "amount": 240
+                  }
+                ],
+                "sample_transactions": [
+                  {
+                    "id": "894909b7-adea-4180-924d-8977b80f649a",
+                    "date": "2026-04-01T00:00:00+00:00",
+                    "merchant": "ACH DEBIT BPPR MORTGAGE 7298",
+                    "amount": -120
+                  },
+                  {
+                    "id": "9fcdafe9-89d9-450a-ab9a-a3b5b26612a5",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "ACH DEBIT BPPR MORTGAGE 7298",
+                    "amount": -120
+                  }
+                ],
+                "narrative_hint": "Your housing spending aligns with how you see it."
+              },
+              {
+                "shape": "single_intent",
+                "category_id": "groceries",
+                "category_name": "groceries",
+                "stated_quadrant": "burden",
+                "stated_confidence": 3,
+                "actual_monthly_spend": 42.1,
+                "pct_of_total_spending": 9.9,
+                "actual_breakdown": {
+                  "foundation_pct": 100,
+                  "investment_pct": 0,
+                  "burden_pct": 0,
+                  "leak_pct": 0,
+                  "unsure_pct": 0
+                },
+                "gap_type": "aligned",
+                "gap_severity": "low",
+                "top_merchants": [
+                  {
+                    "merchant": "pos purchase pueblo supermercado 22",
+                    "amount": 126.3
+                  }
+                ],
+                "sample_transactions": [
+                  {
+                    "id": "5a060447-00d2-4f53-b1d6-8ec5d5974fcd",
+                    "date": "2026-04-25T00:00:00+00:00",
+                    "merchant": "POS PURCHASE PUEBLO SUPERMERCADO #22",
+                    "amount": -42.1
+                  },
+                  {
+                    "id": "0aeee178-9778-4fa0-8227-ff813e9170b7",
+                    "date": "2026-03-27T00:00:00+00:00",
+                    "merchant": "POS PURCHASE PUEBLO SUPERMERCADO #22",
+                    "amount": -42.1
+                  },
+                  {
+                    "id": "3cd9d07a-7d61-4f57-9561-ffa7b8d4ce39",
+                    "date": "2026-02-20T00:00:00+00:00",
+                    "merchant": "POS PURCHASE PUEBLO SUPERMERCADO #22",
+                    "amount": -42.1
+                  }
+                ],
+                "narrative_hint": "Your groceries spending aligns with how you see it."
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "eat_drinking_out",
+                "category_name": "eat_drinking_out",
+                "stated_intents": [
+                  {
+                    "card_label": "Takeaway delivery on a quiet evening",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Dinner out with friends",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 66.3,
+                "pct_of_total_spending": 15.6,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 152.9,
+                    "share_pct": 76.9,
+                    "top_merchants": [
+                      "pos purchase subway 28912",
+                      "pos purchase mcdonalds 2218",
+                      "pos purchase burger king 18"
+                    ],
+                    "sample_count": 18,
+                    "sample_transactions": [
+                      {
+                        "id": "da768456-4f91-4f9b-bc18-75c74bab69c4",
+                        "date": "2026-03-18T00:00:00+00:00",
+                        "merchant": "POS PURCHASE KFC #1872",
+                        "amount": -11.2
+                      },
+                      {
+                        "id": "95400786-120e-4df5-8bb4-154282637637",
+                        "date": "2026-04-09T00:00:00+00:00",
+                        "merchant": "POS PURCHASE KFC #1872 BAYAMON",
+                        "amount": -11.2
+                      },
+                      {
+                        "id": "716efa28-70f7-427d-a1d0-81109fa73c4e",
+                        "date": "2026-03-06T00:00:00+00:00",
+                        "merchant": "POS PURCHASE SUBWAY #28912",
+                        "amount": -9.2
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 46,
+                    "share_pct": 23.1,
+                    "top_merchants": [
+                      "pos purchase mcdonalds 2218",
+                      "pos purchase mcdonalds 2218 breakfast",
+                      "pos purchase mcdonalds 2218 carolina"
+                    ],
+                    "sample_count": 6,
+                    "sample_transactions": [
+                      {
+                        "id": "44183621-5135-40bb-ae8e-b9bf8f319a92",
+                        "date": "2026-03-22T00:00:00+00:00",
+                        "merchant": "POS PURCHASE MCDONALDS #2218 BREAKFAST",
+                        "amount": -7.85
+                      },
+                      {
+                        "id": "41cedd1f-57ef-4113-9786-4e7a3d7c72b3",
+                        "date": "2026-03-29T00:00:00+00:00",
+                        "merchant": "POS PURCHASE MCDONALDS #2218",
+                        "amount": -7.85
+                      },
+                      {
+                        "id": "c6284420-a84d-4559-a631-8d0f23a6e218",
+                        "date": "2026-04-05T00:00:00+00:00",
+                        "merchant": "POS PURCHASE MCDONALDS #2218 CAROLINA",
+                        "amount": -7.85
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "subscriptions",
+                "category_name": "subscriptions",
+                "stated_intents": [
+                  {
+                    "card_label": "Streaming service subscription",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 22.82,
+                "pct_of_total_spending": 5.4,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 41.97,
+                    "share_pct": 61.3,
+                    "top_merchants": [
+                      "pos purchase netflix com",
+                      "ach debit netflix com",
+                      "pos purchase spotify usa"
+                    ],
+                    "sample_count": 3,
+                    "sample_transactions": [
+                      {
+                        "id": "f26d815f-6ac6-4d5e-af48-168951a5aace",
+                        "date": "2026-04-23T00:00:00+00:00",
+                        "merchant": "POS PURCHASE NETFLIX.COM",
+                        "amount": -15.49
+                      },
+                      {
+                        "id": "a4498783-013b-4516-bd5d-a52378240fbd",
+                        "date": "2026-03-31T00:00:00+00:00",
+                        "merchant": "ACH DEBIT NETFLIX.COM",
+                        "amount": -15.49
+                      },
+                      {
+                        "id": "ee09d01e-800b-4e1e-ab52-6fdadcf6d657",
+                        "date": "2026-04-01T00:00:00+00:00",
+                        "merchant": "POS PURCHASE SPOTIFY USA",
+                        "amount": -10.99
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 26.48,
+                    "share_pct": 38.7,
+                    "top_merchants": [
+                      "ach debit netflix com",
+                      "pos purchase spotify usa"
+                    ],
+                    "sample_count": 2,
+                    "sample_transactions": [
+                      {
+                        "id": "66b16e9f-75a9-4d5c-a84e-dc4606d46637",
+                        "date": "2026-02-28T00:00:00+00:00",
+                        "merchant": "ACH DEBIT NETFLIX.COM",
+                        "amount": -15.49
+                      },
+                      {
+                        "id": "eee10a52-41c9-4d25-b706-d7aac3a378e2",
+                        "date": "2026-03-01T00:00:00+00:00",
+                        "merchant": "POS PURCHASE SPOTIFY USA",
+                        "amount": -10.99
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "entertainment",
+                "category_name": "entertainment",
+                "stated_intents": [
+                  {
+                    "card_label": "Online course or book",
+                    "quadrant": "leak",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "utilities_bills",
+                "category_name": "utilities_bills",
+                "stated_intents": [
+                  {
+                    "card_label": "Electricity bill",
+                    "quadrant": "burden",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 92.67,
+                "pct_of_total_spending": 21.7,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 278,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "ach debit luma energy utl pymt"
+                    ],
+                    "sample_count": 2,
+                    "sample_transactions": [
+                      {
+                        "id": "9f462e6f-cc42-4b99-8db4-4ecdd6bd340a",
+                        "date": "2026-03-02T00:00:00+00:00",
+                        "merchant": "ACH DEBIT LUMA ENERGY UTL PYMT",
+                        "amount": -142.8
+                      },
+                      {
+                        "id": "6fa9dbae-d5b9-422a-8cfa-7d13626c938b",
+                        "date": "2026-04-02T00:00:00+00:00",
+                        "merchant": "ACH DEBIT LUMA ENERGY UTL PYMT",
+                        "amount": -135.2
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "shopping",
+                "category_name": "shopping",
+                "stated_intents": [
+                  {
+                    "card_label": "New clothes or shoes",
+                    "quadrant": "leak",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Birthday gift for someone close",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 45.81,
+                "pct_of_total_spending": 10.8,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 137.43,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "pos purchase amazon mktpl us 9kt2p",
+                      "pos purchase amazon mktpl us 8fq2w",
+                      "pos purchase amazon mktpl us 2hx4g"
+                    ],
+                    "sample_count": 3,
+                    "sample_transactions": [
+                      {
+                        "id": "53f56b42-92d1-4d20-a2d8-4dbd3941fba7",
+                        "date": "2026-02-25T00:00:00+00:00",
+                        "merchant": "POS PURCHASE AMAZON MKTPL US 9KT2P",
+                        "amount": -67.45
+                      },
+                      {
+                        "id": "be9210ce-3634-4de0-88d4-d4e5cfdd7fbc",
+                        "date": "2026-03-31T00:00:00+00:00",
+                        "merchant": "POS PURCHASE AMAZON MKTPL US 8FQ2W",
+                        "amount": -34.99
+                      },
+                      {
+                        "id": "5db752e5-6870-488f-addf-6bc6b9554b7b",
+                        "date": "2026-04-06T00:00:00+00:00",
+                        "merchant": "POS PURCHASE AMAZON MKTPL US 2HX4G",
+                        "amount": -34.99
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "coverage_gap",
+                "category_id": "transport",
+                "category_name": "transport",
+                "monthly_total": 42.1,
+                "share_of_spend_pct": 9.9,
+                "narrative_hint": "Not in user's Value Map; invite them to share what this category means."
+              }
+            ],
+            "value_map_metadata": {
+              "baseline_taken_at": "2026-05-19T09:16:54.539159+00:00",
+              "classifications_count": 10,
+              "decided_count": 9,
+              "unsure_count": 1,
+              "staleness_days": 0,
+              "coverage_pct": 87.5,
+              "unclassified_categories": [
+                "health"
+              ]
+            },
+            "currency": "USD"
+          }
+        }
+      ],
+      "tokens": {
+        "in": 30319,
+        "out": 246
+      }
+    }
+  },
+  "rating": {
+    "winner": "b",
+    "rater": "lewis",
+    "rated_at": "2026-05-20T10:58:23.236Z",
+    "notes": "L aluicinated figures 79 reoccuring transactions and 113% of monthly spend makes no sense"
+  },
+  "judge_predictions": [
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T08:48:33.198Z",
+      "score_a": 0.72,
+      "score_b": 0.72,
+      "predicted_winner": "tie",
+      "diagnostic": {
+        "a.recognition": 0.78,
+        "a.goal_calibration": 0.75,
+        "a.surprise": 0.68,
+        "a.trust": 0.72,
+        "a.tangibility": 0.71,
+        "a.voice": 0.75,
+        "b.recognition": 0.85,
+        "b.goal_calibration": 0.5,
+        "b.surprise": 0.78,
+        "b.trust": 0.82,
+        "b.tangibility": 0.88,
+        "b.voice": 0.75
+      },
+      "reasoning_a": "Strong specificity on the sawtooth balance shape and $3,567 recurring bills anchored to the $5k credit card goal, with sharp peer voice and proper signoff. Recognition dips slightly for naming no merchants by name despite merchant list availability (though \"$3,567 recurring\" and \"transport overlap\" demonstrate pattern work); surprise and trust held back by the pay-yourself-first move being fairly conventional advice, and some uncertainty signals (\"warrants a look,\" \"the hypothesis is simple\") that feel protective but aren't grounded in why the signal is thin.",
+      "reasoning_b": "Strong recognition (names LUMA Energy, Pueblo Supermercado, specific amounts like $135/month), surprise (the 27.7% concentration insight is non-obvious), and tangibility (Dorcas's mortgage/grocery-spend baseline grounds the LUMA comparison credibly). Neutral goal_calibration because the brief is empty, leaving the user's stated pain-point unanchored—the CFO assumes the credit card is the goal but that's not confirmed. Minor voice drag from phrase \"worth watching\" (a borderline hedge-word in the banned-adjacent zone) and body length slightly under target at ~145 words; otherwise peer-tone and specific throughout."
+    }
+  ]
+}

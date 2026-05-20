@@ -68,7 +68,7 @@ const JudgeSchema = z.object({
   reasoning: z
     .string()
     .min(10)
-    .max(400)
+    .max(2000)
     .describe('1-2 sentences explaining the wow_score. Cite which sub-scores drove the headline.'),
 })
 
