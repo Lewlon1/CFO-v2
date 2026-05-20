@@ -308,6 +308,19 @@ export async function runImportPipeline(
     }
   }
 
+  // Every row failing is a systemic failure (schema drift, RLS regression,
+  // etc), not per-row data quality. Alert loudly so the silent-zero-import
+  // mode doesn't recur — this is the bug class that hid the missing
+  // `transactions.balance` column in prod for ~3 weeks.
+  if (toInsert.length > 0 && stats.errors === toInsert.length) {
+    void sendAlert({
+      severity: 'critical',
+      event: 'transaction_insert_all_failed',
+      user_id: opts.userId,
+      details: `All ${toInsert.length} rows failed to insert for batch ${opts.importBatchId}. See [pipeline] insert error logs for codes.`,
+    })
+  }
+
   return stats
 }
 
