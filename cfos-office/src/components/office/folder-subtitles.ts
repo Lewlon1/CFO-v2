@@ -97,20 +97,6 @@ export function valuesSubtitle(
   return `${archetypeName} · ${Math.round(profileCompleteness)}% profiled`
 }
 
-/**
- * Scenarios subtitle.
- *
- * Goal → "What shifts your goal's pace"
- * No goal → "What if..." (existing)
- *
- * Per Constitution §3: "the CFO names a spending pattern against the goal's
- * pace." Scenarios is where pace is modelled; the subtitle says so when a
- * goal exists.
- */
-export function scenariosSubtitle(primaryGoal: PrimaryGoal | null): string {
-  return primaryGoal ? "What shifts your goal's pace" : 'What if...'
-}
-
 function formatEuros(absValue: number): string {
   return `€${Math.round(absValue).toLocaleString('en-IE')}`
 }

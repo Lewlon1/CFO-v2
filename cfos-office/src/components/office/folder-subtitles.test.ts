@@ -3,7 +3,6 @@ import {
   cashFlowSubtitle,
   netWorthSubtitle,
   valuesSubtitle,
-  scenariosSubtitle,
 } from './folder-subtitles'
 import type { PrimaryGoal } from '@/lib/goals/primary-goal'
 
@@ -130,12 +129,3 @@ describe('valuesSubtitle', () => {
   })
 })
 
-describe('scenariosSubtitle', () => {
-  it('goal → goal-pace framing', () => {
-    expect(scenariosSubtitle(goal)).toBe("What shifts your goal's pace")
-  })
-
-  it('no goal → existing what-if', () => {
-    expect(scenariosSubtitle(null)).toBe('What if...')
-  })
-})

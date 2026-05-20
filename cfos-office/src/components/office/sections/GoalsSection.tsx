@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 import type { PrimaryGoal } from '@/lib/goals/primary-goal'
 import { GoalsEmptyState } from './GoalsEmptyState'
@@ -5,13 +6,33 @@ import { GoalsEmptyState } from './GoalsEmptyState'
 interface GoalsSectionProps {
   goal: PrimaryGoal | null
   currency?: string
+  upcomingEventsCount?: number
 }
 
-export function GoalsSection({ goal, currency = 'EUR' }: GoalsSectionProps) {
-  if (!goal) {
+export function GoalsSection({ goal, currency = 'EUR', upcomingEventsCount = 0 }: GoalsSectionProps) {
+  if (!goal && upcomingEventsCount === 0) {
     return <GoalsEmptyState />
   }
 
+  return (
+    <div className="space-y-2 pt-1">
+      {goal && <ActiveGoalSummary goal={goal} currency={currency} />}
+      <Link
+        href="/office/goals/travel-events"
+        className="flex items-center justify-between gap-2 py-1 text-[11px] text-text-secondary hover:text-text-primary transition-colors"
+      >
+        <span>Travel &amp; Events</span>
+        <span className="tabular-nums text-text-tertiary">
+          {upcomingEventsCount === 0
+            ? 'None planned'
+            : `${upcomingEventsCount} upcoming`}
+        </span>
+      </Link>
+    </div>
+  )
+}
+
+function ActiveGoalSummary({ goal, currency }: { goal: PrimaryGoal; currency: string }) {
   const current = Math.max(0, goal.current_amount ?? 0)
   const target = goal.target_amount ?? 0
   const hasTarget = target > 0
@@ -19,7 +40,7 @@ export function GoalsSection({ goal, currency = 'EUR' }: GoalsSectionProps) {
   const onTrack = goal.on_track
 
   return (
-    <div className="space-y-1 pt-1">
+    <div className="space-y-1">
       <div className="flex items-baseline gap-1.5">
         <span className="font-data text-[18px] font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
           {formatCurrencyRounded(current, currency)}

@@ -11,13 +11,14 @@ import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
+import { folderColors } from '@/lib/tokens'
 import type { TrendsResponse } from '@/app/api/dashboard/trends/route'
 import { IncomeShapeBadge } from '@/components/dev/IncomeShapeBadge'
 import { getTransformPosture, type PostureProfile } from '@/lib/analytics/posture-helpers'
 import type { FinancialPosture } from '@/lib/analytics/posture'
 import type { BalanceTrajectory } from '@/lib/analytics/cashflow-aggregates'
 
-const ACCENT = '#22C55E'
+const ACCENT = folderColors.cashflow
 
 interface IncomeShapeData {
   income_shape: string | null

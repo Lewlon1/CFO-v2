@@ -31,7 +31,7 @@ const rankOf = (p: string | null): number =>
  *   3. Return the first; null if none.
  *
  * Active-only contract: a user whose only goal is `status='completed'` will
- * receive null here. The detail view (/office/scenarios/goals) still lists
+ * receive null here. The detail view (/office/goals) still lists
  * completed goals under its own section.
  *
  * Session 12 imports this same function for CFO prompt context — keep the

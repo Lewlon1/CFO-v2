@@ -1,10 +1,6 @@
 'use client';
 
-function formatCurrency(amount: number, currency?: string): string {
-  const c = currency || 'EUR';
-  const symbol = c === 'EUR' ? '€' : c === 'GBP' ? '£' : c === 'USD' ? '$' : c;
-  return `${symbol}${Math.abs(amount).toLocaleString('en', { maximumFractionDigits: 0 })}`;
-}
+import { formatCurrency } from '@/lib/format/currency';
 
 const BUDGET_COLORS: Record<string, string> = {
   flights: '#6366F1',
@@ -40,7 +36,7 @@ function FeasibilityBadge({ rating }: { rating: string }) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function TripPlanResult({ result }: { result: any }) {
-  if (!result || result.error || result.type !== 'trip_plan') return null;
+  if (!result || result.error || result.type !== 'event_plan') return null;
 
   const budget = result.budget;
   const funding = result.funding;

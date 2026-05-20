@@ -7,7 +7,7 @@
 
 import { getTransformPosture, type PostureProfile } from '@/lib/analytics/posture-helpers'
 
-export type FolderKey = 'home' | 'cash-flow' | 'values' | 'net-worth' | 'scenarios'
+export type FolderKey = 'home' | 'cash-flow' | 'values' | 'net-worth' | 'goals'
 
 export interface FolderChatMeta {
   subject: string
@@ -56,9 +56,9 @@ export const CHAT_SUBJECTS: Record<FolderKey, FolderChatMeta> = {
       'Am I on track for where I want to be at 40?',
     ],
   },
-  scenarios: {
-    subject: 'Re: Scenarios',
-    subtitle: 'About goals, trips, what-ifs',
+  goals: {
+    subject: 'Re: Goals',
+    subtitle: 'About goals, travel & events, what-ifs',
     prompts: [
       'Can I afford my next trip without derailing my savings?',
       'What would part-time at 40 actually require?',
@@ -73,7 +73,7 @@ export function folderKeyFromPath(pathname: string | null): FolderKey {
   if (pathname.startsWith('/office/cash-flow')) return 'cash-flow'
   if (pathname.startsWith('/office/values')) return 'values'
   if (pathname.startsWith('/office/net-worth')) return 'net-worth'
-  if (pathname.startsWith('/office/scenarios')) return 'scenarios'
+  if (pathname.startsWith('/office/goals')) return 'goals'
   return 'home'
 }
 

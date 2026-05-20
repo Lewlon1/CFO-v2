@@ -695,6 +695,105 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          anonymised_at: string | null
+          companion_count: number | null
+          companions: string | null
+          conversation_id: string | null
+          created_at: string
+          currency: string | null
+          deleted_at: string | null
+          destination: string | null
+          duration_days: number | null
+          end_date: string | null
+          estimated_budget: Json | null
+          funding_plan: Json | null
+          goal_id: string | null
+          id: string
+          kind: string
+          name: string
+          notes: string | null
+          research_data: Json | null
+          start_date: string | null
+          status: string | null
+          total_actual: number | null
+          total_estimated: number | null
+          travel_style: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anonymised_at?: string | null
+          companion_count?: number | null
+          companions?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          currency?: string | null
+          deleted_at?: string | null
+          destination?: string | null
+          duration_days?: number | null
+          end_date?: string | null
+          estimated_budget?: Json | null
+          funding_plan?: Json | null
+          goal_id?: string | null
+          id?: string
+          kind?: string
+          name: string
+          notes?: string | null
+          research_data?: Json | null
+          start_date?: string | null
+          status?: string | null
+          total_actual?: number | null
+          total_estimated?: number | null
+          travel_style?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anonymised_at?: string | null
+          companion_count?: number | null
+          companions?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          currency?: string | null
+          deleted_at?: string | null
+          destination?: string | null
+          duration_days?: number | null
+          end_date?: string | null
+          estimated_budget?: Json | null
+          funding_plan?: Json | null
+          goal_id?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          notes?: string | null
+          research_data?: Json | null
+          start_date?: string | null
+          status?: string | null
+          total_actual?: number | null
+          total_estimated?: number | null
+          travel_style?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_portrait: {
         Row: {
           anonymised_at: string | null
@@ -1787,6 +1886,8 @@ export type Database = {
           dedupe_hash: string | null
           deleted_at: string | null
           description: string | null
+          event_id: string | null
+          event_name: string | null
           holiday_category_override: string | null
           id: string
           import_batch_id: string | null
@@ -1798,8 +1899,6 @@ export type Database = {
           prediction_source: string | null
           raw_description: string | null
           source: string | null
-          trip_id: string | null
-          trip_name: string | null
           updated_at: string | null
           user_confirmed: boolean | null
           user_id: string
@@ -1822,6 +1921,8 @@ export type Database = {
           dedupe_hash?: string | null
           deleted_at?: string | null
           description?: string | null
+          event_id?: string | null
+          event_name?: string | null
           holiday_category_override?: string | null
           id?: string
           import_batch_id?: string | null
@@ -1833,8 +1934,6 @@ export type Database = {
           prediction_source?: string | null
           raw_description?: string | null
           source?: string | null
-          trip_id?: string | null
-          trip_name?: string | null
           updated_at?: string | null
           user_confirmed?: boolean | null
           user_id: string
@@ -1857,6 +1956,8 @@ export type Database = {
           dedupe_hash?: string | null
           deleted_at?: string | null
           description?: string | null
+          event_id?: string | null
+          event_name?: string | null
           holiday_category_override?: string | null
           id?: string
           import_batch_id?: string | null
@@ -1868,8 +1969,6 @@ export type Database = {
           prediction_source?: string | null
           raw_description?: string | null
           source?: string | null
-          trip_id?: string | null
-          trip_name?: string | null
           updated_at?: string | null
           user_confirmed?: boolean | null
           user_id?: string
@@ -1888,106 +1987,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "transactions_trip_id_fkey"
-            columns: ["trip_id"]
+            foreignKeyName: "transactions_event_id_fkey"
+            columns: ["event_id"]
             isOneToOne: false
-            referencedRelation: "trips"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      trips: {
-        Row: {
-          anonymised_at: string | null
-          companion_count: number | null
-          companions: string | null
-          conversation_id: string | null
-          created_at: string
-          currency: string | null
-          deleted_at: string | null
-          destination: string | null
-          duration_days: number | null
-          end_date: string | null
-          estimated_budget: Json | null
-          funding_plan: Json | null
-          goal_id: string | null
-          id: string
-          name: string
-          notes: string | null
-          research_data: Json | null
-          start_date: string | null
-          status: string | null
-          total_actual: number | null
-          total_estimated: number | null
-          travel_style: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          anonymised_at?: string | null
-          companion_count?: number | null
-          companions?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          currency?: string | null
-          deleted_at?: string | null
-          destination?: string | null
-          duration_days?: number | null
-          end_date?: string | null
-          estimated_budget?: Json | null
-          funding_plan?: Json | null
-          goal_id?: string | null
-          id?: string
-          name: string
-          notes?: string | null
-          research_data?: Json | null
-          start_date?: string | null
-          status?: string | null
-          total_actual?: number | null
-          total_estimated?: number | null
-          travel_style?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          anonymised_at?: string | null
-          companion_count?: number | null
-          companions?: string | null
-          conversation_id?: string | null
-          created_at?: string
-          currency?: string | null
-          deleted_at?: string | null
-          destination?: string | null
-          duration_days?: number | null
-          end_date?: string | null
-          estimated_budget?: Json | null
-          funding_plan?: Json | null
-          goal_id?: string | null
-          id?: string
-          name?: string
-          notes?: string | null
-          research_data?: Json | null
-          start_date?: string | null
-          status?: string | null
-          total_actual?: number | null
-          total_estimated?: number | null
-          travel_style?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "trips_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trips_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]

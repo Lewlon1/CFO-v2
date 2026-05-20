@@ -41,23 +41,24 @@ export const colors = {
 } as const;
 
 export const folderColors = {
-  // Five-folder palette finalised in Session 14.
-  // Goals shifted from #D4A24C (provisional, Session 11) to #9C7B2C — the
-  // original was numerically too close to Values amber (#E8A84C: same hue,
-  // ~20 R / 6 G apart) and read as the same warm tone at a glance. Deeper
-  // brass keeps Goals in the warm CFO family but unmistakably distinct.
+  // Four-folder palette as of v2.5.
+  // Scenarios folder dropped — What-If lives in chat via model_scenario tool.
+  // Values retoned from #E8A84C (amber) to #7C4D9E (royal purple) — gold
+  // returns to its proper home as the CFO voice exclusively, and the
+  // hue-family separation between Goals (brass) and Values (purple) is
+  // unmistakable on both light and dark themes. Supersedes Session 14's
+  // Goals/Values proximity note.
   goals: '#9C7B2C',
   cashflow: '#22C55E',
-  values: '#E8A84C',
+  values: '#7C4D9E',
   networth: '#06B6D4',
-  scenarios: '#F43F5E',
 } as const;
 
 export const valueCategories = {
   foundation: { color: '#22C55E', bg: 'rgba(34,197,94,0.12)', label: 'foundation' },
   investment: { color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', label: 'investment' },
   leak:       { color: '#F43F5E', bg: 'rgba(243,63,94,0.12)', label: 'leak' },
-  burden:     { color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)', label: 'burden' },
+  burden:     { color: '#9C8B7A', bg: 'rgba(156,139,122,0.12)', label: 'burden' },
   unsure:     { color: 'rgba(232,168,76,0.5)', bg: 'none', label: '~ unsure', border: '1px dashed rgba(232,168,76,0.3)' },
 } as const;
 

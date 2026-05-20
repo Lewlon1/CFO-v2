@@ -30,12 +30,12 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/scenarios',
-        destination: '/office/scenarios/what-if',
+        destination: '/office/goals',
         permanent: true,
       },
       {
         source: '/trips',
-        destination: '/office/scenarios/trips',
+        destination: '/office/goals/travel-events',
         permanent: true,
       },
       {
@@ -55,7 +55,39 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/goals',
-        destination: '/office/scenarios/goals',
+        destination: '/office/goals',
+        permanent: true,
+      },
+      // v2.5 IA simplification: Scenarios folder dropped, Goals folder expanded.
+      // Old /office/scenarios/* URLs land on the new /office/goals/* surface.
+      {
+        source: '/office/scenarios',
+        destination: '/office/goals',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/what-if',
+        destination: '/office/goals',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/goals',
+        destination: '/office/goals',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/goals/:path*',
+        destination: '/office/goals/:path*',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/trips',
+        destination: '/office/goals/travel-events',
+        permanent: true,
+      },
+      {
+        source: '/office/scenarios/trips/:path*',
+        destination: '/office/goals/travel-events/:path*',
         permanent: true,
       },
       {
