@@ -1,0 +1,1232 @@
+{
+  "pair_id": "e8e2e756-ed22-4129-8ba4-20e50cf2845f",
+  "created_at": "2026-05-20T11:01:44.775Z",
+  "source": "compare-first-insight",
+  "fold": "train",
+  "input": {
+    "persona_id": null,
+    "user_id": "bc32d6b1-fc85-4626-855f-f7a628c3479c",
+    "trigger_message": "[System: Post-upload analysis triggered. Deliver your first insight.]",
+    "known_merchants": [
+      "COMMON BAR           MANCHESTER   GBR",
+      "NETFLIX.COM           AMSTERDAM    NLD",
+      "APPLE.COM/BILL       CORK         IRL",
+      "PUREGYM LTD          MANCHESTER   GBR",
+      "OCTOPUS ENERGY",
+      "ASOS.COM             LONDON       GBR",
+      "DISNEY PLUS          LONDON       GBR",
+      "NIKE.COM             LONDON       GBR",
+      "O2 MOBILE",
+      "DELIVEROO            LONDON       GBR",
+      "MANCHESTER CITY COUNCIL TAX",
+      "UU WATER",
+      "MONZO ATM            MANCHESTER   GBR",
+      "NQ BAR               MANCHESTER   GBR",
+      "SAINSBURYS LOCAL     MANCHESTER   GBR",
+      "GRAINGER PLC RENT",
+      "SPOTIFY UK           LONDON       GBR",
+      "UBER EATS            AMSTERDAM    NLD",
+      "DELOITTE LLP PAYROLL",
+      "PRET A MANGER        MANCHESTER   GBR",
+      "PORT STREET BEER     MANCHESTER   GBR",
+      "ALDI ANCOATS         MANCHESTER   GBR",
+      "VIRGIN MEDIA BROADBAND",
+      "UBER BV              AMSTERDAM    NLD"
+    ],
+    "user_brief": "(no entry brief / goal recorded)",
+    "prompt_variants": {
+      "a": {
+        "label": "v1",
+        "hash": "915f6fc8345c6ed2"
+      },
+      "b": {
+        "label": "v2",
+        "hash": "c6037a372a4bd850"
+      }
+    }
+  },
+  "responses": {
+    "a": {
+      "text": "Right. Three months of data across 80 transactions — here's what the picture looks like.\n\n---\n\n**Housing is doing the heavy lifting.**\n\nAt 58% of your tracked spend (£3,150), it's the single dominant force in your numbers. That's not unusual in the UK, but it does mean every other decision — including the investment pot you're building toward — is being made in the remaining 42%. Worth holding that frame as we go through the rest.\n\n---\n\n**The trend is moving in the right direction.**\n\nMonth-over-month spend is down 3%: £1,809 against £1,864 last month. The biggest swing came from uncategorised transactions, so there's likely more signal to surface there as tagging improves. The direction is good.\n\n[STATS]\nTracked spend | £5,624\nhousing | 58%\nRecurring bills | 32\n[/STATS]\n\n---\n\n**The recurring bill stack deserves a close look.**\n\n32 recurring bills totalling £1,914 per month — that figure sits at 106% of your average monthly discretionary spend. There's overlap detected in transport specifically, which is worth pulling apart. Two or more subscriptions covering the same need is money that doesn't know it's redundant.\n\n---\n\n**One structural move that would directly serve the investment pot.**\n\nA pay-yourself-first experiment: move a fixed amount toward the goal on payday, before anything else competes for it. Success looks like one transfer made and not pulled back, repeated across 30 days. Willpower is the wrong tool for this — structure is.\n\n[OPTIONS]\n- Yes, let's try it\n- Pick a different one\n- Break down my housing\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [],
+      "tokens": {
+        "in": 23243,
+        "out": 392
+      }
+    },
+    "b": {
+      "text": "What's working: Foundation is solid at 81% of spend — rent, groceries, bills all covered. Spending is also trending down month-on-month (£1,937 → £1,863 → £1,809).\n\nOnce the eating-out picture is cleaner, we can size how much is genuinely available for that investment pot.\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "find_money_clusters",
+          "args": {
+            "date_from": "2026-01-01",
+            "date_to": "2026-03-28",
+            "min_share_pct": 25
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-01-01",
+              "date_to": "2026-03-28",
+              "min_share_pct": 25
+            },
+            "currency": "GBP",
+            "window": {
+              "n_transactions": 70,
+              "n_days": 87
+            },
+            "data_confidence": "high",
+            "stories": [
+              {
+                "type": "merchant_in_category",
+                "headline": "grainger plc rent is 100% of your housing spend",
+                "magnitude": {
+                  "amount": 3150,
+                  "currency": "GBP",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "grainger plc rent"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "e569db52-163a-407d-9e90-68b84a015d31",
+                    "date": "2026-01-01T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  },
+                  {
+                    "id": "b79ae5ab-e53f-40ae-8410-4f2a1f013fe0",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  },
+                  {
+                    "id": "448f19ee-3dc1-44d7-9566-999681cd6604",
+                    "date": "2026-03-02T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "manchester city council tax is 41.6% of your utilities_bills spend",
+                "magnitude": {
+                  "amount": 384,
+                  "currency": "GBP",
+                  "share_pct": 41.6
+                },
+                "merchants": [
+                  "manchester city council tax"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "f85154b3-880d-4daf-9c55-9b9eb3ca76d4",
+                    "date": "2026-02-05T00:00:00+00:00",
+                    "merchant": "MANCHESTER CITY COUNCIL TAX",
+                    "amount": -128
+                  },
+                  {
+                    "id": "49893f2a-db12-4dae-84cb-0ba74462eb1b",
+                    "date": "2026-01-05T00:00:00+00:00",
+                    "merchant": "MANCHESTER CITY COUNCIL TAX",
+                    "amount": -128
+                  },
+                  {
+                    "id": "68ecf99d-0aa4-467c-aedc-e52e71fa13ed",
+                    "date": "2026-03-05T00:00:00+00:00",
+                    "merchant": "MANCHESTER CITY COUNCIL TAX",
+                    "amount": -128
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "asos com london gbr is 74.5% of your shopping spend",
+                "magnitude": {
+                  "amount": 126.9,
+                  "currency": "GBP",
+                  "share_pct": 74.5
+                },
+                "merchants": [
+                  "asos com london gbr"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "6e0cd065-2c32-4b47-84bc-e87d41f0aa21",
+                    "date": "2026-01-31T00:00:00+00:00",
+                    "merchant": "ASOS.COM             LONDON       GBR",
+                    "amount": -74.5
+                  },
+                  {
+                    "id": "b0fe43ae-f943-4688-92c0-2ddd93f17261",
+                    "date": "2026-03-25T00:00:00+00:00",
+                    "merchant": "ASOS.COM             LONDON       GBR",
+                    "amount": -52.4
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "sainsburys local manchester gbr is 80.2% of your groceries spend",
+                "magnitude": {
+                  "amount": 257.95,
+                  "currency": "GBP",
+                  "share_pct": 80.2
+                },
+                "merchants": [
+                  "sainsburys local manchester gbr"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "001f5c53-542c-41c0-bef1-1616a473921c",
+                    "date": "2026-02-22T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -47.2
+                  },
+                  {
+                    "id": "6fdca436-21ad-4607-98f5-3b7f619defcc",
+                    "date": "2026-02-08T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -45.6
+                  },
+                  {
+                    "id": "04cf7424-bed5-445b-8602-d1ba8a6a4f1e",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -43.1
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "puregym ltd manchester gbr is 100% of your health spend",
+                "magnitude": {
+                  "amount": 77.97,
+                  "currency": "GBP",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "puregym ltd manchester gbr"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "4f7e7dcd-75b3-42de-bf41-b7f4a45fffdb",
+                    "date": "2026-02-28T00:00:00+00:00",
+                    "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                    "amount": -25.99
+                  },
+                  {
+                    "id": "cddf83f1-8095-491d-b61e-f1976f6ba3d3",
+                    "date": "2026-01-28T00:00:00+00:00",
+                    "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                    "amount": -25.99
+                  },
+                  {
+                    "id": "763f71d3-a322-4339-a6dd-d6712f62749d",
+                    "date": "2026-03-28T00:00:00+00:00",
+                    "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                    "amount": -25.99
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "housing is 58.4% of your total spend (£3,150)",
+                "magnitude": {
+                  "amount": 3150,
+                  "currency": "GBP",
+                  "share_pct": 58.4
+                },
+                "merchants": [
+                  "grainger plc rent"
+                ],
+                "comparison": "This category alone takes up 58.4% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "e569db52-163a-407d-9e90-68b84a015d31",
+                    "date": "2026-01-01T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  },
+                  {
+                    "id": "b79ae5ab-e53f-40ae-8410-4f2a1f013fe0",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  },
+                  {
+                    "id": "448f19ee-3dc1-44d7-9566-999681cd6604",
+                    "date": "2026-03-02T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "grainger plc rent hits like clockwork: 3× at ~£1,050 each",
+                "magnitude": {
+                  "amount": 3150,
+                  "currency": "GBP",
+                  "share_pct": 58.4
+                },
+                "merchants": [
+                  "grainger plc rent"
+                ],
+                "comparison": "~1 times per month at £1,050 each.",
+                "sample_transactions": [
+                  {
+                    "id": "e569db52-163a-407d-9e90-68b84a015d31",
+                    "date": "2026-01-01T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  },
+                  {
+                    "id": "b79ae5ab-e53f-40ae-8410-4f2a1f013fe0",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  },
+                  {
+                    "id": "448f19ee-3dc1-44d7-9566-999681cd6604",
+                    "date": "2026-03-02T00:00:00+00:00",
+                    "merchant": "GRAINGER PLC RENT",
+                    "amount": -1050
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "apple com bill cork irl hits like clockwork: 3× at ~£9 each",
+                "magnitude": {
+                  "amount": 26.97,
+                  "currency": "GBP",
+                  "share_pct": 0.5
+                },
+                "merchants": [
+                  "apple com bill cork irl"
+                ],
+                "comparison": "~1 times per month at £9 each.",
+                "sample_transactions": [
+                  {
+                    "id": "632b5c90-cd87-4de7-9e6c-3161a1ec7573",
+                    "date": "2026-01-14T00:00:00+00:00",
+                    "merchant": "APPLE.COM/BILL       CORK         IRL",
+                    "amount": -8.99
+                  },
+                  {
+                    "id": "6b8c01a2-bc63-4602-9f54-4560f471e74b",
+                    "date": "2026-02-14T00:00:00+00:00",
+                    "merchant": "APPLE.COM/BILL       CORK         IRL",
+                    "amount": -8.99
+                  },
+                  {
+                    "id": "003bb6ca-0e28-4844-be34-1a0b364357c0",
+                    "date": "2026-03-14T00:00:00+00:00",
+                    "merchant": "APPLE.COM/BILL       CORK         IRL",
+                    "amount": -8.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "netflix com amsterdam nld hits like clockwork: 3× at ~£16 each",
+                "magnitude": {
+                  "amount": 47.97,
+                  "currency": "GBP",
+                  "share_pct": 0.9
+                },
+                "merchants": [
+                  "netflix com amsterdam nld"
+                ],
+                "comparison": "~1 times per month at £16 each.",
+                "sample_transactions": [
+                  {
+                    "id": "a06943e6-7200-4772-a589-5b20c20a84f9",
+                    "date": "2026-02-06T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM           AMSTERDAM    NLD",
+                    "amount": -15.99
+                  },
+                  {
+                    "id": "1316f9e3-a387-4ffc-a21c-8870a009e815",
+                    "date": "2026-01-06T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM           AMSTERDAM    NLD",
+                    "amount": -15.99
+                  },
+                  {
+                    "id": "23b021e0-8b6e-4d70-af32-dc0ecd2bc045",
+                    "date": "2026-03-06T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM           AMSTERDAM    NLD",
+                    "amount": -15.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "o2 mobile hits like clockwork: 3× at ~£32 each",
+                "magnitude": {
+                  "amount": 96,
+                  "currency": "GBP",
+                  "share_pct": 1.8
+                },
+                "merchants": [
+                  "o2 mobile"
+                ],
+                "comparison": "~1 times per month at £32 each.",
+                "sample_transactions": [
+                  {
+                    "id": "67f89f69-44b4-47f1-990e-bd9e86d5c37d",
+                    "date": "2026-01-15T00:00:00+00:00",
+                    "merchant": "O2 MOBILE",
+                    "amount": -32
+                  },
+                  {
+                    "id": "371a74dc-d5e4-4917-8640-5a4f9e1b4385",
+                    "date": "2026-03-15T00:00:00+00:00",
+                    "merchant": "O2 MOBILE",
+                    "amount": -32
+                  },
+                  {
+                    "id": "5dd535eb-fba8-4f23-b384-72254ad3fbe2",
+                    "date": "2026-02-15T00:00:00+00:00",
+                    "merchant": "O2 MOBILE",
+                    "amount": -32
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "spotify uk london gbr hits like clockwork: 3× at ~£12 each",
+                "magnitude": {
+                  "amount": 35.97,
+                  "currency": "GBP",
+                  "share_pct": 0.7
+                },
+                "merchants": [
+                  "spotify uk london gbr"
+                ],
+                "comparison": "~1 times per month at £12 each.",
+                "sample_transactions": [
+                  {
+                    "id": "ef5e81d7-8bcf-4286-900c-7639d620d943",
+                    "date": "2026-01-11T00:00:00+00:00",
+                    "merchant": "SPOTIFY UK           LONDON       GBR",
+                    "amount": -11.99
+                  },
+                  {
+                    "id": "906a5748-bd9d-4e91-a905-16005f97fe06",
+                    "date": "2026-02-11T00:00:00+00:00",
+                    "merchant": "SPOTIFY UK           LONDON       GBR",
+                    "amount": -11.99
+                  },
+                  {
+                    "id": "7533f585-dd8b-46ae-bf00-efb5ef4d8e97",
+                    "date": "2026-03-11T00:00:00+00:00",
+                    "merchant": "SPOTIFY UK           LONDON       GBR",
+                    "amount": -11.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "octopus energy hits like clockwork: 3× at ~£77 each",
+                "magnitude": {
+                  "amount": 231.7,
+                  "currency": "GBP",
+                  "share_pct": 4.3
+                },
+                "merchants": [
+                  "octopus energy"
+                ],
+                "comparison": "~1 times per month at £77 each.",
+                "sample_transactions": [
+                  {
+                    "id": "ebff3bae-f191-4b00-b986-f58bba5a1d4c",
+                    "date": "2026-02-08T00:00:00+00:00",
+                    "merchant": "OCTOPUS ENERGY",
+                    "amount": -82
+                  },
+                  {
+                    "id": "812c88b4-e3af-47a8-a41d-315dfc1bca14",
+                    "date": "2026-01-08T00:00:00+00:00",
+                    "merchant": "OCTOPUS ENERGY",
+                    "amount": -78.5
+                  },
+                  {
+                    "id": "cc1843d9-c21a-4bc9-abef-e728d8a3b52d",
+                    "date": "2026-03-08T00:00:00+00:00",
+                    "merchant": "OCTOPUS ENERGY",
+                    "amount": -71.2
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "sainsburys local manchester gbr hits like clockwork: 6× at ~£43 each",
+                "magnitude": {
+                  "amount": 257.95,
+                  "currency": "GBP",
+                  "share_pct": 4.8
+                },
+                "merchants": [
+                  "sainsburys local manchester gbr"
+                ],
+                "comparison": "~2.1 times per month at £43 each.",
+                "sample_transactions": [
+                  {
+                    "id": "001f5c53-542c-41c0-bef1-1616a473921c",
+                    "date": "2026-02-22T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -47.2
+                  },
+                  {
+                    "id": "6fdca436-21ad-4607-98f5-3b7f619defcc",
+                    "date": "2026-02-08T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -45.6
+                  },
+                  {
+                    "id": "04cf7424-bed5-445b-8602-d1ba8a6a4f1e",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -43.1
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "uu water hits like clockwork: 3× at ~£28 each",
+                "magnitude": {
+                  "amount": 85.2,
+                  "currency": "GBP",
+                  "share_pct": 1.6
+                },
+                "merchants": [
+                  "uu water"
+                ],
+                "comparison": "~1 times per month at £28 each.",
+                "sample_transactions": [
+                  {
+                    "id": "09130546-29e3-4d29-933e-a5156f73c63d",
+                    "date": "2026-01-12T00:00:00+00:00",
+                    "merchant": "UU WATER",
+                    "amount": -28.4
+                  },
+                  {
+                    "id": "ab3c55bb-f3fa-4441-b9c6-5f1e4b010a2f",
+                    "date": "2026-02-12T00:00:00+00:00",
+                    "merchant": "UU WATER",
+                    "amount": -28.4
+                  },
+                  {
+                    "id": "56453215-a27b-49c8-9589-89a74dc67e3e",
+                    "date": "2026-03-12T00:00:00+00:00",
+                    "merchant": "UU WATER",
+                    "amount": -28.4
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "manchester city council tax hits like clockwork: 3× at ~£128 each",
+                "magnitude": {
+                  "amount": 384,
+                  "currency": "GBP",
+                  "share_pct": 7.1
+                },
+                "merchants": [
+                  "manchester city council tax"
+                ],
+                "comparison": "~1 times per month at £128 each.",
+                "sample_transactions": [
+                  {
+                    "id": "f85154b3-880d-4daf-9c55-9b9eb3ca76d4",
+                    "date": "2026-02-05T00:00:00+00:00",
+                    "merchant": "MANCHESTER CITY COUNCIL TAX",
+                    "amount": -128
+                  },
+                  {
+                    "id": "49893f2a-db12-4dae-84cb-0ba74462eb1b",
+                    "date": "2026-01-05T00:00:00+00:00",
+                    "merchant": "MANCHESTER CITY COUNCIL TAX",
+                    "amount": -128
+                  },
+                  {
+                    "id": "68ecf99d-0aa4-467c-aedc-e52e71fa13ed",
+                    "date": "2026-03-05T00:00:00+00:00",
+                    "merchant": "MANCHESTER CITY COUNCIL TAX",
+                    "amount": -128
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "virgin media broadband hits like clockwork: 3× at ~£42 each",
+                "magnitude": {
+                  "amount": 126,
+                  "currency": "GBP",
+                  "share_pct": 2.3
+                },
+                "merchants": [
+                  "virgin media broadband"
+                ],
+                "comparison": "~1 times per month at £42 each.",
+                "sample_transactions": [
+                  {
+                    "id": "ecf2914f-63cc-4ef7-bdc7-f5b92abe131f",
+                    "date": "2026-02-18T00:00:00+00:00",
+                    "merchant": "VIRGIN MEDIA BROADBAND",
+                    "amount": -42
+                  },
+                  {
+                    "id": "4344de78-f6a0-46dd-9e64-26c621e7283f",
+                    "date": "2026-01-18T00:00:00+00:00",
+                    "merchant": "VIRGIN MEDIA BROADBAND",
+                    "amount": -42
+                  },
+                  {
+                    "id": "50a8ec99-8056-4a38-b09a-67905c2f09fc",
+                    "date": "2026-03-18T00:00:00+00:00",
+                    "merchant": "VIRGIN MEDIA BROADBAND",
+                    "amount": -42
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "puregym ltd manchester gbr hits like clockwork: 3× at ~£26 each",
+                "magnitude": {
+                  "amount": 77.97,
+                  "currency": "GBP",
+                  "share_pct": 1.4
+                },
+                "merchants": [
+                  "puregym ltd manchester gbr"
+                ],
+                "comparison": "~1 times per month at £26 each.",
+                "sample_transactions": [
+                  {
+                    "id": "4f7e7dcd-75b3-42de-bf41-b7f4a45fffdb",
+                    "date": "2026-02-28T00:00:00+00:00",
+                    "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                    "amount": -25.99
+                  },
+                  {
+                    "id": "cddf83f1-8095-491d-b61e-f1976f6ba3d3",
+                    "date": "2026-01-28T00:00:00+00:00",
+                    "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                    "amount": -25.99
+                  },
+                  {
+                    "id": "763f71d3-a322-4339-a6dd-d6712f62749d",
+                    "date": "2026-03-28T00:00:00+00:00",
+                    "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                    "amount": -25.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "find_value_gaps",
+          "args": {
+            "months": 3
+          },
+          "output": {
+            "has_value_map": true,
+            "gaps": [
+              {
+                "shape": "single_intent",
+                "category_id": "groceries",
+                "category_name": "groceries",
+                "stated_quadrant": "foundation",
+                "stated_confidence": 3,
+                "actual_monthly_spend": 41.83,
+                "pct_of_total_spending": 6.7,
+                "actual_breakdown": {
+                  "foundation_pct": 100,
+                  "investment_pct": 0,
+                  "burden_pct": 0,
+                  "leak_pct": 0,
+                  "unsure_pct": 0
+                },
+                "gap_type": "aligned",
+                "gap_severity": "low",
+                "top_merchants": [
+                  {
+                    "merchant": "sainsburys local manchester gbr",
+                    "amount": 90.3
+                  },
+                  {
+                    "merchant": "aldi ancoats manchester gbr",
+                    "amount": 35.2
+                  }
+                ],
+                "sample_transactions": [
+                  {
+                    "id": "001f5c53-542c-41c0-bef1-1616a473921c",
+                    "date": "2026-02-22T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -47.2
+                  },
+                  {
+                    "id": "04cf7424-bed5-445b-8602-d1ba8a6a4f1e",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "SAINSBURYS LOCAL     MANCHESTER   GBR",
+                    "amount": -43.1
+                  },
+                  {
+                    "id": "43b2902d-51e3-4aee-90eb-a4b2b40877d8",
+                    "date": "2026-03-08T00:00:00+00:00",
+                    "merchant": "ALDI ANCOATS         MANCHESTER   GBR",
+                    "amount": -35.2
+                  }
+                ],
+                "narrative_hint": "Your groceries spending aligns with how you see it."
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "health",
+                "category_name": "health",
+                "stated_intents": [
+                  {
+                    "card_label": "Gym membership",
+                    "quadrant": "leak",
+                    "confidence": 2
+                  }
+                ],
+                "category_monthly_total": 17.33,
+                "pct_of_total_spending": 2.8,
+                "time_slices": {
+                  "weekend_evening": {
+                    "total": 51.98,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "puregym ltd manchester gbr"
+                    ],
+                    "sample_count": 2,
+                    "sample_transactions": [
+                      {
+                        "id": "4f7e7dcd-75b3-42de-bf41-b7f4a45fffdb",
+                        "date": "2026-02-28T00:00:00+00:00",
+                        "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                        "amount": -25.99
+                      },
+                      {
+                        "id": "763f71d3-a322-4339-a6dd-d6712f62749d",
+                        "date": "2026-03-28T00:00:00+00:00",
+                        "merchant": "PUREGYM LTD          MANCHESTER   GBR",
+                        "amount": -25.99
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "eat_drinking_out",
+                "category_name": "eat_drinking_out",
+                "stated_intents": [
+                  {
+                    "card_label": "Takeaway delivery on a quiet evening",
+                    "quadrant": "leak",
+                    "confidence": 2
+                  },
+                  {
+                    "card_label": "Dinner out with friends",
+                    "quadrant": "investment",
+                    "confidence": 4
+                  }
+                ],
+                "category_monthly_total": 70.53,
+                "pct_of_total_spending": 11.3,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 111.3,
+                    "share_pct": 52.6,
+                    "top_merchants": [
+                      "common bar manchester gbr",
+                      "deliveroo london gbr",
+                      "pret a manger manchester gbr"
+                    ],
+                    "sample_count": 5,
+                    "sample_transactions": [
+                      {
+                        "id": "a118a6c9-8bb3-419e-84f5-3c1f89393df2",
+                        "date": "2026-03-20T00:00:00+00:00",
+                        "merchant": "COMMON BAR           MANCHESTER   GBR",
+                        "amount": -29.5
+                      },
+                      {
+                        "id": "426e780d-9d43-4d88-bab7-0a2557f9240a",
+                        "date": "2026-03-10T00:00:00+00:00",
+                        "merchant": "DELIVEROO            LONDON       GBR",
+                        "amount": -26.4
+                      },
+                      {
+                        "id": "187a54c1-b770-492b-a738-1557ec679000",
+                        "date": "2026-02-27T00:00:00+00:00",
+                        "merchant": "COMMON BAR           MANCHESTER   GBR",
+                        "amount": -25.4
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 100.3,
+                    "share_pct": 47.4,
+                    "top_merchants": [
+                      "common bar manchester gbr",
+                      "nq bar manchester gbr",
+                      "deliveroo london gbr"
+                    ],
+                    "sample_count": 3,
+                    "sample_transactions": [
+                      {
+                        "id": "c247fb12-fb42-43bd-9bae-f246fb919396",
+                        "date": "2026-03-14T00:00:00+00:00",
+                        "merchant": "COMMON BAR           MANCHESTER   GBR",
+                        "amount": -42.3
+                      },
+                      {
+                        "id": "3428f9db-a9ba-4d14-98af-eaadf0263c9d",
+                        "date": "2026-03-28T00:00:00+00:00",
+                        "merchant": "NQ BAR               MANCHESTER   GBR",
+                        "amount": -38.5
+                      },
+                      {
+                        "id": "ed7d9cf4-20b5-43b5-b9c1-de8e22afe9e1",
+                        "date": "2026-03-21T00:00:00+00:00",
+                        "merchant": "DELIVEROO            LONDON       GBR",
+                        "amount": -19.5
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "subscriptions",
+                "category_name": "subscriptions",
+                "stated_intents": [
+                  {
+                    "card_label": "Streaming service subscription",
+                    "quadrant": "leak",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 14.99,
+                "pct_of_total_spending": 2.4,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 35.97,
+                    "share_pct": 80,
+                    "top_merchants": [
+                      "netflix com amsterdam nld",
+                      "spotify uk london gbr",
+                      "disney plus london gbr"
+                    ],
+                    "sample_count": 3,
+                    "sample_transactions": [
+                      {
+                        "id": "23b021e0-8b6e-4d70-af32-dc0ecd2bc045",
+                        "date": "2026-03-06T00:00:00+00:00",
+                        "merchant": "NETFLIX.COM           AMSTERDAM    NLD",
+                        "amount": -15.99
+                      },
+                      {
+                        "id": "7533f585-dd8b-46ae-bf00-efb5ef4d8e97",
+                        "date": "2026-03-11T00:00:00+00:00",
+                        "merchant": "SPOTIFY UK           LONDON       GBR",
+                        "amount": -11.99
+                      },
+                      {
+                        "id": "c9e370f4-37d4-413d-a6e1-32f1ed44d911",
+                        "date": "2026-02-20T00:00:00+00:00",
+                        "merchant": "DISNEY PLUS          LONDON       GBR",
+                        "amount": -7.99
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 8.99,
+                    "share_pct": 20,
+                    "top_merchants": [
+                      "apple com bill cork irl"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "003bb6ca-0e28-4844-be34-1a0b364357c0",
+                        "date": "2026-03-14T00:00:00+00:00",
+                        "merchant": "APPLE.COM/BILL       CORK         IRL",
+                        "amount": -8.99
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "entertainment",
+                "category_name": "entertainment",
+                "stated_intents": [
+                  {
+                    "card_label": "Online course or book",
+                    "quadrant": "investment",
+                    "confidence": 2
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "shopping",
+                "category_name": "shopping",
+                "stated_intents": [
+                  {
+                    "card_label": "New clothes or shoes",
+                    "quadrant": "leak",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Birthday gift for someone close",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 17.47,
+                "pct_of_total_spending": 2.8,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 52.4,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "asos com london gbr"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "b0fe43ae-f943-4688-92c0-2ddd93f17261",
+                        "date": "2026-03-25T00:00:00+00:00",
+                        "merchant": "ASOS.COM             LONDON       GBR",
+                        "amount": -52.4
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              }
+            ],
+            "value_map_metadata": {
+              "baseline_taken_at": "2026-05-18T10:04:43.071715+00:00",
+              "classifications_count": 10,
+              "decided_count": 8,
+              "unsure_count": 2,
+              "staleness_days": 2,
+              "coverage_pct": 87.5,
+              "unclassified_categories": [
+                "housing",
+                "utilities_bills"
+              ]
+            },
+            "currency": "GBP"
+          }
+        },
+        {
+          "toolName": "get_transactions",
+          "args": {
+            "date_from": "2026-01-01",
+            "date_to": "2026-03-28",
+            "category": "eat_drinking_out",
+            "direction": "spend",
+            "sort": "amount_desc",
+            "limit": 8
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-01-01",
+              "date_to": "2026-03-28",
+              "category": "eat_drinking_out",
+              "direction": "spend",
+              "sort": "amount_desc",
+              "limit": 8
+            },
+            "summary": {
+              "row_count": 8,
+              "truncated": true,
+              "total_matching_rows": 19,
+              "total_amount": -270.6,
+              "currency": "GBP"
+            },
+            "transactions": [
+              {
+                "id": "be033985-9ae6-49ea-849f-a05181226183",
+                "date": "2026-02-13T00:00:00+00:00",
+                "merchant": "WAGAMAMA             MANCHESTER   GBR",
+                "amount": -42.5,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              },
+              {
+                "id": "c247fb12-fb42-43bd-9bae-f246fb919396",
+                "date": "2026-03-14T00:00:00+00:00",
+                "merchant": "COMMON BAR           MANCHESTER   GBR",
+                "amount": -42.3,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              },
+              {
+                "id": "3428f9db-a9ba-4d14-98af-eaadf0263c9d",
+                "date": "2026-03-28T00:00:00+00:00",
+                "merchant": "NQ BAR               MANCHESTER   GBR",
+                "amount": -38.5,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              },
+              {
+                "id": "72004d1e-d869-4e0b-a157-76fa91262e53",
+                "date": "2026-01-17T00:00:00+00:00",
+                "merchant": "COMMON BAR           MANCHESTER   GBR",
+                "amount": -35,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              },
+              {
+                "id": "115c421b-7476-4684-af8d-ba768db0553f",
+                "date": "2026-01-16T00:00:00+00:00",
+                "merchant": "COMMON BAR           MANCHESTER   GBR",
+                "amount": -31,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              },
+              {
+                "id": "a118a6c9-8bb3-419e-84f5-3c1f89393df2",
+                "date": "2026-03-20T00:00:00+00:00",
+                "merchant": "COMMON BAR           MANCHESTER   GBR",
+                "amount": -29.5,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              },
+              {
+                "id": "426e780d-9d43-4d88-bab7-0a2557f9240a",
+                "date": "2026-03-10T00:00:00+00:00",
+                "merchant": "DELIVEROO            LONDON       GBR",
+                "amount": -26.4,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              },
+              {
+                "id": "187a54c1-b770-492b-a738-1557ec679000",
+                "date": "2026-02-27T00:00:00+00:00",
+                "merchant": "COMMON BAR           MANCHESTER   GBR",
+                "amount": -25.4,
+                "category": "eat_drinking_out",
+                "value_category": "leak"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "label_transactions",
+          "args": {
+            "question": "Which of these feel like a worthwhile night out vs. spend you'd rather have back?",
+            "transactions": [
+              "be033985-9ae6-49ea-849f-a05181226183",
+              "c247fb12-fb42-43bd-9bae-f246fb919396",
+              "72004d1e-d869-4e0b-a157-76fa91262e53",
+              "426e780d-9d43-4d88-bab7-0a2557f9240a",
+              "3428f9db-a9ba-4d14-98af-eaadf0263c9d"
+            ],
+            "label_type": "value_category",
+            "options": [
+              "foundation",
+              "investment",
+              "leak",
+              "burden",
+              "unsure"
+            ],
+            "context_hint": "Eating out & bars · Jan–Mar 2026"
+          },
+          "output": {
+            "render_directive": "label_transactions",
+            "directive_id": "3e1c78ee-3925-417f-9b0f-83d698d5e2db",
+            "question": "Which of these feel like a worthwhile night out vs. spend you'd rather have back?",
+            "transactions": [
+              {
+                "id": "be033985-9ae6-49ea-849f-a05181226183",
+                "date": "2026-02-13",
+                "merchant": "WAGAMAMA             MANCHESTER   GBR",
+                "amount": -42.5,
+                "category": "eat_drinking_out"
+              },
+              {
+                "id": "c247fb12-fb42-43bd-9bae-f246fb919396",
+                "date": "2026-03-14",
+                "merchant": "COMMON BAR           MANCHESTER   GBR",
+                "amount": -42.3,
+                "category": "eat_drinking_out"
+              },
+              {
+                "id": "72004d1e-d869-4e0b-a157-76fa91262e53",
+                "date": "2026-01-17",
+                "merchant": "COMMON BAR           MANCHESTER   GBR",
+                "amount": -35,
+                "category": "eat_drinking_out"
+              },
+              {
+                "id": "426e780d-9d43-4d88-bab7-0a2557f9240a",
+                "date": "2026-03-10",
+                "merchant": "DELIVEROO            LONDON       GBR",
+                "amount": -26.4,
+                "category": "eat_drinking_out"
+              },
+              {
+                "id": "3428f9db-a9ba-4d14-98af-eaadf0263c9d",
+                "date": "2026-03-28",
+                "merchant": "NQ BAR               MANCHESTER   GBR",
+                "amount": -38.5,
+                "category": "eat_drinking_out"
+              }
+            ],
+            "options": [
+              {
+                "id": "foundation",
+                "label": "Foundation",
+                "color": "#7A9E7E",
+                "desc": "Essential"
+              },
+              {
+                "id": "investment",
+                "label": "Investment",
+                "color": "#D4A24C",
+                "desc": "Worth it"
+              },
+              {
+                "id": "leak",
+                "label": "Leak",
+                "color": "#B8584F",
+                "desc": "Drains me"
+              },
+              {
+                "id": "burden",
+                "label": "Burden",
+                "color": "#8A7468",
+                "desc": "Heavy, stuck"
+              },
+              {
+                "id": "unsure",
+                "label": "Unsure",
+                "color": "#605749",
+                "desc": "On autopilot"
+              }
+            ],
+            "context_hint": "Eating out & bars · Jan–Mar 2026"
+          }
+        }
+      ],
+      "tokens": {
+        "in": 33818,
+        "out": 84
+      }
+    }
+  },
+  "rating": {
+    "winner": "a",
+    "rater": "lewis",
+    "rated_at": "2026-05-20T11:44:52.066Z",
+    "notes": null
+  },
+  "judge_predictions": [
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T11:04:57.819Z",
+      "score_a": 0.62,
+      "score_b": 0.52,
+      "predicted_winner": "a",
+      "diagnostic": {
+        "a.recognition": 0.65,
+        "a.goal_calibration": 0.5,
+        "a.surprise": 0.68,
+        "a.trust": 0.72,
+        "a.tangibility": 0.58,
+        "a.voice": 0.48,
+        "b.recognition": 0.35,
+        "b.goal_calibration": 0.5,
+        "b.surprise": 0.58,
+        "b.trust": 0.72,
+        "b.tangibility": 0.45,
+        "b.voice": 0.75
+      },
+      "reasoning_a": "Strong surprise and trust driven by the non-obvious overlapping transport subscriptions insight and honest acknowledgment of uncategorized signal, but voice takes a hit from banned phrase \"worth holding in mind\" and tangibility suffers—the \"pay-yourself-first\" move, while structured, is generic scaffolding rather than anchored to this user's specific life context (no goal stated, no named merchants in the actionable recommendation). Recognition is moderate: no merchant names cited despite available data (NETFLIX, O2 MOBILE, VIRGIN MEDIA are right there), relying instead on aggregates like \"recurring bills\" and percentages.",
+      "reasoning_b": "Strong voice and calibrated hedging (\"once the eating-out picture is cleaner\") elevate this, but recognition drags the wow down—no named merchants appear, only aggregates like \"rent, groceries, bills\" and \"eating-out\". The 81% figure and trend £1,937→£1,863→£1,809 show real data literacy, but without a stated user goal and no merchant names (COMMON BAR, SAINSBURYS LOCAL, DELIVEROO all present), the response reads too generic to feel like the CFO has truly read their data."
+    }
+  ]
+}

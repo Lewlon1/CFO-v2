@@ -59,11 +59,10 @@ export async function POST(req: Request) {
     }
   }
 
-  // Session v2.2 Chat Intelligence cohort users skip the expensive
-  // computeFirstInsight() pre-compute — the v2 prompt does not read
-  // first_insight_payload and instead has the LLM pull numbers via the 10
-  // detective tools. The conversation is still created (and the office
-  // expects it) but with no payload attached.
+  // Compute the deterministic insight payload for every user. V1 users
+  // narrate from the full payload; V2 users only need the experiment
+  // proposal (so we can include the required closing beat in the V2 brief)
+  // but pattern detection + ranking happens the same way for both.
   const { data: cohortProfile } = await supabase
     .from('user_profiles')
     .select('beta_cohort')
@@ -71,19 +70,17 @@ export async function POST(req: Request) {
     .maybeSingle()
   const v2Enabled = isChatIntelligenceV2Enabled(cohortProfile)
 
-  const payload = v2Enabled ? null : await computeFirstInsight(supabase, user.id)
+  const payload = await computeFirstInsight(supabase, user.id)
 
-  // Create the first_insight conversation. Metadata omits the payload entirely
-  // for v2 users so downstream code can disambiguate "no payload yet" from
-  // "payload is null" cleanly.
   const metadata: Record<string, unknown> = {
     import_batch_id: importBatchId,
   }
-  if (payload) {
+  if (v2Enabled) {
+    metadata.chat_intelligence_v2 = true
+    metadata.experiment_proposal = payload.experiment_proposal
+  } else {
     metadata.first_insight_payload = payload
     metadata.transaction_count = payload.transactionCount
-  } else {
-    metadata.chat_intelligence_v2 = true
   }
 
   const { data: conversation, error } = await supabase

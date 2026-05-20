@@ -1,0 +1,869 @@
+{
+  "pair_id": "f396dabe-1eb9-4c32-8697-2cd32f8eb6f7",
+  "created_at": "2026-05-20T11:02:50.147Z",
+  "source": "compare-first-insight",
+  "fold": "train",
+  "input": {
+    "persona_id": null,
+    "user_id": "61d99139-ab09-4518-8038-a543803c20b5",
+    "trigger_message": "[System: Post-upload analysis triggered. Deliver your first insight.]",
+    "known_merchants": [
+      "SPOTIFY UK",
+      "NETFLIX.COM",
+      "AMAZON.CO.UK",
+      "M&S FOOD ANGEL",
+      "BOOTS HOLLOWAY RD",
+      "WAGAMAMA ANGEL",
+      "CO-OP ESSEX RD",
+      "CAFFE NERO ANGEL",
+      "TESCO EXPRESS UPPER ST",
+      "PIZZA EAST",
+      "THE OLD QUEENS HEAD",
+      "HOLLOWAY ESPRESSO BAR",
+      "SAINSBURYS HOLLOWAY",
+      "DIRECT DEBIT BT BROADBAND",
+      "WHOLEFOODS PICCADILLY",
+      "TFL CONGESTION/TRAVEL",
+      "FASTER PAYMENT FROM KILN BAKERY CO",
+      "FASTER PAYMENT FROM HARTWELL BRANDS",
+      "TFL TRAVEL TOPUP",
+      "BIRTHDAY GIFT - NIECE",
+      "FRANCO MANCA ISLINGTON",
+      "HAIR SALON ISLINGTON",
+      "DIRECT DEBIT VODAFONE LTD",
+      "THE BRICKLAYERS ARMS",
+      "LAPTOP REPAIR - APPLE",
+      "DIRECT DEBIT HOLLOWAY PROPERTY MGMT",
+      "ADOBE CREATIVE CLOUD",
+      "GAIL'S BAKERY",
+      "FASTER PAYMENT FROM STUDIO MOR LTD",
+      "PRET A MANGER UPPER ST",
+      "UNARRANGED OVERDRAFT FEE",
+      "ZARA OXFORD ST"
+    ],
+    "user_brief": "(no entry brief / goal recorded)",
+    "prompt_variants": {
+      "a": {
+        "label": "v1",
+        "hash": "1e3680acca58b814"
+      },
+      "b": {
+        "label": "v2",
+        "hash": "1749214b7f206912"
+      }
+    }
+  },
+  "responses": {
+    "a": {
+      "text": "Right. Three months of data, 135 transactions, and a clear picture already forming around the emergency buffer goal.\n\n---\n\n**The shape of your money is a sawtooth.**\n\nBalance peaks at £1,969, then cycles down to £-503 before the next pay hit. That pattern is consistent — it's not chaos, it's a rhythm. But a rhythm that bottoms out in negative territory means the buffer isn't building between pay cycles. It's being spent down to zero, then some.\n\n---\n\n**The numbers moved in the right direction last month.**\n\nSpend dropped 15% month-over-month — £561 versus £657 the month before. The biggest single shift was in uncategorised spend, which is worth watching: when categories are vague, so is the story. Getting those transactions labelled will sharpen the picture considerably.\n\n[STATS]\nTracked spend | £5,691\nBalance shape | sawtooth\nPeak day | Sun\n[/STATS]\n\n---\n\n**Sundays are doing something specific.**\n\nSunday spend runs at 3.58x the daily average — £2,127 on Sundays versus £594 across other days combined. That's not a rounding error. Something habitual is happening at the weekend that the rest of the week isn't. Worth knowing whether those transactions feel intentional or just... happen.\n\n---\n\n**One structural move would change the sawtooth immediately.**\n\nThe cleanest fix for a pay-cycle that drains to zero is moving money to the buffer *on payday*, before it's visible in the current account. The experiment: transfer a fixed amount toward the emergency buffer on payday for 30 days. Success means the transfer happens and stays put.\n\n[OPTIONS]\n- Yes, let's try it\n- Pick a different one\n- Not right now\n[/OPTIONS]\n\nThere's more in these 135 transactions — this is the surface layer.\n\n— C.",
+      "tool_calls": [],
+      "tokens": {
+        "in": 23222,
+        "out": 430
+      }
+    },
+    "b": {
+      "text": "Maya, the subscription stack is worth a look. Adobe Creative Cloud is £19.97/month — every month, like clockwork for the full 3 months. That's the single biggest subscription charge, sitting at 55% of your entire subscriptions spend. Your Value Map placed streaming as Foundation, which would cover Spotify (£10.99) and Netflix (£5). Adobe is a different question — if it's not actively in use, redirecting that £19.97/month toward your emergency buffer adds up to nearly £240 over a year.\n\nWhat's working: groceries, TfL, and Vodafone are all consistent and predictable — no drift there.\n\nThe eating-out picture is more interesting and worth a separate look: 72% of it happens on weekend evenings, mostly Wagamama Angel and Padella.\n\n[OPTIONS]\n- Is Adobe still in use?\n- Show me the weekend dining pattern\n- See the full 3-month breakdown\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "find_money_clusters",
+          "args": {
+            "date_from": "2026-01-01",
+            "date_to": "2026-03-31",
+            "min_share_pct": 25
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-01-01",
+              "date_to": "2026-03-31",
+              "min_share_pct": 25
+            },
+            "currency": "GBP",
+            "window": {
+              "n_transactions": 90,
+              "n_days": 90
+            },
+            "data_confidence": "high",
+            "stories": [
+              {
+                "type": "merchant_in_category",
+                "headline": "nhs dentist check up is 54.1% of your health spend",
+                "magnitude": {
+                  "amount": 85,
+                  "currency": "GBP",
+                  "share_pct": 54.1
+                },
+                "merchants": [
+                  "nhs dentist check up"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "e60e93bc-e0dc-479a-81e2-f309eebcc9a9",
+                    "date": "2026-01-09T00:00:00+00:00",
+                    "merchant": "NHS DENTIST CHECK-UP",
+                    "amount": -85
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "direct debit bt broadband is 52.6% of your utilities_bills spend",
+                "magnitude": {
+                  "amount": 60,
+                  "currency": "GBP",
+                  "share_pct": 52.6
+                },
+                "merchants": [
+                  "direct debit bt broadband"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "d754a699-b2df-44d2-8000-44c7c9c7fe09",
+                    "date": "2026-02-04T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT BT BROADBAND",
+                    "amount": -20
+                  },
+                  {
+                    "id": "92a81f0a-35a4-4d01-a9ef-88b6a17c0606",
+                    "date": "2026-01-04T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT BT BROADBAND",
+                    "amount": -20
+                  },
+                  {
+                    "id": "18f041b6-61d1-4d1b-ac68-c9ac2bf8a431",
+                    "date": "2026-03-04T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT BT BROADBAND",
+                    "amount": -20
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "tfl travel topup is 86.4% of your transport spend",
+                "magnitude": {
+                  "amount": 90,
+                  "currency": "GBP",
+                  "share_pct": 86.4
+                },
+                "merchants": [
+                  "tfl travel topup"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "0dede9a3-abb8-4e84-ae86-0a5cc3ca2c4f",
+                    "date": "2026-01-05T00:00:00+00:00",
+                    "merchant": "TFL TRAVEL TOPUP",
+                    "amount": -30
+                  },
+                  {
+                    "id": "a7f52721-b50c-4bf9-9dca-5a682f24be57",
+                    "date": "2026-02-05T00:00:00+00:00",
+                    "merchant": "TFL TRAVEL TOPUP",
+                    "amount": -30
+                  },
+                  {
+                    "id": "3535573b-9aa6-4585-8c90-683dad05a195",
+                    "date": "2026-03-05T00:00:00+00:00",
+                    "merchant": "TFL TRAVEL TOPUP",
+                    "amount": -30
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "adobe creative cloud is 55.5% of your subscriptions spend",
+                "magnitude": {
+                  "amount": 59.91,
+                  "currency": "GBP",
+                  "share_pct": 55.5
+                },
+                "merchants": [
+                  "adobe creative cloud"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "407e113e-9f17-48b3-afe2-6283fca4d272",
+                    "date": "2026-01-12T00:00:00+00:00",
+                    "merchant": "ADOBE CREATIVE CLOUD",
+                    "amount": -19.97
+                  },
+                  {
+                    "id": "ee246468-edf3-4f05-b0f8-fad2e5f3e973",
+                    "date": "2026-02-12T00:00:00+00:00",
+                    "merchant": "ADOBE CREATIVE CLOUD",
+                    "amount": -19.97
+                  },
+                  {
+                    "id": "aabbe561-5b84-4cf4-80b0-9b3018c2487e",
+                    "date": "2026-03-12T00:00:00+00:00",
+                    "merchant": "ADOBE CREATIVE CLOUD",
+                    "amount": -19.97
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "padella covent garden is 100% of your entertainment spend",
+                "magnitude": {
+                  "amount": 83.85,
+                  "currency": "GBP",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "padella covent garden"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "fa41552c-1ca7-4750-9aca-a6c5b9ae1b89",
+                    "date": "2026-02-06T00:00:00+00:00",
+                    "merchant": "PADELLA COVENT GARDEN",
+                    "amount": -35.83
+                  },
+                  {
+                    "id": "9deac566-2c27-4fb6-9495-e71f37285957",
+                    "date": "2026-01-14T00:00:00+00:00",
+                    "merchant": "PADELLA COVENT GARDEN",
+                    "amount": -27.79
+                  },
+                  {
+                    "id": "6d14176e-5784-4603-831f-f727c1e7ed3d",
+                    "date": "2026-01-28T00:00:00+00:00",
+                    "merchant": "PADELLA COVENT GARDEN",
+                    "amount": -20.23
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "groceries is 27.2% of your total spend (£512)",
+                "magnitude": {
+                  "amount": 512.12,
+                  "currency": "GBP",
+                  "share_pct": 27.2
+                },
+                "merchants": [
+                  "sainsburys holloway",
+                  "m s food angel",
+                  "tesco express upper st"
+                ],
+                "comparison": "This category alone takes up 27.2% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "2a3c7c6e-7213-4bb5-98dd-8d6cf819455a",
+                    "date": "2026-03-02T00:00:00+00:00",
+                    "merchant": "SAINSBURYS HOLLOWAY",
+                    "amount": -37.48
+                  },
+                  {
+                    "id": "54d66e52-76e4-47ac-8df7-af757d63e384",
+                    "date": "2026-01-25T00:00:00+00:00",
+                    "merchant": "SAINSBURYS HOLLOWAY",
+                    "amount": -36.36
+                  },
+                  {
+                    "id": "51726b57-c594-45e8-b240-4c19168d1670",
+                    "date": "2026-02-04T00:00:00+00:00",
+                    "merchant": "TESCO EXPRESS UPPER ST",
+                    "amount": -35.39
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "direct debit vodafone ltd hits like clockwork: 3× at ~£18 each",
+                "magnitude": {
+                  "amount": 54,
+                  "currency": "GBP",
+                  "share_pct": 2.9
+                },
+                "merchants": [
+                  "direct debit vodafone ltd"
+                ],
+                "comparison": "~1 times per month at £18 each.",
+                "sample_transactions": [
+                  {
+                    "id": "de9f7a06-bf9c-4f89-9727-8d66457d8251",
+                    "date": "2026-01-15T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT VODAFONE LTD",
+                    "amount": -18
+                  },
+                  {
+                    "id": "5c25c35c-e937-4125-90b1-376623a99eed",
+                    "date": "2026-02-15T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT VODAFONE LTD",
+                    "amount": -18
+                  },
+                  {
+                    "id": "77e45337-99c7-405b-a41b-bfcd430c3301",
+                    "date": "2026-03-15T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT VODAFONE LTD",
+                    "amount": -18
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "tfl travel topup hits like clockwork: 3× at ~£30 each",
+                "magnitude": {
+                  "amount": 90,
+                  "currency": "GBP",
+                  "share_pct": 4.8
+                },
+                "merchants": [
+                  "tfl travel topup"
+                ],
+                "comparison": "~1 times per month at £30 each.",
+                "sample_transactions": [
+                  {
+                    "id": "0dede9a3-abb8-4e84-ae86-0a5cc3ca2c4f",
+                    "date": "2026-01-05T00:00:00+00:00",
+                    "merchant": "TFL TRAVEL TOPUP",
+                    "amount": -30
+                  },
+                  {
+                    "id": "a7f52721-b50c-4bf9-9dca-5a682f24be57",
+                    "date": "2026-02-05T00:00:00+00:00",
+                    "merchant": "TFL TRAVEL TOPUP",
+                    "amount": -30
+                  },
+                  {
+                    "id": "3535573b-9aa6-4585-8c90-683dad05a195",
+                    "date": "2026-03-05T00:00:00+00:00",
+                    "merchant": "TFL TRAVEL TOPUP",
+                    "amount": -30
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "spotify uk hits like clockwork: 3× at ~£11 each",
+                "magnitude": {
+                  "amount": 32.97,
+                  "currency": "GBP",
+                  "share_pct": 1.7
+                },
+                "merchants": [
+                  "spotify uk"
+                ],
+                "comparison": "~1 times per month at £11 each.",
+                "sample_transactions": [
+                  {
+                    "id": "edd0da3e-98a9-4854-8bc0-043556698450",
+                    "date": "2026-01-19T00:00:00+00:00",
+                    "merchant": "SPOTIFY UK",
+                    "amount": -10.99
+                  },
+                  {
+                    "id": "8ed50231-5245-4611-b052-17e14d7c2175",
+                    "date": "2026-02-19T00:00:00+00:00",
+                    "merchant": "SPOTIFY UK",
+                    "amount": -10.99
+                  },
+                  {
+                    "id": "1bdce24a-b9ba-41fd-9c23-a1ccd679e893",
+                    "date": "2026-03-19T00:00:00+00:00",
+                    "merchant": "SPOTIFY UK",
+                    "amount": -10.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "direct debit bt broadband hits like clockwork: 3× at ~£20 each",
+                "magnitude": {
+                  "amount": 60,
+                  "currency": "GBP",
+                  "share_pct": 3.2
+                },
+                "merchants": [
+                  "direct debit bt broadband"
+                ],
+                "comparison": "~1 times per month at £20 each.",
+                "sample_transactions": [
+                  {
+                    "id": "d754a699-b2df-44d2-8000-44c7c9c7fe09",
+                    "date": "2026-02-04T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT BT BROADBAND",
+                    "amount": -20
+                  },
+                  {
+                    "id": "92a81f0a-35a4-4d01-a9ef-88b6a17c0606",
+                    "date": "2026-01-04T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT BT BROADBAND",
+                    "amount": -20
+                  },
+                  {
+                    "id": "18f041b6-61d1-4d1b-ac68-c9ac2bf8a431",
+                    "date": "2026-03-04T00:00:00+00:00",
+                    "merchant": "DIRECT DEBIT BT BROADBAND",
+                    "amount": -20
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "netflix com hits like clockwork: 3× at ~£5 each",
+                "magnitude": {
+                  "amount": 15,
+                  "currency": "GBP",
+                  "share_pct": 0.8
+                },
+                "merchants": [
+                  "netflix com"
+                ],
+                "comparison": "~1 times per month at £5 each.",
+                "sample_transactions": [
+                  {
+                    "id": "0b3dc4e5-424f-41f7-a35e-234cf5268894",
+                    "date": "2026-01-20T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM",
+                    "amount": -5
+                  },
+                  {
+                    "id": "cc8b902b-cc32-428e-adf4-0d23f311a010",
+                    "date": "2026-02-20T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM",
+                    "amount": -5
+                  },
+                  {
+                    "id": "6ed1b422-604b-46cd-9dd8-5aa216a39d52",
+                    "date": "2026-03-20T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM",
+                    "amount": -5
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "adobe creative cloud hits like clockwork: 3× at ~£20 each",
+                "magnitude": {
+                  "amount": 59.91,
+                  "currency": "GBP",
+                  "share_pct": 3.2
+                },
+                "merchants": [
+                  "adobe creative cloud"
+                ],
+                "comparison": "~1 times per month at £20 each.",
+                "sample_transactions": [
+                  {
+                    "id": "407e113e-9f17-48b3-afe2-6283fca4d272",
+                    "date": "2026-01-12T00:00:00+00:00",
+                    "merchant": "ADOBE CREATIVE CLOUD",
+                    "amount": -19.97
+                  },
+                  {
+                    "id": "ee246468-edf3-4f05-b0f8-fad2e5f3e973",
+                    "date": "2026-02-12T00:00:00+00:00",
+                    "merchant": "ADOBE CREATIVE CLOUD",
+                    "amount": -19.97
+                  },
+                  {
+                    "id": "aabbe561-5b84-4cf4-80b0-9b3018c2487e",
+                    "date": "2026-03-12T00:00:00+00:00",
+                    "merchant": "ADOBE CREATIVE CLOUD",
+                    "amount": -19.97
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "find_value_gaps",
+          "args": {
+            "months": 3
+          },
+          "output": {
+            "has_value_map": true,
+            "gaps": [
+              {
+                "shape": "single_intent",
+                "category_id": "groceries",
+                "category_name": "groceries",
+                "stated_quadrant": "foundation",
+                "stated_confidence": 3,
+                "actual_monthly_spend": 68.08,
+                "pct_of_total_spending": 31.7,
+                "actual_breakdown": {
+                  "foundation_pct": 100,
+                  "investment_pct": 0,
+                  "burden_pct": 0,
+                  "leak_pct": 0,
+                  "unsure_pct": 0
+                },
+                "gap_type": "hidden_burden",
+                "gap_severity": "medium",
+                "top_merchants": [
+                  {
+                    "merchant": "m s food angel",
+                    "amount": 87.37
+                  },
+                  {
+                    "merchant": "sainsburys holloway",
+                    "amount": 61.65
+                  },
+                  {
+                    "merchant": "tesco express upper st",
+                    "amount": 35.67
+                  }
+                ],
+                "sample_transactions": [
+                  {
+                    "id": "2a3c7c6e-7213-4bb5-98dd-8d6cf819455a",
+                    "date": "2026-03-02T00:00:00+00:00",
+                    "merchant": "SAINSBURYS HOLLOWAY",
+                    "amount": -37.48
+                  },
+                  {
+                    "id": "344d379f-94d1-4943-9caa-753d84b7ee36",
+                    "date": "2026-03-23T00:00:00+00:00",
+                    "merchant": "M&S FOOD ANGEL",
+                    "amount": -26.27
+                  },
+                  {
+                    "id": "4a283cf9-937a-4f29-af23-d95c37e911f9",
+                    "date": "2026-03-20T00:00:00+00:00",
+                    "merchant": "TESCO EXPRESS UPPER ST",
+                    "amount": -25.65
+                  }
+                ],
+                "narrative_hint": "groceries is a Foundation cost in your mind, but at 31."
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "eat_drinking_out",
+                "category_name": "eat_drinking_out",
+                "stated_intents": [
+                  {
+                    "card_label": "Dinner out with friends",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 54.03,
+                "pct_of_total_spending": 25.1,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 45.07,
+                    "share_pct": 27.8,
+                    "top_merchants": [
+                      "pizza east",
+                      "holloway espresso bar",
+                      "pret a manger upper st"
+                    ],
+                    "sample_count": 5,
+                    "sample_transactions": [
+                      {
+                        "id": "78837001-6b56-4f10-bf9e-a8034d547f90",
+                        "date": "2026-03-04T00:00:00+00:00",
+                        "merchant": "PIZZA EAST",
+                        "amount": -22.32
+                      },
+                      {
+                        "id": "636975a4-6bae-4ed1-8d63-b077170c607c",
+                        "date": "2026-03-31T00:00:00+00:00",
+                        "merchant": "HOLLOWAY ESPRESSO BAR",
+                        "amount": -7.53
+                      },
+                      {
+                        "id": "6ddc66cf-5eb3-4090-b733-529f87bbc0e8",
+                        "date": "2026-03-09T00:00:00+00:00",
+                        "merchant": "PRET A MANGER UPPER ST",
+                        "amount": -6
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 117.02,
+                    "share_pct": 72.2,
+                    "top_merchants": [
+                      "wagamama angel",
+                      "holloway espresso bar",
+                      "pret a manger upper st"
+                    ],
+                    "sample_count": 10,
+                    "sample_transactions": [
+                      {
+                        "id": "12454b30-8945-45d4-8161-863b906bd109",
+                        "date": "2026-03-22T00:00:00+00:00",
+                        "merchant": "WAGAMAMA ANGEL",
+                        "amount": -34.39
+                      },
+                      {
+                        "id": "6d2ee3ac-f3a6-469a-9d6c-a0ab20802143",
+                        "date": "2026-02-22T00:00:00+00:00",
+                        "merchant": "WAGAMAMA ANGEL",
+                        "amount": -29.4
+                      },
+                      {
+                        "id": "e7481d17-9778-427a-97e0-45f0359be6cc",
+                        "date": "2026-03-29T00:00:00+00:00",
+                        "merchant": "WAGAMAMA ANGEL",
+                        "amount": -18.15
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "subscriptions",
+                "category_name": "subscriptions",
+                "stated_intents": [
+                  {
+                    "card_label": "Streaming service subscription",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 13.65,
+                "pct_of_total_spending": 6.3,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 40.96,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "adobe creative cloud",
+                      "spotify uk",
+                      "netflix com"
+                    ],
+                    "sample_count": 4,
+                    "sample_transactions": [
+                      {
+                        "id": "aabbe561-5b84-4cf4-80b0-9b3018c2487e",
+                        "date": "2026-03-12T00:00:00+00:00",
+                        "merchant": "ADOBE CREATIVE CLOUD",
+                        "amount": -19.97
+                      },
+                      {
+                        "id": "1bdce24a-b9ba-41fd-9c23-a1ccd679e893",
+                        "date": "2026-03-19T00:00:00+00:00",
+                        "merchant": "SPOTIFY UK",
+                        "amount": -10.99
+                      },
+                      {
+                        "id": "cc8b902b-cc32-428e-adf4-0d23f311a010",
+                        "date": "2026-02-20T00:00:00+00:00",
+                        "merchant": "NETFLIX.COM",
+                        "amount": -5
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "entertainment",
+                "category_name": "entertainment",
+                "stated_intents": [
+                  {
+                    "card_label": "Online course or book",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "utilities_bills",
+                "category_name": "utilities_bills",
+                "stated_intents": [
+                  {
+                    "card_label": "Electricity bill",
+                    "quadrant": "burden",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 12.67,
+                "pct_of_total_spending": 5.9,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 20,
+                    "share_pct": 52.6,
+                    "top_merchants": [
+                      "direct debit bt broadband"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "18f041b6-61d1-4d1b-ac68-c9ac2bf8a431",
+                        "date": "2026-03-04T00:00:00+00:00",
+                        "merchant": "DIRECT DEBIT BT BROADBAND",
+                        "amount": -20
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 18,
+                    "share_pct": 47.4,
+                    "top_merchants": [
+                      "direct debit vodafone ltd"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "77e45337-99c7-405b-a41b-bfcd430c3301",
+                        "date": "2026-03-15T00:00:00+00:00",
+                        "merchant": "DIRECT DEBIT VODAFONE LTD",
+                        "amount": -18
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "shopping",
+                "category_name": "shopping",
+                "stated_intents": [
+                  {
+                    "card_label": "New clothes or shoes",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Birthday gift for someone close",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 31.74,
+                "pct_of_total_spending": 14.8,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 95.21,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "zara oxford st",
+                      "amazon co uk"
+                    ],
+                    "sample_count": 2,
+                    "sample_transactions": [
+                      {
+                        "id": "9518f90f-6755-40b7-b6a5-1fb18fe7a1fa",
+                        "date": "2026-03-27T00:00:00+00:00",
+                        "merchant": "ZARA OXFORD ST",
+                        "amount": -69.06
+                      },
+                      {
+                        "id": "0f6d5b66-ab30-4804-899e-0add89b0bf36",
+                        "date": "2026-03-17T00:00:00+00:00",
+                        "merchant": "AMAZON.CO.UK",
+                        "amount": -26.15
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              }
+            ],
+            "value_map_metadata": {
+              "baseline_taken_at": "2026-05-19T16:17:39.509181+00:00",
+              "classifications_count": 10,
+              "decided_count": 8,
+              "unsure_count": 2,
+              "staleness_days": 0,
+              "coverage_pct": 85.7,
+              "unclassified_categories": [
+                "health"
+              ]
+            },
+            "currency": "GBP"
+          }
+        }
+      ],
+      "tokens": {
+        "in": 30074,
+        "out": 225
+      }
+    }
+  },
+  "rating": {
+    "winner": "a",
+    "rater": "lewis",
+    "rated_at": "2026-05-20T11:46:13.569Z",
+    "notes": null
+  },
+  "judge_predictions": [
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T11:05:01.867Z",
+      "score_a": 0.76,
+      "score_b": 0.72,
+      "predicted_winner": "a",
+      "diagnostic": {
+        "a.recognition": 0.82,
+        "a.goal_calibration": 0.55,
+        "a.surprise": 0.78,
+        "a.trust": 0.81,
+        "a.tangibility": 0.79,
+        "a.voice": 0.88,
+        "b.recognition": 0.85,
+        "b.goal_calibration": 0.5,
+        "b.surprise": 0.78,
+        "b.trust": 0.75,
+        "b.tangibility": 0.8,
+        "b.voice": 0.82
+      },
+      "reasoning_a": "The response excels on voice (sharp, peer-tone, no banned phrases, clean signoff), surprise (the sawtooth pattern and 3.58x Sunday spike are non-obvious), and tangibility (rooted in the user's actual pay cycle, not generics). Recognition lands well on structure and numbers (£1,969 peak, £-503 trough, 15% MoM drop, £594 daily average vs £2,127 Sundays), though it doesn't name specific merchants—a choice that feels deliberate (aggregates work here) but slightly underuses the merchant data available. Goal calibration is neutral (0.55): the brief has no recorded goal, so the CFO *infers* \"emergency buffer goal\" and anchors the entire insight to it, which is responsive but speculative rather than confirmed.",
+      "reasoning_b": "Strong specificity (Adobe £19.97/month, Spotify/Netflix named, 72% weekend dining concentration) and sharp peer tone drive the score. Surprise lands on the non-obvious weekend eating pattern and subscription concentration. Goal_calibration is neutral (0.5) because no brief was recorded—the CFO pivots skillfully to Value Map mention, but has no stated user goal to anchor against. Missing: no amount grounding for the £240 projection (traces to £19.97 × 12 ≈ £240, but this math is the CFO's own inference, not a tool output)."
+    }
+  ]
+}

@@ -75,6 +75,7 @@ describe('buildFirstInsightContextV2', () => {
       emptyQuadrants,
       txWindow,
       null,
+      null,
     )
     expect(result).toContain('## The user')
     expect(result).toContain('## Value Map (their stated values)')
@@ -96,6 +97,7 @@ describe('buildFirstInsightContextV2', () => {
       null,
       emptyQuadrants,
       txWindow,
+      null,
       null,
     )
     expect(result).toContain(
@@ -129,6 +131,7 @@ describe('buildFirstInsightContextV2', () => {
       emptyQuadrants,
       txWindow,
       null,
+      null,
     )
     expect(result).toContain('Pret A Manger: foundation (18 confirmations, last: 2026-05-12)')
     expect(result).toContain('Glovo: leak (7 confirmations, last: 2026-05-10)')
@@ -151,6 +154,7 @@ describe('buildFirstInsightContextV2', () => {
       null,
       emptyQuadrants,
       txWindow,
+      null,
       null,
     )
     expect(result).toContain('Merchant1: foundation (30 confirmations')
@@ -175,6 +179,7 @@ describe('buildFirstInsightContextV2', () => {
       quadrants,
       txWindow,
       null,
+      null,
     )
     expect(result).toContain('Unsure: New clothes or shoes, Online course or book')
     expect(result).toContain('Foundation: Monthly rent / mortgage payment')
@@ -192,6 +197,7 @@ describe('buildFirstInsightContextV2', () => {
       emptyQuadrants,
       txWindow,
       null,
+      null,
     )
     expect(result).toContain('Archetype: not yet taken')
     expect(result).toContain('Baseline taken: not yet taken')
@@ -208,6 +214,7 @@ describe('buildFirstInsightContextV2', () => {
       emptyQuadrants,
       txWindow,
       { title: 'Clear the card by August' },
+      null,
     )
     expect(result).toContain('Goal: "Clear the card by August"')
   })
@@ -230,6 +237,7 @@ describe('buildFirstInsightContextV2', () => {
       emptyQuadrants,
       txWindow,
       null,
+      null,
     )
     expect(result).toContain('Name: not yet shared')
     expect(result).toContain('Goal: "not yet shared"')
@@ -250,6 +258,7 @@ describe('buildFirstInsightContextV2', () => {
       emptyQuadrants,
       txWindow,
       null,
+      null,
     )
     expect(result).toContain(
       'No corrections or labels yet — this is your first real conversation with this user.',
@@ -267,6 +276,7 @@ describe('buildFirstInsightContextV2', () => {
       null,
       emptyQuadrants,
       txWindow,
+      null,
       null,
     )
     expect(result).toContain('412 transactions across 6 months.')

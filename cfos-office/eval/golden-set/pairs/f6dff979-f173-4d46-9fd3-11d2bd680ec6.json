@@ -1,0 +1,1162 @@
+{
+  "pair_id": "f6dff979-f173-4d46-9fd3-11d2bd680ec6",
+  "created_at": "2026-05-20T11:03:19.577Z",
+  "source": "compare-first-insight",
+  "fold": "train",
+  "input": {
+    "persona_id": null,
+    "user_id": "74bdefdb-0831-4821-b354-b93461f50a94",
+    "trigger_message": "[System: Post-upload analysis triggered. Deliver your first insight.]",
+    "known_merchants": [
+      "RENFE AVE MAD-BCN",
+      "MONTIEL BARCELONA",
+      "HACIENDA IRPF Q1 PAGO",
+      "APPLE STORE PASSEIG GRACIA",
+      "DIRECTE AL PALADAR",
+      "TRANSFERENCIA RECIBIDA MERIDIAN PARTNERS",
+      "VUELING BCN-LON",
+      "HOTEL OMM BARCELONA",
+      "TRANSFERENCIA RECIBIDA AURORA CAPITAL SL",
+      "TRANSFERENCIA RECIBIDA NORDIC BRANDS AB",
+      "TRANSFERENCIA RECIBIDA PORTSIDE GROUP",
+      "BAR CANETE CIUTAT VELLA",
+      "BAR BRUTAL CUINA",
+      "ALKIMIA BARCELONA",
+      "EL CORTE INGLES DIAGONAL",
+      "RECIBO ENDESA ENERGIA",
+      "CINC SENTITS BARCELONA",
+      "CARREFOURMARKET DIAGONAL",
+      "CABIFY BARCELONA",
+      "SATAN'S COFFEE BARCELONA",
+      "MERCADONA EIXAMPLE",
+      "WELLNESS DIAGONAL CLUB",
+      "LA CENTRAL LIBRERIA",
+      "VINOTECA TORRES",
+      "NOMAD COFFEE LAB",
+      "GESTORIA AUTOSER AUTONOMOS",
+      "CAFE COSMO BARCELONA",
+      "EVO BANCO INVERSION TRANSFER",
+      "AMAZON.ES",
+      "LIMPIEZA HOGAR - M. SANCHEZ",
+      "RECIBO BBVA HIPOTECA",
+      "DISNEY PLUS",
+      "BONPREU GRACIA",
+      "PADEL CLUB EIXAMPLE CUOTA",
+      "SPOTIFY FAMILY",
+      "FUNDSMITH SIPP CONTRIBUTION",
+      "RECIBO SANITAS SALUD",
+      "NETFLIX.COM",
+      "APPLE ICLOUD STORAGE",
+      "ONNA COFFEE GRACIA",
+      "FISMULER BARCELONA",
+      "RECIBO MOVISTAR FIBRA+MOVIL"
+    ],
+    "user_brief": "(no entry brief / goal recorded)",
+    "prompt_variants": {
+      "a": {
+        "label": "v1",
+        "hash": "0f00186c8ae74037"
+      },
+      "b": {
+        "label": "v2",
+        "hash": "e6895af551e9f75e"
+      }
+    }
+  },
+  "responses": {
+    "a": {
+      "text": "Right. Three months of data, 155 transactions, €23,665 tracked. Here's what stands out.\n\n---\n\n**Housing is running the show.**\n\nAt 48% of total spend — €4,200 — it's the single largest claim on your money by a distance. That's not unusual in itself, but it matters specifically for your retirement pot goal. Every euro locked into housing costs is a euro that isn't compounding over 15 years. The concentration is worth keeping an eye on.\n\n---\n\n**This month is a different animal.**\n\nSpending hit €13,315 against €4,156 the previous month — a 220% jump. The biggest single driver is uncategorised spend, which means there's a chunk of that number that hasn't been labelled yet. Until it's sorted, the real shape of this month is still blurry. Worth cleaning that up before drawing conclusions.\n\n[STATS]\nTracked spend | €23,665\nhousing | 48%\nRecurring bills | 23\n[/STATS]\n\n---\n\n**23 recurring bills. €5,950 a month. 45% of average monthly spend.**\n\nThat's a significant structural layer — and it's the kind of thing that quietly accumulates over time. Some of those will be firmly Foundation (mortgage, utilities, insurance). But in 23 bills there's almost always overlap or dead weight. A single audit pass on that list usually finds one or two that have outlived their purpose — and anything redirected from there goes straight toward the retirement pot without touching your day-to-day behaviour at all.\n\n---\n\n**One structural fix worth trying:** move a fixed amount toward your retirement pot on payday, before anything else moves. The experiment is simple — agree the amount, transfer it on payday, don't pull it back. 30 days. Pay-yourself-first beats willpower every time.\n\n[OPTIONS]\n- Yes, let's try it\n- Pick a different one\n- Break down my housing\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [],
+      "tokens": {
+        "in": 23202,
+        "out": 449
+      }
+    },
+    "b": {
+      "text": "Carlos, the standout number from your first 3 months: **€759 spent at El Corte Inglés Diagonal** — that's 90% of your entire shopping category, across 5 visits averaging €152 each.\n\nYour Value Map places shopping as Investment (clothes, gifts), so this may well be intentional. But redirecting even two of those visits per month — roughly €300 — straight into your retirement pot would meaningfully change the pace toward that goal.\n\nWhat's working: your groceries are clean and consistent, and the €3,000 investment transfer in March is exactly the kind of move that builds a retirement pot.\n\nA quick question to sharpen the picture — your profile is sparse right now and the guidance gets much more specific with a few basics. Want to fill in a couple of details now, or as we go?\n\n[OPTIONS]\n- Fill in a few basics now\n- Show me my full spending breakdown\n- Dig into El Corte Inglés\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "find_money_clusters",
+          "args": {
+            "date_from": "2026-01-01",
+            "date_to": "2026-03-31",
+            "min_share_pct": 25
+          },
+          "output": {
+            "filter": {
+              "date_from": "2026-01-01",
+              "date_to": "2026-03-31",
+              "min_share_pct": 25
+            },
+            "currency": "EUR",
+            "window": {
+              "n_transactions": 98,
+              "n_days": 90
+            },
+            "data_confidence": "high",
+            "stories": [
+              {
+                "type": "merchant_in_category",
+                "headline": "recibo bbva hipoteca is 100% of your housing spend",
+                "magnitude": {
+                  "amount": 4200,
+                  "currency": "EUR",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "recibo bbva hipoteca"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "d90823c8-b5af-4728-8a89-0f71f10af155",
+                    "date": "2026-01-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  },
+                  {
+                    "id": "6664a158-03c0-44a5-95dd-bf12f6ff9b4b",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  },
+                  {
+                    "id": "ea676242-8e63-48a9-b43a-9d79994fe808",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "renfe ave mad bcn is 58.1% of your transport spend",
+                "magnitude": {
+                  "amount": 117.76,
+                  "currency": "EUR",
+                  "share_pct": 58.1
+                },
+                "merchants": [
+                  "renfe ave mad bcn"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "9524bc8d-14f2-4bea-89b7-a1107e71d5dc",
+                    "date": "2026-03-17T00:00:00+00:00",
+                    "merchant": "RENFE AVE MAD-BCN",
+                    "amount": -117.76
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "el corte ingles diagonal is 90.3% of your shopping spend",
+                "magnitude": {
+                  "amount": 759.54,
+                  "currency": "EUR",
+                  "share_pct": 90.3
+                },
+                "merchants": [
+                  "el corte ingles diagonal"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "31e3622e-ad6a-4ce8-b5ee-df68cf9668e6",
+                    "date": "2026-03-17T00:00:00+00:00",
+                    "merchant": "EL CORTE INGLES DIAGONAL",
+                    "amount": -186.39
+                  },
+                  {
+                    "id": "ebbaf656-683e-43b8-8dad-149138e0dc97",
+                    "date": "2026-03-08T00:00:00+00:00",
+                    "merchant": "EL CORTE INGLES DIAGONAL",
+                    "amount": -164.32
+                  },
+                  {
+                    "id": "c22c643a-06a3-48ed-a85d-3975ba6376df",
+                    "date": "2026-01-15T00:00:00+00:00",
+                    "merchant": "EL CORTE INGLES DIAGONAL",
+                    "amount": -143.62
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "mercadona eixample is 42.7% of your groceries spend",
+                "magnitude": {
+                  "amount": 620.93,
+                  "currency": "EUR",
+                  "share_pct": 42.7
+                },
+                "merchants": [
+                  "mercadona eixample"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "c53aa45f-5bd5-429d-8157-4085a13bbe17",
+                    "date": "2026-03-22T00:00:00+00:00",
+                    "merchant": "MERCADONA EIXAMPLE",
+                    "amount": -102.54
+                  },
+                  {
+                    "id": "2578ca36-e555-4745-a986-bbb8564c3c14",
+                    "date": "2026-01-03T00:00:00+00:00",
+                    "merchant": "MERCADONA EIXAMPLE",
+                    "amount": -95.98
+                  },
+                  {
+                    "id": "b7961a75-e8ac-497c-9135-3f1fd14ae8b7",
+                    "date": "2026-03-02T00:00:00+00:00",
+                    "merchant": "MERCADONA EIXAMPLE",
+                    "amount": -94.32
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "bar canete ciutat vella is 45.3% of your eat_drinking_out spend",
+                "magnitude": {
+                  "amount": 286.91,
+                  "currency": "EUR",
+                  "share_pct": 45.3
+                },
+                "merchants": [
+                  "bar canete ciutat vella"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "100f37de-d012-4d8c-bdef-75a6fc7462d0",
+                    "date": "2026-03-13T00:00:00+00:00",
+                    "merchant": "BAR CANETE CIUTAT VELLA",
+                    "amount": -125.51
+                  },
+                  {
+                    "id": "5812617b-dd44-48e3-addd-90f0b0e74e39",
+                    "date": "2026-01-30T00:00:00+00:00",
+                    "merchant": "BAR CANETE CIUTAT VELLA",
+                    "amount": -102
+                  },
+                  {
+                    "id": "2c8870e6-343f-4c16-ae51-e88e9f7f0ea8",
+                    "date": "2026-01-14T00:00:00+00:00",
+                    "merchant": "BAR CANETE CIUTAT VELLA",
+                    "amount": -59.4
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "hotel omm barcelona is 54.1% of your travel spend",
+                "magnitude": {
+                  "amount": 272.97,
+                  "currency": "EUR",
+                  "share_pct": 54.1
+                },
+                "merchants": [
+                  "hotel omm barcelona"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "921eecc6-c32c-4b33-a8b4-65a4db0be7d6",
+                    "date": "2026-03-15T00:00:00+00:00",
+                    "merchant": "HOTEL OMM BARCELONA",
+                    "amount": -272.97
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "recibo endesa energia is 61.4% of your utilities_bills spend",
+                "magnitude": {
+                  "amount": 310,
+                  "currency": "EUR",
+                  "share_pct": 61.4
+                },
+                "merchants": [
+                  "recibo endesa energia"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "15556add-a04f-4aa2-8a7e-62c16ce27469",
+                    "date": "2026-03-14T00:00:00+00:00",
+                    "merchant": "RECIBO ENDESA ENERGIA",
+                    "amount": -162
+                  },
+                  {
+                    "id": "714c83e1-d818-4d38-8637-9fa1c56df3de",
+                    "date": "2026-01-14T00:00:00+00:00",
+                    "merchant": "RECIBO ENDESA ENERGIA",
+                    "amount": -148
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "padel club eixample cuota is 100% of your entertainment spend",
+                "magnitude": {
+                  "amount": 180,
+                  "currency": "EUR",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "padel club eixample cuota"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "89d8a9ad-0537-45cf-ad87-cbc55df7c601",
+                    "date": "2026-01-10T00:00:00+00:00",
+                    "merchant": "PADEL CLUB EIXAMPLE CUOTA",
+                    "amount": -60
+                  },
+                  {
+                    "id": "e632cc90-8bb9-4f78-a570-d337d7c51d97",
+                    "date": "2026-03-10T00:00:00+00:00",
+                    "merchant": "PADEL CLUB EIXAMPLE CUOTA",
+                    "amount": -60
+                  },
+                  {
+                    "id": "89a3a278-3623-4316-b372-208d1339b671",
+                    "date": "2026-02-10T00:00:00+00:00",
+                    "merchant": "PADEL CLUB EIXAMPLE CUOTA",
+                    "amount": -60
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "housing is 48.4% of your total spend (€4,200)",
+                "magnitude": {
+                  "amount": 4200,
+                  "currency": "EUR",
+                  "share_pct": 48.4
+                },
+                "merchants": [
+                  "recibo bbva hipoteca"
+                ],
+                "comparison": "This category alone takes up 48.4% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "d90823c8-b5af-4728-8a89-0f71f10af155",
+                    "date": "2026-01-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  },
+                  {
+                    "id": "6664a158-03c0-44a5-95dd-bf12f6ff9b4b",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  },
+                  {
+                    "id": "ea676242-8e63-48a9-b43a-9d79994fe808",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "recibo bbva hipoteca hits like clockwork: 3× at ~€1,400 each",
+                "magnitude": {
+                  "amount": 4200,
+                  "currency": "EUR",
+                  "share_pct": 48.4
+                },
+                "merchants": [
+                  "recibo bbva hipoteca"
+                ],
+                "comparison": "~1 times per month at €1,400 each.",
+                "sample_transactions": [
+                  {
+                    "id": "d90823c8-b5af-4728-8a89-0f71f10af155",
+                    "date": "2026-01-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  },
+                  {
+                    "id": "6664a158-03c0-44a5-95dd-bf12f6ff9b4b",
+                    "date": "2026-02-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  },
+                  {
+                    "id": "ea676242-8e63-48a9-b43a-9d79994fe808",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "netflix com hits like clockwork: 3× at ~€14 each",
+                "magnitude": {
+                  "amount": 41.97,
+                  "currency": "EUR",
+                  "share_pct": 0.5
+                },
+                "merchants": [
+                  "netflix com"
+                ],
+                "comparison": "~1 times per month at €14 each.",
+                "sample_transactions": [
+                  {
+                    "id": "e918da75-49a8-47ca-883d-65cdd4bc7954",
+                    "date": "2026-01-18T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM",
+                    "amount": -13.99
+                  },
+                  {
+                    "id": "2afe98e6-7463-4e43-9892-bcce62a8cb6e",
+                    "date": "2026-03-18T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM",
+                    "amount": -13.99
+                  },
+                  {
+                    "id": "d68ae821-6731-48d8-83d2-7db5b01f1175",
+                    "date": "2026-02-18T00:00:00+00:00",
+                    "merchant": "NETFLIX.COM",
+                    "amount": -13.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "disney plus hits like clockwork: 3× at ~€9 each",
+                "magnitude": {
+                  "amount": 26.97,
+                  "currency": "EUR",
+                  "share_pct": 0.3
+                },
+                "merchants": [
+                  "disney plus"
+                ],
+                "comparison": "~1 times per month at €9 each.",
+                "sample_transactions": [
+                  {
+                    "id": "f0f9cc1e-e5b4-40ba-a4c2-51fafa16098f",
+                    "date": "2026-01-20T00:00:00+00:00",
+                    "merchant": "DISNEY PLUS",
+                    "amount": -8.99
+                  },
+                  {
+                    "id": "a6868d57-0799-4e44-a1eb-460df2456db8",
+                    "date": "2026-02-20T00:00:00+00:00",
+                    "merchant": "DISNEY PLUS",
+                    "amount": -8.99
+                  },
+                  {
+                    "id": "0504631f-dc7e-4787-b553-8bba7511be4e",
+                    "date": "2026-03-20T00:00:00+00:00",
+                    "merchant": "DISNEY PLUS",
+                    "amount": -8.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "spotify family hits like clockwork: 3× at ~€18 each",
+                "magnitude": {
+                  "amount": 53.97,
+                  "currency": "EUR",
+                  "share_pct": 0.6
+                },
+                "merchants": [
+                  "spotify family"
+                ],
+                "comparison": "~1 times per month at €18 each.",
+                "sample_transactions": [
+                  {
+                    "id": "96388390-7ec8-4a7e-b42c-ca52e71f4dd2",
+                    "date": "2026-01-15T00:00:00+00:00",
+                    "merchant": "SPOTIFY FAMILY",
+                    "amount": -17.99
+                  },
+                  {
+                    "id": "6f9a8595-3830-46e7-a7e9-81a8ed556326",
+                    "date": "2026-03-15T00:00:00+00:00",
+                    "merchant": "SPOTIFY FAMILY",
+                    "amount": -17.99
+                  },
+                  {
+                    "id": "cbe1ae0b-b270-4c63-a23b-ae36f77790d2",
+                    "date": "2026-02-15T00:00:00+00:00",
+                    "merchant": "SPOTIFY FAMILY",
+                    "amount": -17.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "apple icloud storage hits like clockwork: 3× at ~€10 each",
+                "magnitude": {
+                  "amount": 29.97,
+                  "currency": "EUR",
+                  "share_pct": 0.3
+                },
+                "merchants": [
+                  "apple icloud storage"
+                ],
+                "comparison": "~1 times per month at €10 each.",
+                "sample_transactions": [
+                  {
+                    "id": "c06cca3b-ce74-45d4-a0c2-b8d2055c34e2",
+                    "date": "2026-01-25T00:00:00+00:00",
+                    "merchant": "APPLE ICLOUD STORAGE",
+                    "amount": -9.99
+                  },
+                  {
+                    "id": "8f869d79-bd1f-41f8-a0f0-9e7588a573bf",
+                    "date": "2026-03-25T00:00:00+00:00",
+                    "merchant": "APPLE ICLOUD STORAGE",
+                    "amount": -9.99
+                  },
+                  {
+                    "id": "31f64567-82ab-40dc-a807-963d21594585",
+                    "date": "2026-02-25T00:00:00+00:00",
+                    "merchant": "APPLE ICLOUD STORAGE",
+                    "amount": -9.99
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "recibo movistar fibra movil hits like clockwork: 3× at ~€65 each",
+                "magnitude": {
+                  "amount": 195,
+                  "currency": "EUR",
+                  "share_pct": 2.2
+                },
+                "merchants": [
+                  "recibo movistar fibra movil"
+                ],
+                "comparison": "~1 times per month at €65 each.",
+                "sample_transactions": [
+                  {
+                    "id": "e2b8b88a-802e-491b-9feb-072d9dc23283",
+                    "date": "2026-01-04T00:00:00+00:00",
+                    "merchant": "RECIBO MOVISTAR FIBRA+MOVIL",
+                    "amount": -65
+                  },
+                  {
+                    "id": "07deb5fc-e1c1-47aa-a152-064aa5e74ac5",
+                    "date": "2026-02-04T00:00:00+00:00",
+                    "merchant": "RECIBO MOVISTAR FIBRA+MOVIL",
+                    "amount": -65
+                  },
+                  {
+                    "id": "1c9b2b9c-2509-4b2c-b2cf-858a44f2e26e",
+                    "date": "2026-03-04T00:00:00+00:00",
+                    "merchant": "RECIBO MOVISTAR FIBRA+MOVIL",
+                    "amount": -65
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "recurring_merchant",
+                "headline": "padel club eixample cuota hits like clockwork: 3× at ~€60 each",
+                "magnitude": {
+                  "amount": 180,
+                  "currency": "EUR",
+                  "share_pct": 2.1
+                },
+                "merchants": [
+                  "padel club eixample cuota"
+                ],
+                "comparison": "~1 times per month at €60 each.",
+                "sample_transactions": [
+                  {
+                    "id": "89d8a9ad-0537-45cf-ad87-cbc55df7c601",
+                    "date": "2026-01-10T00:00:00+00:00",
+                    "merchant": "PADEL CLUB EIXAMPLE CUOTA",
+                    "amount": -60
+                  },
+                  {
+                    "id": "e632cc90-8bb9-4f78-a570-d337d7c51d97",
+                    "date": "2026-03-10T00:00:00+00:00",
+                    "merchant": "PADEL CLUB EIXAMPLE CUOTA",
+                    "amount": -60
+                  },
+                  {
+                    "id": "89a3a278-3623-4316-b372-208d1339b671",
+                    "date": "2026-02-10T00:00:00+00:00",
+                    "merchant": "PADEL CLUB EIXAMPLE CUOTA",
+                    "amount": -60
+                  }
+                ],
+                "narrative_hint": "Consistent recurring shape — subscription, fixed bill, or routine?",
+                "data_confidence": "high"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "find_value_gaps",
+          "args": {
+            "months": 3
+          },
+          "output": {
+            "has_value_map": true,
+            "gaps": [
+              {
+                "shape": "single_intent",
+                "category_id": "housing",
+                "category_name": "housing",
+                "stated_quadrant": "foundation",
+                "stated_confidence": 3,
+                "actual_monthly_spend": 466.67,
+                "pct_of_total_spending": 37.5,
+                "actual_breakdown": {
+                  "foundation_pct": 100,
+                  "investment_pct": 0,
+                  "burden_pct": 0,
+                  "leak_pct": 0,
+                  "unsure_pct": 0
+                },
+                "gap_type": "hidden_burden",
+                "gap_severity": "medium",
+                "top_merchants": [
+                  {
+                    "merchant": "recibo bbva hipoteca",
+                    "amount": 1400
+                  }
+                ],
+                "sample_transactions": [
+                  {
+                    "id": "ea676242-8e63-48a9-b43a-9d79994fe808",
+                    "date": "2026-03-01T00:00:00+00:00",
+                    "merchant": "RECIBO BBVA HIPOTECA",
+                    "amount": -1400
+                  }
+                ],
+                "narrative_hint": "housing is a Foundation cost in your mind, but at 37."
+              },
+              {
+                "shape": "single_intent",
+                "category_id": "groceries",
+                "category_name": "groceries",
+                "stated_quadrant": "foundation",
+                "stated_confidence": 3,
+                "actual_monthly_spend": 180.85,
+                "pct_of_total_spending": 14.5,
+                "actual_breakdown": {
+                  "foundation_pct": 100,
+                  "investment_pct": 0,
+                  "burden_pct": 0,
+                  "leak_pct": 0,
+                  "unsure_pct": 0
+                },
+                "gap_type": "aligned",
+                "gap_severity": "low",
+                "top_merchants": [
+                  {
+                    "merchant": "mercadona eixample",
+                    "amount": 297.52
+                  },
+                  {
+                    "merchant": "carrefourmarket diagonal",
+                    "amount": 245.04
+                  }
+                ],
+                "sample_transactions": [
+                  {
+                    "id": "c53aa45f-5bd5-429d-8157-4085a13bbe17",
+                    "date": "2026-03-22T00:00:00+00:00",
+                    "merchant": "MERCADONA EIXAMPLE",
+                    "amount": -102.54
+                  },
+                  {
+                    "id": "b7961a75-e8ac-497c-9135-3f1fd14ae8b7",
+                    "date": "2026-03-02T00:00:00+00:00",
+                    "merchant": "MERCADONA EIXAMPLE",
+                    "amount": -94.32
+                  },
+                  {
+                    "id": "9a889cb1-2a0d-4607-8b49-829a71c86c30",
+                    "date": "2026-02-20T00:00:00+00:00",
+                    "merchant": "CARREFOURMARKET DIAGONAL",
+                    "amount": -63.97
+                  }
+                ],
+                "narrative_hint": "Your groceries spending aligns with how you see it."
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "health",
+                "category_name": "health",
+                "stated_intents": [
+                  {
+                    "card_label": "Gym membership",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Gym membership",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "eat_drinking_out",
+                "category_name": "eat_drinking_out",
+                "stated_intents": [
+                  {
+                    "card_label": "Takeaway delivery on a quiet evening",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Dinner out with friends",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Takeaway delivery on a quiet evening",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Dinner out with friends",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 93.75,
+                "pct_of_total_spending": 7.5,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 259.67,
+                    "share_pct": 92.3,
+                    "top_merchants": [
+                      "bar canete ciutat vella",
+                      "bar brutal cuina",
+                      "cafe cosmo barcelona"
+                    ],
+                    "sample_count": 13,
+                    "sample_transactions": [
+                      {
+                        "id": "100f37de-d012-4d8c-bdef-75a6fc7462d0",
+                        "date": "2026-03-13T00:00:00+00:00",
+                        "merchant": "BAR CANETE CIUTAT VELLA",
+                        "amount": -125.51
+                      },
+                      {
+                        "id": "c1d7fdf2-ed47-4466-bd21-ed36c98f2660",
+                        "date": "2026-03-24T00:00:00+00:00",
+                        "merchant": "BAR BRUTAL CUINA",
+                        "amount": -73.42
+                      },
+                      {
+                        "id": "d8bb3759-65e9-4039-8671-eb56195d10c5",
+                        "date": "2026-03-11T00:00:00+00:00",
+                        "merchant": "SATAN'S COFFEE BARCELONA",
+                        "amount": -8.23
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 21.59,
+                    "share_pct": 7.7,
+                    "top_merchants": [
+                      "nomad coffee lab",
+                      "onna coffee gracia",
+                      "cafe cosmo barcelona"
+                    ],
+                    "sample_count": 4,
+                    "sample_transactions": [
+                      {
+                        "id": "3c337ccb-c16a-40c1-a993-d3669dac5dea",
+                        "date": "2026-03-07T00:00:00+00:00",
+                        "merchant": "ONNA COFFEE GRACIA",
+                        "amount": -7.08
+                      },
+                      {
+                        "id": "b158d408-33c3-49e0-ae0d-970eeb9266ff",
+                        "date": "2026-03-22T00:00:00+00:00",
+                        "merchant": "NOMAD COFFEE LAB",
+                        "amount": -5.36
+                      },
+                      {
+                        "id": "9917f169-9080-451f-a47f-67eeefef74cc",
+                        "date": "2026-03-08T00:00:00+00:00",
+                        "merchant": "NOMAD COFFEE LAB",
+                        "amount": -4.93
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "subscriptions",
+                "category_name": "subscriptions",
+                "stated_intents": [
+                  {
+                    "card_label": "Streaming service subscription",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Streaming service subscription",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 23.31,
+                "pct_of_total_spending": 1.9,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 51.95,
+                    "share_pct": 74.3,
+                    "top_merchants": [
+                      "apple icloud storage",
+                      "disney plus",
+                      "netflix com"
+                    ],
+                    "sample_count": 5,
+                    "sample_transactions": [
+                      {
+                        "id": "2afe98e6-7463-4e43-9892-bcce62a8cb6e",
+                        "date": "2026-03-18T00:00:00+00:00",
+                        "merchant": "NETFLIX.COM",
+                        "amount": -13.99
+                      },
+                      {
+                        "id": "8f869d79-bd1f-41f8-a0f0-9e7588a573bf",
+                        "date": "2026-03-25T00:00:00+00:00",
+                        "merchant": "APPLE ICLOUD STORAGE",
+                        "amount": -9.99
+                      },
+                      {
+                        "id": "31f64567-82ab-40dc-a807-963d21594585",
+                        "date": "2026-02-25T00:00:00+00:00",
+                        "merchant": "APPLE ICLOUD STORAGE",
+                        "amount": -9.99
+                      }
+                    ]
+                  },
+                  "weekend_evening": {
+                    "total": 17.99,
+                    "share_pct": 25.7,
+                    "top_merchants": [
+                      "spotify family"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "6f9a8595-3830-46e7-a7e9-81a8ed556326",
+                        "date": "2026-03-15T00:00:00+00:00",
+                        "merchant": "SPOTIFY FAMILY",
+                        "amount": -17.99
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "entertainment",
+                "category_name": "entertainment",
+                "stated_intents": [
+                  {
+                    "card_label": "Online course or book",
+                    "quadrant": "leak",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Online course or book",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 20,
+                "pct_of_total_spending": 1.6,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 60,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "padel club eixample cuota"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "e632cc90-8bb9-4f78-a570-d337d7c51d97",
+                        "date": "2026-03-10T00:00:00+00:00",
+                        "merchant": "PADEL CLUB EIXAMPLE CUOTA",
+                        "amount": -60
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "utilities_bills",
+                "category_name": "utilities_bills",
+                "stated_intents": [
+                  {
+                    "card_label": "Electricity bill",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Electricity bill",
+                    "quadrant": "burden",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 75.67,
+                "pct_of_total_spending": 6.1,
+                "time_slices": {
+                  "weekend_evening": {
+                    "total": 162,
+                    "share_pct": 71.4,
+                    "top_merchants": [
+                      "recibo endesa energia"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "15556add-a04f-4aa2-8a7e-62c16ce27469",
+                        "date": "2026-03-14T00:00:00+00:00",
+                        "merchant": "RECIBO ENDESA ENERGIA",
+                        "amount": -162
+                      }
+                    ]
+                  },
+                  "weekday_late": {
+                    "total": 65,
+                    "share_pct": 28.6,
+                    "top_merchants": [
+                      "recibo movistar fibra movil"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "1c9b2b9c-2509-4b2c-b2cf-858a44f2e26e",
+                        "date": "2026-03-04T00:00:00+00:00",
+                        "merchant": "RECIBO MOVISTAR FIBRA+MOVIL",
+                        "amount": -65
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "shopping",
+                "category_name": "shopping",
+                "stated_intents": [
+                  {
+                    "card_label": "New clothes or shoes",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Birthday gift for someone close",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "New clothes or shoes",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Birthday gift for someone close",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 161.94,
+                "pct_of_total_spending": 13,
+                "time_slices": {
+                  "weekend_evening": {
+                    "total": 164.32,
+                    "share_pct": 33.8,
+                    "top_merchants": [
+                      "el corte ingles diagonal"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "ebbaf656-683e-43b8-8dad-149138e0dc97",
+                        "date": "2026-03-08T00:00:00+00:00",
+                        "merchant": "EL CORTE INGLES DIAGONAL",
+                        "amount": -164.32
+                      }
+                    ]
+                  },
+                  "weekday_late": {
+                    "total": 321.49,
+                    "share_pct": 66.2,
+                    "top_merchants": [
+                      "el corte ingles diagonal",
+                      "amazon es"
+                    ],
+                    "sample_count": 3,
+                    "sample_transactions": [
+                      {
+                        "id": "31e3622e-ad6a-4ce8-b5ee-df68cf9668e6",
+                        "date": "2026-03-17T00:00:00+00:00",
+                        "merchant": "EL CORTE INGLES DIAGONAL",
+                        "amount": -186.39
+                      },
+                      {
+                        "id": "7faef739-274c-4dc9-9fee-2c433a889c88",
+                        "date": "2026-02-23T00:00:00+00:00",
+                        "merchant": "EL CORTE INGLES DIAGONAL",
+                        "amount": -90.32
+                      },
+                      {
+                        "id": "124f90c9-b95e-4499-bfbd-b11460992396",
+                        "date": "2026-03-19T00:00:00+00:00",
+                        "merchant": "AMAZON.ES",
+                        "amount": -44.78
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "coverage_gap",
+                "category_id": "transport",
+                "category_name": "transport",
+                "monthly_total": 54.73,
+                "share_of_spend_pct": 4.4,
+                "narrative_hint": "Not in user's Value Map; invite them to share what this category means."
+              },
+              {
+                "shape": "coverage_gap",
+                "category_id": "travel",
+                "category_name": "travel",
+                "monthly_total": 168.19,
+                "share_of_spend_pct": 13.5,
+                "narrative_hint": "Not in user's Value Map; invite them to share what this category means."
+              }
+            ],
+            "value_map_metadata": {
+              "baseline_taken_at": "2026-05-19T16:50:16.511439+00:00",
+              "classifications_count": 20,
+              "decided_count": 20,
+              "unsure_count": 0,
+              "staleness_days": 0,
+              "coverage_pct": 77.8,
+              "unclassified_categories": []
+            },
+            "currency": "EUR"
+          }
+        }
+      ],
+      "tokens": {
+        "in": 32169,
+        "out": 228
+      }
+    }
+  },
+  "rating": {
+    "winner": "a",
+    "rater": "lewis",
+    "rated_at": "2026-05-20T11:47:27.270Z",
+    "notes": null
+  },
+  "judge_predictions": [
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T11:05:05.781Z",
+      "score_a": 0.62,
+      "score_b": 0.72,
+      "predicted_winner": "b",
+      "diagnostic": {
+        "a.recognition": 0.72,
+        "a.goal_calibration": 0.45,
+        "a.surprise": 0.68,
+        "a.trust": 0.75,
+        "a.tangibility": 0.55,
+        "a.voice": 0.78,
+        "b.recognition": 0.88,
+        "b.goal_calibration": 0.5,
+        "b.surprise": 0.76,
+        "b.trust": 0.7,
+        "b.tangibility": 0.82,
+        "b.voice": 0.85
+      },
+      "reasoning_a": "The response earns its score primarily on sharp voice and surprise—the 220% month-to-month spike and the \"uncategorised spend\" caveat surface a real pattern the user likely wouldn't articulate themselves. Recognition is solid (155 transactions, €23,665, 48% housing, 23 bills cited), but goal_calibration undercuts the wow: the brief records no goal, and the prose assumes \"retirement pot\" without grounding it in the user's actual stated priority, which inflates the opening framing and reduces credibility on a first touch.",
+      "reasoning_b": "Strong specificity (El Corte Inglés Diagonal €759 across 5 visits) and genuine surprise value in the concentration finding drive the score. The response falters on goal_calibration—no stated brief means the retirement pivot feels anchored to an assumption rather than Carlos's actual priorities, and the €300/month redirection is projected without tool grounding. Recognition and voice are sharp; tangibility is elevated by the real merchant and visit cadence.\""
+    }
+  ]
+}

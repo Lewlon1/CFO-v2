@@ -1,0 +1,640 @@
+{
+  "pair_id": "1021b4fc-c41d-425a-abd7-c2a9c7ab19c0",
+  "created_at": "2026-05-17T13:59:08.876Z",
+  "source": "compare-first-insight",
+  "fold": "holdout",
+  "input": {
+    "persona_id": null,
+    "user_id": "bcfbb511-9b0e-4c13-b566-1ef5b0829fa0",
+    "trigger_message": "[System: Post-upload analysis triggered. Deliver your first insight.]",
+    "known_merchants": [
+      "El Corte Inglés",
+      "Supermercado Muntades 16",
+      "Cafeteria Restaurant Pist",
+      "Aldi",
+      "Flaherty´s Irish Pub",
+      "PENNY",
+      "Frontier Airlines",
+      "Caprabo",
+      "Pan Laude",
+      "Credit card repayment",
+      "Cines Verdi Barcelona",
+      "Shell",
+      "La Salumeria",
+      "Premmia Mercat",
+      "Carrefour",
+      "Bar Schuss",
+      "Primaprix",
+      "BudgetAir",
+      "Backerei Gillen 168",
+      "Supermercados Molina",
+      "Fruites I Verduras Naima-ridoy SL",
+      "Cines Verdi",
+      "To EUR",
+      "Rewe",
+      "Xiaoli Pan",
+      "Cifci Kaiserslautern",
+      "Tutto Italia Ug"
+    ],
+    "user_brief": "(no entry brief / goal recorded)",
+    "prompt_variants": {
+      "a": {
+        "label": "v1",
+        "hash": "e41762e4c528a8d1"
+      },
+      "b": {
+        "label": "v2",
+        "hash": "1ee16b522d04cb96"
+      }
+    }
+  },
+  "responses": {
+    "a": {
+      "text": "Right. Four months of data, 191 transactions, and a clear target: clear €15,000 of debt by May 2027.\n\nHere's what the numbers show.\n\n---\n\nTravel is the story right now. It's running at 38% of spending — €861 in a single month. For a goal that needs every euro pointed at debt, that's the first place to look. Not to say travel is wrong, but that concentration is worth understanding before it becomes a pattern.\n\n---\n\nThe month-over-month picture is actually encouraging. Spending dropped 22% — €1,274 this month versus €1,627 the month before. The biggest single driver of that drop was travel pulling back. That's the kind of movement that, if it holds, keeps the debt target on track.\n\n[STATS]\nTracked spend | €5,839\ntravel | 38%\nRecurring bills | 22\n[/STATS]\n\n---\n\nUnderneath the headline numbers, there's a structural thing worth fixing. You have 22 recurring bills totalling €758 per month — that's 59% of average monthly spend locked in before you make a single discretionary choice. And inside that stack, there's overlap in streaming. Duplicate subscriptions, meaning you're paying twice for something you're using once (or less). The cheapest duplicate is roughly €7 a month — around €80 a year — to cancel entirely. Ten minutes of work. Want a draft cancellation script for that one?\n\n---\n\nThat's the surface. Four months gives a real picture of your patterns — where money clusters, what's fixed versus flexible, and where the debt runway actually leads. The interesting work starts when income comes into frame.\n\n— C.\n\n[OPTIONS]\n- Show me every active subscription\n- Break down my travel\n- Let's get started\n[/OPTIONS]",
+      "tool_calls": [],
+      "tokens": {
+        "in": 20022,
+        "out": 409
+      }
+    },
+    "b": {
+      "text": "The headline: travel took **€855** across the 3 months — 38% of everything you spent. Two Iberia bookings alone account for €553 of that. With debt clearance as the goal, that's the number worth scrutinising first.\n\nWhat's working: groceries are locked in as Foundation and you're running disciplined there — Aldi doing the heavy lifting at 42% of that category.\n\nThe eating-out picture is genuinely ambiguous. Your weekend evenings show Bar Schuss, Flaherty's Irish Pub, Cafeteria Restaurant Pist — that's €71 in one weekend in February. You called takeaway a Foundation and dinners-with-friends an Investment. These look more like the pub end of the spectrum, but only you know which bucket they belong to.\n\nWhich of these do you want to dig into first?\n\n[OPTIONS]\n- Break down the €855 travel spend\n- Label those February pub nights\n- Show the full Feb spending picture\n[/OPTIONS]\n\n— C.",
+      "tool_calls": [
+        {
+          "toolName": "find_money_clusters",
+          "args": {
+            "date_from": "2025-12-01",
+            "date_to": "2026-02-28",
+            "min_share_pct": 25
+          },
+          "output": {
+            "filter": {
+              "date_from": "2025-12-01",
+              "date_to": "2026-02-28",
+              "min_share_pct": 25
+            },
+            "currency": "EUR",
+            "window": {
+              "n_transactions": 110,
+              "n_days": 90
+            },
+            "data_confidence": "high",
+            "stories": [
+              {
+                "type": "merchant_in_category",
+                "headline": "aldi is 41.6% of your groceries spend",
+                "magnitude": {
+                  "amount": 346.14,
+                  "currency": "EUR",
+                  "share_pct": 41.6
+                },
+                "merchants": [
+                  "aldi"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "3c3cd374-29da-4de6-9736-7c2f63a49dde",
+                    "date": "2026-01-16T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -60.97
+                  },
+                  {
+                    "id": "b36f2370-c830-4051-a0c7-db6577c2239f",
+                    "date": "2026-02-07T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -42.94
+                  },
+                  {
+                    "id": "07f5fba1-3d2e-4c11-abb2-d04f226ccc4f",
+                    "date": "2026-01-31T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -41.51
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "farmacia bertolin is 100% of your health spend",
+                "magnitude": {
+                  "amount": 10.07,
+                  "currency": "EUR",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "farmacia bertolin"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "27fdf880-074e-4eb0-8823-cca81ff8476f",
+                    "date": "2026-02-10T00:00:00+00:00",
+                    "merchant": "Farmacia Bertolin",
+                    "amount": -10.07
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "iberia is 64.7% of your travel spend",
+                "magnitude": {
+                  "amount": 553.58,
+                  "currency": "EUR",
+                  "share_pct": 64.7
+                },
+                "merchants": [
+                  "iberia"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "26af063f-1cb6-4e83-ba29-5f8c1f4cc6a1",
+                    "date": "2026-01-24T00:00:00+00:00",
+                    "merchant": "Iberia",
+                    "amount": -485.58
+                  },
+                  {
+                    "id": "861b43c1-837e-4ce0-8559-9340b9048a64",
+                    "date": "2025-12-08T00:00:00+00:00",
+                    "merchant": "Iberia",
+                    "amount": -68
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "club de golf caldes is 56.2% of your entertainment spend",
+                "magnitude": {
+                  "amount": 34,
+                  "currency": "EUR",
+                  "share_pct": 56.2
+                },
+                "merchants": [
+                  "club de golf caldes"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "8650dc78-3c50-44b6-a189-9b7132b1bc99",
+                    "date": "2026-01-25T00:00:00+00:00",
+                    "merchant": "Club De Golf Caldes",
+                    "amount": -34
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "el corte ingl s is 100% of your shopping spend",
+                "magnitude": {
+                  "amount": 24.9,
+                  "currency": "EUR",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "el corte ingl s"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "7e1fb00a-915f-46df-85f6-1e6cffc2ab63",
+                    "date": "2026-02-19T00:00:00+00:00",
+                    "merchant": "El Corte Inglés",
+                    "amount": -24.9
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "merchant_in_category",
+                "headline": "renta shusski is 100% of your housing spend",
+                "magnitude": {
+                  "amount": 24,
+                  "currency": "EUR",
+                  "share_pct": 100
+                },
+                "merchants": [
+                  "renta shusski"
+                ],
+                "comparison": "That single merchant accounts for nearly half of this category.",
+                "sample_transactions": [
+                  {
+                    "id": "7de7554f-78fb-450b-8f51-fac003a7258a",
+                    "date": "2026-02-15T00:00:00+00:00",
+                    "merchant": "Renta Shusski",
+                    "amount": -24
+                  }
+                ],
+                "narrative_hint": "Single merchant doing most of the work in this category — worth asking what each visit is.",
+                "data_confidence": "high"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "groceries is 37.1% of your total spend (€832)",
+                "magnitude": {
+                  "amount": 832.49,
+                  "currency": "EUR",
+                  "share_pct": 37.1
+                },
+                "merchants": [
+                  "aldi",
+                  "caprabo",
+                  "primaprix"
+                ],
+                "comparison": "This category alone takes up 37.1% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "9fe8a3b7-6627-4f6c-bc56-4ef7a9aa521d",
+                    "date": "2025-12-05T00:00:00+00:00",
+                    "merchant": "Caprabo",
+                    "amount": -80.09
+                  },
+                  {
+                    "id": "3c3cd374-29da-4de6-9736-7c2f63a49dde",
+                    "date": "2026-01-16T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -60.97
+                  },
+                  {
+                    "id": "1cf5cd07-9866-464b-a0f6-a653541d9b53",
+                    "date": "2025-12-01T00:00:00+00:00",
+                    "merchant": "Caprabo",
+                    "amount": -54.84
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "high"
+              },
+              {
+                "type": "dominant_category",
+                "headline": "travel is 38.1% of your total spend (€855)",
+                "magnitude": {
+                  "amount": 855.21,
+                  "currency": "EUR",
+                  "share_pct": 38.1
+                },
+                "merchants": [
+                  "iberia",
+                  "ryanair",
+                  "easyjet"
+                ],
+                "comparison": "This category alone takes up 38.1% of your monthly outflows.",
+                "sample_transactions": [
+                  {
+                    "id": "26af063f-1cb6-4e83-ba29-5f8c1f4cc6a1",
+                    "date": "2026-01-24T00:00:00+00:00",
+                    "merchant": "Iberia",
+                    "amount": -485.58
+                  },
+                  {
+                    "id": "000d3a0a-a308-41a0-88bc-2e870a09422d",
+                    "date": "2026-01-25T00:00:00+00:00",
+                    "merchant": "Frontier Airlines",
+                    "amount": -101.22
+                  },
+                  {
+                    "id": "861b43c1-837e-4ce0-8559-9340b9048a64",
+                    "date": "2025-12-08T00:00:00+00:00",
+                    "merchant": "Iberia",
+                    "amount": -68
+                  }
+                ],
+                "narrative_hint": "One category swallowing a meaningful slice of spend — is this where the user wants their money going?",
+                "data_confidence": "high"
+              }
+            ]
+          }
+        },
+        {
+          "toolName": "find_value_gaps",
+          "args": {
+            "months": 3
+          },
+          "output": {
+            "has_value_map": true,
+            "gaps": [
+              {
+                "shape": "single_intent",
+                "category_id": "groceries",
+                "category_name": "groceries",
+                "stated_quadrant": "foundation",
+                "stated_confidence": 3,
+                "actual_monthly_spend": 56.1,
+                "pct_of_total_spending": 54.5,
+                "actual_breakdown": {
+                  "foundation_pct": 100,
+                  "investment_pct": 0,
+                  "burden_pct": 0,
+                  "leak_pct": 0,
+                  "unsure_pct": 0
+                },
+                "gap_type": "hidden_burden",
+                "gap_severity": "medium",
+                "top_merchants": [
+                  {
+                    "merchant": "aldi",
+                    "amount": 55.15
+                  },
+                  {
+                    "merchant": "primaprix",
+                    "amount": 29.9
+                  },
+                  {
+                    "merchant": "rewe",
+                    "amount": 25.11
+                  }
+                ],
+                "sample_transactions": [
+                  {
+                    "id": "a0d1295c-179c-4186-809e-3e3406afb544",
+                    "date": "2026-02-26T00:00:00+00:00",
+                    "merchant": "Rewe",
+                    "amount": -25.11
+                  },
+                  {
+                    "id": "06663d32-01a7-4b0d-84bb-95b1deb16a1c",
+                    "date": "2026-02-26T00:00:00+00:00",
+                    "merchant": "PENNY",
+                    "amount": -23.9
+                  },
+                  {
+                    "id": "21690ca2-0a5b-4498-ae6e-b9462cf096e7",
+                    "date": "2026-02-20T00:00:00+00:00",
+                    "merchant": "Aldi",
+                    "amount": -21.37
+                  }
+                ],
+                "narrative_hint": "groceries is a Foundation cost in your mind, but at 54."
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "health",
+                "category_name": "health",
+                "stated_intents": [
+                  {
+                    "card_label": "Gym membership",
+                    "quadrant": "leak",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "eat_drinking_out",
+                "category_name": "eat_drinking_out",
+                "stated_intents": [
+                  {
+                    "card_label": "Takeaway delivery on a quiet evening",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  },
+                  {
+                    "card_label": "Dinner out with friends",
+                    "quadrant": "investment",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 24.65,
+                "pct_of_total_spending": 24,
+                "time_slices": {
+                  "weekend_evening": {
+                    "total": 71.1,
+                    "share_pct": 96.1,
+                    "top_merchants": [
+                      "flaherty s irish pub",
+                      "bar schuss",
+                      "cafeteria restaurant pist"
+                    ],
+                    "sample_count": 4,
+                    "sample_transactions": [
+                      {
+                        "id": "2daff71a-ebf4-4a05-ac04-c31734338782",
+                        "date": "2026-02-21T00:00:00+00:00",
+                        "merchant": "Bar Schuss",
+                        "amount": -30
+                      },
+                      {
+                        "id": "8756353b-87d2-4f31-a727-a3f426f265c6",
+                        "date": "2026-02-22T00:00:00+00:00",
+                        "merchant": "Flaherty´s Irish Pub",
+                        "amount": -17.8
+                      },
+                      {
+                        "id": "cba42e9c-a9b5-4e85-96dd-36ed91b4853c",
+                        "date": "2026-02-22T00:00:00+00:00",
+                        "merchant": "Flaherty´s Irish Pub",
+                        "amount": -12.8
+                      }
+                    ]
+                  },
+                  "weekday_late": {
+                    "total": 2.85,
+                    "share_pct": 3.9,
+                    "top_merchants": [
+                      "pan laude"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "39f6ee0e-05ae-4355-b6ff-11ea69fca3ed",
+                        "date": "2026-02-24T00:00:00+00:00",
+                        "merchant": "Pan Laude",
+                        "amount": -2.85
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "subscriptions",
+                "category_name": "subscriptions",
+                "stated_intents": [
+                  {
+                    "card_label": "Streaming service subscription",
+                    "quadrant": "burden",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "entertainment",
+                "category_name": "entertainment",
+                "stated_intents": [
+                  {
+                    "card_label": "Online course or book",
+                    "quadrant": "leak",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "utilities_bills",
+                "category_name": "utilities_bills",
+                "stated_intents": [
+                  {
+                    "card_label": "Electricity bill",
+                    "quadrant": "burden",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 0,
+                "pct_of_total_spending": 0,
+                "time_slices": {},
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              },
+              {
+                "shape": "multi_intent",
+                "category_id": "shopping",
+                "category_name": "shopping",
+                "stated_intents": [
+                  {
+                    "card_label": "New clothes or shoes",
+                    "quadrant": "foundation",
+                    "confidence": 3
+                  }
+                ],
+                "category_monthly_total": 8.3,
+                "pct_of_total_spending": 8.1,
+                "time_slices": {
+                  "weekday_late": {
+                    "total": 24.9,
+                    "share_pct": 100,
+                    "top_merchants": [
+                      "el corte ingl s"
+                    ],
+                    "sample_count": 1,
+                    "sample_transactions": [
+                      {
+                        "id": "7e1fb00a-915f-46df-85f6-1e6cffc2ab63",
+                        "date": "2026-02-19T00:00:00+00:00",
+                        "merchant": "El Corte Inglés",
+                        "amount": -24.9
+                      }
+                    ]
+                  }
+                },
+                "skipped_undated_count": 0,
+                "narrative_hint": "Multiple stated intents for this category; ask the user which transactions belong to which intent rather than claiming a single gap.",
+                "learning": {
+                  "state": "initial"
+                }
+              }
+            ],
+            "value_map_metadata": {
+              "baseline_taken_at": "2026-05-15T18:13:37.15209+00:00",
+              "classifications_count": 10,
+              "decided_count": 9,
+              "unsure_count": 1,
+              "staleness_days": 1,
+              "coverage_pct": 75,
+              "unclassified_categories": []
+            },
+            "currency": "EUR"
+          }
+        }
+      ],
+      "tokens": {
+        "in": 24686,
+        "out": 233
+      }
+    }
+  },
+  "rating": {
+    "winner": "b",
+    "rater": "lewis",
+    "rated_at": "2026-05-20T10:55:44.656Z",
+    "notes": "i like the experiment from l"
+  },
+  "judge_predictions": [
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T08:48:06.594Z",
+      "score_a": 0.62,
+      "score_b": 0.72,
+      "predicted_winner": "b",
+      "diagnostic": {
+        "a.recognition": 0.55,
+        "a.goal_calibration": 0.85,
+        "a.surprise": 0.68,
+        "a.trust": 0.72,
+        "a.tangibility": 0.45,
+        "a.voice": 0.78,
+        "b.recognition": 0.85,
+        "b.goal_calibration": 0.75,
+        "b.surprise": 0.78,
+        "b.trust": 0.72,
+        "b.tangibility": 0.8,
+        "b.voice": 0.88
+      },
+      "reasoning_a": "Strong goal anchoring (€15k debt target, May 2027) and crisp voice (\"travel is the story right now\") drive solid wow. Specificity limits: while €861 and €1,274 are concrete, no named merchants from the known list (Frontier Airlines, BudgetAir appear in data but never cited), and streaming duplicates are generic rather than grounded in actual recurring charges observed. The 22% month-over-month drop and 38% travel concentration are genuinely non-obvious patterns, but surprise is tempered by lack of merchant naming that would confirm the CFO read the actual data.",
+      "reasoning_b": "Strong specificity (€855 travel, two Iberia bookings €553, Aldi 42% of groceries, €71 one February weekend) and sharp voice (\"genuinely ambiguous\" on eating-out, peer-tone framing) carry this. Recognition and voice are high. Surprise lands because the response surfaces the concentration risk (travel = 38%, two bookings = 61% of travel) and the ambiguity in pub spending—not obvious at first pass. Goal_calibration docks slightly: the response mentions \"debt clearance as the goal\" but the user provided no brief, so this reads as inferred rather than anchored to explicit user intent. Trust is solid but slightly hedged on the pub bucket (\"only you know which bucket\"), which is appropriate calibration for ambiguous signals."
+    },
+    {
+      "judge_id": "2026-05-17-baseline",
+      "run_at": "2026-05-20T08:48:29.397Z",
+      "score_a": 0.62,
+      "score_b": 0.78,
+      "predicted_winner": "b",
+      "diagnostic": {
+        "a.recognition": 0.55,
+        "a.goal_calibration": 0.78,
+        "a.surprise": 0.68,
+        "a.trust": 0.72,
+        "a.tangibility": 0.48,
+        "a.voice": 0.81,
+        "b.recognition": 0.88,
+        "b.goal_calibration": 0.72,
+        "b.surprise": 0.81,
+        "b.trust": 0.75,
+        "b.tangibility": 0.85,
+        "b.voice": 0.84
+      },
+      "reasoning_a": "The response anchors sharply on the user's stated €15,000 debt target (goal_calibration 0.78) and maintains crisp peer tone with proper signoff (voice 0.81), but recognition suffers because no specific merchants from the known list are named—all insights use category abstractions like \"travel\" and \"streaming\" without citing Frontier Airlines, BudgetAir, or specific service names. The surprise lands moderately (0.68) on the month-over-month trend and subscription overlap pattern, which aren't surface-obvious, though the travel concentration observation is somewhat predictable. Trust is solid (0.72): the CFO hedges appropriately on 4-month window depth and flags uncertainty about income, avoiding false precision. Tangibility is weak (0.48): \"duplicate subscriptions\" and \"a weekend in Lisbon\" comparisons lack grounding in actual user history—no named streaming service, no merchant pattern that maps to a real person's life. Body length and banned-phrase compliance are clean.",
+      "reasoning_b": "Strong specificity (named Iberia, Aldi 42%, Bar Schuss, Flaherty's with €71 single weekend) and a non-obvious insight—that travel concentration (38%) directly competes with debt clearance—made this feel earned. The hedging on pub categorization (\"only you know which bucket\") and tangible Feb weekend anchor kept trust high. Minor drag: no stated user goal meant goal_calibration couldn't reach 0.85+, and the \"€855 across 3 months\" lead, while clear, could have hit harder with a more provocative framing of the opportunity cost."
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
 import { PERSONALITIES, SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants';
-import type { InsightPayload, QuotableFact, PatternResult } from '@/lib/analytics/insight-types';
+import type { InsightPayload, QuotableFact, PatternResult, ExperimentProposalLayer } from '@/lib/analytics/insight-types';
 import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
@@ -440,7 +440,10 @@ export async function buildFirstInsightContextV2(
   vmRowsByQuadrant: VmRowsByQuadrant,
   txWindow: TxWindow,
   primaryGoal: { title: string } | null,
+  experimentProposal: ExperimentProposalLayer | null,
 ): Promise<string> {
+  const proposalPrimary = experimentProposal?.primary ?? null;
+  const hasExperiment = proposalPrimary !== null;
   // ─── Memory surface query ──────────────────────────────────────────────
   let learnedLabels: LearnedLabelRow[] = []
   try {
@@ -540,9 +543,8 @@ export async function buildFirstInsightContextV2(
     '## How to approach the first message',
     '',
     "You are writing the user's first interaction after onboarding. Goal: ONE",
-    'specific, surprising, goal-relevant observation that ends with a question,',
-    'an action, or a labelling invitation. Not a recap. Not a four-act',
-    'narration.',
+    'specific, surprising, goal-relevant observation that leads cleanly into the',
+    'closing beat below. Not a recap. Not a four-act narration.',
     '',
     'Steps:',
     '1. Read the brief above. Form a hypothesis about what matters most for',
@@ -551,13 +553,23 @@ export async function buildFirstInsightContextV2(
     '   find_temporal_signals, find_trend_changes, find_outliers).',
     '3. If the hypothesis holds, write the observation. If not, try another',
     "   angle. Don't narrate every tool result.",
-    '4. End with one of: a real question, a chip-able action',
-    '   (propose_experiment), or a labelling invitation (label_transactions).',
-    '',
-    'When find_value_gaps returns a multi-intent shape, label_transactions is',
-    'often the right move — the data is genuinely ambiguous, and asking the',
-    'user resolves it AND demonstrates the system getting smarter.',
   ]
+  if (hasExperiment) {
+    approachLines.push(
+      '4. Close with the EXPERIMENT PROPOSAL block defined below. The proposal',
+      '   IS the closing beat — do not add a separate question, action, or',
+      '   labelling invitation after it.',
+    )
+  } else {
+    approachLines.push(
+      '4. End with one of: a real question, a chip-able action, or a labelling',
+      '   invitation (label_transactions).',
+      '',
+      'When find_value_gaps returns a multi-intent shape, label_transactions is',
+      'often the right move — the data is genuinely ambiguous, and asking the',
+      'user resolves it AND demonstrates the system getting smarter.',
+    )
+  }
 
   // ─── Section 6: Voice rules ────────────────────────────────────────────
   const voiceLines: string[] = [
@@ -613,6 +625,46 @@ export async function buildFirstInsightContextV2(
     'Never use "I learned". State what\'s now true.',
   ]
 
+  // ─── Section 9: Experiment proposal (conditional, REQUIRED closing beat) ─
+  let experimentLines: string[] | null = null
+  if (hasExperiment && proposalPrimary) {
+    const p = proposalPrimary
+    const lines: string[] = [
+      '## Experiment proposal (REQUIRED closing beat)',
+      '',
+      `Template id: ${p.template_id}`,
+      `Source pattern: ${p.source_pattern_id}`,
+      `Proposed title: ${p.title}`,
+      `Hypothesis (paraphrase, do not quote): ${p.hypothesis}`,
+      `Success criterion: ${p.success_criterion}`,
+      `Duration: ${p.duration_days} day${p.duration_days === 1 ? '' : 's'}`,
+    ]
+    if (experimentProposal && experimentProposal.alternatives.length > 0) {
+      const alt = experimentProposal.alternatives.map((a) => a.template_id).join(', ')
+      lines.push(`Alternatives if user wants a different one: ${alt}`)
+    }
+    if (experimentProposal && !experimentProposal.capacity.allowed) {
+      lines.push(
+        `CAPACITY: user already has ${experimentProposal.capacity.activeCount}/${experimentProposal.capacity.limit} active experiments. Mention the proposal but do NOT pressure for acceptance — finish current experiments first.`,
+      )
+    }
+    lines.push('')
+    lines.push('Rules:')
+    lines.push('- Close the message with ONE sentence framing the proposed experiment using the title.')
+    lines.push('- State the success criterion plainly.')
+    lines.push('- Then emit the OPTIONS block exactly:')
+    lines.push('  [OPTIONS]')
+    lines.push("  - Yes, let's try it")
+    lines.push('  - Pick a different one')
+    lines.push('  - Not right now')
+    lines.push('  [/OPTIONS]')
+    lines.push('- When the user accepts: call `propose_catalog_experiment` with this template_id, then `accept_experiment`.')
+    lines.push('- When the user picks a different one: present the next alternative without re-explaining the rationale.')
+    lines.push('- When the user declines: do NOT push. Move on naturally.')
+    lines.push('- Vocabulary: "experiment" only. Never "challenge", "task", "habit".')
+    experimentLines = lines
+  }
+
   const sections = [
     userLines.join('\n'),
     vmLines.join('\n'),
@@ -622,7 +674,8 @@ export async function buildFirstInsightContextV2(
     voiceLines.join('\n'),
     chipLines.join('\n'),
     learningLines.join('\n'),
-  ]
+    experimentLines ? experimentLines.join('\n') : null,
+  ].filter((s): s is string => Boolean(s))
 
   return sections.join('\n\n---\n\n')
 }
@@ -1103,6 +1156,9 @@ export async function buildSystemPrompt(
 
     const primaryGoalBrief = primaryGoal ? { title: primaryGoal.name } : null;
 
+    const experimentProposal =
+      (conversationMetadata?.experiment_proposal as ExperimentProposalLayer | null | undefined) ?? null;
+
     const sections = [
       BASE_PERSONA + styleModifier,
       buildCurrentDateContext(),
@@ -1115,6 +1171,7 @@ export async function buildSystemPrompt(
         vmRowsByQuadrant,
         txWindow,
         primaryGoalBrief,
+        experimentProposal,
       ),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
       buildToolUsageInstructions(),
