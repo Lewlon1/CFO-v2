@@ -21,6 +21,7 @@ import {
   isCapacityAvailable,
   recentlyProposedTemplateIds,
 } from '@/lib/experiments/limit';
+import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 
 /**
  * Resolve the user's currency.
@@ -187,16 +188,21 @@ async function buildExperimentProposal(
   if (detectedPatternIds.length === 0) return null;
 
   const goalType = resolveGoalType(goals);
-  const [excluded, capacity] = await Promise.all([
+  const [excluded, capacity, userValueProfile] = await Promise.all([
     recentlyProposedTemplateIds(supabase, userId),
     isCapacityAvailable(supabase, userId),
+    buildUserValueProfile(supabase, userId),
   ]);
+
+  const dynamicCategoryByTemplate = resolveDynamicCategories(results);
 
   const ranked = rankCandidates({
     templates: EXPERIMENT_TEMPLATES,
     detectedPatternIds,
     goalType,
     excludedTemplateIds: excluded,
+    userValueProfile,
+    dynamicCategoryByTemplate,
   });
 
   if (ranked.length === 0) {
@@ -229,6 +235,39 @@ async function buildExperimentProposal(
     alternatives: top3.slice(1),
     capacity,
   };
+}
+
+/**
+ * Map dynamic-category templates to the concrete category resolved from their
+ * triggering pattern's data:
+ *
+ *   cap_top_category ← category_concentration.data.topCategory
+ *   merchant_cap     ← (preferred) merchant_fragmentation.data.topMerchantCategory
+ *                       (fallback)  category_concentration.data.topCategory
+ *
+ * When neither path yields a slug, the template is omitted from the map and
+ * resolveValuesAlignment treats DYNAMIC as unresolved → neutral 0.5.
+ */
+function resolveDynamicCategories(results: PatternResult[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const byId = new Map<string, PatternResult>();
+  for (const r of results) byId.set(r.id, r);
+
+  const cc = byId.get('category_concentration');
+  const ccTop = cc && typeof cc.data.topCategory === 'string' ? (cc.data.topCategory as string) : null;
+  if (ccTop) out.set('cap_top_category', ccTop);
+
+  const mf = byId.get('merchant_fragmentation');
+  const mfCat = mf && typeof mf.data.topMerchantCategory === 'string'
+    ? (mf.data.topMerchantCategory as string)
+    : null;
+  if (mfCat) {
+    out.set('merchant_cap', mfCat);
+  } else if (ccTop) {
+    out.set('merchant_cap', ccTop);
+  }
+
+  return out;
 }
 
 function resolveGoalType(
