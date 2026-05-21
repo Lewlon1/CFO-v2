@@ -50,7 +50,7 @@ export const merchantFragmentation: PatternDetector = {
     );
     if (txns.length < 10) return null;
 
-    const merchantSet = new Set<string>();
+    const perMerchant = new Map<string, { spend: number; categoryCounts: Map<string, number> }>();
     let total = 0;
     let under5Count = 0;
     for (const t of txns) {
@@ -58,9 +58,15 @@ export const merchantFragmentation: PatternDetector = {
       total += abs;
       if (abs < 5) under5Count += 1;
       const key = normaliseMerchant(t.description ?? '');
-      if (key) merchantSet.add(key);
+      if (!key) continue;
+      const entry = perMerchant.get(key) ?? { spend: 0, categoryCounts: new Map<string, number>() };
+      entry.spend += abs;
+      if (t.category_id) {
+        entry.categoryCounts.set(t.category_id, (entry.categoryCounts.get(t.category_id) ?? 0) + 1);
+      }
+      perMerchant.set(key, entry);
     }
-    const storeCount = merchantSet.size;
+    const storeCount = perMerchant.size;
     const avgTrip = total / txns.length;
     const under5Pct = under5Count / txns.length;
 
@@ -70,8 +76,27 @@ export const merchantFragmentation: PatternDetector = {
     if (under5Pct > 0.35) score += 20;
     if (score === 0) return null;
 
-    // Deterministic savings projection. Normalise to "per month" so the
-    // annualised figure is defensible regardless of how many months are in
+    // Identify the dominant merchant by spend so downstream proposers
+    // (e.g. merchant_cap with DYNAMIC affects_categories) can resolve a
+    // concrete target category from this pattern alone.
+    let topMerchant: string | null = null;
+    let topMerchantSpend = 0;
+    let topMerchantCategory: string | null = null;
+    for (const [name, entry] of perMerchant.entries()) {
+      if (entry.spend <= topMerchantSpend) continue;
+      topMerchantSpend = entry.spend;
+      topMerchant = name;
+      let bestCount = 0;
+      let bestCat: string | null = null;
+      for (const [cat, count] of entry.categoryCounts.entries()) {
+        if (count > bestCount) {
+          bestCount = count;
+          bestCat = cat;
+        }
+      }
+      topMerchantCategory = bestCat;
+    }
+
     return {
       id: 'merchant_fragmentation',
       score,
@@ -82,6 +107,8 @@ export const merchantFragmentation: PatternDetector = {
         avgTrip: Math.round(avgTrip),
         under5Count,
         under5Pct: Math.round(under5Pct * 100),
+        topMerchant,
+        topMerchantCategory,
       },
       narrative_prompt: `Name that the user shops at ${storeCount} different food stores with an average trip of ${formatCurrency(avgTrip, ctx.currency)}. Note that ${under5Count} trips were under ${formatCurrency(5, ctx.currency)}. Frame as a pattern observation, not a judgement.`,
     };
