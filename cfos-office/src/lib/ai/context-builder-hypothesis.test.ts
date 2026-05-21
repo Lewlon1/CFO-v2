@@ -22,7 +22,8 @@ function makeHypothesisStubClient(
     const row = isHypothesis ? (hypothesisRows[0] ?? null) : null
     const arrayRow = isHypothesis ? null : []
 
-    const chain: Record<string, (...args: unknown[]) => unknown> = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chain: Record<string, any> = {}
     chain.select = () => chain
     chain.eq = () => chain
     chain.in = () => chain
