@@ -42,13 +42,15 @@ import Module from 'module';
 const ARGV = process.argv.slice(2);
 const JUDGE_MODE = ARGV.includes('--judge');
 const CAPTURE_MODE = ARGV.includes('--capture');
+const HYPOTHESIS_MODE = ARGV.includes('--hypothesis');
 
 function usageAndExit(code = 1): never {
   console.error('Usage:');
-  console.error('  npx tsx scripts/compare-first-insight.ts <userId>             # markdown only');
-  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --judge     # markdown + legacy judge');
-  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --capture   # markdown + write pair to eval/golden-set/');
-  console.error('  (--judge and --capture can be combined)');
+  console.error('  npx tsx scripts/compare-first-insight.ts <userId>                # v1 vs v2');
+  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --hypothesis   # v2 vs v2_hypothesis');
+  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --judge        # add legacy judge');
+  console.error('  npx tsx scripts/compare-first-insight.ts <userId> --capture      # write pair to eval/golden-set/');
+  console.error('  (--judge, --capture, --hypothesis can be combined)');
   process.exit(code);
 }
 
@@ -154,7 +156,7 @@ interface RunResult {
 }
 
 async function runVariant(
-  variant: 'v1' | 'v2',
+  variant: 'v1' | 'v2' | 'v2_hypothesis',
   conversationId: string,
 ): Promise<RunResult> {
   // Toggle the v2 force flag. V2 is now default — set '0' to force V1.
@@ -164,9 +166,18 @@ async function runVariant(
     delete process.env.CHAT_INTELLIGENCE_V2_FORCE;
   }
 
-  // Both variants compute the payload (post-upload route does this for
-  // every user now — V1 stores the full payload; V2 only keeps the
-  // experiment_proposal slice for the closing-beat block).
+  // Toggle the hypothesis prompt-variant flag. Only set for the dedicated
+  // v2_hypothesis arm; the v2 baseline arm must NOT render the hypothesis
+  // section even if the env was set externally.
+  if (variant === 'v2_hypothesis') {
+    process.env.HYPOTHESIS_ENGINE_PROMPT = '1';
+  } else {
+    delete process.env.HYPOTHESIS_ENGINE_PROMPT;
+  }
+
+  // All variants compute the payload (post-upload route does this for
+  // every user now — V1 stores the full payload; V2 / v2_hypothesis only
+  // keep the experiment_proposal slice for the closing-beat block).
   const payload = await computeFirstInsight(serviceClient as any, userId);
   const conversationMetadata: Record<string, unknown> =
     variant === 'v1'
@@ -355,13 +366,42 @@ async function main() {
   // synthetic and only flows through the prompt builder + tool context.
   const conversationId = `compare-${userId}-${Date.now()}`;
 
-  console.log('Running V1...');
-  const v1 = await runVariant('v1', `${conversationId}-v1`);
-  console.log(`  V1 done — ${v1.text.length} chars text, ${v1.toolCalls.length} tool calls`);
+  // In --hypothesis mode we run v2 vs v2_hypothesis. Generate a fresh
+  // hypothesis up front so the v2_hypothesis arm has a row to render.
+  // Without this, the v2_hypothesis arm would degrade to the v2 baseline.
+  let runA: RunResult;
+  let runB: RunResult;
+  let labelA: 'v1' | 'v2';
+  let labelB: 'v2' | 'v2_hypothesis';
 
-  console.log('Running V2...');
-  const v2 = await runVariant('v2', `${conversationId}-v2`);
-  console.log(`  V2 done — ${v2.text.length} chars text, ${v2.toolCalls.length} tool calls`);
+  if (HYPOTHESIS_MODE) {
+    console.log('Generating fresh hypothesis for v2_hypothesis arm...');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { generateAndPersistHypothesis } = require('../src/lib/hypothesis/generate-and-persist');
+    await generateAndPersistHypothesis(serviceClient, userId, 'manual');
+
+    console.log('Running V2 baseline...');
+    runA = await runVariant('v2', `${conversationId}-v2`);
+    labelA = 'v2';
+    console.log(`  V2 done — ${runA.text.length} chars text, ${runA.toolCalls.length} tool calls`);
+
+    console.log('Running V2_hypothesis...');
+    runB = await runVariant('v2_hypothesis', `${conversationId}-v2h`);
+    labelB = 'v2_hypothesis';
+    console.log(`  V2_hypothesis done — ${runB.text.length} chars text, ${runB.toolCalls.length} tool calls`);
+  } else {
+    console.log('Running V1...');
+    runA = await runVariant('v1', `${conversationId}-v1`);
+    labelA = 'v1';
+    console.log(`  V1 done — ${runA.text.length} chars text, ${runA.toolCalls.length} tool calls`);
+
+    console.log('Running V2...');
+    runB = await runVariant('v2', `${conversationId}-v2`);
+    labelB = 'v2';
+    console.log(`  V2 done — ${runB.text.length} chars text, ${runB.toolCalls.length} tool calls`);
+  }
+  const v1 = runA;
+  const v2 = runB;
 
   // Known merchants + user brief are needed by either --judge or --capture.
   // Compute once, share between both paths.
@@ -395,16 +435,16 @@ async function main() {
     judgeSection = [
       '## Judge scores',
       '',
-      '### V1',
+      `### ${labelA}`,
       '',
       fenceMd(JSON.stringify(v1Judge, null, 2), 'json'),
       '',
-      '### V2',
+      `### ${labelB}`,
       '',
       fenceMd(JSON.stringify(v2Judge, null, 2), 'json'),
       '',
     ].join('\n');
-    console.log(`  Judge done — V1 pass=${v1Judge.overall_pass}, V2 pass=${v2Judge.overall_pass}`);
+    console.log(`  Judge done — ${labelA} pass=${v1Judge.overall_pass}, ${labelB} pass=${v2Judge.overall_pass}`);
   }
 
   // Write the markdown diff. Output path lives under the harness
@@ -421,38 +461,38 @@ async function main() {
   mkdirSync(dirname(outPath), { recursive: true });
 
   const md = [
-    `# v1 vs v2 — userId ${userId} — ${timestamp}`,
+    `# ${labelA} vs ${labelB} — userId ${userId} — ${timestamp}`,
     '',
     `- Trigger message: \`${FIRST_INSIGHT_TRIGGER}\``,
-    `- V1 prompt length: ${v1.promptChars} chars (~${Math.round(v1.promptChars / 4)} tokens)`,
-    `- V2 prompt length: ${v2.promptChars} chars (~${Math.round(v2.promptChars / 4)} tokens)`,
-    `- V1 finishReason: \`${v1.finishReason}\`  V2 finishReason: \`${v2.finishReason}\``,
-    `- V1 tokens in/out: ${v1.inputTokens ?? '?'} / ${v1.outputTokens ?? '?'}`,
-    `- V2 tokens in/out: ${v2.inputTokens ?? '?'} / ${v2.outputTokens ?? '?'}`,
+    `- ${labelA} prompt length: ${v1.promptChars} chars (~${Math.round(v1.promptChars / 4)} tokens)`,
+    `- ${labelB} prompt length: ${v2.promptChars} chars (~${Math.round(v2.promptChars / 4)} tokens)`,
+    `- ${labelA} finishReason: \`${v1.finishReason}\`  ${labelB} finishReason: \`${v2.finishReason}\``,
+    `- ${labelA} tokens in/out: ${v1.inputTokens ?? '?'} / ${v1.outputTokens ?? '?'}`,
+    `- ${labelB} tokens in/out: ${v2.inputTokens ?? '?'} / ${v2.outputTokens ?? '?'}`,
     '',
-    '## V1 prompt',
+    `## ${labelA} prompt`,
     '',
     fenceMd(v1.prompt, 'md'),
     '',
-    '## V1 response',
+    `## ${labelA} response`,
     '',
     fenceMd(v1.text || '(empty)', 'md'),
     '',
-    '## V2 prompt',
+    `## ${labelB} prompt`,
     '',
     fenceMd(v2.prompt, 'md'),
     '',
-    '## V2 response',
+    `## ${labelB} response`,
     '',
     fenceMd(v2.text || '(empty)', 'md'),
     '',
     '## Tool calls',
     '',
-    '### V1',
+    `### ${labelA}`,
     '',
     renderToolCalls(v1.toolCalls),
     '',
-    '### V2',
+    `### ${labelB}`,
     '',
     renderToolCalls(v2.toolCalls),
     '',
@@ -474,8 +514,8 @@ async function main() {
       trigger_message: FIRST_INSIGHT_TRIGGER,
       known_merchants: knownMerchants,
       user_brief: userBrief,
-      variant_a: { label: 'v1', system_prompt: v1.prompt },
-      variant_b: { label: 'v2', system_prompt: v2.prompt },
+      variant_a: { label: labelA, system_prompt: v1.prompt },
+      variant_b: { label: labelB, system_prompt: v2.prompt },
       response_a: {
         text: v1.text,
         tool_calls: v1.toolCalls,
