@@ -9,6 +9,47 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.3.3 — Hypothesis Engine — 2026-05-22
+
+**Branch:** `claude/gifted-tharp-ea43e7` (atop `session-28/onboarding-tweaks-batch-1`)
+**Semver:** package.json bumped `2.5.2 → 2.5.3`. Brand label is `v2.3.3` per the planning doc; semver moves forward as a patch on the existing line.
+**Headline principle:** the first-insight prompt now opens with a pre-computed thesis, not a tool-call narration. Hypothesis is generated server-side by Haiku from deterministic signals before the user opens chat. Validator gates any leakage of digits, currency, merchants, or greetings. Shipping behind two env flags (`HYPOTHESIS_ENGINE_GENERATE`, `HYPOTHESIS_ENGINE_PROMPT`) so it can be compared against the v2 baseline in the rating tool.
+
+### What landed
+
+- **Schema (migration 061):** `user_hypotheses` table — versioned thesis storage; partial index keeps the active row a singleton per user; `superseded_by` FK index added preemptively to silence the unindexed_foreign_keys advisor. Applied to CFO Staging (`qlbhvlssksnrhsleadzn`). Companion `prod-backfill-hypotheses.sql` handed off to Lewis, NOT applied.
+- **Source signals (`src/lib/hypothesis/source-signals.ts`):** pure-function composer + thin Supabase reader. 28 unit tests. Soft-depends on `value-map/value-profile.ts` via dynamic import; falls through cleanly when absent (the archetype-aware sibling branch isn't merged to `main` yet).
+- **Haiku generator (`src/lib/hypothesis/generator.ts`):** wraps `generateObject` with a strict Zod schema (exactly 3 lines, text 20–140 chars, confidence 0–1). System prompt lives as a versioned `.md` file under `src/lib/hypothesis/prompts/`. LLM usage tracked under a new `'hypothesis_generation'` callType.
+- **Validator (`src/lib/hypothesis/validator.ts`):** content gate — blocks digits, currency symbols, greetings, default-merchant names, and 6-gram cross-line duplication. Failures log to `user_events.event_type = 'hypothesis_validator_fired'` without throwing; caller silently falls through to the no-hypothesis path.
+- **Variant-aware prompt (`buildFirstInsightContextV2`):** new `options?: { variant: 'v2' | 'v2_hypothesis' }` arg. Default `'v2'` preserves the baseline so existing tests + production callers are unchanged. The `'v2_hypothesis'` variant inserts a "Working hypothesis" section between memory and the approach block, and replaces the 12-line "Form a hypothesis, call 1-3 tools" scaffolding with an 8-line "lead with the highest-signal line" version. **Net delta: −81 chars (~−20 tokens)** vs the baseline — strictly flat-or-lower as designed.
+- **Post-upload + value-map regen triggers:** both routes use `after()` to run `generateAndPersistHypothesis` fire-and-forget. The helper marks any existing active row superseded before insert, preserving the partial-index singleton invariant.
+- **Contradiction tool (`mark_hypothesis_line_contradicted`):** registered in `createToolbox` under the v2.3.3 section. Tool call flips a line's `status` to `'contradicted'` so subsequent renders mark it known-wrong; audit logged to `user_events`.
+- **Rating-tool integration:** `scripts/compare-first-insight.ts` gains a `--hypothesis` flag that generates a fresh hypothesis up-front then captures a `v2` vs `v2_hypothesis` pair into `eval/golden-set/pairs/` with the dynamic labels flowing through to `prompt_variants.{a,b}.label`. Existing `v1 vs v2` mode unchanged.
+
+### Verification
+
+- **typecheck:** clean
+- **tests:** 722 / 722 pass (was 717 baseline; +5 from the new variant tests in `context-builder-hypothesis.test.ts`)
+- **advisors:** no new warnings on `user_hypotheses` — RLS uses `(select auth.uid())`, FK has a covering index, no rls_policy_always_true / unindexed_foreign_keys / auth_rls_initplan firings
+- **archetype-aware compat (local merge, discarded):** merged `claude/jolly-easley-0d9577` locally — 742 / 742 pass; value-profile dynamic-import path verified to resolve when present. Temp branch deleted, nothing pushed.
+
+Full audit doc: `docs/audits/2026-05-22-hypothesis-engine-comparison.md`.
+
+### Important deviations from the original plan
+
+- **Migration number:** the plan said `053_user_hypotheses.sql` based on a stale audit. Real next slot was `061` (053–060 already exist on this branch). Migration applied as `061_user_hypotheses`.
+- **Wrong-MCP misfire:** the default Supabase MCP scope on this worktree pointed at a non-CFO project (`nekpalyvjeaskdchrgih`). The first `apply_migration` call landed there. Caught immediately via `list_tables` (no CFO tables), table dropped, the project-scoped MCP (`mcp__3949509e-...`) used for the real apply against `qlbhvlssksnrhsleadzn`. No production impact — the wrong project was a different application's staging.
+- **Rollout shape:** the original plan proposed `beta_cohort = 'wave_1_5'` as the gate. Switched to env-flag-only after confirming `isChatIntelligenceV2Enabled` has graduated to default-on (no longer gates by cohort). The hypothesis engine ships as a parallel prompt variant captured into the rating tool, not a cohort rollout.
+
+### Followups
+
+1. Manual run of calibration personas + judge against Dorcas (`compare-first-insight.ts <userId> --hypothesis --capture --judge`) — deferred this session because it requires `.env.local` with Bedrock keys and consumes budget. Acceptance criteria documented in the audit.
+2. Re-run compat test against a real merge once archetype-aware lands on `main`.
+3. Regen gating intentionally deferred — no precedent in the codebase. Revisit if any staging user accumulates >50 hypothesis rows in the first month.
+4. Promote `2.5.3` tag locally once Lewis confirms the prod-backfill applies cleanly.
+
+---
+
 ## v2.5.2 — IA Simplification + Palette Reset + Component Reuse — 2026-05-19
 
 **Branch:** `claude/v2.5-ia-simplification-AWnKN`
