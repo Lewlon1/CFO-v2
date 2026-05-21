@@ -577,7 +577,8 @@ export async function buildFirstInsightContextV2(
   // ─── Section 4.5: Working hypothesis (variant v2_hypothesis only) ──────
   // Rendered ONLY when an active hypothesis row exists. The v2 baseline
   // path (variant 'v2') skips this section entirely so the rating-tool
-  // comparison stays apples-to-apples.
+  // comparison stays apples-to-apples. Behavioural rules live in the
+  // trimmed approach block below — this section is data only.
   let hypothesisLinesBlock: string[] | null = null
   if (hypothesisActive && hypothesisLines) {
     const rendered = hypothesisLines.map((l, i) => {
@@ -587,15 +588,9 @@ export async function buildFirstInsightContextV2(
     hypothesisLinesBlock = [
       '## Working hypothesis',
       '',
-      'Three lines you wrote yourself after reading the books. Test them in conversation.',
+      'Your read of the books before the conversation starts:',
       '',
       ...rendered,
-      '',
-      'Rules:',
-      '- Open with the highest-signal line, rephrased into observation. Do not list all three.',
-      '- If the user contradicts any line, call `mark_hypothesis_line_contradicted` with the line number and a one-sentence reason. Do not repeat that line later.',
-      '- Lines marked "contradicted" appear here too — treat them as known-wrong and do not repeat them.',
-      '- The hypothesis is NEVER quoted to the user verbatim. It is your internal read.',
     ]
   }
 
@@ -608,24 +603,17 @@ export async function buildFirstInsightContextV2(
     approachLines = [
       '## How to approach the first message',
       '',
-      "You've already done the reading — the working hypothesis above is your thesis.",
-      'Lead with whichever line carries the most signal, expressed as observation.',
-      'One short paragraph. Then ask one question that lets the user confirm or',
-      'contradict the line you led with.',
-      '',
-      'If a line shown above is marked "contradicted", skip it entirely. Do not try',
-      'to rescue it.',
-      '',
-      'You may still call tools to ground the observation in a specific number, but',
-      'only if you can do so in one call. The hypothesis itself must not be quoted',
-      'verbatim.',
+      'The working hypothesis above is your thesis. Lead with the highest-signal',
+      'line, rephrased into observation — one short paragraph, then one question',
+      'that lets the user confirm or contradict it. Skip lines marked',
+      '`status: contradicted`. Never quote the hypothesis verbatim — it is your',
+      'internal read. If the user invalidates a line, call',
+      '`mark_hypothesis_line_contradicted`.',
     ]
     if (hasExperiment) {
       approachLines.push(
         '',
-        'Close with the EXPERIMENT PROPOSAL block defined below. The proposal IS',
-        'the closing beat — do not add a separate question, action, or labelling',
-        'invitation after it.',
+        'Close with the EXPERIMENT PROPOSAL block defined below.',
       )
     }
   } else {
