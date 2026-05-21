@@ -33,6 +33,7 @@ import {
   type ToolResultLike,
 } from '@/lib/ai/insight-validator';
 import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
+import { sanitisePersona } from '@/lib/ai/persona-sanitiser';
 
 export const maxDuration = 60;
 
@@ -937,6 +938,14 @@ export async function POST(req: Request) {
         // ── end v2 chat-intelligence validators ───────────────────────────
 
         if (textContent) {
+          // ── Persona-leak sanitiser ────────────────────────────────────
+          // Strip first-person drift before the message hits the DB. Clean
+          // messages cost nothing (regex only). Dirty messages get a Haiku
+          // rewrite; the historical record stays clean for the prompt cache.
+          const originalText = textContent;
+          const sanitised = await sanitisePersona(textContent);
+          textContent = sanitised.text;
+
           await supabase.from('messages').insert({
             id: assistantMessageDbId,
             conversation_id: activeConversationId,
@@ -950,6 +959,22 @@ export async function POST(req: Request) {
             prompt_tokens: usage?.inputTokens ?? null,
             completion_tokens: usage?.outputTokens ?? null,
           });
+
+          if (sanitised.rewritten && activeConversationId) {
+            await supabase
+              .from('persona_sanitiser_log')
+              .insert({
+                user_id: user.id,
+                conversation_id: activeConversationId,
+                message_id: assistantMessageDbId,
+                leaks_detected: sanitised.leaks_detected,
+                original_text: originalText,
+                rewritten_text: textContent,
+              })
+              .then(({ error }) => {
+                if (error) console.error('[persona-sanitiser] log insert failed', error);
+              });
+          }
         }
       }
 
