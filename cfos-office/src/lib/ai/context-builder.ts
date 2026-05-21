@@ -12,6 +12,7 @@ import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
+import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -1208,6 +1209,7 @@ export async function buildSystemPrompt(
     retakeSuggestion,
     predictionQuality,
     profilingContext,
+    openItemsBlock,
   ] = await Promise.all([
     buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     getCountryBenchmarks(profile, supabase),
@@ -1218,6 +1220,15 @@ export async function buildSystemPrompt(
     getRetakeSuggestionContext(userId, supabase, conversationType),
     getPredictionQualityContext(userId, supabase),
     buildProfilingContext(userId, supabase),
+    // Open-items resumption context — only for `general` conversations.
+    // Other branches (first_insight, onboarding, monthly_review, etc.) have
+    // their own dedicated scaffolds and shouldn't be diluted.
+    conversationType === 'general' || !conversationType
+      ? getOpenItems(supabase, userId).then(renderOpenItemsBlock).catch((err) => {
+          console.error('[context-builder] open-items load failed', err);
+          return '';
+        })
+      : Promise.resolve(''),
   ]);
 
   const sections = [
@@ -1233,6 +1244,7 @@ export async function buildSystemPrompt(
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
     buildGoalsContext(goals, actions, primaryGoal),
+    openItemsBlock,
     buildTripsContext(dedupedTrips, profile),
     experimentContext,
     buildToolUsageInstructions(),
@@ -2419,7 +2431,9 @@ Keep the first response focused — one insight or one question. No lists, no fe
 
       return `## Conversation context: General
 
-Open conversation. Follow their lead — answer what they actually asked. Don't pivot to what you think they should be asking. If there's something urgent in their data, mention it once at the end. Keep it natural.`;
+Open conversation. Follow their lead — answer what they actually asked. Don't pivot to what you think they should be asking. If there's something urgent in their data, mention it once at the end. Keep it natural.
+
+If the Experiments section below shows an outcome owed (an experiment whose end date has passed without a self-report), open this turn with the check-in instead — do not greet, do not summarise, ask how it went.`;
     }
   }
 }
