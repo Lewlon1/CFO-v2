@@ -1194,27 +1194,53 @@ export async function buildSystemPrompt(
     return sections.join('\n\n---\n\n');
   }
 
+  // The nine section builders below are independent reads (verified read-only,
+  // no cross-section data dependencies), so fan them out in parallel before
+  // assembling the prompt. The previous sequential await chain added 200–500ms
+  // of avoidable serialisation per turn.
+  const [
+    bridgeContext,
+    countryBenchmarks,
+    conversationInstructions,
+    experimentContext,
+    valueMappingContext,
+    valueCheckinNudge,
+    retakeSuggestion,
+    predictionQuality,
+    profilingContext,
+  ] = await Promise.all([
+    buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
+    getCountryBenchmarks(profile, supabase),
+    getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+    buildExperimentContext(supabase, userId),
+    getValueMappingContext(userId, supabase),
+    getValueCheckinNudgeContext(userId, supabase, conversationType),
+    getRetakeSuggestionContext(userId, supabase, conversationType),
+    getPredictionQualityContext(userId, supabase),
+    buildProfilingContext(userId, supabase),
+  ]);
+
   const sections = [
     BASE_PERSONA + styleModifier,
     buildCurrentDateContext(),
     buildProfileContext(profile),
     buildOnboardingEntryContext(profile),
-    await buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
+    bridgeContext,
     buildFinancialContext(snapshots, recurring, profile),
     buildPostureContext(profile, recurring),
-    await getCountryBenchmarks(profile, supabase),
-    await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+    countryBenchmarks,
+    conversationInstructions,
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
     buildGoalsContext(goals, actions, primaryGoal),
     buildTripsContext(dedupedTrips, profile),
-    await buildExperimentContext(supabase, userId),
+    experimentContext,
     buildToolUsageInstructions(),
-    await getValueMappingContext(userId, supabase),
-    await getValueCheckinNudgeContext(userId, supabase, conversationType),
-    await getRetakeSuggestionContext(userId, supabase, conversationType),
-    await getPredictionQualityContext(userId, supabase),
-    await buildProfilingContext(userId, supabase),
+    valueMappingContext,
+    valueCheckinNudge,
+    retakeSuggestion,
+    predictionQuality,
+    profilingContext,
     getPosturePromptFragment(profile),
   ].filter(Boolean);
 

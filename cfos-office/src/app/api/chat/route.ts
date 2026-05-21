@@ -19,6 +19,7 @@ import { extractFromConversation } from '@/lib/ai/portrait-extraction';
 import { extractProfileFields } from '@/lib/ai/profile-extraction';
 import { createServiceClient } from '@/lib/supabase/service';
 import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-classifier';
+import { quickClassifyDecline } from '@/lib/onboarding-v2/value-map-decline-quickcheck';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import {
@@ -279,9 +280,10 @@ export async function POST(req: Request) {
   }
 
   // Onboarding v2 — Value Map decline classifier.
-  // Synchronous Haiku call before the assistant streams so the system prompt
-  // reflects the just-flipped declined flag and we don't keep pushing the
-  // offer in the next response.
+  // Regex fast-path handles the common decline/accept phrases without a
+  // Bedrock round-trip; Haiku is only called for ambiguous text. Keeps the
+  // assistant stream from blocking on a ~500-1500ms Haiku call for the 95%
+  // case while preserving semantic accuracy on edge cases.
   if (
     profileForChat?.onboarding_route === 'chat' &&
     profileForChat?.value_map_offered_in_chat === true &&
@@ -290,7 +292,15 @@ export async function POST(req: Request) {
   ) {
     const lastUserText = extractTextFromParts(lastUserMessage);
     if (lastUserText && !lastUserText.startsWith('[System:')) {
-      const declined = await classifyValueMapDecline(lastUserText, user.id);
+      const quick = quickClassifyDecline(lastUserText);
+      let declined: boolean;
+      if (quick === 'declined') {
+        declined = true;
+      } else if (quick === 'accepted') {
+        declined = false;
+      } else {
+        declined = await classifyValueMapDecline(lastUserText, user.id);
+      }
       if (declined) {
         await supabase
           .from('user_profiles')
