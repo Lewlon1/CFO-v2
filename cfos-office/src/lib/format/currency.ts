@@ -1,20 +1,15 @@
-// Canonical currency formatting helper.
+// Currency formatting compatibility shim — routes through the canonical
+// `formatMoney` in `src/lib/utils/money.ts`.
 //
-// Replaces five inline duplicates flagged in audit/v2.5-component-reuse.md
-// (Q2). The signature absorbs the variations each duplicate carried:
-//   - null/undefined tolerance (savedCardBuilders had this)
-//   - configurable decimals (PatternsClient needed 2, the others 0)
-//   - configurable locale (en vs en-GB)
+// Contract preserved verbatim from the pre-consolidation helper:
+//   - null/undefined → '—'
+//   - absolute value rendered (sign is the caller's responsibility)
+//   - manual symbol map (€/£/$ for known; `CODE ` for unknown)
+//   - `decimals: 0 | 2` toggle, optional `locale`
 //
-// Always renders as an absolute value with a currency symbol prefix —
-// sign is the caller's responsibility (use surplus/deficit framing
-// in the surrounding copy, not a "-€" in the number itself).
+// New callers should import `formatMoney` directly from `@/lib/utils/money`.
 
-const SYMBOLS: Record<string, string> = {
-  EUR: '€',
-  GBP: '£',
-  USD: '$',
-}
+import { formatMoney, type MoneyFormat } from '@/lib/utils/money'
 
 export interface FormatCurrencyOptions {
   /** Fraction digits — 0 by default (whole units). Pass 2 for cents. */
@@ -30,11 +25,10 @@ export function formatCurrency(
 ): string {
   if (amount === null || amount === undefined) return '—'
   const code = (currency || 'EUR').toUpperCase()
-  const symbol = SYMBOLS[code] ?? `${code} `
-  const decimals = opts.decimals ?? 0
-  const locale = opts.locale ?? 'en'
-  return `${symbol}${Math.abs(amount).toLocaleString(locale, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })}`
+  const format: MoneyFormat = (opts.decimals ?? 0) === 2 ? 'precise' : 'rounded'
+  return formatMoney(Math.abs(amount), {
+    currency: code,
+    format,
+    locale: opts.locale ?? 'en',
+  })
 }

@@ -1,12 +1,19 @@
-/** Shared formatting helpers for value-map and transaction classification UIs */
+/**
+ * Shared formatting helpers for value-map and transaction classification UIs.
+ *
+ * `currencySymbol` and `formatAmount` are compatibility shims — they delegate
+ * to the canonical `moneySymbol` / `formatMoney` in `@/lib/utils/money`.
+ * New callers should import from there directly.
+ */
+
+import { formatMoney, moneySymbol } from '@/lib/utils/money'
 
 export function currencySymbol(currency: string): string {
-  return { GBP: '\u00A3', USD: '$', EUR: '\u20AC' }[currency] ?? currency + ' '
+  return moneySymbol(currency)
 }
 
 export function formatAmount(amount: number, currency: string): string {
-  const sym = currencySymbol(currency)
-  return `${sym}${amount.toLocaleString('en', { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`
+  return formatMoney(amount, { currency, format: 'natural' })
 }
 
 export function formatDate(dateStr: string): string {
