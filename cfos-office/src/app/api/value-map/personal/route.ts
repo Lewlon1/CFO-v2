@@ -11,6 +11,8 @@ import {
   extractAffectedMonths,
 } from '@/lib/analytics/monthly-snapshot'
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
+import { shouldGenerateHypothesisOnUpload } from '@/lib/features/hypothesis-engine'
+import { generateAndPersistHypothesis } from '@/lib/hypothesis/generate-and-persist'
 
 const VALID_QUADRANTS = new Set(['foundation', 'investment', 'burden', 'leak'])
 const RETAKE_WEIGHT_MULTIPLIER = 2.0
@@ -310,6 +312,14 @@ export async function POST(req: NextRequest) {
       await regenerateArchetype(supabase, user.id, 'retake_complete')
     } catch (err) {
       console.error('[retake] regenerateArchetype failed:', err)
+    }
+
+    // After archetype regen, refresh the working hypothesis — the new
+    // archetype + freshly-classified merchants change the signal payload,
+    // so the previous hypothesis (if any) is stale. Helper is silent on
+    // failure so we don't need to wrap it.
+    if (shouldGenerateHypothesisOnUpload()) {
+      await generateAndPersistHypothesis(supabase, user.id, 'value_map_complete')
     }
   })
 

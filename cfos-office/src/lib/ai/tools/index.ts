@@ -41,6 +41,8 @@ import { createAcceptExperimentTool } from './accept-experiment';
 import { createDeclineExperimentTool } from './decline-experiment';
 import { createRecordExperimentOutcomeTool } from './record-experiment-outcome';
 import { createListActiveExperimentsTool } from './list-active-experiments';
+// Session v2.3.3 — Hypothesis Engine.
+import { createMarkHypothesisLineContradictedTool } from './mark-hypothesis-line-contradicted';
 
 export type { ToolContext } from './types';
 
@@ -88,5 +90,7 @@ export function createToolbox(ctx: ToolContext) {
     decline_experiment: createDeclineExperimentTool(ctx),
     record_experiment_outcome: createRecordExperimentOutcomeTool(ctx),
     list_active_experiments: createListActiveExperimentsTool(ctx),
+    // Session v2.3.3 — Hypothesis Engine
+    mark_hypothesis_line_contradicted: createMarkHypothesisLineContradictedTool(ctx),
   };
 }
