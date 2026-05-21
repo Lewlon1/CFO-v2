@@ -10,6 +10,7 @@ import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
+import { shouldUseHypothesisPromptVariant } from '@/lib/features/hypothesis-engine';
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
@@ -432,6 +433,14 @@ function daysBetween(fromIso: string | null, toIso: string): number | null {
  * exercise, not user-confirmed merchant labels — surfacing them as
  * "previously confirmed" would conflate stated values with actual corrections.
  */
+export type FirstInsightVariant = 'v2' | 'v2_hypothesis'
+
+interface ThesisLine {
+  text: string
+  confidence: number
+  status: 'open' | 'contradicted' | 'confirmed'
+}
+
 export async function buildFirstInsightContextV2(
   supabase: SupabaseClient,
   userId: string,
@@ -442,9 +451,35 @@ export async function buildFirstInsightContextV2(
   txWindow: TxWindow,
   primaryGoal: { title: string } | null,
   experimentProposal: ExperimentProposalLayer | null,
+  options?: { variant?: FirstInsightVariant },
 ): Promise<string> {
+  const variant: FirstInsightVariant = options?.variant ?? 'v2'
   const proposalPrimary = experimentProposal?.primary ?? null;
   const hasExperiment = proposalPrimary !== null;
+
+  // ─── Hypothesis fetch (variant v2_hypothesis only) ─────────────────────
+  // Active hypothesis = most-recent non-superseded row for the user.
+  // Absent rows (or any failure) silently fall through; the v2 baseline
+  // remains correct without it.
+  let hypothesisLines: ThesisLine[] | null = null
+  if (variant === 'v2_hypothesis') {
+    try {
+      const { data } = await supabase
+        .from('user_hypotheses')
+        .select('thesis_lines, confidence')
+        .eq('user_id', userId)
+        .is('superseded_at', null)
+        .order('generated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (data?.thesis_lines && Array.isArray(data.thesis_lines)) {
+        hypothesisLines = data.thesis_lines as ThesisLine[]
+      }
+    } catch (err) {
+      console.error('[context-builder-v2] hypothesis fetch failed:', err)
+    }
+  }
+  const hypothesisActive = hypothesisLines !== null && hypothesisLines.length > 0
   // ─── Memory surface query ──────────────────────────────────────────────
   let learnedLabels: LearnedLabelRow[] = []
   try {
@@ -539,37 +574,92 @@ export async function buildFirstInsightContextV2(
   )
   memLines.push('Continuity is the point.')
 
-  // ─── Section 5: How to approach the first message ──────────────────────
-  const approachLines: string[] = [
-    '## How to approach the first message',
-    '',
-    "You are writing the user's first interaction after onboarding. Goal: ONE",
-    'specific, surprising, goal-relevant observation that leads cleanly into the',
-    'closing beat below. Not a recap. Not a four-act narration.',
-    '',
-    'Steps:',
-    '1. Read the brief above. Form a hypothesis about what matters most for',
-    '   THIS user.',
-    '2. Call 1-3 tools to test it (find_money_clusters, find_value_gaps,',
-    '   find_temporal_signals, find_trend_changes, find_outliers).',
-    '3. If the hypothesis holds, write the observation. If not, try another',
-    "   angle. Don't narrate every tool result.",
-  ]
-  if (hasExperiment) {
-    approachLines.push(
-      '4. Close with the EXPERIMENT PROPOSAL block defined below. The proposal',
-      '   IS the closing beat — do not add a separate question, action, or',
-      '   labelling invitation after it.',
-    )
-  } else {
-    approachLines.push(
-      '4. End with one of: a real question, a chip-able action, or a labelling',
-      '   invitation (label_transactions).',
+  // ─── Section 4.5: Working hypothesis (variant v2_hypothesis only) ──────
+  // Rendered ONLY when an active hypothesis row exists. The v2 baseline
+  // path (variant 'v2') skips this section entirely so the rating-tool
+  // comparison stays apples-to-apples.
+  let hypothesisLinesBlock: string[] | null = null
+  if (hypothesisActive && hypothesisLines) {
+    const rendered = hypothesisLines.map((l, i) => {
+      const conf = l.confidence >= 0.7 ? 'high' : l.confidence >= 0.4 ? 'medium' : 'low'
+      return `${i + 1}. ${l.text} [confidence: ${conf}, status: ${l.status}]`
+    })
+    hypothesisLinesBlock = [
+      '## Working hypothesis',
       '',
-      'When find_value_gaps returns a multi-intent shape, label_transactions is',
-      'often the right move — the data is genuinely ambiguous, and asking the',
-      'user resolves it AND demonstrates the system getting smarter.',
-    )
+      'Three lines you wrote yourself after reading the books. Test them in conversation.',
+      '',
+      ...rendered,
+      '',
+      'Rules:',
+      '- Open with the highest-signal line, rephrased into observation. Do not list all three.',
+      '- If the user contradicts any line, call `mark_hypothesis_line_contradicted` with the line number and a one-sentence reason. Do not repeat that line later.',
+      '- Lines marked "contradicted" appear here too — treat them as known-wrong and do not repeat them.',
+      '- The hypothesis is NEVER quoted to the user verbatim. It is your internal read.',
+    ]
+  }
+
+  // ─── Section 5: How to approach the first message ──────────────────────
+  // When the working-hypothesis block is rendered above, the model has its
+  // thesis pre-loaded — a tighter "approach" section keeps the prompt size
+  // flat. Otherwise the v2 baseline scaffolding stands.
+  let approachLines: string[]
+  if (hypothesisActive) {
+    approachLines = [
+      '## How to approach the first message',
+      '',
+      "You've already done the reading — the working hypothesis above is your thesis.",
+      'Lead with whichever line carries the most signal, expressed as observation.',
+      'One short paragraph. Then ask one question that lets the user confirm or',
+      'contradict the line you led with.',
+      '',
+      'If a line shown above is marked "contradicted", skip it entirely. Do not try',
+      'to rescue it.',
+      '',
+      'You may still call tools to ground the observation in a specific number, but',
+      'only if you can do so in one call. The hypothesis itself must not be quoted',
+      'verbatim.',
+    ]
+    if (hasExperiment) {
+      approachLines.push(
+        '',
+        'Close with the EXPERIMENT PROPOSAL block defined below. The proposal IS',
+        'the closing beat — do not add a separate question, action, or labelling',
+        'invitation after it.',
+      )
+    }
+  } else {
+    approachLines = [
+      '## How to approach the first message',
+      '',
+      "You are writing the user's first interaction after onboarding. Goal: ONE",
+      'specific, surprising, goal-relevant observation that leads cleanly into the',
+      'closing beat below. Not a recap. Not a four-act narration.',
+      '',
+      'Steps:',
+      '1. Read the brief above. Form a hypothesis about what matters most for',
+      '   THIS user.',
+      '2. Call 1-3 tools to test it (find_money_clusters, find_value_gaps,',
+      '   find_temporal_signals, find_trend_changes, find_outliers).',
+      '3. If the hypothesis holds, write the observation. If not, try another',
+      "   angle. Don't narrate every tool result.",
+    ]
+    if (hasExperiment) {
+      approachLines.push(
+        '4. Close with the EXPERIMENT PROPOSAL block defined below. The proposal',
+        '   IS the closing beat — do not add a separate question, action, or',
+        '   labelling invitation after it.',
+      )
+    } else {
+      approachLines.push(
+        '4. End with one of: a real question, a chip-able action, or a labelling',
+        '   invitation (label_transactions).',
+        '',
+        'When find_value_gaps returns a multi-intent shape, label_transactions is',
+        'often the right move — the data is genuinely ambiguous, and asking the',
+        'user resolves it AND demonstrates the system getting smarter.',
+      )
+    }
   }
 
   // ─── Section 6: Voice rules ────────────────────────────────────────────
@@ -671,6 +761,7 @@ export async function buildFirstInsightContextV2(
     vmLines.join('\n'),
     dataLines.join('\n'),
     memLines.join('\n'),
+    hypothesisLinesBlock ? hypothesisLinesBlock.join('\n') : null,
     approachLines.join('\n'),
     voiceLines.join('\n'),
     chipLines.join('\n'),
@@ -1160,6 +1251,8 @@ export async function buildSystemPrompt(
     const experimentProposal =
       (conversationMetadata?.experiment_proposal as ExperimentProposalLayer | null | undefined) ?? null;
 
+    const variant = shouldUseHypothesisPromptVariant() ? 'v2_hypothesis' : 'v2'
+
     const sections = [
       BASE_PERSONA + styleModifier,
       buildCurrentDateContext(),
@@ -1173,6 +1266,7 @@ export async function buildSystemPrompt(
         txWindow,
         primaryGoalBrief,
         experimentProposal,
+        { variant },
       ),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
       buildToolUsageInstructions(),

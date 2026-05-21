@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { computeFirstInsight } from '@/lib/analytics/insight-engine'
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2'
-import { NextResponse } from 'next/server'
+import { shouldGenerateHypothesisOnUpload } from '@/lib/features/hypothesis-engine'
+import { generateAndPersistHypothesis } from '@/lib/hypothesis/generate-and-persist'
+import { NextResponse, after } from 'next/server'
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -97,6 +99,17 @@ export async function POST(req: Request) {
   if (error || !conversation) {
     console.error('Failed to create first-insight conversation:', error)
     return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
+  }
+
+  // Fire-and-forget hypothesis generation. Runs AFTER the response so the
+  // user gets the conversation id immediately; the working hypothesis lands
+  // in the DB while they're navigating to the chat. If it doesn't make it
+  // in time, the v2_hypothesis prompt path gracefully falls back to the
+  // baseline v2 layout.
+  if (shouldGenerateHypothesisOnUpload()) {
+    after(async () => {
+      await generateAndPersistHypothesis(supabase, user.id, 'csv_upload')
+    })
   }
 
   return NextResponse.json({ conversationId: conversation.id })
