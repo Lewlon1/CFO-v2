@@ -6,7 +6,8 @@ import type {
   DetectorContext, InsightLayer, UserIntent, UserIntentStruggleType,
   ExperimentProposalLayer, ExperimentProposalCandidate,
 } from './insight-types';
-import { BLOCKED_AT_FIRST_INSIGHT } from './insight-types';
+import { BLOCKED_AT_FIRST_INSIGHT, INCOME_SIGNAL_THRESHOLD } from './insight-types';
+import { computeIncomeSignal } from './income-signal';
 import {
   PATTERN_LIBRARY,
   formatCurrency,
@@ -117,7 +118,12 @@ export async function computeFirstInsight(
   if (transactions.some(t => t.location_city !== null || t.location_country !== null)) {
     available.push('location_data');
   }
-  if (transactions.some(t => Number(t.amount) > 0)) available.push('income_signal');
+  const incomeSignal = computeIncomeSignal(
+    transactions.map((t) => ({ amount: Number(t.amount), date: t.date })),
+  );
+  if (incomeSignal.confidence >= INCOME_SIGNAL_THRESHOLD) {
+    available.push('income_signal');
+  }
 
   const ctx: DetectorContext = {
     supabase, userId,
