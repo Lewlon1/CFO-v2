@@ -8,6 +8,7 @@ import {
   rankCandidates,
   scoreCandidate,
 } from '../scoring';
+import type { UserValueProfile } from '@/lib/value-map/value-profile';
 
 function pickTemplate(id: string): ExperimentTemplate {
   const t = findTemplate(id);
@@ -155,5 +156,105 @@ describe('rankCandidates', () => {
       goalType: 'debt_clearance',
     });
     expect(ranked).toEqual([]);
+  });
+});
+
+describe('values_alignment dimension', () => {
+  const lewisProfile: UserValueProfile = {
+    by_category: {
+      eat_drinking_out: { foundation: 0.7, investment: 0.1, leak: 0.1, burden: 0.1 },
+    },
+    signal_count: { eat_drinking_out: 12 },
+    has_value_map: true,
+    has_any_leak_signal: true,
+  };
+
+  const dorcasProfile: UserValueProfile = {
+    by_category: {
+      eat_drinking_out: { foundation: 0.05, investment: 0.05, leak: 0.8, burden: 0.1 },
+      entertainment: { foundation: 0.1, investment: 0.05, leak: 0.8, burden: 0.05 },
+      subscriptions: { foundation: 0.1, investment: 0, leak: 0.85, burden: 0.05 },
+    },
+    signal_count: { eat_drinking_out: 12, entertainment: 6, subscriptions: 8 },
+    has_value_map: true,
+    has_any_leak_signal: true,
+  };
+
+  it('drops weekend_cap when dining is Foundation for the user', () => {
+    const scored = scoreCandidate({
+      template: pickTemplate('weekend_cap'),
+      patternId: 'day_of_week_skew',
+      goalType: 'savings',
+      userValueProfile: lewisProfile,
+    });
+    expect(scored.breakdown.values_alignment).toBe(0.25);
+  });
+
+  it('lifts weekend_cap when dining is Leak for the user', () => {
+    const scored = scoreCandidate({
+      template: pickTemplate('weekend_cap'),
+      patternId: 'day_of_week_skew',
+      goalType: 'savings',
+      userValueProfile: dorcasProfile,
+    });
+    expect(scored.breakdown.values_alignment).toBe(0.95);
+  });
+
+  it('scores 0.5 when no UserValueProfile is provided', () => {
+    const scored = scoreCandidate({
+      template: pickTemplate('weekend_cap'),
+      patternId: 'day_of_week_skew',
+      goalType: 'savings',
+    });
+    expect(scored.breakdown.values_alignment).toBe(0.5);
+  });
+
+  it('flips weekend_cap below subscription_audit for a Foundation-dining user with Leak subscriptions', () => {
+    const profile: UserValueProfile = {
+      ...lewisProfile,
+      by_category: {
+        ...lewisProfile.by_category,
+        subscriptions: { foundation: 0.1, investment: 0, leak: 0.85, burden: 0.05 },
+      },
+      signal_count: { ...lewisProfile.signal_count, subscriptions: 8 },
+    };
+    const wc = scoreCandidate({
+      template: pickTemplate('weekend_cap'),
+      patternId: 'day_of_week_skew',
+      goalType: 'savings',
+      userValueProfile: profile,
+    });
+    const sa = scoreCandidate({
+      template: pickTemplate('subscription_audit'),
+      patternId: 'recurring_expense_total',
+      goalType: 'savings',
+      userValueProfile: profile,
+    });
+    expect(sa.score).toBeGreaterThan(wc.score);
+  });
+
+  it('preserves all-neutral 0.5 for users with no Value Map (regression)', () => {
+    const result = rankCandidates({
+      templates: EXPERIMENT_TEMPLATES,
+      detectedPatternIds: ['day_of_week_skew', 'recurring_expense_total'],
+      goalType: 'savings',
+    });
+    expect(result.length).toBeGreaterThan(0);
+    for (const r of result) {
+      expect(r.breakdown.values_alignment).toBe(0.5);
+    }
+  });
+
+  it('resolves DYNAMIC category from dynamicCategoryByTemplate in rankCandidates', () => {
+    const result = rankCandidates({
+      templates: EXPERIMENT_TEMPLATES,
+      detectedPatternIds: ['category_concentration'],
+      goalType: 'savings',
+      userValueProfile: dorcasProfile,
+      dynamicCategoryByTemplate: new Map([['cap_top_category', 'eat_drinking_out']]),
+    });
+    const capTop = result.find((r) => r.template_id === 'cap_top_category');
+    expect(capTop).toBeDefined();
+    expect(capTop!.breakdown.values_alignment).toBe(0.95);
   });
 });

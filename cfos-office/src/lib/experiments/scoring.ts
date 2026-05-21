@@ -19,6 +19,10 @@ import type {
   Measurability,
   ReachBand,
 } from './templates';
+import {
+  resolveValuesAlignment,
+  type UserValueProfile,
+} from '@/lib/value-map/value-profile';
 
 export const SCORING_WEIGHTS = {
   goal_alignment: 0.35,
@@ -98,6 +102,18 @@ export interface CandidateInput {
   template: ExperimentTemplate;
   patternId: string;
   goalType: GoalType | null;
+  /**
+   * When omitted, values_alignment scores neutral (0.5) — ranking degrades
+   * to v2.3 modulo the uniform weight shift. Pass through for users with
+   * any Value Map signal.
+   */
+  userValueProfile?: UserValueProfile;
+  /**
+   * For templates with 'DYNAMIC' affects_categories: the real category slug
+   * resolved from the triggering pattern's data (e.g. category_concentration
+   * → topCategory, merchant_fragmentation → topMerchantCategory).
+   */
+  resolvedDynamicCategory?: string;
 }
 
 export function scoreCandidate(c: CandidateInput): ScoredCandidate {
@@ -108,11 +124,14 @@ export function scoreCandidate(c: CandidateInput): ScoredCandidate {
       ? NEUTRAL_GOAL_ALIGNMENT
       : (c.template.goal_affinity[c.goalType] ?? UNLISTED_GOAL_ALIGNMENT);
 
-  // Phase 4 will replace this with the real resolveValuesAlignment() call
-  // once UserValueProfile is plumbed through. Until then, the dimension
-  // scores neutral so ranking degrades to v2.3 modulo the uniform weight
-  // shift.
-  const values_alignment = NEUTRAL_VALUES_ALIGNMENT;
+  const values_alignment = c.userValueProfile
+    ? resolveValuesAlignment({
+        affects_categories: c.template.affects_categories,
+        quadrant_intent: c.template.quadrant_intent,
+        resolved_dynamic_category: c.resolvedDynamicCategory,
+        profile: c.userValueProfile,
+      })
+    : NEUTRAL_VALUES_ALIGNMENT;
 
   const breakdown: ScoringBreakdown = {
     goal_alignment,
@@ -142,6 +161,10 @@ export interface RankInput {
   detectedPatternIds: readonly string[];
   goalType: GoalType | null;
   excludedTemplateIds?: ReadonlySet<string>;
+  /** Pass through for users with any Value Map signal. */
+  userValueProfile?: UserValueProfile;
+  /** template_id → resolved category slug for 'DYNAMIC' affects_categories. */
+  dynamicCategoryByTemplate?: ReadonlyMap<string, string>;
 }
 
 // Rank by score descending. For each (template, pattern) pair where the
@@ -164,6 +187,8 @@ export function rankCandidates(input: RankInput): ScoredCandidate[] {
         template,
         patternId: canonicalTrigger,
         goalType: input.goalType,
+        userValueProfile: input.userValueProfile,
+        resolvedDynamicCategory: input.dynamicCategoryByTemplate?.get(template.id),
       });
 
       const existing = bestByTemplate.get(template.id);
