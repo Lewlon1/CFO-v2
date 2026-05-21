@@ -67,6 +67,7 @@ export interface ExperimentProposalCandidate {
     measurability: number;
     effort: number;
     reach: number;
+    values_alignment: number;
   };
 }
 

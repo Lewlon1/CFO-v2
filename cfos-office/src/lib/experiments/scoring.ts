@@ -1,5 +1,11 @@
-// Pure scoring engine for the experiment catalog. Weights are locked at
-// goal_alignment 0.40, measurability 0.25, effort 0.20, reach 0.15.
+// Pure scoring engine for the experiment catalog. Five dimensions:
+//   goal_alignment 0.35, measurability 0.20, effort 0.15, reach 0.15,
+//   values_alignment 0.15.
+//
+// values_alignment reads the user's per-category Value Map distribution via
+// resolveValuesAlignment() (lib/value-map/value-profile.ts). When no profile
+// is plumbed (legacy callers, no-VM users) the dimension scores neutral 0.5
+// — ranking degrades to v2.3 modulo the uniform weight shift.
 //
 // The alias map exists because the original v2.3 spec used a few pattern-ID
 // names that don't match the canonical detectors in pattern-detectors.ts.
@@ -15,11 +21,30 @@ import type {
 } from './templates';
 
 export const SCORING_WEIGHTS = {
-  goal_alignment: 0.4,
-  measurability: 0.25,
-  effort: 0.2,
+  goal_alignment: 0.35,
+  measurability: 0.2,
+  effort: 0.15,
   reach: 0.15,
+  values_alignment: 0.15,
 } as const;
+
+export const NEUTRAL_VALUES_ALIGNMENT = 0.5;
+
+// Boot-time guard. Catches silent misconfiguration the moment the module loads
+// rather than at the first user's first insight.
+{
+  const sum =
+    SCORING_WEIGHTS.goal_alignment +
+    SCORING_WEIGHTS.measurability +
+    SCORING_WEIGHTS.effort +
+    SCORING_WEIGHTS.reach +
+    SCORING_WEIGHTS.values_alignment;
+  if (Math.abs(sum - 1) > 1e-9) {
+    throw new Error(
+      `SCORING_WEIGHTS must sum to 1, got ${sum}. Update the weights or this assertion.`,
+    );
+  }
+}
 
 // Map non-canonical spec aliases to the canonical detector IDs in
 // pattern-detectors.ts. Catalog templates already use canonical IDs, but
@@ -59,6 +84,7 @@ export interface ScoringBreakdown {
   measurability: number;
   effort: number;
   reach: number;
+  values_alignment: number;
 }
 
 export interface ScoredCandidate {
@@ -82,18 +108,26 @@ export function scoreCandidate(c: CandidateInput): ScoredCandidate {
       ? NEUTRAL_GOAL_ALIGNMENT
       : (c.template.goal_affinity[c.goalType] ?? UNLISTED_GOAL_ALIGNMENT);
 
+  // Phase 4 will replace this with the real resolveValuesAlignment() call
+  // once UserValueProfile is plumbed through. Until then, the dimension
+  // scores neutral so ranking degrades to v2.3 modulo the uniform weight
+  // shift.
+  const values_alignment = NEUTRAL_VALUES_ALIGNMENT;
+
   const breakdown: ScoringBreakdown = {
     goal_alignment,
     measurability: MEASURABILITY_VALUE[c.template.measurability],
     effort: EFFORT_VALUE[c.template.effort],
     reach: REACH_VALUE[c.template.reach],
+    values_alignment,
   };
 
   const score =
     breakdown.goal_alignment * SCORING_WEIGHTS.goal_alignment +
     breakdown.measurability * SCORING_WEIGHTS.measurability +
     breakdown.effort * SCORING_WEIGHTS.effort +
-    breakdown.reach * SCORING_WEIGHTS.reach;
+    breakdown.reach * SCORING_WEIGHTS.reach +
+    breakdown.values_alignment * SCORING_WEIGHTS.values_alignment;
 
   return {
     template_id: c.template.id,

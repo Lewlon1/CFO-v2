@@ -219,6 +219,7 @@ async function buildExperimentProposal(
         measurability: scored.breakdown.measurability,
         effort: scored.breakdown.effort,
         reach: scored.breakdown.reach,
+        values_alignment: scored.breakdown.values_alignment,
       },
     };
   });

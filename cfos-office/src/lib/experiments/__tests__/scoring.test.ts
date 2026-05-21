@@ -21,7 +21,8 @@ describe('scoring weights', () => {
       SCORING_WEIGHTS.goal_alignment +
       SCORING_WEIGHTS.measurability +
       SCORING_WEIGHTS.effort +
-      SCORING_WEIGHTS.reach;
+      SCORING_WEIGHTS.reach +
+      SCORING_WEIGHTS.values_alignment;
     expect(total).toBeCloseTo(1, 10);
   });
 });

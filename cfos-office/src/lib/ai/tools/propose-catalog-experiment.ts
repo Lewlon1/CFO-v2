@@ -34,6 +34,7 @@ const inputSchema = z.object({
       measurability: z.number().min(0).max(1),
       effort: z.number().min(0).max(1),
       reach: z.number().min(0).max(1),
+      values_alignment: z.number().min(0).max(1).default(0.5),
     })
     .optional()
     .describe('Optional per-dimension breakdown from the ranking layer'),
@@ -95,6 +96,7 @@ export function createProposeCatalogExperimentTool(ctx: ToolContext) {
             measurability: 0,
             effort: 0,
             reach: 0,
+            values_alignment: 0.5,
           },
           related_goal_id: input.related_goal_id ?? null,
           status: 'proposed',

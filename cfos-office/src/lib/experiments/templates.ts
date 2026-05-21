@@ -21,6 +21,7 @@ export type LegacyExperimentType =
 export type EffortBand = 'low' | 'medium' | 'high';
 export type ReachBand = 'narrow' | 'broad';
 export type Measurability = 'self_report_clear' | 'self_report_fuzzy';
+export type ValueQuadrant = 'foundation' | 'investment' | 'leak' | 'burden';
 
 export interface TargetMetricSchema {
   kind: 'amount_under' | 'count_at_most' | 'completed';
@@ -52,6 +53,25 @@ export interface ExperimentTemplate {
    * a schema change.
    */
   requires_income_signal?: boolean;
+  /**
+   * Spending category slugs this template targets (canonical slugs from
+   * categories.id). The values_alignment scoring dimension reads the user's
+   * per-category Value Map distribution against these. Templates whose
+   * target is dynamic (cap_top_category, merchant_cap) use 'DYNAMIC' — the
+   * scoring engine resolves the real category from pattern data at proposal
+   * time. Templates that don't target a category leave this empty and score
+   * neutrally (0.5).
+   */
+  affects_categories?: string[];
+  /**
+   * Hint about the quadrant this experiment is fundamentally aimed at.
+   *   'leak' — explicit leak hunting; lifts values_alignment when user has
+   *            confirmed any leaks anywhere.
+   *   'foundation' / 'investment' — rare; shoring up essentials or
+   *            protecting investments.
+   * Omit when quadrant-neutral.
+   */
+  quadrant_intent?: ValueQuadrant;
 }
 
 export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
@@ -68,6 +88,7 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     effort: 'low',
     reach: 'narrow',
     measurability: 'self_report_clear',
+    affects_categories: ['subscriptions'],
   },
   {
     id: 'merchant_cap',
@@ -82,6 +103,7 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     effort: 'medium',
     reach: 'narrow',
     measurability: 'self_report_clear',
+    affects_categories: ['DYNAMIC'],
   },
   {
     id: 'convenience_swap',
@@ -96,6 +118,7 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     effort: 'low',
     reach: 'broad',
     measurability: 'self_report_fuzzy',
+    affects_categories: ['groceries', 'eat_drinking_out'],
   },
   {
     id: 'weekend_cap',
@@ -110,6 +133,7 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     effort: 'medium',
     reach: 'broad',
     measurability: 'self_report_clear',
+    affects_categories: ['eat_drinking_out', 'entertainment'],
   },
   {
     id: 'cap_top_category',
@@ -124,6 +148,7 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     effort: 'medium',
     reach: 'broad',
     measurability: 'self_report_clear',
+    affects_categories: ['DYNAMIC'],
   },
   {
     id: 'velocity_brake',
@@ -152,6 +177,7 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     effort: 'medium',
     reach: 'narrow',
     measurability: 'self_report_clear',
+    quadrant_intent: 'leak',
   },
   {
     id: 'redirect_windfall_to_goal',
