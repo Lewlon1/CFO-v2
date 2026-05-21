@@ -9,6 +9,47 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.3.1 — Archetype-Aware Experiment Scoring — 2026-05-21
+
+**Branch:** `claude/jolly-easley-0d9577`
+**Headline principle:** the experiment engine should not propose capping behaviours the user has labelled Foundation. A fifth scoring dimension reads the user's per-category Value Map distribution and penalises templates that fight stated values, rewards those that target self-identified Leaks.
+
+### What shipped
+
+**No migration.** `proposed_experiments.scoring_breakdown` is JSONB and back-compat handles both the 4-field and 5-field shapes.
+
+**Code:**
+- New scoring dimension `values_alignment` in `src/lib/experiments/scoring.ts`. `SCORING_WEIGHTS` rebalanced from `0.40 / 0.25 / 0.20 / 0.15` to `0.35 / 0.20 / 0.15 / 0.15 / 0.15`. Boot-time assertion guards the sum.
+- `ExperimentTemplate` gains `affects_categories?: string[]` and `quadrant_intent?: ValueQuadrant` (new exported type). All 10 catalog templates tagged: `subscription_audit` → `['subscriptions']`, `convenience_swap` → `['groceries', 'eat_drinking_out']`, `weekend_cap` → `['eat_drinking_out', 'entertainment']`, `cap_top_category` + `merchant_cap` → `['DYNAMIC']`, `value_leak_pause` → `quadrant_intent: 'leak'`, rest left neutral on purpose.
+- New `src/lib/value-map/value-profile.ts`: `buildUserValueProfile` reads `value_category_rules` (source-filtered to exclude `'category_default'` seeds, weight 2x) + confirmed `transactions.value_category` rows (weight 1x). `MIN_SIGNAL_FOR_CONFIDENCE = 3` per-category. `resolveValuesAlignment` maps the dominant quadrant to `0.25 / 0.40 / 0.75 / 0.95` (foundation/investment/burden/leak), worst-case across multi-category templates, with a `0.85` ceiling lift when `quadrant_intent='leak'` and the user has any leak signal anywhere.
+- `merchant_fragmentation` detector enhanced to surface `topMerchant` + `topMerchantCategory` in its data payload (replaces the previous merchant-name Set with a per-merchant spend/category aggregate). This lets `merchant_cap` resolve a DYNAMIC target category when triggered by this detector.
+- `buildExperimentProposal` reads `UserValueProfile` in parallel with capacity + recency checks; new `resolveDynamicCategories` helper maps `cap_top_category` and `merchant_cap` to a concrete category slug from pattern data (prefers `merchant_fragmentation.topMerchantCategory`, falls back to `category_concentration.topCategory`).
+- `propose_catalog_experiment` Zod schema accepts the new field with `.default(0.5)` — the LLM may still pass the old 4-field shape without breaking.
+- The 5 lifecycle tools (`accept_experiment`, `decline_experiment`, `record_experiment_outcome`, `list_active_experiments`, `propose_catalog_experiment`) read `scoring_breakdown` opaquely; no signature change needed.
+
+### Verification
+
+- `tsc --noEmit` clean at every phase (no `npm typecheck` script — uses `./node_modules/.bin/tsc`).
+- `npm run build` green at end.
+- `npm test` — 690 tests across 60 files pass, including ~20 new tests covering Lewis-Foundation-dining, Dorcas-Leak-everything, no-VM regression, DYNAMIC resolution, leak-intent ceiling, and the merchant_fragmentation `topMerchant`/`topMerchantCategory` surfacing.
+- Synthetic Lewis: weekend_cap (Foundation dining) drops from 0.82 → 0.74; subscription_audit stays at 0.865. Gap from 0.045 to 0.125 — engine has materially shifted away from capping Foundation behaviour.
+- No-Value-Map users get all-neutral 0.5 on `values_alignment` — ranking degrades to v2.3 modulo the uniform weight shift.
+- Audit committed at `docs/audits/2026-05-21-archetype-aware-scoring-comparison.md`.
+
+### Known follow-ups (deferred)
+
+- **Staging integration test pending (Lewis).** The Supabase MCP configured for this session was pointed at a different project; could not query `qlbhvlssksnrhsleadzn` directly. The audit doc captures the SQL + one-off invocation Lewis can run against Dorcas (`c6b1dd54-0c90-47ab-b098-d724d27471f7`) to confirm the per-category profile is non-empty and the proposed-experiment JSON has 5 fields.
+- **Weight retune after 10–20 staging proposals** — cofounder dial. If `values_alignment` is over-dominating in ways that feel wrong, drop to 0.10 and give 0.05 back to `goal_alignment`.
+- **`merchant_fragmentation` category-slug bug (pre-existing).** The detector's `FOOD_CATEGORIES` filter uses `'dining_out'` and `'convenience'` but the canonical slugs are `'eat_drinking_out'` and no `'convenience'` category exists. Detector probably never matches dining transactions in production. Out of scope for v2.3.1, flagged in the audit doc so it doesn't get lost.
+
+### Lessons learned
+
+- The cofounder's "first vertebra of the gating spine" framing holds up: `requires_income_signal`, future `requires_archetype_compat`, and the Joy Signal score all slot into the same shape — one engine, multiple dimensions, transparent JSONB breakdown. Resisted the impulse to add each as a separate filter.
+- `value_category_rules.source = 'category_default'` is system seed, not user signal. Filtering it out is mandatory for personalised scoring — otherwise every new user gets the same archetype.
+- TypeScript will quietly tolerate a missing field on a literal object until something downstream actually destructures the new key. The blast-radius grep in Phase 0 caught the three internal consumers (`scoring.ts`, `insight-engine.ts`, `insight-types.ts`) before they failed at compile time.
+
+---
+
 ## v2.5.2 — IA Simplification + Palette Reset + Component Reuse — 2026-05-19
 
 **Branch:** `claude/v2.5-ia-simplification-AWnKN`
