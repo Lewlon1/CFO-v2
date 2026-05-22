@@ -27,6 +27,26 @@ export interface IncomeSignal {
   detected_count: number
 }
 
+/**
+ * Should the `income_signal` data dependency be marked available at first
+ * insight? True when EITHER the inferred cadence is confident OR the user
+ * has stated their income directly. The exact amount is never quoted to
+ * the LLM (BLOCKED_AT_FIRST_INSIGHT still blocks 'income') — this only
+ * flips the availability bit for pattern detectors and experiment templates.
+ *
+ * Kept here (rather than inline at the call site) so the behaviour can be
+ * tested without standing up the full computeFirstInsight pipeline.
+ */
+export function shouldExposeIncomeSignal(
+  signal: IncomeSignal,
+  profile: { net_monthly_income?: number | null } | null | undefined,
+  threshold: number,
+): boolean {
+  if (signal.confidence >= threshold) return true
+  if (profile?.net_monthly_income != null) return true
+  return false
+}
+
 export function computeIncomeSignal(transactions: IncomeSignalInput[]): IncomeSignal {
   const candidates = transactions
     .filter((t) => Number(t.amount) >= MIN_AMOUNT)
