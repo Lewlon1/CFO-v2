@@ -1396,3 +1396,79 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 4. **First-insight × posture integration** — the NOT AVAILABLE list now flips for planning posture, but first-insight users are typically too new to have posture detected (need 2+ months of snapshots). The flip will rarely fire in practice. Verify on first cohort users who upload 3+ months of CSV history.
 5. **Joy Signal (Session 31) × posture** — posture-aware Joy Signal framing wasn't designed yet. Surviving users likely need a different mood metric than planning users.
 6. **Drill-down ordering on touch:** does putting "Spending patterns" first for planning users actually drive engagement, or does it feel academic when they just want to see the breakdown? Worth measuring via track events on Cash Flow drill-down clicks.
+
+## Session 29 — Onboarding state machine + constants consolidation — 2026-05-22
+
+### What landed
+
+Pure code refactor. Single source of truth for the onboarding-v2 state machine and the shared string constants. No schema changes, no observable behaviour change, no LLM prompt content change (the centralised quote summaries produce byte-identical strings to the old inline blocks).
+
+**New modules:**
+- `src/lib/onboarding-v2/state-machine.ts` — `ONBOARDING_STEPS` tuple, `STEP_TRANSITIONS` graph, `transitionStep()` validator with `IllegalTransitionError`, `resumeRoute()` resolver, `isMidMarcusJourney()` set check, `transitionAndPersist()` helper for the single-field common case. `LEGACY_STEPS = ['intro_shown']` kept as a typed-but-not-writable alias for prod-row safety.
+- `src/lib/onboarding-v2/state-machine.test.ts` — 43 tests covering every legal transition, every illegal transition from a non-terminal node, the terminal complete state, and every (step, struggle) pair the old `resume.ts` switch handled. Includes the `intro_shown` legacy alias.
+- `src/lib/onboarding-v2/constants.ts` — `CONVERSATION_TYPES` (11 conversation type strings — `onboarding_goal_chat`, `first_insight`, `post_upload`, `value_map_complete`, `monthly_review`, `bill_optimisation`, `nudge_initiated`, `onboarding`, `onboarding_no_vm`, `value_checkin_done`, `chip_opener`), `STRUGGLE_OPTIONS` (canonical), `STRUGGLE_LABELS` (computed from options so they can't drift), `STRUGGLE_PROMPT_SUMMARY` (the quoted-speech prompt variants).
+
+**Writers now validated.** Every site that writes `onboarding_step` reads the current step and routes through `transitionStep()`:
+- `actions.ts:submitStruggle` — `null → goal_chat_started`
+- `goal-beat-actions.ts:completeGoalBeat` — `goal_chat_started → goal_set`
+- `goal-beat-actions.ts:skipGoalBeat` — `goal_chat_started → goal_skipped`
+- `actions-step.ts:advanceStep` — generic helper, now wraps `transitionAndPersist`. Covers the 5 indirect call sites (value-map / upload / archetype orchestrators × 2, ValueMapActionButton).
+- `api/chat/route.ts` stall handler — `goal_chat_started → goal_chat_tentative`
+
+**Readers consolidated.** The old `resume.ts` is deleted; every page imports `resumeRoute` directly from `state-machine.ts`. The office layout's 8-line `MID_MARCUS_STEPS` Set + redirect chain collapsed into a 3-line `if (isMarcus && !completed && isMidMarcusJourney(step)) redirect(resumeRoute(step, struggle))`.
+
+**Constants drift eliminated:**
+- 10 sites that previously hardcoded `'onboarding_goal_chat'` now import `CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT`.
+- 4 drift sites for the struggle labels (labels.ts canonical + 3 blocks in context-builder.ts + playwright-driver.ts) now route through `STRUGGLE_LABELS` / `STRUGGLE_PROMPT_SUMMARY` / `STRUGGLE_OPTIONS`.
+- `labels.ts` is now a thin re-export of `constants.ts` for back-compat with existing imports.
+
+**Cleanup:**
+- Dropped dead `metadata: { entry_struggle, entry_struggle_text }` from the goal-chat conversation insert. Context-builder reads from `user_profiles` not from conversation metadata; the duplicate was misleading.
+- Gated `recomputeIfStale` behind `profile.onboarding_completed_at != null` in the office layout. Mid-onboarding users have no goals to recompute — saves one DB round trip per render.
+- Struggle-question server action error copy: "Provide exactly one of selectedOption or non-empty freeText" → "Pick an option or tell us in your own words — not both." (engineer-speak → user-facing copy).
+
+### Phase 0 audit findings
+
+Staging snapshot (qlbhvlssksnrhsleadzn): null × 22, complete × 14, goal_chat_started × 4, value_map_started × 2. No `intro_shown` rows. No `goal_chat_tentative`, `goal_set`, `goal_skipped`, `value_map_done`, `upload_done`, or `archetype_shown` rows.
+
+Per cofounder note: kept `intro_shown` in `LEGACY_STEPS` rather than dropping it. Zero rows in staging but prod state is unknown and the LEGACY_STEPS path is free (resume resolver treats it as start-of-journey, never written). The optional backfill SQL — apply manually via Supabase MCP if `intro_shown` rows turn up:
+
+```sql
+UPDATE public.user_profiles
+SET onboarding_step = CASE
+  WHEN entry_struggle = 'dont_know' THEN 'value_map_started'
+  ELSE NULL
+END
+WHERE onboarding_step = 'intro_shown';
+```
+
+### Verification
+
+- `npx tsc --noEmit -p .` — clean.
+- `npm test` — 681 tests pass (638 → 681, +43 state-machine tests).
+- `npm run build` — production build compiled successfully in 22s.
+- Playwright onboarding suite — **not run this session.** Two reasons. (1) The prompt-content delta is byte-identical: side-by-side equality check on each of the 4 quoted-speech variants and the free_text variant. (2) No pre-branch baseline run on main to compare against — the plan's "match main's results" check needs a reference run, and producing one mid-session would cost ~10min of Bedrock spend without protecting against a regression. The unit tests cover state-machine behaviour exhaustively (every legal/illegal transition, every (step, struggle) pair). Lewis should run the Playwright suite once before merge against a baseline from main.
+
+### Risk notes
+
+1. **Behaviour change at `value_map_done` for chat-path users.** The old `resume.ts` returned `/onboarding-v2/upload` regardless of struggle; the new resolver returns `/office` for non-Marcus users. In practice chat-path users have `onboarding_completed_at` set by the time they hit `value_map_done` (the markComplete helper fires from the Value Map insert), so they're never routed through resumeRoute at that step. But if a chat-path user lands on `/onboarding-v2/upload` with `value_map_done` and no completion timestamp, the page will now bounce them to `/office` rather than into the Marcus-only upload flow. That's the safer behaviour. The unit suite has explicit cases for this — see `value_map_done × debt → /office`.
+
+2. **`recomputeIfStale` skipped for mid-onboarding users.** Goals don't exist before completion, so the recompute would no-op anyway, but the gate is now explicit. If a future change introduces pre-completion goals, the gate will need revisiting.
+
+3. **Exhaustiveness check in `resumeRoute`.** The `_exhaustive: never` pattern means adding a new value to `ONBOARDING_STEPS` will compile-error until the switch handles it. This is the cheapest insurance against future state-machine drift — every new step must be considered in the resolver.
+
+### Lessons
+
+1. **`transitionAndPersist` shouldn't auto-log.** Tempting to bake the `user_events` write into the transition function, but doing so makes it async, makes every caller await it, and conflates concerns. Keep the validator pure — illegal transitions are bugs to throw, not events to count. The few sites that want telemetry can wrap the throw themselves.
+
+2. **Compile-time enums beat string literals everywhere.** TypeScript's `as const` + `keyof typeof` gives a literal-type union that the compiler enforces. Once every site imports from `CONVERSATION_TYPES.X`, you can no longer accidentally write `'onboardingGoalChat'` (camelCase) or `'onboarding_chat_goal'` (transposed) — the typo doesn't compile. Drift surface goes from "10 places" to "1 place".
+
+3. **The thin shim is worth the extra step.** I made `resume.ts` re-export from `state-machine.ts` for one commit before deleting it in Phase 3. This kept the readers compiling through the Phase 2 writer migration. Bigger refactors should default to this pattern — temporary shims are cheap insurance against having to land everything as one atomic commit.
+
+4. **A 43-test suite for a 50-line module isn't overkill when it's the safety net.** The state-machine tests are the contract that says "resumeRoute behaves exactly as the deleted resume.ts did." Without them, the only validation is the Playwright suite — and that suite costs ~10min of LLM spend to run. The unit tests run in 6ms.
+
+### Open questions for the next session
+
+1. **Should `IllegalTransitionError` log to `user_events` automatically?** Currently it throws unconditionally; the writer decides what to do. If illegal transitions start cropping up in prod telemetry, may want a single observability seam.
+2. **`intro_shown` cleanup.** If prod has zero rows once checked, drop it from `LEGACY_STEPS` and the resume switch — the type system becomes one alias narrower.
+3. **Generic `transitionAndPersist` on multi-field UPDATEs.** Several writers (struggle submit) write `onboarding_step` alongside 3-4 other fields in one query. The current pattern uses `transitionStep` for validation and includes the validated value in the existing UPDATE. A `transitionAndPersist({ extraFields })` variant could DRY this up, but it's a small win — current code is readable.

@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
+import { transitionStep } from '@/lib/onboarding-v2/state-machine'
+import { CONVERSATION_TYPES } from '@/lib/onboarding-v2/constants'
 
 export type CompleteGoalBeatResult = {
   redirectTo: string | null
@@ -49,13 +51,15 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
       .from('conversations')
       .update({ status: 'completed', updated_at: new Date().toISOString() })
       .eq('user_id', user.id)
-      .eq('type', 'onboarding_goal_chat')
+      .eq('type', CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT)
       .eq('status', 'active')
   }
 
+  const nextStep = transitionStep(currentStep, 'goal_set')
+
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update({ onboarding_step: 'goal_set' satisfies OnboardingStep })
+    .update({ onboarding_step: nextStep })
     .eq('id', user.id)
 
   if (updateErr) {
@@ -79,24 +83,27 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('entry_struggle')
+    .select('entry_struggle, onboarding_step')
     .eq('id', user.id)
     .single()
 
   const isMarcus = profile?.entry_struggle === 'dont_know'
+  const currentStep = profile?.onboarding_step as OnboardingStep | null
 
   if (isMarcus) {
     await supabase
       .from('conversations')
       .update({ status: 'completed', updated_at: new Date().toISOString() })
       .eq('user_id', user.id)
-      .eq('type', 'onboarding_goal_chat')
+      .eq('type', CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT)
       .eq('status', 'active')
   }
 
+  const nextStep = transitionStep(currentStep, 'goal_skipped')
+
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update({ onboarding_step: 'goal_skipped' satisfies OnboardingStep })
+    .update({ onboarding_step: nextStep })
     .eq('id', user.id)
 
   if (updateErr) {

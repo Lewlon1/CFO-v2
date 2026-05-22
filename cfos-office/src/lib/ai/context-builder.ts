@@ -8,6 +8,12 @@ import { PERSONALITIES, SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants';
 import type { InsightPayload, QuotableFact, PatternResult, ExperimentProposalLayer } from '@/lib/analytics/insight-types';
 import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
+import {
+  CONVERSATION_TYPES,
+  STRUGGLE_LABELS,
+  STRUGGLE_PROMPT_SUMMARY,
+  type EntryStruggle,
+} from '@/lib/onboarding-v2/constants';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { getPosturePromptFragment } from './posture-prompts';
@@ -223,13 +229,12 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
         lines.push(`- In their own words: "${intent.text}"`);
       }
     } else if (intent.source === 'entry_struggle') {
-      const struggleLabels: Record<string, string> = {
-        wealth:    "I want to start building wealth",
-        debt:      "I'm carrying debt I want to clear",
-        planning:  "I'm planning for something specific",
-        free_text: "(see their own words below)",
-      };
-      const label = intent.struggleType ? struggleLabels[intent.struggleType] : null;
+      // First-insight surface: cite the labelled struggle if present.
+      // free_text users have no canonical label; their words come through
+      // intent.text below.
+      const key = intent.struggleType as EntryStruggle | null | undefined;
+      const label =
+        key && key !== 'free_text' ? STRUGGLE_LABELS[key] ?? null : null;
       if (label) lines.push(`- At onboarding the user said: "${label}"`);
       if (intent.text) lines.push(`- In their own words: "${intent.text}"`);
     }
@@ -778,14 +783,8 @@ function buildOnboardingEntryContext(
   const struggle = profile.entry_struggle as string | null
   if (!struggle) return ''
 
-  const labels: Record<string, string> = {
-    dont_know: "I don't know where my money goes",
-    debt:      "I'm carrying debt I want to clear",
-    wealth:    'I want to start building wealth',
-    planning:  "I'm planning for something specific",
-    free_text: '(In their own words — see entry_struggle_text)',
-  }
-  const struggleLabel = labels[struggle] ?? struggle
+  const struggleLabel =
+    (STRUGGLE_LABELS as Record<string, string>)[struggle] ?? struggle
   const text = (profile.entry_struggle_text as string | null) || null
 
   const lines = [
@@ -819,16 +818,10 @@ function buildGoalDeriveConfirmContext(
 
   if (Array.isArray(goals) && goals.length > 0) return ''
 
-  const struggleSummary = (() => {
-    if (struggle === 'dont_know') {
-      return "The user said: \"I don't know where my money goes.\""
-    }
-    if (struggle === 'debt') return "The user said: \"I'm carrying debt I want to clear.\""
-    if (struggle === 'wealth') return "The user said: \"I want to start building wealth.\""
-    if (struggle === 'planning') return "The user said: \"I'm planning for something specific.\""
-    if (struggle === 'free_text' && struggleText) return `The user said, in their own words: "${struggleText}"`
-    return 'The user has not yet articulated a struggle.'
-  })()
+  const struggleKey = (struggle ?? 'free_text') as EntryStruggle
+  const struggleSummary =
+    STRUGGLE_PROMPT_SUMMARY[struggleKey]?.(struggleText) ??
+    'The user has not yet articulated a struggle.'
 
   const lines = [
     '## Your task in this conversation',
@@ -1038,7 +1031,7 @@ export async function buildSystemPrompt(
   // fragment's "no forward planning beyond 30 days" over the goal-derive task
   // produces an LLM that hedges goal commit (agrees to the goal concept but
   // defers the amount), which leaves onboarding_step stuck at goal_chat_started.
-  const isGoalDeriveConfirm = conversationType === 'onboarding_goal_chat';
+  const isGoalDeriveConfirm = conversationType === CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT;
   if (isGoalDeriveConfirm) {
     const sections = [
       BASE_PERSONA + styleModifier,

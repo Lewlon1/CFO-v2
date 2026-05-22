@@ -1,14 +1,6 @@
-export type OnboardingStep =
-  | 'intro_shown'
-  | 'goal_chat_started'
-  | 'goal_chat_tentative'
-  | 'goal_set'
-  | 'goal_skipped'
-  | 'value_map_started'
-  | 'value_map_done'
-  | 'upload_done'
-  | 'archetype_shown'
-  | 'complete'
+// OnboardingStep is now owned by state-machine.ts. Re-exported here for
+// back-compat with existing imports.
+export type { OnboardingStep } from './state-machine'
 
 export type StartValueMapAction = { type: 'start_value_map' }
 export type CreateActionItemAction = { id: string; title: string }

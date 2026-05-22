@@ -21,6 +21,8 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-classifier';
 import { quickClassifyDecline } from '@/lib/onboarding-v2/value-map-decline-quickcheck';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
+import { transitionStep, type OnboardingStep } from '@/lib/onboarding-v2/state-machine';
+import { CONVERSATION_TYPES } from '@/lib/onboarding-v2/constants';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import {
   buildCitationAllowlist,
@@ -237,7 +239,7 @@ export async function POST(req: Request) {
   // feature, not a failure mode.
   let stallSystemNote: string | null = null;
   if (
-    conversationType === 'onboarding_goal_chat' &&
+    conversationType === CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT &&
     profileForChat?.onboarding_step === 'goal_chat_started'
   ) {
     const [{ count: userTurnCount }, { count: goalCount }] = await Promise.all([
@@ -260,10 +262,17 @@ export async function POST(req: Request) {
         profileForChat.onboarding_progress && typeof profileForChat.onboarding_progress === 'object'
           ? (profileForChat.onboarding_progress as Record<string, unknown>)
           : {};
+      // We just checked profileForChat.onboarding_step === 'goal_chat_started'
+      // above (the branch condition), so this transition is always legal —
+      // but route it through the validator anyway so the rule lives in one place.
+      const nextStep = transitionStep(
+        profileForChat.onboarding_step as OnboardingStep | null,
+        'goal_chat_tentative',
+      );
       await supabase
         .from('user_profiles')
         .update({
-          onboarding_step: 'goal_chat_tentative',
+          onboarding_step: nextStep,
           onboarding_progress: {
             ...existingProgress,
             goal_chat_tentative_at: new Date().toISOString(),
@@ -722,7 +731,7 @@ export async function POST(req: Request) {
         // exit from the goal beat — losing it strands the user (the watcher
         // no longer force-redirects Marcus, so the chip is the only handoff).
         if (
-          conversationType === 'onboarding_goal_chat' &&
+          conversationType === CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT &&
           toolsUsed.includes('create_goal') &&
           !actionsCreated.some(
             (a) => (a as { type?: string }).type === 'start_value_map',

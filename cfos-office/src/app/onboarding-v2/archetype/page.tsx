@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { resumeRoute } from '@/lib/onboarding-v2/resume'
-import type { OnboardingStep } from '@/lib/onboarding-v2/types'
+import { resumeRoute, type OnboardingStep } from '@/lib/onboarding-v2/state-machine'
 import { ArchetypeOrchestrator } from './archetype-orchestrator'
 import type { OnboardingData } from '@/lib/onboarding/types'
 

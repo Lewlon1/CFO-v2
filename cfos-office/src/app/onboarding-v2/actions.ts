@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { StruggleOptionId } from '@/lib/onboarding-v2/labels'
+import { transitionStep } from '@/lib/onboarding-v2/state-machine'
+import { CONVERSATION_TYPES } from '@/lib/onboarding-v2/constants'
 
 export type SubmitStruggleInput = {
   selectedOption: StruggleOptionId | null
@@ -35,7 +37,7 @@ export async function submitStruggle(
   const hasText = trimmedText.length > 0
   if (hasOption === hasText) {
     throw new Error(
-      'Provide exactly one of selectedOption or non-empty freeText',
+      'Pick an option or tell us in your own words — not both.',
     )
   }
 
@@ -47,6 +49,19 @@ export async function submitStruggle(
     entryStruggle === 'dont_know' ? 'value_map' : 'chat'
   const entryStruggleText = hasOption ? null : trimmedText
 
+  // Validate via the state machine before writing — a struggle-submit on a
+  // row that already has a non-null onboarding_step would mean we're skipping
+  // backwards through the journey, which is a bug.
+  const { data: existingProfile } = await supabase
+    .from('user_profiles')
+    .select('onboarding_step')
+    .eq('id', user.id)
+    .single()
+  const nextStep = transitionStep(
+    (existingProfile?.onboarding_step ?? null) as Parameters<typeof transitionStep>[0],
+    'goal_chat_started',
+  )
+
   const { error: updateErr } = await supabase
     .from('user_profiles')
     .update({
@@ -54,7 +69,7 @@ export async function submitStruggle(
       entry_struggle_text: entryStruggleText,
       entry_struggle_at: new Date().toISOString(),
       onboarding_route: route,
-      onboarding_step: 'goal_chat_started',
+      onboarding_step: nextStep,
     })
     .eq('id', user.id)
   if (updateErr) {
@@ -65,17 +80,15 @@ export async function submitStruggle(
   // Create the goal-derive-and-confirm conversation. The CFO opens it via
   // the auto-trigger registered for type='onboarding_goal_chat' in
   // ChatProvider, which fires when the conversation loads with no messages.
+  // entry_struggle / entry_struggle_text live on user_profiles — context-builder
+  // reads from there, so duplicating them into conversation metadata is dead.
   const { data: conv, error: convErr } = await supabase
     .from('conversations')
     .insert({
       user_id: user.id,
       title: 'Setting your first goal',
-      type: 'onboarding_goal_chat',
+      type: CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT,
       status: 'active',
-      metadata: {
-        entry_struggle: entryStruggle,
-        ...(entryStruggleText ? { entry_struggle_text: entryStruggleText } : {}),
-      },
     })
     .select('id')
     .single()

@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useChatContext } from '@/components/chat/ChatProvider'
 import { completeGoalBeat, skipGoalBeat } from '@/app/onboarding-v2/goal-beat-actions'
+import type { OnboardingStep } from '@/lib/onboarding-v2/state-machine'
 
 type Props = {
-  onboardingStep: string | null
+  onboardingStep: OnboardingStep | null
   entryStruggle: string | null
   goalChatConversationId: string | null
 }

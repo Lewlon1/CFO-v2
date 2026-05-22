@@ -3,6 +3,12 @@ import { after } from 'next/server'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 import { recomputeIfStale } from '@/lib/goals/recompute'
+import {
+  isMidMarcusJourney,
+  resumeRoute,
+  type OnboardingStep,
+} from '@/lib/onboarding-v2/state-machine'
+import { CONVERSATION_TYPES } from '@/lib/onboarding-v2/constants'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
@@ -63,15 +69,14 @@ export default async function OfficeLayout({ children }: { children: React.React
   // If the user is mid-Marcus-journey (post-goal-beat), bounce them back to
   // the appropriate onboarding-v2 step. Without this, a Marcus user could
   // navigate manually to /office and skip the value-map / upload / archetype.
-  const onboardingStep = (profile?.onboarding_step as string | null) ?? null
+  const onboardingStep = (profile?.onboarding_step ?? null) as OnboardingStep | null
   const isMarcus = profile?.entry_struggle === 'dont_know'
-  const MID_MARCUS_STEPS = new Set(['goal_set', 'goal_skipped', 'value_map_started', 'value_map_done', 'upload_done', 'archetype_shown'])
-  if (isMarcus && !profile?.onboarding_completed_at && onboardingStep && MID_MARCUS_STEPS.has(onboardingStep)) {
-    if (onboardingStep === 'goal_set' || onboardingStep === 'goal_skipped' || onboardingStep === 'value_map_started') {
-      redirect('/onboarding-v2/value-map')
-    }
-    if (onboardingStep === 'value_map_done') redirect('/onboarding-v2/upload')
-    if (onboardingStep === 'upload_done' || onboardingStep === 'archetype_shown') redirect('/onboarding-v2/archetype')
+  if (
+    isMarcus &&
+    !profile?.onboarding_completed_at &&
+    isMidMarcusJourney(onboardingStep)
+  ) {
+    redirect(resumeRoute(onboardingStep, profile.entry_struggle))
   }
 
   // If the user is mid-goal-beat, look up their active goal-chat conversation
@@ -82,7 +87,7 @@ export default async function OfficeLayout({ children }: { children: React.React
       .from('conversations')
       .select('id')
       .eq('user_id', user.id)
-      .eq('type', 'onboarding_goal_chat')
+      .eq('type', CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT)
       .eq('status', 'active')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -102,16 +107,21 @@ export default async function OfficeLayout({ children }: { children: React.React
   // is well within the "up to one session's staleness is acceptable"
   // tolerance. Errors are logged but invisible to the user — they see
   // last-known numbers if a recompute fails.
+  //
+  // Mid-onboarding users have no goals to recompute, so skip the DB round-trip
+  // entirely for them — gate on onboarding_completed_at.
   const userId = user.id
   const lastSyncedIso = profile?.goals_last_synced_at ?? null
-  after(async () => {
-    try {
-      const recomputeClient = await createClient()
-      await recomputeIfStale(recomputeClient, userId, lastSyncedIso)
-    } catch (err) {
-      console.error('[goals-recompute] failed:', err)
-    }
-  })
+  if (profile?.onboarding_completed_at) {
+    after(async () => {
+      try {
+        const recomputeClient = await createClient()
+        await recomputeIfStale(recomputeClient, userId, lastSyncedIso)
+      } catch (err) {
+        console.error('[goals-recompute] failed:', err)
+      }
+    })
+  }
 
   return (
     <div

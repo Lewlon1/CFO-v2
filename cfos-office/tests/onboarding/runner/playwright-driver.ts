@@ -4,6 +4,10 @@ import type { Persona, PersonaValueMapResponse, OnboardingStage } from '../perso
 import type { TestUser } from './user-factory'
 import type { CapturedStage } from './types'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  STRUGGLE_OPTIONS,
+  type StruggleOptionId,
+} from '../../../src/lib/onboarding-v2/constants'
 
 export interface DriverOptions {
   baseUrl: string
@@ -333,12 +337,9 @@ async function driveStage(
 
 // ── Struggle submission ─────────────────────────────────────────────────────
 
-const STRUGGLE_OPTION_LABEL: Record<string, string> = {
-  dont_know: "I don't know where my money goes",
-  debt:      "I'm carrying debt I want to clear",
-  wealth:    'I want to start building wealth',
-  planning:  "I'm planning for something specific",
-}
+const STRUGGLE_OPTION_LABEL: Record<StruggleOptionId, string> = Object.fromEntries(
+  STRUGGLE_OPTIONS.map((o) => [o.id, o.label]),
+) as Record<StruggleOptionId, string>
 
 async function submitStruggle(page: Page, persona: Persona): Promise<void> {
   const struggle = persona.expectations.entryStruggle

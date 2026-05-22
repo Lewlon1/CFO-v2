@@ -14,6 +14,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
+import { CONVERSATION_TYPES } from '@/lib/onboarding-v2/constants'
 import {
   buildLabelRecapTrigger,
   type LabelTransactionsQuadrantId,
@@ -25,17 +26,17 @@ import {
 // and `loadConversation` (existing conversation, e.g. one created server-side
 // by archetype-orchestrator + materialised via /api/insights/post-upload).
 const AUTO_TRIGGER_TYPES = [
-  'first_insight',
-  'post_upload',
-  'value_map_complete',
-  'monthly_review',
-  'bill_optimisation',
-  'nudge_initiated',
-  'onboarding',
-  'onboarding_no_vm',
-  'onboarding_goal_chat',
-  'value_checkin_done',
-  'chip_opener',
+  CONVERSATION_TYPES.FIRST_INSIGHT,
+  CONVERSATION_TYPES.POST_UPLOAD,
+  CONVERSATION_TYPES.VALUE_MAP_COMPLETE,
+  CONVERSATION_TYPES.MONTHLY_REVIEW,
+  CONVERSATION_TYPES.BILL_OPTIMISATION,
+  CONVERSATION_TYPES.NUDGE_INITIATED,
+  CONVERSATION_TYPES.ONBOARDING,
+  CONVERSATION_TYPES.ONBOARDING_NO_VM,
+  CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT,
+  CONVERSATION_TYPES.VALUE_CHECKIN_DONE,
+  CONVERSATION_TYPES.CHIP_OPENER,
 ] as const
 
 // ── Context shape ─────────────────────────────────────────────────────────────
@@ -222,7 +223,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     } else if (type === 'onboarding_no_vm') {
       trigger =
         '[System: New user who signed up directly. Welcome them briefly, then suggest the Value Map as a quick way to get started — "a 2-minute exercise that helps me understand how you think about money." You MUST include this exact markdown link in your response: [Try the Value Map](/demo). If they want to skip it, that is fine.]'
-    } else if (type === 'onboarding_goal_chat') {
+    } else if (type === CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT) {
       // The user has just submitted their entry struggle and walked into the
       // office. Per the goal-derive-and-confirm task in the system prompt,
       // open with either a draft proposal (if the struggle gives enough
