@@ -236,7 +236,7 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
     }
     lines.push('');
     lines.push('FRAME THE WOW MOMENT THROUGH THIS GOAL:');
-    lines.push('- Open by acknowledging the goal in one short line — paraphrase it, do not quote it back verbatim.');
+    lines.push('- Acknowledge the goal naturally inside the opening line — paraphrase, don\'t quote. Do NOT greet, welcome, or address the user by name. The opening is the observation, with the goal woven in.');
     lines.push('- Then make the insight land *against* that goal. The leverage is in their day-to-day pattern — what\'s flowing where, and whether it\'s aligned with what they came here for.');
     lines.push('- Pick ONE specific number from the QUOTABLE FACTS list and tie it to the goal. Specifics over abstractions.');
     if (payload.userIntent.struggleType === 'wealth' ||
