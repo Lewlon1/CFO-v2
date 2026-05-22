@@ -746,8 +746,7 @@ async function buildValueMapBridgeContext(
     "- For debt clearing: \"Clearing this faster comes down to where surplus can come from. We want to look at your transactions, through our unique Value Map activity — it's how we find what's actually movable.\"",
     "- For planning: \"To get to [their goal] you need a clear picture of where each month is going. We want to look at your transactions, through our unique Value Map activity — it's where the picture sharpens.\"",
     '',
-    'When you decide to offer it, include this token verbatim somewhere in your response: <ACTION:start_value_map>',
-    'Do not describe the token to the user; the system will render an action button for them.',
+    "When you decide to offer it, call the `emit_action` tool with `type: 'start_value_map'` in the same response where you make the offer in prose. The action call is internal plumbing; the user reads your message. Do not describe the call.",
     'If the user declines ("not now", "later", "skip"), do NOT bring up the Value Map again proactively in this conversation. Acknowledge their decision and continue helping them with what they came to discuss.',
   ]
 
@@ -763,7 +762,7 @@ async function buildValueMapBridgeContext(
         lines.push(
           '',
           '## BRIDGE BACKSTOP',
-          'This conversation has reached the point where you should offer the Value Map. Do it in your next response with appropriate framing per the BRIDGE guidance above. Include <ACTION:start_value_map> in your response.',
+          "This conversation has reached the point where you should offer the Value Map. Do it in your next response with appropriate framing per the BRIDGE guidance above. Call `emit_action` with `type: 'start_value_map'` in the same response.",
         )
       }
     } catch (err) {
@@ -871,18 +870,35 @@ function buildGoalDeriveConfirmContext(
     '',
     "### When the user can't articulate a goal",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this.\" — and hand off to the Value Map in the same response by including this token verbatim: <ACTION:start_value_map>. A goal will land later, once they have reflection and transactions to anchor it on. Do not describe the token to the user; the system renders an action button for them.",
+    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this.\" — and hand off to the Value Map in the same response by calling `emit_action` with `type: 'start_value_map'`. A goal will land later, once they have reflection and transactions to anchor it on. Do not describe the call to the user; the system renders an action button for them.",
     '',
-    '### After create_goal succeeds — hand off to the Value Map',
+    '### After create_goal succeeds — close the beat and hand off to the Value Map',
     '',
     'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
     '',
     'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
     '- Briefly confirm the goal you have set.',
     '- Say (in your own voice): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
-    '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
+    '- Call `emit_action` with `type: \'goal_set\'`. This is what tells the system the goal beat is complete and the user can move on. Do not describe the call to the user.',
+    "- Call `emit_action` with `type: 'start_value_map'`. The system renders the inline button from this — do not describe the call.",
     '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
   ]
+
+  // Stall pivot. The chat route flips onboarding_step to 'goal_chat_tentative'
+  // after a stalled goal-derive exchange. The user has had enough turns;
+  // we acknowledge and offer the Value Map without forcing a target.
+  if (profile?.onboarding_step === 'goal_chat_tentative') {
+    lines.push(
+      '',
+      '### Pivot to the Value Map (REQUIRED on this turn)',
+      '',
+      'The user has exchanged enough turns without committing to a specific goal. Stop asking goal-related questions. In this response:',
+      '- Acknowledge briefly that you have enough context for now — paraphrase, do not list.',
+      "- Propose moving to the Value Map next, framed as the way to get visibility before naming a target.",
+      "- Call `emit_action` with `type: 'start_value_map'` in the same response. Do not describe the call.",
+      'Keep this short — maximum 2-3 sentences. A specific goal can land later, once the Value Map has done its work.',
+    )
+  }
 
   return lines.join('\n')
 }

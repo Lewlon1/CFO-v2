@@ -61,6 +61,7 @@ import { CfoThinking } from '@/components/brand/CfoThinking';
 import { ValueMapActionButton } from './ValueMapActionButton';
 import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
+import { findAction } from '@/lib/actions/types';
 import { parseOptions } from '@/lib/chat/options-parser';
 import {
   buildActionItemCard,
@@ -377,16 +378,21 @@ export function MessageList({
               {/* CTA block */}
               {cta && <ChatCTA type={cta.type} label={cta.label} />}
 
-              {/* Onboarding v2 — Value Map action button. Renders when either
-                  the persisted metadata stamps the action (post-stream) OR the
-                  streaming text contains the literal token (during stream,
-                  before metadata propagates). Both paths are idempotent. */}
+              {/* Onboarding v2 — Value Map action button. Reads the
+                  structured `actions_created` JSONB column. The legacy text-
+                  token check (hasStartValueMapAction) is retained as a
+                  belt-and-braces fallback during the migration window — any
+                  stray <ACTION:start_value_map> in cached content still
+                  renders the button. */}
               {message.role === 'assistant' &&
                 (() => {
                   const actions = (message.metadata as { actions_created?: unknown } | null)?.actions_created
-                  const fromMetadata = Array.isArray(actions) && actions.some(isStartValueMapAction)
+                  const fromEmitAction =
+                    Array.isArray(actions) && findAction(actions, 'start_value_map') !== null
+                  const fromLegacyMetadata =
+                    Array.isArray(actions) && actions.some(isStartValueMapAction)
                   const fromStream = hasStartValueMapAction(rawText)
-                  return (fromMetadata || fromStream) ? (
+                  return (fromEmitAction || fromLegacyMetadata || fromStream) ? (
                     <div className="px-3">
                       <ValueMapActionButton />
                     </div>

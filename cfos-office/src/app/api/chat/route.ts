@@ -21,7 +21,12 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-classifier';
 import { quickClassifyDecline } from '@/lib/onboarding-v2/value-map-decline-quickcheck';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
-import { transitionStep, type OnboardingStep } from '@/lib/onboarding-v2/state-machine';
+import {
+  IllegalTransitionError,
+  transitionAndPersist,
+  transitionStep,
+  type OnboardingStep,
+} from '@/lib/onboarding-v2/state-machine';
 import { CONVERSATION_TYPES } from '@/lib/onboarding-v2/constants';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import {
@@ -230,63 +235,20 @@ export async function POST(req: Request) {
     .eq('id', user.id)
     .single();
 
-  // Goal-chat stall handler. The prompt-side "draft on next turn" rule is the
-  // primary mechanism; this is a safety net for the case where the model
-  // doesn't comply. After 5 user turns in `onboarding_goal_chat` without an
-  // active goal, the onboarding state advances to `goal_chat_tentative` and a
-  // transient system note tells the CFO to acknowledge and pivot to the Value
-  // Map. The user can set a specific goal later — tentative state is a
-  // feature, not a failure mode.
-  let stallSystemNote: string | null = null;
-  if (
+  // Goal-chat stall handler — runs in `after()` post-response so it never
+  // blocks the LLM call. The 2-count read used to fire on every onboarding
+  // goal-chat turn before the response was generated; now it fires after,
+  // and the pivot instruction shows up in the NEXT turn's prompt (gated on
+  // `onboarding_step === 'goal_chat_tentative'` in buildGoalDeriveConfirmContext).
+  //
+  // The one-turn delay is acceptable: the prompt's "draft on next turn" rule
+  // is the primary mechanism, this is a safety net for stalls, and a single
+  // extra goal-question turn before the pivot is bearable. If the user
+  // somehow commits to a goal on turn 6, the goal-set action fires and the
+  // stall handler's NULL-step write would no-op via the state machine guard.
+  const shouldRunStallCheck =
     conversationType === CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT &&
-    profileForChat?.onboarding_step === 'goal_chat_started'
-  ) {
-    const [{ count: userTurnCount }, { count: goalCount }] = await Promise.all([
-      supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('conversation_id', activeConversationId)
-        .eq('role', 'user'),
-      supabase
-        .from('goals')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .is('deleted_at', null),
-    ]);
-
-    // The user message for THIS turn is already persisted above (L203),
-    // so userTurnCount reflects the count including the current turn.
-    if ((userTurnCount ?? 0) >= 5 && (goalCount ?? 0) === 0) {
-      const existingProgress =
-        profileForChat.onboarding_progress && typeof profileForChat.onboarding_progress === 'object'
-          ? (profileForChat.onboarding_progress as Record<string, unknown>)
-          : {};
-      // We just checked profileForChat.onboarding_step === 'goal_chat_started'
-      // above (the branch condition), so this transition is always legal —
-      // but route it through the validator anyway so the rule lives in one place.
-      const nextStep = transitionStep(
-        profileForChat.onboarding_step as OnboardingStep | null,
-        'goal_chat_tentative',
-      );
-      await supabase
-        .from('user_profiles')
-        .update({
-          onboarding_step: nextStep,
-          onboarding_progress: {
-            ...existingProgress,
-            goal_chat_tentative_at: new Date().toISOString(),
-          },
-        })
-        .eq('id', user.id);
-
-      stallSystemNote =
-        '[SYSTEM] The user has exchanged 5+ turns without committing to a goal. ' +
-        'Acknowledge that there is enough context for now and propose moving to the Value Map next — ' +
-        'they can set a specific goal later. Do NOT ask another goal-related question. ' +
-        'Include the <ACTION:start_value_map> token verbatim in your response.';
-    }
-  }
+    profileForChat?.onboarding_step === 'goal_chat_started';
 
   // Onboarding v2 — Value Map decline classifier.
   // Regex fast-path handles the common decline/accept phrases without a
@@ -303,13 +265,33 @@ export async function POST(req: Request) {
     if (lastUserText && !lastUserText.startsWith('[System:')) {
       const quick = quickClassifyDecline(lastUserText);
       let declined: boolean;
+      let classifierPath: 'regex_declined' | 'regex_accepted' | 'haiku';
       if (quick === 'declined') {
         declined = true;
+        classifierPath = 'regex_declined';
       } else if (quick === 'accepted') {
         declined = false;
+        classifierPath = 'regex_accepted';
       } else {
         declined = await classifyValueMapDecline(lastUserText, user.id);
+        classifierPath = 'haiku';
       }
+
+      // Telemetry: track which classifier path settled this turn. Drives the
+      // regex hit-rate metric — the win from the regex pre-filter is only
+      // visible if we can count regex/haiku splits.
+      void supabase.from('user_events').insert({
+        profile_id: user.id,
+        event_type: 'value_map_decline_classified',
+        event_category: 'onboarding_v2',
+        payload: {
+          conversation_id: activeConversationId,
+          path: classifierPath,
+          declined,
+          user_text_length: lastUserText.length,
+        },
+      });
+
       if (declined) {
         await supabase
           .from('user_profiles')
@@ -331,9 +313,7 @@ export async function POST(req: Request) {
     activeConversationId,
   );
 
-  const systemPrompt = stallSystemNote
-    ? `${baseSystemPrompt}\n\n---\n\n${stallSystemNote}`
-    : baseSystemPrompt;
+  const systemPrompt = baseSystemPrompt;
 
   const toolCtx: ToolContext = {
     supabase,
@@ -352,6 +332,61 @@ export async function POST(req: Request) {
 
   // Stream response
   //
+  // Goal-chat stall check — runs after the response is sent. Sees if the
+  // user has had 5+ goal-chat turns without committing to a goal; if so,
+  // advances onboarding_step to 'goal_chat_tentative'. The next turn's
+  // system prompt branches on tentative state to deliver the pivot.
+  if (shouldRunStallCheck) {
+    const stallActiveConversationId = activeConversationId!;
+    const stallExistingProgress =
+      profileForChat?.onboarding_progress && typeof profileForChat.onboarding_progress === 'object'
+        ? (profileForChat.onboarding_progress as Record<string, unknown>)
+        : {};
+    const stallCurrentStep = profileForChat!.onboarding_step as OnboardingStep | null;
+    after(async () => {
+      try {
+        const [{ count: userTurnCount }, { count: goalCount }] = await Promise.all([
+          supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('conversation_id', stallActiveConversationId)
+            .eq('role', 'user'),
+          supabase
+            .from('goals')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .is('deleted_at', null),
+        ]);
+        if ((userTurnCount ?? 0) < 5 || (goalCount ?? 0) > 0) return;
+        // Validate the transition. If the step has moved on since we read it
+        // pre-response (e.g. a goal_set emit_action fired in the same turn),
+        // transitionStep will throw and we skip — that's the correct behaviour.
+        let nextStep: OnboardingStep;
+        try {
+          nextStep = transitionStep(stallCurrentStep, 'goal_chat_tentative');
+        } catch (transitionErr) {
+          if (transitionErr instanceof IllegalTransitionError) return;
+          throw transitionErr;
+        }
+        await supabase
+          .from('user_profiles')
+          .update({
+            onboarding_step: nextStep,
+            onboarding_progress: {
+              ...stallExistingProgress,
+              goal_chat_tentative_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', user.id)
+          // Race guard: only advance from goal_chat_started. If a parallel
+          // request already moved the user forward, we don't backtrack.
+          .eq('onboarding_step', 'goal_chat_started');
+      } catch (err) {
+        console.error('[chat] stall handler after() failed:', err);
+      }
+    });
+  }
+
   // The system prompt is passed as a system-role message (rather than the
   // top-level `system:` param) so we can attach a Bedrock cache point to it
   // via providerOptions. First turn of a conversation writes the cache
@@ -706,38 +741,68 @@ export async function POST(req: Request) {
         // forced retry of record_value_classifications recovers — that's why
         // the const destructure is fine (we never reassign the variable, only
         // .push() onto the array).
+        //
+        // emit_action calls land in `actionsCreated` via extractMessageAudit
+        // (audit-trail.ts folds them in). value_map_offered_in_chat is
+        // flipped server-side inside the tool itself, so no chat-route
+        // post-processing is needed for start_value_map anymore.
         const { toolsUsed, profileUpdates, actionsCreated, insightsGenerated } =
           extractMessageAudit(responseMessages);
 
-        // Onboarding v2 — Value Map action emission.
-        // The system prompt instructs the model to include a literal
-        // `<ACTION:start_value_map>` token when offering the Value Map. We
-        // strip the marker from the displayed text and persist a structured
-        // action so the chat UI can render an inline button.
+        // Legacy compatibility: if any stray <ACTION:start_value_map> token
+        // shows up in assistant text (e.g. a cached transcript replay during
+        // the migration window), strip it from the displayed message so it
+        // doesn't render as visible text. The structured action emission via
+        // emit_action is the canonical path going forward.
         if (textContent && hasStartValueMapAction(textContent)) {
           textContent = stripActionMarkers(textContent);
-          actionsCreated.push({ type: 'start_value_map' });
-          // Flip the offered-in-chat ratchet (idempotent on conflict).
-          await supabase
-            .from('user_profiles')
-            .update({ value_map_offered_in_chat: true })
-            .eq('id', user.id)
-            .eq('value_map_offered_in_chat', false);
         }
 
         // Server-side fallback: if create_goal fired inside the goal-derive
-        // beat and the LLM didn't emit the <ACTION:start_value_map> token,
-        // inject the action so the chip renders. The chip is the universal
-        // exit from the goal beat — losing it strands the user (the watcher
-        // no longer force-redirects Marcus, so the chip is the only handoff).
+        // beat and the model didn't also emit start_value_map (or goal_set),
+        // synthesise both so the user isn't stranded. The skip control on
+        // the watcher is the next-level fallback.
+        const hasStartVmAction = actionsCreated.some(
+          (a) => (a as { type?: string }).type === 'start_value_map',
+        );
+        const hasGoalSetAction = actionsCreated.some(
+          (a) => (a as { type?: string }).type === 'goal_set',
+        );
         if (
           conversationType === CONVERSATION_TYPES.ONBOARDING_GOAL_CHAT &&
-          toolsUsed.includes('create_goal') &&
-          !actionsCreated.some(
-            (a) => (a as { type?: string }).type === 'start_value_map',
-          )
+          toolsUsed.includes('create_goal')
         ) {
-          actionsCreated.push({ type: 'start_value_map' });
+          if (!hasStartVmAction) {
+            actionsCreated.push({ type: 'start_value_map' });
+            // Make the ratchet flip explicit since the model didn't call the tool.
+            await supabase
+              .from('user_profiles')
+              .update({ value_map_offered_in_chat: true })
+              .eq('id', user.id)
+              .eq('value_map_offered_in_chat', false);
+          }
+          if (!hasGoalSetAction) {
+            // Model didn't emit goal_set despite a successful create_goal.
+            // Force the transition + audit entry so the user isn't stranded
+            // on goal_chat_started forever — replicates the pre-Session 30
+            // GoalBeatWatcher fallback (which used to poll create_goal and
+            // call completeGoalBeat). Idempotent against the state machine.
+            try {
+              await transitionAndPersist(supabase, user.id, 'goal_set');
+            } catch (transitionErr) {
+              if (transitionErr instanceof IllegalTransitionError) {
+                console.error(
+                  '[chat] goal_set fallback transition illegal',
+                  transitionErr.from,
+                  '->',
+                  transitionErr.to,
+                );
+              } else {
+                throw transitionErr;
+              }
+            }
+            actionsCreated.push({ type: 'goal_set' });
+          }
         }
 
         // ── Hallucination guard for record_value_classifications ─────────

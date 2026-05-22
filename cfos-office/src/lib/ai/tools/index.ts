@@ -41,6 +41,9 @@ import { createAcceptExperimentTool } from './accept-experiment';
 import { createDeclineExperimentTool } from './decline-experiment';
 import { createRecordExperimentOutcomeTool } from './record-experiment-outcome';
 import { createListActiveExperimentsTool } from './list-active-experiments';
+// Session 30 — Structured action emission. Replaces <ACTION:start_value_map>
+// text tokens with a typed tool call.
+import { createEmitActionTool } from './emit-action';
 
 export type { ToolContext } from './types';
 
@@ -88,5 +91,7 @@ export function createToolbox(ctx: ToolContext) {
     decline_experiment: createDeclineExperimentTool(ctx),
     record_experiment_outcome: createRecordExperimentOutcomeTool(ctx),
     list_active_experiments: createListActiveExperimentsTool(ctx),
+    // Session 30 — Structured action emission
+    emit_action: createEmitActionTool(ctx),
   };
 }

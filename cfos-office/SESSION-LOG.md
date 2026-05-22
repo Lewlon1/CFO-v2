@@ -1472,3 +1472,73 @@ WHERE onboarding_step = 'intro_shown';
 1. **Should `IllegalTransitionError` log to `user_events` automatically?** Currently it throws unconditionally; the writer decides what to do. If illegal transitions start cropping up in prod telemetry, may want a single observability seam.
 2. **`intro_shown` cleanup.** If prod has zero rows once checked, drop it from `LEGACY_STEPS` and the resume switch — the type system becomes one alias narrower.
 3. **Generic `transitionAndPersist` on multi-field UPDATEs.** Several writers (struggle submit) write `onboarding_step` alongside 3-4 other fields in one query. The current pattern uses `transitionStep` for validation and includes the validated value in the existing UPDATE. A `transitionAndPersist({ extraFields })` variant could DRY this up, but it's a small win — current code is readable.
+
+## Session 30 — Structured actions + critical-path latency — 2026-05-22
+
+### What landed
+
+Two behaviour changes plus one latency win.
+
+**1. Structured action emission via `emit_action` tool.** The text-token mechanism (`<ACTION:start_value_map>` in assistant prose) is replaced by a typed tool call. The model now calls `emit_action({ type: 'start_value_map' | 'goal_set' | 'goal_skipped_now' | 'upload_statement' | 'open_folder' })`. The tool's `execute()` performs any server-side side effect at action-emission time (flipping `value_map_offered_in_chat`, advancing `onboarding_step` via the state machine), and the structured `{ type, metadata }` envelope flows through `extractMessageAudit` → `actionsCreated` → persisted to `messages.actions_created` (existing JSONB column — no migration needed).
+
+**2. Polling removed from `GoalBeatWatcher`.** When the model emits `goal_set` (alongside `create_goal`), the tool transitions the state machine server-side and `ChatProvider.onFinish` observes the action and calls `router.refresh()`. The office layout's existing `isMidMarcusJourney` gate handles routing onward. The 2.5-second `/api/goals/active-count` poll is gone. The skip control is now visible to *every* mid-goal-beat user after 90s (not only Marcus), copy reads "Set this up later".
+
+**3. Stall handler off the critical path.** The 2-query stall check (`messages.user_count` + `goals.active_count`) ran synchronously before the LLM call on every onboarding-goal-chat turn. It now runs inside Vercel's `after()` post-response. The pivot instruction shows up in the *next* turn's prompt, gated on `onboarding_step === 'goal_chat_tentative'` in `buildGoalDeriveConfirmContext`. One-turn delay accepted; the prompt's "draft on next turn" rule remains the primary mechanism.
+
+### New modules
+
+- `src/lib/actions/types.ts` — `ACTION_TYPES` tuple, `EmittedAction` interface, `isEmittedAction` guard, `findAction` lookup. Single source of truth for the action vocabulary.
+- `src/lib/ai/tools/emit-action.ts` — the tool itself. Side effects on `start_value_map` (ratchet flip), `goal_set` / `goal_skipped_now` (state machine transition via `transitionAndPersist`). Illegal transitions log and continue — the goal has been created; the state machine's complaint is metadata.
+- `src/lib/ai/tools/emit-action.test.ts` — 6 tests covering each action type + the IllegalTransition catch path.
+
+### Migration to structured persistence
+
+- `audit-trail.ts` — `extractMessageAudit` now folds `emit_action` outputs into `actionsCreated` (alongside the existing `create_action_item` handling). The `ActionAuditEntry` type widens to include `EmittedAction`.
+- `messages.actions_created` reused. Phase 0 confirmed the column exists as JSONB; no migration. (The plan's `054_message_actions.sql` was skipped — `actions_created` predates it and serves the same purpose.)
+- Chat route's post-response block:
+  - Removed: the manual `actionsCreated.push({ type: 'start_value_map' })` + ratchet flip on text-token detection.
+  - Kept: the `stripActionMarkers` text scrub (defensive, in case cached transcripts replay).
+  - Kept: the `create_goal`-without-action fallback, now forced to also write the state transition via `transitionAndPersist('goal_set')` so the user isn't stranded if the model skips `emit_action`.
+- `MessageList.tsx` — Value Map button now renders when `findAction(actions_created, 'start_value_map')` matches. Legacy text-token detection retained as defensive fallback during the migration window.
+- `ChatProvider.onFinish` — observes `emit_action` outputs on the last assistant message via `extractEmittedActionsFromMessage`; on `goal_set` or `goal_skipped_now`, calls `router.refresh()` so the layout picks up the new state machine value.
+
+### Prompt updates
+
+`buildValueMapBridgeContext` and `buildGoalDeriveConfirmContext` instructions now say "call `emit_action` with `type: 'start_value_map'`" / `'goal_set'` instead of "include the `<ACTION:start_value_map>` token verbatim". The system note that fires from the stall handler also uses the new instruction. The chat-route stall-handler note is moved into the prompt itself (`buildGoalDeriveConfirmContext` gated on `goal_chat_tentative`) so the safety net survives the move to `after()`.
+
+### Telemetry
+
+- New `user_events` row per Value-Map decline classification: `event_type = 'value_map_decline_classified'`, `payload.path ∈ { 'regex_declined', 'regex_accepted', 'haiku' }`. Drives the regex-hit-rate metric. Query plan documented in `docs/audits/2026-05-22-session-30-latency.md`.
+
+### Verification
+
+- 687 tests pass (681 → 687, +6 emit-action tests).
+- `tsc --noEmit -p .` — clean.
+- `next build` — clean (11.9s).
+- Manual Playwright run not executed this session — covered by the prompt-content rule: action calls replace text tokens, but the assistant's user-facing prose is unchanged (the call is hidden plumbing). The byte-equivalence guarantee for the struggle quote summaries (Session 29) carries through.
+
+### Risk notes
+
+1. **Model compliance with `emit_action`.** The biggest unknown is whether Sonnet 4.6 reliably calls `emit_action({ type: 'goal_set' })` alongside `create_goal`. The chat-route fallback synthesises both `goal_set` and `start_value_map` actions if `create_goal` fires without them, and also forces the state-machine transition. Worth watching the `messages.actions_created` distribution on staging: a high "fallback-only" rate indicates the prompt instruction needs strengthening.
+
+2. **Stall-pivot promptness.** Pre-Session-30: turn 5 was both the trigger and the pivot. Post-Session-30: turn 5 advances the state in `after()`; turn 6 carries the pivot instruction. Worst case is one extra goal-chat question before the pivot lands. The fix if it grates: re-instate the synchronous pre-check (with the cheap step check first) for the narrow case where `onboarding_step === 'goal_chat_started'` AND `conversationType === ONBOARDING_GOAL_CHAT`.
+
+3. **Skip control visibility for chat-path users.** Previously only Marcus had the escape hatch after 90s. Now everyone does. Watch the skip-rate by struggle type for two weeks. If chat-path skip rate exceeds 15%, consider extending the timer for non-Marcus users (e.g. 180s).
+
+4. **`goal_chat_tentative` is now a real branch in the prompt.** Session 29 added it to the state machine type. Session 30 actually uses it. If telemetry shows the pivot instruction isn't landing (model ignores the gated branch), worth A/B-ing the instruction wording.
+
+### Cofounder-flagged decisions
+
+- **`emit_action` is the new primitive.** Once it lands, every future surface that wants to drive UI from chat — confirming an experiment, opening a folder, suggesting a check-in — uses the same `{ type, metadata }` envelope. The `open_folder` and `upload_statement` types are reserved in the vocabulary as placeholders so the model never has to ask "what types exist?". When session-resumption ships, `emit_action({ type: 'open_conversation_about_X' })` will already be the right shape.
+
+- **`goal_chat_tentative` survives.** Per cofounder note, kept as an audit-trail-bearing state rather than collapsed into `goal_skipped`. Cost is near-zero; analytics signal is useful (count of users who pivoted through stall vs. set a real goal).
+
+### Open questions for the next session
+
+1. **Migration window for text-token cleanup.** `bridge.ts`'s `hasStartValueMapAction` / `stripActionMarkers` are marked `@deprecated` but still called from `MessageList` and the chat route as defensive scrubbers. A staging sweep of `messages.content LIKE '%<ACTION:%'` would confirm zero matches before they can be deleted.
+
+2. **Watcher's `entryStruggle` prop is unused.** Kept in the props signature because the layout passes it. Either drop it from props or wire it to a per-struggle skip-control timer.
+
+3. **`completeGoalBeat` is dead code now?** The watcher used to call it from polling. The new flow never calls it — the action tool handles `goal_set`, and the chat-route fallback uses `transitionAndPersist` directly. Worth confirming via `grep -rn 'completeGoalBeat'` and deleting if truly orphan.
+
+4. **`actions_created` JSONB shape evolution.** Mixing `CreateActionItemAuditEntry` (`{ id, title }`) and `EmittedAction` (`{ type, metadata? }`) in the same column is workable but invites typo bugs. Long-term: a discriminated-union type with a single `kind` field would be safer. Out of scope this session.

@@ -16,10 +16,38 @@ import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 import { CONVERSATION_TYPES } from '@/lib/onboarding-v2/constants'
 import {
+  findAction,
+  isEmittedAction,
+  type EmittedAction,
+} from '@/lib/actions/types'
+import {
   buildLabelRecapTrigger,
   type LabelTransactionsQuadrantId,
   type LabelTransactionsTransaction,
 } from './LabelTransactionsBlock'
+
+// Walk a UIMessage's tool parts and collect `emit_action` outputs into
+// EmittedAction shape. Used in onFinish to observe structured actions the
+// assistant emitted during this turn.
+function extractEmittedActionsFromMessage(
+  message: UIMessage | null | undefined,
+): EmittedAction[] {
+  if (!message || !Array.isArray(message.parts)) return []
+  const out: EmittedAction[] = []
+  for (const part of message.parts) {
+    const p = part as { type?: string; state?: string; output?: unknown }
+    if (p.type !== 'tool-emit_action') continue
+    if (p.state !== 'output-available') continue
+    const o = p.output as { success?: boolean; type?: unknown; metadata?: unknown } | null
+    if (!o || o.success !== true) continue
+    const candidate = {
+      type: o.type,
+      ...(o.metadata != null ? { metadata: o.metadata as Record<string, unknown> } : {}),
+    }
+    if (isEmittedAction(candidate)) out.push(candidate)
+  }
+  return out
+}
 
 // Conversation types that should fire an auto-trigger when loaded with zero
 // messages. Shared between `startConversation` (new conversation, client-side)
@@ -152,6 +180,18 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
         }
       }
 
+      // Observe structured actions emitted by the assistant. The chat route
+      // has already written any server-side side effects (state machine
+      // transitions, ratchet flips); we only need to refresh client state
+      // so the layout picks up the new onboarding step / routes Marcus.
+      const emittedActions = extractEmittedActionsFromMessage(lastAssistant)
+      const needsRefresh =
+        findAction(emittedActions, 'goal_set') !== null ||
+        findAction(emittedActions, 'goal_skipped_now') !== null
+      if (needsRefresh) {
+        router.refresh()
+      }
+
       // Refresh layout if profile was updated via tool
       const profileUpdated = finishedMessages.some(
         (m) =>
@@ -163,7 +203,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
               p.state === 'output-available',
           ),
       )
-      if (profileUpdated) {
+      if (profileUpdated && !needsRefresh) {
         router.refresh()
       }
     },
