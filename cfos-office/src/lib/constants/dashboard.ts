@@ -1,3 +1,5 @@
+import { formatMoney } from '@/lib/utils/money'
+
 // Category color field → hex mapping (matches categories.color in DB)
 export const CATEGORY_COLORS: Record<string, string> = {
   primary: '#3B82F6',
@@ -52,9 +54,12 @@ export const VALUE_COLORS: Record<
   },
 }
 
+/**
+ * 2-decimal legacy formatter kept for dashboard/balance-sheet surfaces.
+ * Shims through the canonical `formatMoney` in `@/lib/utils/money`.
+ */
 export function formatCurrency(amount: number, currency = 'EUR'): string {
-  const symbol = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency === 'USD' ? '$' : currency
-  return `${symbol}${Math.abs(amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return formatMoney(Math.abs(amount), { currency, format: 'precise', locale: 'en-GB' })
 }
 
 export function formatMonth(dateStr: string): string {

@@ -6,7 +6,8 @@ import type {
   DetectorContext, InsightLayer, UserIntent, UserIntentStruggleType,
   ExperimentProposalLayer, ExperimentProposalCandidate,
 } from './insight-types';
-import { BLOCKED_AT_FIRST_INSIGHT } from './insight-types';
+import { BLOCKED_AT_FIRST_INSIGHT, INCOME_SIGNAL_THRESHOLD } from './insight-types';
+import { computeIncomeSignal, shouldExposeIncomeSignal } from './income-signal';
 import {
   PATTERN_LIBRARY,
   formatCurrency,
@@ -117,7 +118,19 @@ export async function computeFirstInsight(
   if (transactions.some(t => t.location_city !== null || t.location_country !== null)) {
     available.push('location_data');
   }
-  if (transactions.some(t => Number(t.amount) > 0)) available.push('income_signal');
+  const incomeSignal = computeIncomeSignal(
+    transactions.map((t) => ({ amount: Number(t.amount), date: t.date })),
+  );
+  // income_signal availability: inferred cadence OR user-stated income.
+  // We never quote the user-stated number to the LLM
+  // (BLOCKED_AT_FIRST_INSIGHT still blocks 'income'). This unblocks pattern
+  // detectors and experiment templates that only need to know "income is
+  // known", not the figure — e.g. a user who self-reported net_monthly_income
+  // but has weak transaction cadence; before this fallback the gate denied
+  // them income-dependent experiments.
+  if (shouldExposeIncomeSignal(incomeSignal, profile, INCOME_SIGNAL_THRESHOLD)) {
+    available.push('income_signal');
+  }
 
   const ctx: DetectorContext = {
     supabase, userId,

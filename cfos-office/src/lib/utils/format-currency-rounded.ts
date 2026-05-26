@@ -1,20 +1,17 @@
 /**
- * Currency formatter for the office dashboards.
+ * Rounded (0-decimal) currency formatter for office dashboards.
  *
- * Uses Intl with 0 fractional digits — distinct from
- * `lib/constants/dashboard.ts`'s `formatCurrency` (2 decimals, manual symbol).
- * The two coexist intentionally: legacy dashboard/balance-sheet surfaces use
- * the precise variant; office dashboards use this rounded variant.
+ * Now a compatibility shim — delegates to the canonical `formatMoney`
+ * in `./money`. New callers should use `formatMoney(amount, { currency })`
+ * directly.
  *
  * Refs: docs/audits/2026-05-01-component-consolidation.md §3 Extraction A
  */
+
+import { formatMoney } from './money'
+
 export function formatCurrencyRounded(amount: number, currency = 'EUR'): string {
-  return new Intl.NumberFormat('en-IE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
+  return formatMoney(amount, { currency, format: 'rounded' })
 }
 
 /**

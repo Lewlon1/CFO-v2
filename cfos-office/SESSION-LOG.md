@@ -1396,3 +1396,62 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 4. **First-insight × posture integration** — the NOT AVAILABLE list now flips for planning posture, but first-insight users are typically too new to have posture detected (need 2+ months of snapshots). The flip will rarely fire in practice. Verify on first cohort users who upload 3+ months of CSV history.
 5. **Joy Signal (Session 31) × posture** — posture-aware Joy Signal framing wasn't designed yet. Surviving users likely need a different mood metric than planning users.
 6. **Drill-down ordering on touch:** does putting "Spending patterns" first for planning users actually drive engagement, or does it feel academic when they just want to see the breakdown? Worth measuring via track events on Cash Flow drill-down clicks.
+
+---
+
+## Session 28 — Onboarding quality tweaks (batch 1) — 2026-05-21
+
+**Branch:** `session-28/onboarding-tweaks-batch-1`
+**Headline principle:** five small fixes, each independent, none load-bearing on the others. Phase 0 audit was the unlock — the original spec assumed a lot that didn't match the repo, and three of five tasks shifted shape because of what the audit found.
+
+### Scope shipped
+
+1. **Currency single-source (Tweak 6).** `src/lib/utils/money.ts` provides the canonical `formatMoney` (rounded / precise / natural modes) and `moneySymbol` lookup. Four legacy helpers now route through it (`format/currency.ts`, `utils/format-currency-rounded.ts`, `value-map/format.ts`, `constants/dashboard.ts`); `demo-card.tsx` drops its inline duplicate. The actual bug — avatar pill at `components/chat/MessageList.tsx:346` hardcoding `£` — was a one-line fix using the already-threaded `userCurrency` prop.
+2. **Income-signal inference (Tweak 7).** New `analytics/income-signal.ts` infers cadence (monthly / bi_monthly / irregular) and a confidence score from positive transactions ≥ €500. `computeFirstInsight` now advertises `income_signal` as available only when confidence ≥ `INCOME_SIGNAL_THRESHOLD` (0.7) — replacing the noisy "any positive transaction" gate. `ExperimentTemplate` gains an optional `requires_income_signal` field, unused on day one per user decision.
+3. **Persona-leak sanitiser (Tweak 5).** Regex catches forbidden first-person constructions in assistant messages before they hit the DB; Haiku rewrites and the route logs the rewrite event to a new `persona_sanitiser_log` table. Clean messages cost nothing. Failures pass the original through.
+4. **Session-resumption context (Tweak 8).** New `conversations.last_message_at` column with a trigger; `lib/conversations/open-items.ts` queries active experiments + outcome-owed + profile gaps and renders a compact block. Injected into the system prompt for `general` conversations only — accepts per-session cache invalidation. The general opener instruction also picked up a "if there's an outcome owed, lead with the check-in" directive.
+5. **Drop "Greet warmly" (Tweak 9).** Both onboarding paths (`context-builder.ts:2286` and `:2307`) now instruct the CFO to lead with the observation, not the greeting. Name appears mid-sentence if at all. Source-text regression test guards against re-introduction.
+
+### Phase 0 findings vs the original spec
+
+| Spec claim | Reality |
+|---|---|
+| Avatar pill in `components/brand/` | At `components/chat/MessageList.tsx:346`. Hardcoded `£`. The `userCurrency` prop was already threaded through `ChatProvider → ChatSheet → MessageList` — just unused at that one site. |
+| `payday_transfer` template | Does not exist. Closest is `redirect_windfall_to_goal`. User: don't gate any current template. |
+| `WelcomeBeat.tsx` exists | Does not. Removed from the "do not touch" list. |
+| `BLOCKED_AT_FIRST_INSIGHT` includes `income_signal` | Only includes `income`. `income_signal` was already a `DataDependency` type. |
+| `buildFirstInsightContext` says "Welcome" | Does not. The greeting drift comes from `getConversationInstructions` onboarding paths' "Greet ${firstName} warmly" instructions at lines 2286/2307. |
+| `conversations.last_message_at` exists | Did not. Migration adds it with a trigger. |
+| `migrations/staging/` + `migrations/prod-backfill/` directories | Do not exist. Project convention is `supabase/migrations/NNN_*.sql` with idempotent SQL that's safe to apply to both environments. |
+| Source prompts leak first-person | `system-prompt.ts:14` already explicitly forbids it. The 22 first-person hits in `context-builder.ts` are all user quotes or meta-instructions — not CFO speech. The sanitiser is purely a runtime drift guard against LLM output. |
+| Auto-apply staging migration via MCP | The connected MCP wasn't on CFO Staging (`user_profiles` table missing). Migrations are committed as files only — Lewis applies them manually. |
+
+### Files touched
+
+- **New (6):** `lib/utils/money.ts` (+test), `lib/analytics/income-signal.ts` (+test), `lib/ai/persona-sanitiser.ts` (+test), `lib/conversations/open-items.ts`, `lib/ai/__tests__/no-greet-warmly.test.ts`, plus a money compatibility surface in `lib/utils/money.test.ts`.
+- **Modified (~9):** `format/currency.ts`, `utils/format-currency-rounded.ts`, `value-map/format.ts`, `constants/dashboard.ts`, `components/chat/MessageList.tsx`, `components/demo/demo-card.tsx`, `analytics/insight-types.ts`, `analytics/insight-engine.ts`, `experiments/templates.ts`, `app/api/chat/route.ts`, `ai/context-builder.ts`.
+- **Migrations (2):** `supabase/migrations/059_persona_sanitiser_log.sql`, `supabase/migrations/060_conversations_last_message_at.sql`. Both idempotent; apply to staging then prod manually.
+
+### Verification
+
+- Vitest: 670 passed (16 new — money, income-signal, sanitiser, no-greet regression).
+- `npx tsc --noEmit`: clean.
+- `npm run build`: clean.
+- Lewis-on-staging walkthrough + `scripts/compare-first-insight.ts` calibration deferred to Lewis since the in-session MCP wasn't wired to CFO Staging.
+
+### Lessons learned
+
+1. **Audit before plan-shaping, not after.** The spec named `payday_transfer`, `WelcomeBeat.tsx`, and `migrations/staging/`. None existed. The Phase 0 audit (three parallel Explore agents) caught all three before any code was written. Cost: ~4 minutes. Value: avoided three dead-end refactors and one unnecessary directory invention.
+2. **"Consolidate everything" was overscope for the bug.** The avatar pill mismatch was 90% of the user value. The shim conversion of four legacy formatters was the other 10% — worth doing because the canonical helper has a clear contract, but the bug fix didn't require it. Future similar requests: ask whether the surrounding "while we're here" work is actually wanted.
+3. **`buildExperimentContext` already injects active-experiment + outcome-owed data.** I didn't realise this until I'd written `open-items.ts`. The opener-instruction tweak (one paragraph in the general branch) does most of the user-facing work; the open-items module adds profile-gap + days-since-last context but partially duplicates the experiments block. Worth tightening in a follow-up — render only the directive + gaps from open-items, let buildExperimentContext own the experiment data.
+4. **Migration path conventions are project-specific.** The plan invented `migrations/staging/` and `migrations/prod-backfill/` paths. Repo actually uses `supabase/migrations/NNN_*.sql` for everything. Idempotent SQL means one file works for both environments. Deviating from the plan here matched reality.
+5. **The MCP-server-connected-to-wrong-project case is real.** First Supabase query revealed the connected project wasn't CFO at all (it was some marketing/horoscope app). The plan assumed staging was reachable via MCP. I detected this with a `list_tables` check before applying any DDL and downgraded to "create migration files only, don't apply". Worth making this a default check in any session that touches Supabase.
+
+### Open follow-ups
+
+1. **Slim down `open-items.ts` renderer.** The experiments fields duplicate `buildExperimentContext`; only the directive + profile gaps need to render. One pass on `renderOpenItemsBlock` to delete the experiment lines.
+2. **Sanitiser pattern list will grow.** The 11 regexes in `LEAK_PATTERNS` cover the obvious cases. Real production drift will surface novel phrasings. Make `LEAK_PATTERNS` easy to extend (it already is — an array of regex literals at the top of the file).
+3. **Streaming UX disparity.** Users briefly see the unsanitised stream before the persisted version is cleaned. Logged from day one via `persona_sanitiser_log` — decide based on real complaints, not speculation.
+4. **`requires_income_signal` is unused.** When a future template legitimately needs income cadence, set the flag and add the filter at `propose-catalog-experiment` and `experiments/limit.ts`. The signal computation is already wired.
+5. **Cache invalidation cost for open-items.** Built INTO the cached system prompt per user decision. For users who chat frequently in `general` conversations, this trades cache hits for fresh resumption context. Watch the Bedrock usage log over the next week — if cache-hit rate drops noticeably for repeat users, switch to a second uncached system message.
+6. **Compare-first-insight on the calibration personas.** Lewis to run `npx tsx scripts/compare-first-insight.ts <userId>` against the 5 calibration personas to confirm the income-signal threshold and the dropped "Greet warmly" changes don't regress narration quality on a Dorcas / Marcus / Lewis cohort.

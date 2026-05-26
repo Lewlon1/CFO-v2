@@ -12,6 +12,7 @@ import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
+import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -235,7 +236,7 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
     }
     lines.push('');
     lines.push('FRAME THE WOW MOMENT THROUGH THIS GOAL:');
-    lines.push('- Open by acknowledging the goal in one short line — paraphrase it, do not quote it back verbatim.');
+    lines.push('- Acknowledge the goal naturally inside the opening line — paraphrase, don\'t quote. Do NOT greet, welcome, or address the user by name. The opening is the observation, with the goal woven in.');
     lines.push('- Then make the insight land *against* that goal. The leverage is in their day-to-day pattern — what\'s flowing where, and whether it\'s aligned with what they came here for.');
     lines.push('- Pick ONE specific number from the QUOTABLE FACTS list and tie it to the goal. Specifics over abstractions.');
     if (payload.userIntent.struggleType === 'wealth' ||
@@ -1208,6 +1209,7 @@ export async function buildSystemPrompt(
     retakeSuggestion,
     predictionQuality,
     profilingContext,
+    openItemsBlock,
   ] = await Promise.all([
     buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     getCountryBenchmarks(profile, supabase),
@@ -1218,6 +1220,15 @@ export async function buildSystemPrompt(
     getRetakeSuggestionContext(userId, supabase, conversationType),
     getPredictionQualityContext(userId, supabase),
     buildProfilingContext(userId, supabase),
+    // Open-items resumption context — only for `general` conversations.
+    // Other branches (first_insight, onboarding, monthly_review, etc.) have
+    // their own dedicated scaffolds and shouldn't be diluted.
+    conversationType === 'general' || !conversationType
+      ? getOpenItems(supabase, userId).then(renderOpenItemsBlock).catch((err) => {
+          console.error('[context-builder] open-items load failed', err);
+          return '';
+        })
+      : Promise.resolve(''),
   ]);
 
   const sections = [
@@ -1233,6 +1244,7 @@ export async function buildSystemPrompt(
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
     buildGoalsContext(goals, actions, primaryGoal),
+    openItemsBlock,
     buildTripsContext(dedupedTrips, profile),
     experimentContext,
     buildToolUsageInstructions(),
@@ -2271,7 +2283,7 @@ This person just completed the Value Map (a SAMPLE perception exercise) and sign
 ${firstName ? `Their first name is **${firstName}** — address them by name in the opening line.` : ''}
 
 Your opening message must:
-1. Greet ${firstName ? firstName : 'them'} warmly in one line — you're their CFO, professional and direct, like walking into the CFO's office.
+1. Open with the single most striking observation about how they classified the sample. Do not greet, welcome, or introduce yourself — they know who you are. ${firstName ? `Use the name "${firstName}" naturally mid-sentence if it fits, otherwise skip it.` : ''} Professional and direct, like walking into the CFO's office.
 2. Reference ONE perception naturally — e.g. "You sorted dining out as a burden — that's where the friction sits." Frame it as observation about their classification, not characterology.
 3. Pivot immediately to: ask them to upload a recent bank statement (CSV or screenshot) to see what's actually going on with their money. Include this exact markdown link: [Upload your transactions](/transactions). NEVER use /upload — that path does not exist.
 4. Stay under 4 sentences total. No question-stack, no feature tour.
@@ -2292,7 +2304,7 @@ ${firstName ? `Their first name is **${firstName}** — open with their name.` :
 This user signed up directly without completing the Value Map.
 
 Your opening message must:
-1. Greet ${nameAddress} in one warm, natural line — you're their CFO, professional and direct.
+1. Open with the upload pitch directly — no greeting, no welcome, no introduction. ${`Use ${nameAddress} only if it fits naturally mid-sentence.`} Professional and direct, like walking into the CFO's office.
 2. Pivot directly to upload: "Upload a recent bank statement and your CFO can show what's actually going on with your money." Include this exact markdown link: [Upload your transactions](/transactions). NEVER use /upload — that path does not exist.
 3. Optionally mention the Value Map as a 2-minute side door if they'd prefer to start there: [Try the Value Map](/demo).
 4. Max 3 sentences total. No feature tour, no question-stack.
@@ -2419,7 +2431,9 @@ Keep the first response focused — one insight or one question. No lists, no fe
 
       return `## Conversation context: General
 
-Open conversation. Follow their lead — answer what they actually asked. Don't pivot to what you think they should be asking. If there's something urgent in their data, mention it once at the end. Keep it natural.`;
+Open conversation. Follow their lead — answer what they actually asked. Don't pivot to what you think they should be asking. If there's something urgent in their data, mention it once at the end. Keep it natural.
+
+If the Experiments section below shows an outcome owed (an experiment whose end date has passed without a self-report), open this turn with the check-in instead — do not greet, do not summarise, ask how it went.`;
     }
   }
 }

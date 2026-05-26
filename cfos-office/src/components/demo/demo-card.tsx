@@ -10,6 +10,7 @@ import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import type { DemoTransaction } from '@/lib/demo/transactions'
 import { demoAnalytics } from '@/lib/demo/analytics'
 import { cn } from '@/lib/utils'
+import { formatMoney } from '@/lib/utils/money'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -20,14 +21,6 @@ const HARD_TO_DECIDE_DELAY = 3000
 
 // ── Currency formatting ──────────────────────────────────────────────────────
 
-function currencySymbol(currency: string): string {
-  return { GBP: '\u00A3', USD: '$', EUR: '\u20AC' }[currency] ?? currency + ' '
-}
-
-function formatAmount(amount: number, currency: string): string {
-  const sym = currencySymbol(currency)
-  return `${sym}${amount.toLocaleString('en', { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`
-}
 
 // ── Confidence dots ─────────────────────────────────────────────────────────
 
@@ -366,7 +359,7 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
               {tx.merchant}
             </p>
             <p className="font-mono text-2xl font-bold text-foreground">
-              {formatAmount(tx.amount, currency)}
+              {formatMoney(tx.amount, { currency, format: 'natural' })}
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {tx.context}
