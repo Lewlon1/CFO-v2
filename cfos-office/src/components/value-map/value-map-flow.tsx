@@ -23,6 +23,7 @@ import {
 } from '@/lib/value-map/copy'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
+import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 import { categoriseTransaction, type MerchantMapping } from '@/lib/categorisation/categorise-transaction'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { aiCategoriseBatch } from '@/lib/categorisation/ai-categorise'
@@ -577,7 +578,7 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
             const { error: rulesError } = await supabase2
               .from('value_category_rules')
               .upsert(rules, {
-                onConflict: "user_id,match_type,match_value,coalesce(time_context,'__none__')",
+                onConflict: VCR_ON_CONFLICT,
               })
             if (rulesError) {
               console.error('[value-map] value_category_rules upsert error:', rulesError)

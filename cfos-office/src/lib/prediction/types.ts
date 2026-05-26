@@ -31,5 +31,7 @@ export type PredictionResult = {
   source: string
 }
 
-/** Supabase upsert onConflict string for value_category_rules unique index */
-export const VCR_ON_CONFLICT = "user_id,match_type,match_value,coalesce(time_context,'__none__')"
+/** Supabase upsert onConflict string for value_category_rules unique index.
+ *  Repaired by migration 064_vcr_unique_index_repair: time_context is now
+ *  NOT NULL DEFAULT '__none__' and the unique index is on plain columns. */
+export const VCR_ON_CONFLICT = 'user_id,match_type,match_value,time_context'
