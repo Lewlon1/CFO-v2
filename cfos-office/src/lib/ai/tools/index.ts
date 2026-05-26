@@ -41,6 +41,8 @@ import { createAcceptExperimentTool } from './accept-experiment';
 import { createDeclineExperimentTool } from './decline-experiment';
 import { createRecordExperimentOutcomeTool } from './record-experiment-outcome';
 import { createListActiveExperimentsTool } from './list-active-experiments';
+// Structured action emission — replaces the legacy <ACTION:…> text-token mechanism.
+import { createEmitActionTool } from './emit-action';
 
 export type { ToolContext } from './types';
 
@@ -88,5 +90,7 @@ export function createToolbox(ctx: ToolContext) {
     decline_experiment: createDeclineExperimentTool(ctx),
     record_experiment_outcome: createRecordExperimentOutcomeTool(ctx),
     list_active_experiments: createListActiveExperimentsTool(ctx),
+    // Structured action emission
+    emit_action: createEmitActionTool(ctx),
   };
 }

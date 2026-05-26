@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   categoryConcentration,
+  merchantFragmentation,
   recurringExpenseTotal,
 } from '../pattern-detectors'
 import { monthOverMonthTrend } from '../pattern-detectors'
@@ -182,6 +183,52 @@ describe('recurringExpenseTotal — recurringPct uses 3-month average', () => {
       // 1500 / 6000 = 25% — the zero-month should be filtered out.
       expect(result.data.recurringPct).toBe(25)
     }
+  })
+})
+
+describe('merchantFragmentation — surfaces top merchant + category', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function foodTx(amount: number, category_id: string, description: string): any {
+    return {
+      id: `t-${Math.random()}`,
+      user_id: 'test-user',
+      amount,
+      category_id,
+      date: '2026-03-15',
+      description,
+      deleted_at: null,
+    }
+  }
+
+  it('identifies the merchant with highest spend and resolves their category', async () => {
+    // 5 large tesco grocery shops + 8 small one-off shops at other merchants.
+    // storeCount = 9 (>= 8 triggers score), under5Pct ≈ 62% (> 35% extra score).
+    // Tesco dominates by spend (£125) vs every other merchant (£3 each).
+    const tescoTxns = Array.from({ length: 5 }, () => foodTx(-25, 'groceries', 'TESCO METRO'))
+    const otherTxns = Array.from({ length: 8 }, (_, i) =>
+      foodTx(-3, 'groceries', `MERCH-${i}`),
+    )
+    const ctx = baseCtx({ transactions: [...tescoTxns, ...otherTxns] })
+
+    const result = await merchantFragmentation.detect(ctx)
+    expect(result).not.toBeNull()
+    expect(result!.data.topMerchant).toBe('tesco metro')
+    expect(result!.data.topMerchantCategory).toBe('groceries')
+  })
+
+  it('still surfaces storeCount/avgTrip/under5Pct alongside the new fields', async () => {
+    const txns = Array.from({ length: 20 }, (_, i) =>
+      foodTx(-(3 + (i % 5)), 'groceries', `MERCH-${i % 9}`),
+    )
+    const ctx = baseCtx({ transactions: txns })
+
+    const result = await merchantFragmentation.detect(ctx)
+    expect(result).not.toBeNull()
+    expect(typeof result!.data.storeCount).toBe('number')
+    expect(typeof result!.data.avgTrip).toBe('number')
+    expect(typeof result!.data.under5Pct).toBe('number')
+    expect(typeof result!.data.topMerchant).toBe('string')
+    expect(typeof result!.data.topMerchantCategory).toBe('string')
   })
 })
 
