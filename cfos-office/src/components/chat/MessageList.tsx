@@ -5,6 +5,8 @@ import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
+import { ResonanceTap } from './ResonanceTap';
+import { trackWowEvent } from '@/lib/wow/event-tracker';
 
 // ── Markdown styling ──────────────────────────────────────────────────────────
 // Custom element renderers for assistant messages. Tailwind v4 here does not
@@ -124,6 +126,66 @@ function parseCTA(content: string): { text: string; cta: { type: string; label: 
   };
 }
 
+// ── Wow plumbing: first-insight delivery instrumentation ───────────────────
+//
+// Mounts under the first persisted assistant message in a first_insight
+// conversation. Fires:
+//   - `delivered` on mount (idempotent server-side via partial unique index)
+//   - `scrolled_to_bottom` once the bottom of the message becomes visible
+// Also registers the delivery with the ChatProvider so handleSend can
+// associate substantive replies back to this insight.
+function FirstInsightInstrumentation({
+  first_insight_message_id,
+  conversation_id,
+  registerFirstInsightDelivery,
+}: {
+  first_insight_message_id: string;
+  conversation_id: string;
+  registerFirstInsightDelivery?: (ctx: {
+    first_insight_message_id: string;
+    conversation_id: string;
+  }) => void;
+}) {
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
+
+  // Fire delivered + register once when mounted for this insight id.
+  useEffect(() => {
+    void trackWowEvent({
+      event_type: 'delivered',
+      first_insight_message_id,
+      conversation_id,
+    });
+    registerFirstInsightDelivery?.({ first_insight_message_id, conversation_id });
+  }, [first_insight_message_id, conversation_id, registerFirstInsightDelivery]);
+
+  // Scroll-to-bottom observer. The sentinel sits just below the message body;
+  // once it's at least 50% visible we count the user as having scrolled past it.
+  useEffect(() => {
+    const el = bottomSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            void trackWowEvent({
+              event_type: 'scrolled_to_bottom',
+              first_insight_message_id,
+              conversation_id,
+            });
+            observer.disconnect();
+            return;
+          }
+        }
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [first_insight_message_id, conversation_id]);
+
+  return <div ref={bottomSentinelRef} aria-hidden className="h-px w-full" />;
+}
+
 function parseMessageContent(rawContent: string): {
   text: string;
   options: string[] | null;
@@ -156,6 +218,9 @@ export function MessageList({
   onStructuredSubmit,
   onLabelTransactionsSubmit,
   userCurrency,
+  conversationType,
+  conversationId,
+  registerFirstInsightDelivery,
 }: {
   messages: UIMessage[];
   status: string;
@@ -166,6 +231,12 @@ export function MessageList({
     labels: Record<string, LabelTransactionsQuadrantId>,
   ) => void;
   userCurrency?: string;
+  conversationType?: string | null;
+  conversationId?: string | null;
+  registerFirstInsightDelivery?: (ctx: {
+    first_insight_message_id: string;
+    conversation_id: string;
+  }) => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -182,6 +253,24 @@ export function MessageList({
       .join('');
     return !text?.startsWith('[System:');
   });
+
+  // Wow plumbing: the first persisted assistant message in a first_insight
+  // conversation is the "first Read" delivery. Identify its DB id once so we
+  // can render ResonanceTap + scroll observer + delivered/chip tracking on it.
+  // Pre-layered first_insight conversations also flow through this branch,
+  // which is fine — the server-side cron only aggregates layered ones, so
+  // extra events on legacy conversations are harmlessly written and ignored.
+  let firstInsightMsgDbId: string | null = null;
+  if (conversationType === 'first_insight' && conversationId) {
+    for (const m of visibleMessages) {
+      if (m.role !== 'assistant') continue;
+      const dbId = (m.metadata as { messageDbId?: string } | null)?.messageDbId;
+      if (dbId) {
+        firstInsightMsgDbId = dbId;
+        break;
+      }
+    }
+  }
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 space-y-6 min-h-0 overscroll-contain">
@@ -329,6 +418,28 @@ export function MessageList({
           ? parseMessageContent(rawText)
           : { text: rawText, options: null, cta: null, stats: [] as Array<{ label: string; value: string }> };
 
+        // Wow plumbing: is THIS message the first-Read delivery?
+        const messageDbIdValue = (message.metadata as { messageDbId?: string } | null)?.messageDbId;
+        const isFirstInsightMessage =
+          message.role === 'assistant' &&
+          !!firstInsightMsgDbId &&
+          !!messageDbIdValue &&
+          messageDbIdValue === firstInsightMsgDbId &&
+          !!conversationId;
+
+        const optionSelectHandler =
+          isFirstInsightMessage && onOptionSelect
+            ? (chipText: string) => {
+                void trackWowEvent({
+                  event_type: 'chip_tapped',
+                  first_insight_message_id: firstInsightMsgDbId as string,
+                  conversation_id: conversationId as string,
+                  metadata: { chip_text: chipText },
+                });
+                onOptionSelect(chipText);
+              }
+            : onOptionSelect;
+
         return (
           <div
             key={message.id}
@@ -371,8 +482,8 @@ export function MessageList({
               )}
 
               {/* Tappable options */}
-              {options && onOptionSelect && (
-                <TappableOptions options={options} onSelect={onOptionSelect} />
+              {options && optionSelectHandler && (
+                <TappableOptions options={options} onSelect={optionSelectHandler} />
               )}
 
               {/* CTA block */}
@@ -458,6 +569,25 @@ export function MessageList({
                     <MessageFeedback messageId={(message.metadata as { messageDbId: string }).messageDbId} />
                   </div>
                 )}
+
+              {/* Wow plumbing: first-Read instrumentation + explicit tap.
+                  Only renders on the first persisted assistant message in a
+                  first_insight conversation. The instrumentation sentinel fires
+                  delivered + scrolled_to_bottom; the tap captures explicit
+                  resonance feedback. */}
+              {isFirstInsightMessage && firstInsightMsgDbId && conversationId && (
+                <div className="px-3">
+                  <FirstInsightInstrumentation
+                    first_insight_message_id={firstInsightMsgDbId}
+                    conversation_id={conversationId}
+                    registerFirstInsightDelivery={registerFirstInsightDelivery}
+                  />
+                  <ResonanceTap
+                    first_insight_message_id={firstInsightMsgDbId}
+                    conversation_id={conversationId}
+                  />
+                </div>
+              )}
             </div>
           </div>
         );

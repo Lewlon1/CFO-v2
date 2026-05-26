@@ -1587,3 +1587,77 @@ Confirmed prerequisites: Dorcas has 170 rows across 89 merchants in `merchant_ag
 1. Manual flag-on verification on Vercel preview: sign in as Dorcas, walk the layered onboarding flow end-to-end. Confirm composition fires, message appears, "Continue the conversation" lands in `/office` with the conversation loaded.
 2. Manual flag-off regression check: confirm the existing archetype flow still works untouched for an unflagged user.
 3. Tool-fire spot-check (Phase 0.4): exercise `get_cluster_behaviour` via a real chat prompt. Iterate prompt language at [context-builder.ts:1267](cfos-office/src/lib/ai/context-builder.ts:1267) if needed.
+
+## Session 32 (C) — Wow Measurement and Synthetic Validation — 2026-05-26
+
+**Branch:** `session-32/the-read` (continuing from A + B)
+
+Behavioural measurement layer for the first Read: capture what the user actually does after seeing the layered insight, persist it, and surface it in an admin dashboard so individual sessions can be read as complete stories. Synthetic persona library expanded to cover failure modes the existing 8 personas didn't hit.
+
+### What shipped
+
+| Layer | Files |
+|---|---|
+| Schema | `065_wow_events.sql`, `066_wow_assessments.sql` (+ paired `prod-backfill-*` files, **not** applied to prod) |
+| Realised-score library | `src/lib/wow/event-types.ts`, `src/lib/wow/realised-score.ts`, `__tests__/realised-score.test.ts` (15 new tests, all green) |
+| API | `POST /api/wow/event` (auth-guarded, idempotent), `GET /api/cron/wow-aggregate` (daily, snapshots composition metadata, computes realised score, detects D2 returns) |
+| Client | `src/lib/wow/event-tracker.ts` (fire-and-forget with client-side de-dup), `src/components/chat/ResonanceTap.tsx`, instrumentation injected into the first assistant message of every `first_insight` conversation via `MessageList.tsx` (delivered + scroll observer + chip tap tracking) |
+| Provider | `ChatProvider` exposes `conversationType` + `registerFirstInsightDelivery`; `handleSend` invokes `detectSubstantiveReply` against the registered context (5-min window, ≥10 char threshold) |
+| Admin dashboard | `/admin/wow` (sortable table + headline stats), `/admin/wow/[insightId]` (single-session deep dive: insight body, composition, event timeline, follow-up messages, ResonanceTap state). ADMIN_EMAILS-gated via `notFound()` on mismatch |
+| Cron config | `vercel.json` adds `wow-aggregate` at `30 3 * * *` (after `expire-experiments` at `0 3`) |
+| Synthetic personas | `aiko-low-transaction.ts` (sparse data), `sofia-chaotic.ts` (freelancer), `tom-long-history.ts` (18 months), `zane-spain.ts` (ES with bi-monthly Endesa) — registered in `personas/index.ts`. Total persona count: 12 |
+
+### What was learned
+
+1. **The plan's `chat_messages.message_type = 'first_insight'` filter doesn't exist.** This codebase uses `messages` (not `chat_messages`) and identifies first-insight via `conversations.type = 'first_insight'`. There is no `message_type` column. The cron filter has to JOIN `messages → conversations` and reduce to the first assistant message per conversation. The audit at [docs/audits/2026-05-26-session-32C.md](cfos-office/docs/audits/2026-05-26-session-32C.md) catches this.
+2. **`predicted_wow_score` and `judge_id` are NULL on creation** because `composeFirstRead` doesn't score its own output yet. The eval/ champion judge can backfill later; this is a known seam, not a bug.
+3. **Composition metadata snapshots from `conversations.metadata.first_read_metadata`**, not from message metadata. The shape is what Session B's `extractCompositionMetadata` writes: `{ layers_used, features_cited, gap_present, clusters_referenced }`. The cron upsert lifts these into typed columns on `wow_assessments`.
+4. **AssistantMessage doesn't exist as a component.** Plan said "modify AssistantMessage." Reality: rendering happens inline in `MessageList.tsx`. The wow instrumentation is mounted as a small `FirstInsightInstrumentation` sub-component (IntersectionObserver + delivered emitter + registration hook) inside the assistant branch of the message map.
+5. **`drifter-expat` already models Spain — but bills Endesa MONTHLY**, which is wrong. Spanish electricity is bi-monthly. The new `zane-spain` persona models this correctly (and tests for the failure pattern explicitly). This is a Session D candidate fix for drifter-expat itself.
+6. **Persona expansion: 4, not 6.** Plan listed Imani (debt-heavy) and Henrik (disciplined) as new personas. Both are already covered by `anchor-debt` and `fortress-saver` respectively. Adding them would have duplicated coverage. Net-new personas: Aiko, Sofia, Tom, Zane.
+7. **Reply detection uses an explicit registration handshake**, not a derived-from-messages scan. The first time MessageList mounts the first-insight delivery, it calls `registerFirstInsightDelivery({message_id, conversation_id})` which captures `Date.now()` once. `handleSend` reads that ref. This is more robust than trying to recover `delivered_at` from `UIMessage.createdAt`, which isn't reliably set on streamed messages.
+
+### Manual setup required from Lewis (before testing)
+
+These are not code changes — they're Vercel/dashboard actions:
+
+1. **Set `CRON_SECRET`** in Vercel preview env vars (if not already set for `session-32/the-read`). The existing crons already use this same secret; the new `wow-aggregate` cron uses the same pattern.
+2. **Set `ADMIN_EMAILS`** in Vercel preview env vars — comma-separated list of admin email addresses. Without this, `/admin/wow` returns 404 even for Lewis. Example: `ADMIN_EMAILS=lewis@example.com,gf@example.com`.
+3. **Apply prod migrations 065 + 066 manually** before any merge to main. The paired `prod-backfill-065_wow_events.sql` and `prod-backfill-066_wow_assessments.sql` are ready in `supabase/migrations/`. Do this BEFORE merging the branch — the new client code references the `wow_events` table.
+
+### Persona observations (no eval run executed)
+
+The `npm run test:onboarding` Playwright suite was NOT run in this session — each full run costs ~$1-2 in Bedrock judge calls and takes 10-20 min, which is better deferred to Lewis with deliberate control over timing and persona subset. Instead, this session verified:
+
+- `npm test` — 815 tests passing (15 new wow tests + all existing). `tsc --noEmit` clean.
+- `npm run build` — clean. All four new routes (`/admin/wow`, `/admin/wow/[insightId]`, `/api/wow/event`, `/api/cron/wow-aggregate`) appear in the manifest.
+- All 12 personas load via `personas/index.ts` and conform to the `Persona` type.
+- CSV row counts per persona: aiko 14 (sparse by design), sofia 41, tom 217 (18 months by design), zane 64.
+
+When Lewis runs the full eval, the personas to watch for failure modes:
+- **aiko-low-transaction** — does the first Read avoid confident pattern claims when there's only 21 days of data? The `bannedPatterns` block explicitly fails on "every Friday" / "climbing trend" style assertions.
+- **sofia-chaotic** — does the first Read avoid imposing rhythm where there is none? Should ground in the genuinely-recurring Adobe + Figma subs, not invent groove from irregular client invoices.
+- **tom-long-history** — does the 90-day window default hold? The `bannedPatterns` block fails if the first Read mentions Tom's 2024 Lisbon/Madrid holidays as if they were recent.
+- **zane-spain** — does the read use EUR symbols (€), not £? Does it correctly observe Endesa's bi-monthly cadence (not monthly)?
+
+### Items for the testing phase
+
+1. **Run `/admin/wow` after triggering at least one first Read on the preview** — confirm the dashboard renders, click into a detail view, see the full picture.
+2. **Manually trigger the cron via curl** to test the aggregation path end-to-end: `curl -H "Authorization: Bearer $CRON_SECRET" https://<preview>/api/cron/wow-aggregate`. Expect `{processed, d2_inserted, candidate_count}`.
+3. **Fire a real reply within 5 min of a first Read** and confirm `replied_substantively` appears in `wow_events`. Then reload the page and confirm the `delivered` event doesn't duplicate (idempotency via partial unique index).
+4. **Tap ResonanceTap "Yes"** then "Not really" on different sessions — confirm both insert as expected and the button locks.
+5. **Optional: run `npm run test:onboarding -- --personas aiko-low-transaction,sofia-chaotic,tom-long-history,zane-spain`** for a targeted eval over just the new personas (~5-10 min, ~$1).
+
+### Items for Session D / future
+
+- **Drifter-expat: fix Endesa monthly → bi-monthly.** Captured by zane-spain. Update drifter-expat's CSV when convenient.
+- **Compose-first-read self-scoring** — wire the eval/ champion judge into the composition pipeline so `predicted_wow_score` and `judge_id` get populated on creation instead of NULL.
+- **Remove `LAYERED_READ_LOCAL_OVERRIDE` and the `VERCEL_GIT_COMMIT_REF` gate** once layered becomes default (per the Session A flag comment).
+- **Promote `wow_events.metadata.aggregator_source` schema discipline** — document the metadata shape per event_type if/when more sources start writing events.
+- **`.env.example` doesn't exist in this repo.** If env-var documentation matures, consider creating one. Until then, the CLAUDE.md "Environment Variables Required" section is the source of truth.
+
+### Pre-merge action items (Lewis)
+
+1. Set `CRON_SECRET` + `ADMIN_EMAILS` on Vercel preview env (see above).
+2. Apply `prod-backfill-065_wow_events.sql` + `prod-backfill-066_wow_assessments.sql` to production Supabase before merging to main.
+3. Run the manual end-to-end check from the plan's Phase 7.10 (single persona, full event flow, dashboard inspection).

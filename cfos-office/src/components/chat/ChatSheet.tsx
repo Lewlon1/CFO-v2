@@ -27,6 +27,9 @@ export function ChatSheet() {
     dismissError,
     userCurrency,
     currentFolder,
+    conversationId,
+    conversationType,
+    registerFirstInsightDelivery,
   } = useChatContext()
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -230,6 +233,9 @@ export function ChatSheet() {
                   onStructuredSubmit={handleStructuredSubmit}
                   onLabelTransactionsSubmit={handleLabelTransactionsSubmit}
                   userCurrency={userCurrency}
+                  conversationId={conversationId}
+                  conversationType={conversationType}
+                  registerFirstInsightDelivery={registerFirstInsightDelivery}
                 />
               )}
             </div>
