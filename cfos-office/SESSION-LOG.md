@@ -1522,3 +1522,68 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 4. **`mode() WITHIN GROUP` for `dominant_category_id`** assumes the most-frequent category per (user, merchant, month) is "the" category. Fine for stable categorisations; if a merchant's category drifts, the rollup will follow. Worth confirming with a Session B query on a user with category corrections.
 5. **`category_aggregates` rolling up across merchants** is currently approximated (max-of-stddev for cross-month stddev). If the CFO needs precise category-level variance, swap to a sub-query or add a second materialized view.
 6. **Tests in `__tests__/` subdir, not top-level `tests/`.** Plan called for `cfos-office/tests/cluster-behaviour/...`; matched repo convention and put them under `src/lib/analytics/{cluster-behaviour,chat-signals}/__tests__/` instead. Same vitest pickup.
+
+---
+
+## Session 32 (B) — First Read Composition, Pipeline Rewrite, Parallel Onboarding — 2026-05-26
+
+**Branch:** `session-32/the-read` (continued from Session A; HEAD `e9c083d`)
+
+**Headline:** the first Read is composed end-to-end behind the layered-read flag. New parallel onboarding terminal route at `/onboarding-v2/first-read/`. Old archetype flow completely untouched for unflagged users.
+
+### What shipped
+
+- **Merchant normaliser** — [src/lib/analytics/merchant-normalise/index.ts](cfos-office/src/lib/analytics/merchant-normalise/index.ts). Strips bank-side prefixes (`POS PURCHASE`, `ATM WITHDRAWAL`, `DIRECT DEP`, etc.) and trailing reference noise. 15 unit tests. Used by `compose-first-read` to clean merchant_keys before they appear in the LLM context — Session A's `resolveMerchantKeys` already solved the brand-rollup-via-substring problem at the query layer, so this normaliser is for display, not tool-call correction.
+- **First Read composition prompt** — [src/lib/ai/prompts/first-read.ts](cfos-office/src/lib/ai/prompts/first-read.ts). System prompt + user-prompt builder. Voice rules, citation requirements, "When stated intent and behaviour diverge" framing.
+- **First Read orchestrator** — [src/lib/ai/compose-first-read.ts](cfos-office/src/lib/ai/compose-first-read.ts). One-shot `generateText` (no tool calls during composition; tools are for ongoing chat). Pulls Layer 2 (Value Profile), Layer 3 (top-10 merchant cluster behaviours), Layer 5 (active goal). Returns `{ composedMessage, metadata }` where metadata records `layers_used`, `features_cited`, `gap_present`, `clusters_referenced` — the hooks Session C's wow_assessment plumbing will read.
+- **Post-upload pipeline rewrite** — [src/app/api/insights/post-upload/route.ts](cfos-office/src/app/api/insights/post-upload/route.ts). New `handleLayeredFirstRead` branch gated by `isLayeredReadEnabled()`. Awaits `refresh_merchant_aggregates`, calls `composeFirstRead`, persists conversation + pre-written assistant message in a single round-trip. The pre-written message bypasses `ChatProvider`'s `msgs.length === 0` auto-trigger guard. Idempotency uses `metadata->>'layered_read'`. Unflagged flow is byte-for-byte untouched.
+- **Parallel onboarding route** — [src/app/onboarding-v2/first-read/page.tsx](cfos-office/src/app/onboarding-v2/first-read/page.tsx) + [first-read-orchestrator.tsx](cfos-office/src/app/onboarding-v2/first-read/first-read-orchestrator.tsx). Server-side flag check redirects to `/onboarding-v2/archetype` if the flag is off (defence in depth). Client orchestrator triggers the layered composition via POST `/api/insights/post-upload`, fetches the pre-written message via GET `/api/conversations/recent?id=…`, displays it, and the "Continue the conversation →" CTA lands the user in `/office?chat=open&conversationId=…`. Stamps `onboarding_step = 'first_read_shown'` on mount; stamps `'complete'` on continue.
+- **OnboardingStep type union** — [src/lib/onboarding-v2/types.ts](cfos-office/src/lib/onboarding-v2/types.ts). Added `'first_read_shown'`. **No DB migration needed** — the column is freeform `text` with no enum or CHECK constraint, so the TS union is the only place this value needs to be enumerated.
+- **resumeRoute + layout redirect** — flag-aware, additive. Users with `upload_done` route to `/onboarding-v2/first-read` when layered, `/onboarding-v2/archetype` otherwise. `'archetype_shown'` continues to bounce back to `/onboarding-v2/archetype` regardless of flag — anyone already in the old flow finishes the old flow.
+- **Upload orchestrator redirect** — flag-aware destination, prop-driven (`layered: boolean`). Flag value evaluated server-side in `upload/page.tsx` and passed through, because `isLayeredReadEnabled()` reads non-public env vars that aren't available client-side.
+- **System prompt strengthening** — [src/lib/ai/context-builder.ts:1267](cfos-office/src/lib/ai/context-builder.ts:1267). Strengthened the layered-read tool-invocation language from "When discussing a merchant or category, call these tools" (advisory) to "**MANDATORY** — You MUST call `get_cluster_behaviour` before responding whenever…" with concrete examples and an explicit citation requirement (≥2 features per merchant discussion). This is the Phase 0.4 proactive iteration the plan called for.
+- **Welcome + Processing screen polish** — [struggle-question.tsx](cfos-office/src/components/onboarding-v2/struggle-question.tsx) gets a flag-aware eyebrow + subtitle ("YOUR CFO IS READY", "A few minutes of setup. One sharp read of your last 90 days."). [first-read-orchestrator.tsx](cfos-office/src/app/onboarding-v2/first-read/first-read-orchestrator.tsx) shows progressive flash lines during composition ("Reading your last 90 days." → "Looking for patterns." → "Where habits and intent diverge." → "Drafting your read.") instead of a static skeleton.
+
+### Tool validation outcome (Phase 0.4 — the inherited gap)
+
+Runtime validation that the CFO actually invokes `get_cluster_behaviour` was NOT executed in this session — that requires either a Vercel preview browser session or a CLI chat harness, neither of which was practical to construct in-band. The mandatory-gate playbook from the plan was followed in spirit: **strengthen the prompt proactively** (now imperative + example-laden) and **document the runtime check as a Lewis spot-check before merge**.
+
+Confirmed prerequisites: Dorcas has 170 rows across 89 merchants in `merchant_aggregates` (CFO Staging). Tool registration is intact at [src/lib/ai/tools/index.ts:101](cfos-office/src/lib/ai/tools/index.ts:101). Substring-ILIKE resolution in `resolveMerchantKeys` already forgives raw bank prefixes, so cluster_id robustness is solved at the query layer regardless of how the model phrases the hint.
+
+**Pre-merge action required:** on the `session-32/the-read` Vercel preview, sign in as Dorcas (or any user with `merchant_aggregates` rows), ask "What does my spending at Pollo Tropical look like over the last three months?", confirm `get_cluster_behaviour` fires and ≥2 features are cited. If the tool doesn't fire reliably, iterate at [context-builder.ts:1267](cfos-office/src/lib/ai/context-builder.ts:1267).
+
+### What was learned
+
+1. **Post-upload route mental model in the plan was wrong.** The plan described persisting a "first_insight message" with a `message_type` field. Reality: there's no `message_type` column anywhere; the existing route creates a `conversations` row (with `type='first_insight'`) but no message, and the narrative is generated later when the user opens the conversation via ChatProvider's auto-trigger. The fix: pre-write the composed message as an assistant `messages` row so `msgs.length > 0` bypasses the auto-trigger guard. Composition metadata lives on `conversations.metadata.first_read_metadata`.
+2. **`onboarding_step` has no DB-level constraint.** Plan suggested migration 065 to extend an enum/check. Reality: it's freeform `text`. The TS `OnboardingStep` union is the only place this is enumerated. Skipped the no-op migration; documented the choice.
+3. **Feature flag is not client-safe.** `isLayeredReadEnabled()` reads `VERCEL_GIT_COMMIT_REF` and `LAYERED_READ_LOCAL_OVERRIDE`, neither of which is `NEXT_PUBLIC_*`. Evaluating it inside a `'use client'` component always returns `false`. Pattern: evaluate server-side in the parent page, pass the result as a prop. Applied this to `upload-orchestrator` (received `layered: boolean`) and `struggle-question` (received `layered?: boolean`).
+4. **Session A already solved brand rollup at the query layer.** `resolveMerchantKeys` does substring ILIKE match — `"pollo tropical"` already matches both `POS PURCHASE POLLO TROPICAL #142` and `POS PURCHASE POLLO TROPICAL DRIVE THRU` and rolls them up per-month. This narrowed the role of Phase 1's merchant normaliser: it now cleans merchant_keys for *display in the composition prompt*, not for tool-call inputs.
+5. **`vitest` and `tsc` need the project directory.** Running from the worktree root fails because path aliases (`@/lib/...`) resolve relative to `cfos-office/src/`. `cd cfos-office && npm test` works; `npx vitest run cfos-office/...` from the worktree root does not.
+6. **No `typecheck` npm script in this repo.** Plan said `npm run typecheck`. Reality: only `build`, `test`, `lint`. Used `npx tsc -p tsconfig.json --noEmit` for incremental checks and `npm run build` for the full verification.
+7. **Migration 064 was already taken** by an earlier Session A late-add (`vcr_unique_index_repair.sql`). Plan referenced `064` and `065` — `065` is still available for future migrations.
+
+### Verification
+
+- `npm test` — **785 tests pass across 67 files** (15 new merchant-normalise tests, 11 new compose-first-read metadata tests, all Session A regression tests intact).
+- `npx tsc -p tsconfig.json --noEmit` — clean.
+- `npm run build` — clean, `/onboarding-v2/first-read` appears in the route manifest.
+- Supabase advisors (CFO Staging) — no new critical/high warnings introduced by this session. Pre-existing project-level warnings (pg_trgm in public, demo-table RLS, SECURITY DEFINER functions, leaked-password protection) unchanged.
+
+### Items for Session C
+
+- **Wow assessment metadata is in place.** `conversations.metadata.first_read_metadata` carries `layers_used`, `features_cited`, `gap_present`, `clusters_referenced`. The cron + dashboard plumbing Session C builds should query `conversations` where `type = 'first_insight' AND metadata->>'layered_read' = 'true'` and read this jsonb.
+- **Conversation, not message, is the row to look at.** Session C's cron should filter on `conversations`, not `messages` — the metadata is on the conversation row (messages have no metadata jsonb in this schema).
+- **Composition latency is ~3-5s** (one Sonnet generate call, 20s timeout). Wow assessment shouldn't run inline with composition — fire-and-forget in `after()` is the right pattern.
+
+### Items for Session D / future
+
+- **Brand-level merchant normalisation** (still deferred from Session A audit). The Session B normaliser handles prefixes only; chain-level rollup of branch codes + location suffixes + channel markers requires either rule-heavy code or LLM normalisation.
+- **Archetype removal coordination.** The parallel-route approach means both surfaces ship. Session D should plan retirement of `/onboarding-v2/archetype/`, `/api/onboarding/generate-archetype/`, `lib/onboarding/archetype-prompt`, `lib/value-map/regenerate-archetype`, and the archetype display on the office home sidebar + values page.
+- **gap-analyser removal + `/office/values/the-gap/` retirement** (Session A audit Section 0.1 — 14 importers).
+- **A migration may eventually want a CHECK constraint** on `onboarding_step` to prevent typos. Low priority; the TS union catches drift in practice.
+
+### Pre-merge action items
+
+1. Manual flag-on verification on Vercel preview: sign in as Dorcas, walk the layered onboarding flow end-to-end. Confirm composition fires, message appears, "Continue the conversation" lands in `/office` with the conversation loaded.
+2. Manual flag-off regression check: confirm the existing archetype flow still works untouched for an unflagged user.
+3. Tool-fire spot-check (Phase 0.4): exercise `get_cluster_behaviour` via a real chat prompt. Iterate prompt language at [context-builder.ts:1267](cfos-office/src/lib/ai/context-builder.ts:1267) if needed.

@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 import { recomputeIfStale } from '@/lib/goals/recompute'
+import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
@@ -63,15 +64,31 @@ export default async function OfficeLayout({ children }: { children: React.React
   // If the user is mid-Marcus-journey (post-goal-beat), bounce them back to
   // the appropriate onboarding-v2 step. Without this, a Marcus user could
   // navigate manually to /office and skip the value-map / upload / archetype.
+  // Session 32 (B) — under the layered-read flag, `upload_done` redirects to
+  // the parallel `/onboarding-v2/first-read` route; the layered-terminal
+  // state `first_read_shown` also bounces back to that route. Users stamped
+  // `archetype_shown` (i.e. mid-flow on the old surface) continue to bounce
+  // there regardless of flag state.
   const onboardingStep = (profile?.onboarding_step as string | null) ?? null
   const isMarcus = profile?.entry_struggle === 'dont_know'
-  const MID_MARCUS_STEPS = new Set(['goal_set', 'goal_skipped', 'value_map_started', 'value_map_done', 'upload_done', 'archetype_shown'])
+  const layered = isLayeredReadEnabled()
+  const MID_MARCUS_STEPS = new Set([
+    'goal_set',
+    'goal_skipped',
+    'value_map_started',
+    'value_map_done',
+    'upload_done',
+    'archetype_shown',
+    'first_read_shown',
+  ])
   if (isMarcus && !profile?.onboarding_completed_at && onboardingStep && MID_MARCUS_STEPS.has(onboardingStep)) {
     if (onboardingStep === 'goal_set' || onboardingStep === 'goal_skipped' || onboardingStep === 'value_map_started') {
       redirect('/onboarding-v2/value-map')
     }
     if (onboardingStep === 'value_map_done') redirect('/onboarding-v2/upload')
-    if (onboardingStep === 'upload_done' || onboardingStep === 'archetype_shown') redirect('/onboarding-v2/archetype')
+    if (onboardingStep === 'upload_done') redirect(layered ? '/onboarding-v2/first-read' : '/onboarding-v2/archetype')
+    if (onboardingStep === 'archetype_shown') redirect('/onboarding-v2/archetype')
+    if (onboardingStep === 'first_read_shown') redirect('/onboarding-v2/first-read')
   }
 
   // If the user is mid-goal-beat, look up their active goal-chat conversation

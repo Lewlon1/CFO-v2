@@ -12,8 +12,11 @@ import { advanceStep } from '@/app/onboarding-v2/actions-step'
  *
  * Mirrors <UploadBeat>'s category fetch and onDone behavior, without the
  * "I'll do this later" skip control.
+ *
+ * `layered` is the server-evaluated isLayeredReadEnabled() value — passed in
+ * because the flag's process.env reads are server-only in Next.js.
  */
-export function UploadOrchestrator() {
+export function UploadOrchestrator({ layered = false }: { layered?: boolean }) {
   const router = useRouter()
   const [categories, setCategories] = useState<Category[]>([])
   const totalImportedRef = useRef(0)
@@ -44,8 +47,12 @@ export function UploadOrchestrator() {
     } catch (err) {
       console.error('[onboarding-v2.upload] advance failed', err)
     }
-    router.push('/onboarding-v2/archetype')
-  }, [router])
+    // Session 32 (B) — layered-read users go to the parallel /first-read route;
+    // unflagged users continue to the archetype reveal. The flag is evaluated
+    // server-side and passed in via the `layered` prop.
+    const destination = layered ? '/onboarding-v2/first-read' : '/onboarding-v2/archetype'
+    router.push(destination)
+  }, [router, layered])
 
   return (
     <div className="min-h-dvh flex flex-col bg-background">

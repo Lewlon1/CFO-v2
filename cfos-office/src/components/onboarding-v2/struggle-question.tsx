@@ -12,9 +12,12 @@ import {
 type Props = {
   userId: string
   firstName: string | null
+  /** Session 32 (B) — when true, swap the eyebrow + subtitle copy for the
+   *  layered-read framing. Layout unchanged. */
+  layered?: boolean
 }
 
-export function StruggleQuestion({ userId }: Props) {
+export function StruggleQuestion({ userId, layered = false }: Props) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
   const [pending, startTransition] = useTransition()
@@ -83,14 +86,18 @@ export function StruggleQuestion({ userId }: Props) {
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center px-6 py-12 bg-background">
       <div className="w-full max-w-md">
-        <p className="eyebrow mb-6 text-center">THE CFO&apos;S OFFICE</p>
+        <p className="eyebrow mb-6 text-center">
+          {layered ? 'YOUR CFO IS READY' : "THE CFO'S OFFICE"}
+        </p>
 
         <h1 className="text-center mb-3 font-serif text-[30px] leading-[1.12] text-foreground">
           Before we sit down — what brought you in?
         </h1>
 
         <p className="text-center mb-8 font-sans text-[13px] text-muted-foreground">
-          Pick whichever sounds closest — or tell me in your own words.
+          {layered
+            ? 'A few minutes of setup. One sharp read of your last 90 days. Pick whichever sounds closest — or tell me in your own words.'
+            : 'Pick whichever sounds closest — or tell me in your own words.'}
         </p>
 
         <div className="space-y-3 mb-5">

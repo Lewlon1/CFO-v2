@@ -1263,6 +1263,7 @@ export async function buildSystemPrompt(
 
 // Session 32 (A) — Layered Read instructions. Gated by isLayeredReadEnabled().
 // Active on deploys of session-32/the-read and local with LAYERED_READ_LOCAL_OVERRIDE=true.
+// Strengthened in Session 32 (B) to make tool invocation mandatory rather than advisory.
 // Removed in Session D when the layered model becomes default.
 function buildLayeredReadInstructions(): string {
   return [
@@ -1278,11 +1279,31 @@ function buildLayeredReadInstructions(): string {
     '  - lifecycle (status: new/active/dormant/returning, with first_seen and days_since_last)',
     '- `get_conversation_signals(target_merchant?, target_category?, signal_types?, limit?)` — returns signals (regret, enjoyment, context_person, context_event, context_situation) extracted from prior chat.',
     '',
-    'When discussing a merchant or category, call these tools before asserting a pattern. Cite specific features in your writing — "climbing 18% per month over three months", "first appeared in April", "100% weekday mornings, mean £4.65". Never fabricate features the tool didn\'t return.',
+    'WHEN TO CALL `get_cluster_behaviour` (MANDATORY):',
     '',
-    'Never use internal labels like "verdict", "joy signal", or "the Gap" in your reply — speak in plain language about what you observe.',
+    'You MUST call `get_cluster_behaviour` before responding whenever the user asks about, or you are about to discuss:',
+    '- A specific merchant (e.g. "what does my Pret spend look like?", "I\'ve been at Pollo Tropical a lot")',
+    '- A specific category (e.g. "how\'s my dining spending?", "am I overdoing it on transport?")',
+    '- A pattern, trend, or change in spending behaviour ("is this getting worse?", "am I spending more lately?")',
     '',
-    'When the user\'s Value Map states an intent (e.g. "dining is a Leak") and the behavioural trend conflicts (e.g. dining climbing), point out the divergence factually and ask the user what\'s changing. This is the only place "the Gap" survives — as a capability, not a feature name.',
+    'Pass the cluster_id as a brand name the user would say — `"Pollo Tropical"`, `"Pret"`, `"Starbucks"`. The tool resolves substring matches and rolls up brand variants (`#142`, ` DRIVE THRU`, location codes) into one cluster. Do NOT pass the raw description (`"POS PURCHASE POLLO TROPICAL #142"`) — pass the clean brand.',
+    '',
+    'AFTER the tool returns, you MUST cite at least two specific features in your reply. Examples of good citation:',
+    '- "13 visits in 90 days, climbing 18% a month, mostly weekday mornings — mean £4.65."',
+    '- "First hit in April, every 6 days like clockwork, mean £8.40."',
+    '- "Three months in, the trend is flat but the day-of-week pattern shifted from weekday lunches to weekend dinners."',
+    '',
+    'Never name a merchant or assert a pattern without specific features behind it. If the tool returns thin data (data_completeness < 0.4), say so honestly: "I\'ve only got a few weeks on this one — early signal."',
+    '',
+    'WHEN TO CALL `get_conversation_signals`:',
+    '',
+    'Call this when the user references regret, enjoyment, social context, or "I should/shouldn\'t" framing, OR when you want to check what they\'ve previously said about a merchant or category before commenting on it.',
+    '',
+    'STYLE:',
+    '',
+    'Never use internal labels in your reply — no "verdict", no "joy signal", no "Layer 3", no "the Gap" as a feature name. Speak in plain language about what you observe.',
+    '',
+    'When the user\'s Value Map states an intent (e.g. "dining is a Leak") and the behavioural trend conflicts (e.g. dining climbing), point out the divergence factually and ask the user what\'s changing. This is the only place "the Gap" concept survives — as a move you make in conversation, not a feature name.',
   ].join('\n');
 }
 
