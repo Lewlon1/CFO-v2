@@ -185,6 +185,12 @@ ALERT_WEBHOOK_URL=         # Resend webhook URL for error alerts
 NEXT_PUBLIC_APP_URL=
 ```
 
+### Feature flags
+
+Active branch-scoped flags:
+
+- **`isLayeredReadEnabled()`** in [cfos-office/src/lib/feature-flags/layered-read.ts](cfos-office/src/lib/feature-flags/layered-read.ts) — gates the layered Read tools (`get_cluster_behaviour`, `get_conversation_signals`), the gated system-prompt section, and the `chat_signals` extractor hook. Fires when `VERCEL_GIT_COMMIT_REF === 'session-32/the-read'` on deploy, or when `LAYERED_READ_LOCAL_OVERRIDE=true` locally. Session D removes this flag and makes the layered model the default.
+
 ---
 
 ## Key Concepts
@@ -220,13 +226,21 @@ The results are sent to Claude which generates a personality archetype (e.g. "Th
 4. Value Map results seed: financial_portrait, value_category_rules
 5. After CSV upload → "The Gap" analysis compares self-perception with reality
 
-### The Gap
+### The layered Read (current architecture)
 
-The killer feature. Compares what users believe about their spending (from Value Map) with what their actual transactions show.
+The CFO composes natural-language insight by drawing from five layers:
 
-Example: "You called gym spending an Investment (confidence 3/5). Reality: you haven't been charged by a gym in 47 days."
+1. **Transactions** — the facts (counts, totals)
+2. **Stated Intent (Value Map)** — what the user said categories mean to them
+3. **Behavioural Features** — recurrence, trend, time pattern, amount profile, lifecycle, derived per merchant or category cluster
+4. **Conversational Signals** — regret, enjoyment, context (who / event / situation) mined from prior chat
+5. **Goals & Life Context** — what the user is trying to do, as the relevance filter
 
-This appears after the first document upload (if Value Map was completed), in monthly reviews when patterns shift, and on demand in chat.
+The CFO never names the layers or uses internal vocabulary ("verdict", "joy signal", "the Gap"). It cites specific facts and asks sharp questions.
+
+"The Gap" — comparing stated intent vs actual behaviour — survives as a *capability* the CFO invokes when Layer 2 and Layer 3 diverge. It is no longer a separate feature surface.
+
+**Source of truth:** [cfos-office/docs/the-layers.md](cfos-office/docs/the-layers.md). See also: [`buildUserValueProfile`](cfos-office/src/lib/value-map/value-profile.ts) (Layer 2), `cfos-office/src/lib/analytics/cluster-behaviour/` (Layer 3 — Session 32 A), `cfos-office/src/lib/analytics/chat-signals/` (Layer 4 — Session 32 A).
 
 ### Progressive Profiling
 
