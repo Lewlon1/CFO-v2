@@ -13,6 +13,7 @@ import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
+import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -1248,6 +1249,7 @@ export async function buildSystemPrompt(
     buildTripsContext(dedupedTrips, profile),
     experimentContext,
     buildToolUsageInstructions(),
+    isLayeredReadEnabled() ? buildLayeredReadInstructions() : '',
     valueMappingContext,
     valueCheckinNudge,
     retakeSuggestion,
@@ -1257,6 +1259,31 @@ export async function buildSystemPrompt(
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
+}
+
+// Session 32 (A) — Layered Read instructions. Gated by isLayeredReadEnabled().
+// Active on deploys of session-32/the-read and local with LAYERED_READ_LOCAL_OVERRIDE=true.
+// Removed in Session D when the layered model becomes default.
+function buildLayeredReadInstructions(): string {
+  return [
+    '## Behavioural features and prior conversation',
+    '',
+    'You have access to two tools that surface the user\'s actual behavioural patterns:',
+    '',
+    '- `get_cluster_behaviour(cluster_type, cluster_id, window_days?)` — returns five features for a merchant or category cluster:',
+    '  - recurrence (pattern_label: daily/weekly/monthly/irregular/sparse, with median interval and regularity)',
+    '  - trend (direction: climbing/declining/stable/volatile, with slope_percent_per_month)',
+    '  - time_pattern (weekday share, dominant day of week)',
+    '  - amount_profile (mean, stddev, consistency_label: fixed/tight/variable/wide)',
+    '  - lifecycle (status: new/active/dormant/returning, with first_seen and days_since_last)',
+    '- `get_conversation_signals(target_merchant?, target_category?, signal_types?, limit?)` — returns signals (regret, enjoyment, context_person, context_event, context_situation) extracted from prior chat.',
+    '',
+    'When discussing a merchant or category, call these tools before asserting a pattern. Cite specific features in your writing — "climbing 18% per month over three months", "first appeared in April", "100% weekday mornings, mean £4.65". Never fabricate features the tool didn\'t return.',
+    '',
+    'Never use internal labels like "verdict", "joy signal", or "the Gap" in your reply — speak in plain language about what you observe.',
+    '',
+    'When the user\'s Value Map states an intent (e.g. "dining is a Leak") and the behavioural trend conflicts (e.g. dining climbing), point out the divergence factually and ask the user what\'s changing. This is the only place "the Gap" survives — as a capability, not a feature name.',
+  ].join('\n');
 }
 
 function buildCurrentDateContext(): string {

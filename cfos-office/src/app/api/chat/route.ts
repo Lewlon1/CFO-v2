@@ -34,6 +34,8 @@ import {
 } from '@/lib/ai/insight-validator';
 import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
 import { sanitisePersona } from '@/lib/ai/persona-sanitiser';
+import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
+import { extractAndStoreSignals } from '@/lib/analytics/chat-signals';
 
 export const maxDuration = 60;
 
@@ -202,18 +204,58 @@ export async function POST(req: Request) {
   if (lastUserMessage?.role === 'user') {
     const textContent = extractTextFromParts(lastUserMessage);
     if (textContent && !textContent.startsWith('[System:')) {
-      await supabase.from('messages').insert({
-        conversation_id: activeConversationId,
-        user_id: user.id,
-        role: 'user',
-        content: textContent,
-      });
+      const { data: insertedMessage } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: activeConversationId,
+          user_id: user.id,
+          role: 'user',
+          content: textContent,
+        })
+        .select('id')
+        .single();
 
       // Permissive onboarding completion — fire-and-forget. Helper itself
       // enforces the >=3 user-message threshold; no pre-count needed here.
       markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
         console.error('[chat] markOnboardingCompleteIfReady failed:', err);
       });
+
+      // Session 32 (A) — Layer 4: extract conversational signals from this
+      // message and store in chat_signals. Fire-and-forget via after().
+      // Pattern matching is cheap; LLM fallback (Haiku) only fires when patterns
+      // miss or are low-confidence. Failures are swallowed.
+      if (isLayeredReadEnabled() && insertedMessage?.id) {
+        const persistedMessageId = insertedMessage.id as string;
+        after(async () => {
+          try {
+            // Recent merchants for attribution context (top N from last 30 days).
+            const serviceClient = createServiceClient();
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+            const { data: topMerchants } = await serviceClient
+              .from('transactions')
+              .select('description')
+              .eq('user_id', user.id)
+              .is('deleted_at', null)
+              .gte('date', thirtyDaysAgo)
+              .not('description', 'is', null)
+              .limit(50);
+            const merchantSet = new Set<string>();
+            for (const row of (topMerchants ?? []) as Array<{ description: string }>) {
+              if (row.description) merchantSet.add(row.description);
+              if (merchantSet.size >= 10) break;
+            }
+            await extractAndStoreSignals({
+              userId: user.id,
+              messageId: persistedMessageId,
+              messageText: textContent,
+              recentMerchants: Array.from(merchantSet),
+            });
+          } catch (err) {
+            console.error('[chat] chat-signals extraction failed:', err);
+          }
+        });
+      }
     }
   }
 

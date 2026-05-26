@@ -1455,3 +1455,70 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 4. **`requires_income_signal` is unused.** When a future template legitimately needs income cadence, set the flag and add the filter at `propose-catalog-experiment` and `experiments/limit.ts`. The signal computation is already wired.
 5. **Cache invalidation cost for open-items.** Built INTO the cached system prompt per user decision. For users who chat frequently in `general` conversations, this trades cache hits for fresh resumption context. Watch the Bedrock usage log over the next week — if cache-hit rate drops noticeably for repeat users, switch to a second uncached system message.
 6. **Compare-first-insight on the calibration personas.** Lewis to run `npx tsx scripts/compare-first-insight.ts <userId>` against the 5 calibration personas to confirm the income-signal threshold and the dropped "Greet warmly" changes don't regress narration quality on a Dorcas / Marcus / Lewis cohort.
+
+
+---
+
+## Session 32 (A) — Foundation, Behavioural Engine, Layer 4 Backend — 2026-05-26
+
+**Branch:** `session-32/the-read` (off `main` at `b99e92e`)
+**Headline:** No user-facing changes. Backend foundation for the layered Read architecture — Layer 3 behavioural engine (`cluster-behaviour/`), Layer 4 conversational-signal extraction (`chat-signals/`), gated tools and system-prompt section. Sessions B/C/D build on what this session laid down.
+
+### What shipped
+
+- **Architecture spec:** [cfos-office/docs/the-layers.md](cfos-office/docs/the-layers.md) — five-layer model (Transactions / Stated Intent / Behavioural Features / Conversational Signals / Goals & Life Context). Replaces the "Gap as signature feature" framing.
+- **Pre-session audit:** [cfos-office/docs/audits/2026-05-26-session-32.md](cfos-office/docs/audits/2026-05-26-session-32.md) — gap-analyser (14 importers), archetype (active in onboarding-v2, not vestigial as initial recon suggested), pattern-detectors call sites, merchant-normalisation gate decision (Path A).
+- **Feature flag:** [`isLayeredReadEnabled()`](cfos-office/src/lib/feature-flags/layered-read.ts) at `src/lib/feature-flags/layered-read.ts`. Gates the new tools, system-prompt section, and signal extraction hook. Removed in Session D.
+- **Behavioural engine:** [`src/lib/analytics/cluster-behaviour/`](cfos-office/src/lib/analytics/cluster-behaviour/) — five derive functions (recurrence, trend, time_pattern, amount_profile, lifecycle) + composer + summary. 28 unit tests.
+- **Layer 4 backend:** [`src/lib/analytics/chat-signals/`](cfos-office/src/lib/analytics/chat-signals/) — pattern library (5 signal types, ~25 regexes) + Haiku LLM fallback + extraction orchestrator. 42 unit tests.
+- **Migrations:**
+  - `062_merchant_aggregates.sql` — materialized view + pg_cron nightly refresh + service-role-only RPC. Applied to staging (qlbhvlssksnrhsleadzn).
+  - `063_chat_signals.sql` — chat_signals table + enums + RLS. Applied to staging.
+  - Companion `prod-backfill-NNN_*.sql` files written but NOT applied (Lewis runs manually before merge).
+- **Tool registrations (flag-gated):** `get_cluster_behaviour`, `get_conversation_signals`. Existing 45 tools unchanged.
+- **System prompt:** new gated `## Behavioural features and prior conversation` section in `buildSystemPrompt()` — describes the two new tools and the layered Read discipline (never invent features, never use internal labels).
+- **Chat route hook:** fire-and-forget `extractAndStoreSignals()` after user-message persist, via `after()`, gated by the flag. Captures the user message id by adding `.select('id').single()` to the existing insert.
+- **CLAUDE.md updates:** replaced "The Gap" section with "The layered Read (current architecture)"; added "Feature flags" subsection under Tech Stack Details.
+
+### Phase 0.5 outcome — merchant normalisation
+
+**Path A** chosen: use `transactions.description` as the merchant key in the materialized view. No schema change to transactions.
+
+- Dorcas dataset: 233 transactions, 89 distinct descriptions across 3 months
+- Per-description fragmentation test (multiple raw_descriptions per description): 0 cases
+- Key-collapse test (descriptions that should have merged under a normalised key): 0 cases
+- **Caveat:** descriptions in this dataset carry bank prefixes (`POS PURCHASE`, `ATM WITHDRAWAL`), branch codes (`#142`, `#2218`), and locations (`CAROLINA PR`). `POLLO TROPICAL #142` and `POLLO TROPICAL DRIVE THRU` are still treated as separate merchants. The cluster-behaviour engine works at description granularity — meaningful per-merchant features, but no brand-level rollup.
+
+**Follow-up flagged:** brand-level normalisation is a future enhancement. Recommended approach captured in the audit doc (add `transactions.merchant_normalised TEXT` + backfill, reuse and extend `normaliseMerchant()` in pattern-detectors.ts).
+
+### What was learned
+
+1. **Recon agent was wrong about archetype being vestigial.** Initial Explore agent classified archetype references as "purely cosmetic". The Phase 0.2 grep showed it's deeply embedded in onboarding-v2 (`archetype_shown` is an `onboarding_step` state, `/onboarding-v2/archetype/` is the post-upload reveal page, `/api/onboarding/generate-archetype` is a live Bedrock endpoint). Session D archetype removal will be a significant sub-track. Lesson: agents that scan code can miss the *flow* — they see file contents but miss state-machine integration. Verify load-bearing claims with the actual greps before trusting them.
+2. **`mcp__supabase__*` connected to the wrong project by default.** The non-prefixed Supabase MCP tool was pointed at an unrelated project (services/testimonials/blog_posts — looked like an astrology site). First `list_tables` revealed no `transactions` table. Switched to the project_id-aware tools (`mcp__3949509e-...__*`) and routed every call through CFO Staging (`qlbhvlssksnrhsleadzn`). The lessons-learned note from v2.5.2 about MCP project verification holds.
+3. **Materialized views need explicit lockdown for all four roles.** `REVOKE ALL ... FROM PUBLIC` and `FROM authenticated` is not enough — Supabase advisors flagged `merchant_aggregates` as still selectable by `anon`. Added `REVOKE ... FROM anon` and locked the `refresh_merchant_aggregates` RPC the same way (PUBLIC + anon + authenticated). Embedded the lockdowns inline in the canonical migration source.
+4. **PR #53's "dormant infrastructure" framing was accurate.** `value-profile.ts` (Layer 2), `emit_action` tool, and `merchant_fragmentation`'s `topMerchant` enrichment all merged into main before this session. Building on them was clean — no rework. The commit message said "dormant infrastructure until the system prompt is updated in session-32"; we activated it.
+5. **Plan said `_pence` columns; reality is `NUMERIC amount`.** The original plan's SQL referenced `amount_pence` (BIGINT), `merchant_normalised`, `merchant_raw`, `transaction_date` — none exist. Actual schema uses `amount` (NUMERIC), `description`, `raw_description`, `date` (TIMESTAMPTZ). The plan-mode review caught this and clarified with the user before writing the migration; otherwise the SQL would have failed at apply time. Lesson: schema-touching plans should ground-truth column names against migration files, not assumed conventions.
+6. **Near-flat regression looks like volatile.** First test pass on `deriveTrend` for amounts `[100, 101, 99]` (essentially flat) returned `volatile` because R² is undefined when denominator variance is near zero. Fixed by classifying as `stable` when the data's CV is below 1%. Worth adding an integration smoke test against real Dorcas data in Session B to catch any other thresholds that are off.
+
+### What to watch for in Sessions B and C
+
+- **Tool-calling discipline.** Even with the new system-prompt section, the CFO may not call `get_cluster_behaviour` when it should. Phase 7.2 manual verification (Lewis on preview deploy) will reveal whether the prompt is sufficient or needs iteration.
+- **Pattern hit rate vs LLM fallback rate.** `extraction_method` column on `chat_signals` lets us measure pattern vs LLM split. Worth adding a count metric (signals stored per day, % via LLM) to monitor in Session C's dashboard.
+- **Merchant attribution.** The pattern path uses a simple substring-match heuristic over the user's last 30 days of merchants. Crude. The LLM fallback does better attribution but only fires when patterns miss or are low confidence. Worth revisiting if Session B's onboarding test shows attribution misses.
+- **`messages.id` insert capture.** I added `.select('id').single()` to the existing user-message insert. If this changes anything about how the existing chat flow uses the persisted message, the change is centred at [route.ts:205](cfos-office/src/app/api/chat/route.ts:205).
+- **Idempotent `cron.schedule`.** The Phase 3 migration includes `SELECT cron.schedule(...)`. pg_cron 1.6 updates the job if the name already exists; if Lewis's prod has an older pg_cron, the prod-backfill may need an `unschedule` first.
+
+### Audit findings worth surfacing
+
+- **gap-analyser has 14 importers including a full UI route** (`/office/values/the-gap/` with 5 components). Session D removal must plan the route's replacement.
+- **Archetype removal is non-trivial** — it's a load-bearing onboarding-v2 state and a Bedrock endpoint, not just a sidebar widget. Treat as its own sub-track.
+- **Migration numbering inconsistency.** DB shows `061_user_hypotheses` (May 21) that has no corresponding file in `cfos-office/supabase/migrations/`. Someone applied a migration directly via MCP. Used `062`/`063` to avoid collision; flagged for whoever reconciles next.
+
+### Open follow-ups
+
+1. **Manual verification on preview deploy.** Phase 7's four manual tests are deferred to Lewis: (a) sign in as Dorcas, (b) ask about her most-frequent merchant — confirm `get_cluster_behaviour` is invoked and ≥2 features cited, (c) send a regret message — confirm `chat_signals` row appears, (d) confirm signal recall in same conversation.
+2. **Brand-level merchant normalisation.** Future session: add `transactions.merchant_normalised TEXT` + backfill, swap the materialized view to use it, re-run Phase 0.5 to confirm chain collapse.
+3. **Audit metric.** Session C's dashboard work should include a "signals stored per day" + "% via LLM" count from `chat_signals`.
+4. **`mode() WITHIN GROUP` for `dominant_category_id`** assumes the most-frequent category per (user, merchant, month) is "the" category. Fine for stable categorisations; if a merchant's category drifts, the rollup will follow. Worth confirming with a Session B query on a user with category corrections.
+5. **`category_aggregates` rolling up across merchants** is currently approximated (max-of-stddev for cross-month stddev). If the CFO needs precise category-level variance, swap to a sub-query or add a second materialized view.
+6. **Tests in `__tests__/` subdir, not top-level `tests/`.** Plan called for `cfos-office/tests/cluster-behaviour/...`; matched repo convention and put them under `src/lib/analytics/{cluster-behaviour,chat-signals}/__tests__/` instead. Same vitest pickup.
