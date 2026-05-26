@@ -23,7 +23,7 @@ export function createGetClusterBehaviourTool(ctx: ToolContext) {
         .describe("'merchant' for a specific merchant description, 'category' for a category slug rollup."),
       cluster_id: z
         .string()
-        .describe('Merchant description (e.g. "POS PURCHASE PRET A MANGER #142") or category slug (e.g. "eat_drinking_out").'),
+        .describe('For cluster_type=merchant: a brand or merchant name as the user would say it (e.g. "Pollo Tropical", "Pret"). The tool resolves substring matches against stored descriptions and rolls up brand variants (#142, DRIVE THRU, etc.) into a single behavioural cluster. For cluster_type=category: an exact category slug (e.g. "eat_drinking_out").'),
       window_days: z
         .number()
         .int()
