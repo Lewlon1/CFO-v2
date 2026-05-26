@@ -36,6 +36,7 @@ import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
 import { sanitisePersona } from '@/lib/ai/persona-sanitiser';
 import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 import { extractAndStoreSignals } from '@/lib/analytics/chat-signals';
+import { VCR_ON_CONFLICT } from '@/lib/prediction/types';
 
 export const maxDuration = 60;
 
@@ -450,7 +451,7 @@ export async function POST(req: Request) {
                 last_signal_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               },
-              { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' },
+              { onConflict: VCR_ON_CONFLICT },
             );
 
           if (ruleError) {
