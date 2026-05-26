@@ -1,10 +1,12 @@
 import type { UIMessage } from 'ai';
+import { isEmittedAction, type EmittedAction } from '@/lib/actions/types';
 
 // Legacy action shape from `create_action_item` tool outputs.
 export type CreateActionItemAuditEntry = { id: string; title: string };
-// New shape emitted by chat-route action markers (e.g. `<ACTION:start_value_map>`).
-export type StartValueMapAuditEntry = { type: 'start_value_map' };
-export type ActionAuditEntry = CreateActionItemAuditEntry | StartValueMapAuditEntry;
+// Structured emissions from the `emit_action` tool. Replaces the old text-token
+// shape (`{ type: 'start_value_map' }`) — the structured tool emits the same
+// `{ type, metadata? }` shape but with a typed vocabulary.
+export type ActionAuditEntry = CreateActionItemAuditEntry | EmittedAction;
 
 export type MessageAudit = {
   toolsUsed: string[];
@@ -62,6 +64,23 @@ export function extractMessageAudit(responseMessages: UIMessage[]): MessageAudit
         const ai = out.action_item;
         if (typeof ai.id === 'string' && typeof ai.title === 'string') {
           actionsCreated.push({ id: ai.id, title: ai.title });
+        }
+      }
+
+      // emit_action — structured action emission. The tool's success-shape
+      // output is { success, type, metadata, emitted_at }; we extract the
+      // { type, metadata? } envelope as the audit entry.
+      if (
+        toolName === 'emit_action' &&
+        isStructuredOutput(out) &&
+        out.success === true
+      ) {
+        const candidate: unknown = {
+          type: out.type,
+          ...(out.metadata != null ? { metadata: out.metadata } : {}),
+        };
+        if (isEmittedAction(candidate)) {
+          actionsCreated.push(candidate);
         }
       }
 
