@@ -276,9 +276,9 @@ export async function POST(req: Request) {
   // primary mechanism; this is a safety net for the case where the model
   // doesn't comply. After 5 user turns in `onboarding_goal_chat` without an
   // active goal, the onboarding state advances to `goal_chat_tentative` and a
-  // transient system note tells the CFO to pivot to the essentials (income +
-  // rent). The user can set a specific goal later — tentative state is a
-  // feature, not a failure mode.
+  // transient system note tells the CFO to acknowledge and stop. Value-first
+  // flow: the next screen handles income / rent — do NOT collect them here.
+  // The GoalBeatWatcher's tentative-aware polling will route the user onward.
   let stallSystemNote: string | null = null;
   if (
     conversationType === 'onboarding_goal_chat' &&
@@ -317,11 +317,11 @@ export async function POST(req: Request) {
 
       stallSystemNote =
         '[SYSTEM] The user has exchanged 5+ turns without committing to a goal. ' +
-        'Acknowledge that there is enough context for now and pivot to the essentials. ' +
-        'Do NOT ask another goal-related question. ' +
-        'In your next response, call request_structured_input for net_monthly_income ' +
-        '(input_type="currency_amount", label="What\'s your monthly take-home pay?", ' +
-        'rationale="So I can pace anything against what you actually have to work with.").';
+        'Acknowledge that briefly — a goal can come later — and say you are about to ' +
+        'look at their transactions so the picture gets specific. Do NOT ask another ' +
+        'goal-related question. Do NOT call any tools. Do NOT ask for income, rent, ' +
+        'or any other number — those are collected on the next screen, not here. ' +
+        'Keep the reply to 2-3 sentences.';
     }
   }
 

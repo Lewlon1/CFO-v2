@@ -4,13 +4,25 @@ import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 /**
  * Resolve where the user should be in the onboarding-v2 journey.
  *
+ * Value-first sequence (this branch):
+ *   struggle → goal_chat → upload_processing → details_confirmed →
+ *   first_read_delivered → (optional) value_map_offered → complete
+ *
  * - No entry_struggle yet → /onboarding-v2 (struggle question)
  * - Mid-goal-beat (`goal_chat_started`) → /office (chat sheet hosts the
  *   onboarding_goal_chat conversation; the GoalBeatWatcher in the office
- *   layout opens it and watches for completion).
- * - Essentials done (goal + income + rent collected inline in goal-chat)
- *   → /onboarding-v2/upload. The Value Map is no longer an onboarding
- *   gate — it surfaces as an opt-in chip on the first-read page.
+ *   layout opens it and routes onward when the goal lands). The value-first
+ *   goal beat is goal-only — income / rent are collected on the processing
+ *   screen, not in chat.
+ * - `upload_processing` → /onboarding-v2/processing — form-during-wait.
+ * - `details_confirmed` → /onboarding-v2/first-read — Read composes here.
+ * - `first_read_delivered` → /onboarding-v2/first-read (terminal; stamps
+ *   onboarding_completed_at). The Value Map is no longer a gate — it
+ *   surfaces as an opt-in chip on the first-read page.
+ * - `value_map_offered` → /onboarding-v2/value-map (real-transactions mode).
+ * - `essentials_done` (legacy) → /onboarding-v2/upload. The processing
+ *   screen prefills income / rent from user_profiles and auto-skips the
+ *   form so legacy users aren't asked twice.
  * - Goal set/skipped (legacy, pre-essentials_done) → /onboarding-v2/value-map.
  *   Users mid-flow before this change get the old behavior so nobody is
  *   stranded.
@@ -43,8 +55,18 @@ export function resumeRoute(
       // post-stall pivot to essentials, same surface.
       return '/office'
     case 'essentials_done':
-      // New flow — goal + essentials collected in goal-chat, head to upload.
+      // Legacy (pre-value-first). Goal + essentials collected in goal-chat;
+      // head to upload as before. The new processing screen reads existing
+      // net_monthly_income / monthly_rent and auto-skips the form so these
+      // users don't re-enter what they already provided.
       return '/onboarding-v2/upload'
+    case 'upload_processing':
+      // Value-first — upload kicked off; processing screen hosts the
+      // income+rent form alongside the parse/aggregate wait.
+      return '/onboarding-v2/processing'
+    case 'details_confirmed':
+      // Value-first — form submitted and fixed costs reconciled; head to Read.
+      return '/onboarding-v2/first-read'
     case 'goal_set':
     case 'goal_skipped':
       // Legacy path — users stamped before essentials_done landed continue
@@ -64,6 +86,14 @@ export function resumeRoute(
     case 'first_read_shown':
       // Session 32 (B) — layered terminal state. Route back if mid-flow.
       return '/onboarding-v2/first-read'
+    case 'first_read_delivered':
+      // Value-first terminal — Read composed and stamped. The Value Map
+      // invitation surfaces on the first-read page as an opt-in chip.
+      return '/onboarding-v2/first-read'
+    case 'value_map_offered':
+      // User has tapped the post-Read Value Map invite (real-transactions
+      // mode). Send them to the Value Map page.
+      return '/onboarding-v2/value-map'
     case 'complete':
       return '/office'
     default:

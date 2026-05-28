@@ -16,13 +16,13 @@ const SKIP_VISIBLE_AFTER_MS = 90_000
 
 /**
  * Mounted in the office layout. Activates only when the user is mid-goal-beat
- * (onboarding_step = 'goal_chat_started'). Opens the goal-chat conversation in
- * the chat sheet, polls /api/onboarding/essentials-status until both
- * net_monthly_income AND monthly_rent have landed (a goal is optional —
- * the dont_know pivot path collects essentials without a confirmed goal),
- * and routes onward to /onboarding-v2/upload when essentials complete.
- * For Marcus (dont_know) users, also surfaces a skip control after 90s in
- * case the user can't articulate anything.
+ * (onboarding_step = 'goal_chat_started' or 'goal_chat_tentative'). Opens
+ * the goal-chat conversation in the chat sheet, polls
+ * /api/onboarding/essentials-status until a goal has landed (income and rent
+ * are collected later on the processing screen), and routes onward to
+ * /onboarding-v2/upload when the goal lands. For users who can't articulate
+ * anything, surfaces a skip control after 90s that routes to upload too —
+ * value-first has no bifurcation.
  */
 export function GoalBeatWatcher({
   onboardingStep,
@@ -59,17 +59,28 @@ export function GoalBeatWatcher({
     loadConversation(goalChatConversationId)
   }, [isActive, goalChatConversationId, activeConversationId, openSheet, loadConversation])
 
-  // Surface the skip control after 90 seconds for `dont_know` users only.
+  // Surface the skip control after 90 seconds for Marcus users from the start,
+  // and immediately for anyone who has hit the tentative-stall state (the
+  // chat-route stall handler advances to `goal_chat_tentative` after 5 turns
+  // without a goal). Either signal means the user is stuck on goal-picking
+  // and should be able to move to upload.
   useEffect(() => {
     if (!isActive) return
+    if (onboardingStep === 'goal_chat_tentative') {
+      setSkipVisible(true)
+      return
+    }
     if (entryStruggle !== 'dont_know') return
     const t = setTimeout(() => setSkipVisible(true), SKIP_VISIBLE_AFTER_MS)
     return () => clearTimeout(t)
-  }, [isActive, entryStruggle])
+  }, [isActive, entryStruggle, onboardingStep])
 
-  // Poll for essentials completion. When both net_monthly_income AND
-  // monthly_rent have landed (regardless of whether a goal was set),
-  // complete the beat and route to /onboarding-v2/upload.
+  // Poll for goal landing. Value-first flow: a goal is the only signal we
+  // need from this beat — income and rent get collected on the processing
+  // screen. As soon as a goal exists, complete the beat and route to
+  // /onboarding-v2/upload (the upload orchestrator then hands off to
+  // /onboarding-v2/processing). The essentials-status endpoint returns
+  // { goal, income, rent } — we only read `goal`.
   useEffect(() => {
     if (!isActive || completedRef.current) return
     const interval = setInterval(async () => {
@@ -77,12 +88,12 @@ export function GoalBeatWatcher({
       try {
         const res = await fetch('/api/onboarding/essentials-status', { cache: 'no-store' })
         if (!res.ok) return
-        const { income, rent } = (await res.json()) as {
+        const { goal } = (await res.json()) as {
           goal: boolean
           income: boolean
           rent: boolean
         }
-        if (income && rent && !completedRef.current) {
+        if (goal && !completedRef.current) {
           completedRef.current = true
           clearInterval(interval)
           startTransition(async () => {

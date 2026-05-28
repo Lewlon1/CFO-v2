@@ -10,19 +10,21 @@ export type CompleteGoalBeatResult = {
 
 /**
  * Called by the GoalBeatWatcher in the office layout when polling detects
- * that both essentials (net_monthly_income and monthly_rent) have landed
- * during the goal-derive-and-confirm beat. A goal is optional — the dont_know
- * pivot path collects essentials without a confirmed goal.
+ * that a goal has been confirmed during the goal-derive-and-confirm beat,
+ * OR the tentative-stall path has run its course. Value-first flow: the
+ * beat is goal-only. Income and rent are collected later on the processing
+ * screen.
  *
  * Idempotent — if the step has already moved past 'goal_chat_started',
  * returns alreadyComplete: true.
  *
- * Stamps onboarding_step='essentials_done' and routes the user to
- * /onboarding-v2/upload. The Value Map is no longer a completion gate.
- * Completion is stamped after the first Read by markOnboardingCompleteIfReady.
+ * Stamps onboarding_step='upload_processing' and routes the user to
+ * /onboarding-v2/upload (the upload orchestrator then transitions to
+ * /onboarding-v2/processing). Onboarding completion is stamped later, after
+ * the first Read.
  *
  * Marks the goal-chat conversation as completed for all routes so it doesn't
- * re-open as the user moves on to upload.
+ * re-open as the user moves on.
  */
 export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
   const supabase = await createClient()
@@ -57,7 +59,7 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
 
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update({ onboarding_step: 'essentials_done' satisfies OnboardingStep })
+    .update({ onboarding_step: 'upload_processing' satisfies OnboardingStep })
     .eq('id', user.id)
 
   if (updateErr) {
@@ -69,36 +71,31 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
 }
 
 /**
- * Called when the user opts out of setting a goal during the beat. Stamps
- * onboarding_step='goal_skipped' for both routes and hands off to the Value
- * Map — completion is the Value Map's responsibility, so skipping the goal
- * does not stamp onboarding_completed_at.
+ * Called when the user opts out of setting a goal during the beat
+ * ("Continue without setting a goal yet"). Value-first flow has no
+ * bifurcation — the skip path routes to /onboarding-v2/upload like the
+ * confirm path. The user will still get a First Read; the Value Map is
+ * an opt-in chip afterwards.
+ *
+ * Stamps onboarding_step='upload_processing' so resume routing lines up
+ * with completeGoalBeat. Closes the active goal-chat conversation so it
+ * doesn't re-open as the user moves on.
  */
 export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('entry_struggle')
-    .eq('id', user.id)
-    .single()
-
-  const isMarcus = profile?.entry_struggle === 'dont_know'
-
-  if (isMarcus) {
-    await supabase
-      .from('conversations')
-      .update({ status: 'completed', updated_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .eq('type', 'onboarding_goal_chat')
-      .eq('status', 'active')
-  }
+  await supabase
+    .from('conversations')
+    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .eq('type', 'onboarding_goal_chat')
+    .eq('status', 'active')
 
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update({ onboarding_step: 'goal_skipped' satisfies OnboardingStep })
+    .update({ onboarding_step: 'upload_processing' satisfies OnboardingStep })
     .eq('id', user.id)
 
   if (updateErr) {
@@ -106,5 +103,5 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
     throw new Error('Failed to skip goal beat')
   }
 
-  return { redirectTo: '/onboarding-v2/value-map' }
+  return { redirectTo: '/onboarding-v2/upload' }
 }
