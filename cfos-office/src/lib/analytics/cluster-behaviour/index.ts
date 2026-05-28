@@ -5,6 +5,7 @@ import {
   getCategoryAggregates,
   getTransactionDatesForCluster,
   getFirstSeenForCluster,
+  getDataWindowEnd,
 } from './queries';
 import {
   deriveRecurrence,
@@ -26,17 +27,28 @@ export async function getClusterBehaviour(params: {
   windowDays?: number;
   /** Inject a Supabase client (used in tests). Defaults to service-role. */
   supabase?: SupabaseClient;
+  /**
+   * Pre-fetched latest transaction date for the user (ISO YYYY-MM-DD). Allows
+   * callers that compute behaviour for many clusters to fetch this once rather
+   * than re-querying per cluster. When omitted, it's fetched here.
+   */
+  dataWindowEnd?: string | null;
 }): Promise<ClusterBehaviour> {
   const supabase = params.supabase ?? createServiceClient();
   const requestedWindow = params.windowDays ?? DEFAULT_WINDOW_DAYS;
 
   // Determine actual window from user's data span
-  const firstSeenInHistory = await getFirstSeenForCluster(
-    supabase,
-    params.userId,
-    params.clusterType,
-    params.clusterId,
-  );
+  const [firstSeenInHistory, dataWindowEnd] = await Promise.all([
+    getFirstSeenForCluster(
+      supabase,
+      params.userId,
+      params.clusterType,
+      params.clusterId,
+    ),
+    params.dataWindowEnd !== undefined
+      ? Promise.resolve(params.dataWindowEnd)
+      : getDataWindowEnd(supabase, params.userId),
+  ]);
 
   let effectiveWindow = requestedWindow;
   let dataCompleteness = 1;
@@ -75,6 +87,7 @@ export async function getClusterBehaviour(params: {
     firstSeenInHistory,
     lastSeen: txDetails.dates.length ? txDetails.dates[txDetails.dates.length - 1] : null,
     windowDays: effectiveWindow,
+    dataWindowEnd,
   });
 
   const base = {

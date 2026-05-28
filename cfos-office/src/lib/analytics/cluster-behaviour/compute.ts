@@ -229,11 +229,24 @@ export function deriveAmountProfile(amounts: number[]): AmountProfileFeature {
 
 // ----------------------- lifecycle -----------------------
 
+// Threshold after which the user's whole dataset is "stale" enough that we
+// can't trust dormancy claims — they could just be unloaded data.
+const STALE_DATA_THRESHOLD_DAYS = 14;
+
 export function deriveLifecycle(params: {
   firstSeenInHistory: string | null;
   lastSeen: string | null;
   windowDays: number;
   now?: Date;
+  /**
+   * Latest transaction date across the user's entire dataset (ISO date).
+   * When supplied, dormancy is measured against this reference rather than
+   * today — so a merchant isn't flagged dormant just because the user hasn't
+   * uploaded recent data. When the gap between today and this reference
+   * exceeds STALE_DATA_THRESHOLD_DAYS, the 'dormant' label is suppressed
+   * entirely (we have no evidence of dormancy beyond stale data).
+   */
+  dataWindowEnd?: string | null;
 }): LifecycleFeature {
   const now = params.now ?? new Date();
   const nowISO = now.toISOString().slice(0, 10);
@@ -249,7 +262,9 @@ export function deriveLifecycle(params: {
     };
   }
 
-  const daysSinceLast = diffDays(nowISO, params.lastSeen);
+  const referenceDate = params.dataWindowEnd ?? nowISO;
+  const dataStalenessDays = params.dataWindowEnd ? diffDays(nowISO, params.dataWindowEnd) : 0;
+  const daysSinceLast = Math.max(0, diffDays(referenceDate, params.lastSeen));
   const firstSeenDaysAgo = diffDays(nowISO, params.firstSeenInHistory);
   const appearedWithinWindow = firstSeenDaysAgo <= params.windowDays;
 
@@ -264,6 +279,12 @@ export function deriveLifecycle(params: {
   // Note: 'returning' (gap > 30 then new activity) would require gap analysis;
   // we approximate by flagging as 'active' for now. Future enhancement: detect
   // mid-window dormancy gaps from transaction date list.
+
+  // If the dataset itself is stale, we can't claim dormancy: the merchant
+  // might still be active — we just haven't loaded the data.
+  if (status === 'dormant' && dataStalenessDays > STALE_DATA_THRESHOLD_DAYS) {
+    status = 'active';
+  }
 
   return {
     first_seen: params.firstSeenInHistory,

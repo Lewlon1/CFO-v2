@@ -127,6 +127,29 @@ export async function getTransactionDatesForCluster(
   };
 }
 
+/**
+ * Latest transaction date across the user's entire dataset (ISO YYYY-MM-DD),
+ * or null if the user has no transactions. Used as the dormancy reference
+ * point in deriveLifecycle so we don't flag merchants dormant purely because
+ * the user's uploaded data is stale.
+ */
+export async function getDataWindowEnd(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('date')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .order('date', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const row = (data ?? [])[0] as { date: string } | undefined;
+  if (!row) return null;
+  return typeof row.date === 'string' ? row.date.slice(0, 10) : new Date(row.date).toISOString().slice(0, 10);
+}
+
 /** First-seen date for the cluster across the user's history (not the windowed slice). Used by lifecycle.appeared_within_window. */
 export async function getFirstSeenForCluster(
   supabase: SupabaseClient,
