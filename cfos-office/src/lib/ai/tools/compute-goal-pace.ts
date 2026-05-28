@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
+import { monthsBetween } from '@/lib/goals/pace';
 
 // Returns the pre-computed pace for a goal (monthly required saving, months
 // remaining, on-track flag). The CFO calls this instead of dividing target by
@@ -46,11 +47,7 @@ export function createComputeGoalPaceTool(ctx: ToolContext) {
 
         let months_remaining: number | null = null;
         if (goal.target_date) {
-          const now = new Date();
-          const target = new Date(goal.target_date);
-          const diffMonths =
-            (target.getFullYear() - now.getFullYear()) * 12 +
-            (target.getMonth() - now.getMonth());
+          const diffMonths = monthsBetween(new Date(), new Date(goal.target_date));
           months_remaining = diffMonths > 0 ? diffMonths : 0;
         }
 

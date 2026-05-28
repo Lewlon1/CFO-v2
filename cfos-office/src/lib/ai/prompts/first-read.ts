@@ -24,6 +24,10 @@ export type FirstReadComposeInput = {
   topClusterBehaviours: ClusterBehaviour[];
   transactionCountTotal: number;
   windowDays: number;
+  /** Latest transaction date in the user's dataset (ISO YYYY-MM-DD), or null if no transactions. */
+  dataWindowEnd?: string | null;
+  /** Days between today and dataWindowEnd. Null when there's no data. */
+  dataAgeDays?: number | null;
 };
 
 export type FirstReadMetadata = {
@@ -59,6 +63,13 @@ WHAT NOT TO DO:
 - Do not use the words "advice" or "advise" — use "guidance", "suggestion", or recast.
 - Do not say "The CFO's Office" — speak as "your CFO" in first person.
 
+HONESTY (NO HALLUCINATION):
+- Use only the dates, amounts, merchants, and patterns from the structured cluster data below. Do not invent any of these.
+- Never attribute a transaction to today's date. The data is a snapshot — its most recent transaction may be days or weeks old.
+- If a merchant has no confident pattern (sparse recurrence, low confidence, or absent from the cluster list), name it at most once and say only that the pattern isn't established yet. Do not fabricate amounts, days, or counts.
+- If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line ("The most recent data here is from <date>, so what follows is the picture as of then.") — do not imply the activity is happening now.
+- Do not say a merchant is dormant unless its lifecycle status in the cluster data is "dormant".
+
 VOICE:
 - First person ("I see", "I notice", "I'd want to check").
 - Plain English. Short sentences welcome.
@@ -74,6 +85,9 @@ Plain prose. Bold (**) the cluster names when first mentioned. End with "— C."
 
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   return [
+    `DATA RECENCY:`,
+    formatDataRecency(input),
+    ``,
     `TRANSACTION CONTEXT:`,
     `- Total transactions in window: ${input.transactionCountTotal}`,
     `- Window length: ${input.windowDays} days`,
@@ -91,6 +105,22 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     ``,
     `COMPOSE THE FIRST READ NOW. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   ].join('\n');
+}
+
+function formatDataRecency(input: FirstReadComposeInput): string {
+  if (!input.dataWindowEnd || input.dataAgeDays == null) {
+    return '- No transactions on file. Do not invent any.';
+  }
+  const stale = input.dataAgeDays > 14;
+  const lines = [
+    `- Most recent transaction in this dataset: ${input.dataWindowEnd} (${input.dataAgeDays} day${input.dataAgeDays === 1 ? '' : 's'} ago).`,
+  ];
+  if (stale) {
+    lines.push(
+      `- THE DATA IS ${input.dataAgeDays} DAYS STALE. Acknowledge this in the first or second line of the read. Frame observations as "as of ${input.dataWindowEnd}", not as current. Do not refer to any activity happening today or this week.`,
+    );
+  }
+  return lines.join('\n');
 }
 
 function formatValueProfile(profile: UserValueProfile): string {

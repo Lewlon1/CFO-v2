@@ -17,6 +17,7 @@ import { bedrock, chatModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
+import { getDataWindowEnd } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 
@@ -40,13 +41,19 @@ export async function composeFirstRead(params: {
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal] = await Promise.all([
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
     getTopMerchantKeys(supabase, params.userId),
     getActiveGoal(supabase, params.userId),
     getTransactionCount(supabase, params.userId, WINDOW_DAYS),
+    getDataWindowEnd(supabase, params.userId),
   ]);
 
+  // Fetched once, threaded into every cluster lookup. Without this every
+  // cluster behaviour call re-queries the same MAX(date), and worse, the
+  // dormancy threshold compares against today rather than the user's data
+  // window — producing false positives like "supermarket dormant for 42 days"
+  // when the user's CSV ended 30 days ago.
   const clusterBehaviours = await Promise.all(
     topMerchants.map((merchantKey) =>
       getClusterBehaviour({
@@ -55,6 +62,7 @@ export async function composeFirstRead(params: {
         clusterId: merchantKey,
         windowDays: WINDOW_DAYS,
         supabase,
+        dataWindowEnd,
       }).catch((err) => {
         console.error('[compose-first-read] cluster behaviour failed:', merchantKey, err);
         return null;
@@ -76,6 +84,10 @@ export async function composeFirstRead(params: {
         .join(' · ')
     : null;
 
+  const dataAgeDays = dataWindowEnd
+    ? Math.max(0, Math.floor((Date.now() - new Date(dataWindowEnd).getTime()) / 86_400_000))
+    : null;
+
   const userPrompt = buildFirstReadUserPrompt({
     userId: params.userId,
     valueProfile,
@@ -83,6 +95,8 @@ export async function composeFirstRead(params: {
     topClusterBehaviours: usableClusters,
     transactionCountTotal,
     windowDays: WINDOW_DAYS,
+    dataWindowEnd,
+    dataAgeDays,
   });
 
   const result = await generateText({

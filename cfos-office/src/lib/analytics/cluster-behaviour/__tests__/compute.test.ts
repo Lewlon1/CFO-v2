@@ -219,4 +219,46 @@ describe('deriveLifecycle', () => {
     expect(l.status).toBe('new');
     expect(l.confidence).toBe(0);
   });
+
+  it('measures dormancy from data_window_end, not today (Lewis bug)', () => {
+    // Lewis's data ends 2026-04-29; today is 2026-05-28. Merchant's last seen
+    // 2026-04-16. Against today that's 42 days (dormant). Against the data
+    // window end (2026-04-29) it's 13 days — well under the 30-day threshold.
+    const l = deriveLifecycle({
+      firstSeenInHistory: '2026-01-01',
+      lastSeen: '2026-04-16',
+      windowDays: 90,
+      now: new Date('2026-05-28'),
+      dataWindowEnd: '2026-04-29',
+    });
+    expect(l.status).toBe('active');
+    expect(l.days_since_last).toBe(13);
+  });
+
+  it('suppresses dormant label when whole dataset is >14 days stale', () => {
+    // Data window ends 2026-04-29; today is 2026-05-28 (29 days stale).
+    // Even a merchant last seen 60 days ago in the data shouldn't be flagged
+    // dormant — we don't know if they're still active in the gap we can't see.
+    const l = deriveLifecycle({
+      firstSeenInHistory: '2025-01-01',
+      lastSeen: '2026-02-28',
+      windowDays: 90,
+      now: new Date('2026-05-28'),
+      dataWindowEnd: '2026-04-29',
+    });
+    expect(l.status).toBe('active');
+  });
+
+  it('still flags dormant when data is current and merchant truly inactive', () => {
+    // Data uploaded yesterday; merchant last seen 60 days ago.
+    const l = deriveLifecycle({
+      firstSeenInHistory: '2025-01-01',
+      lastSeen: '2026-03-27',
+      windowDays: 90,
+      now: new Date('2026-05-28'),
+      dataWindowEnd: '2026-05-27',
+    });
+    expect(l.status).toBe('dormant');
+    expect(l.days_since_last).toBeGreaterThan(30);
+  });
 });
