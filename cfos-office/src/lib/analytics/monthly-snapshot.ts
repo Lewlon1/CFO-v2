@@ -9,6 +9,7 @@ import {
 import { detectIncomeShape } from './income-shape'
 import { computeCashFlowAggregates } from './cashflow-aggregates'
 import { detectPosture } from './posture'
+import { reconcileFixedCosts } from './reconcile-fixed-costs'
 
 type SnapshotTxn = {
   amount: number | string
@@ -117,6 +118,41 @@ export async function refreshMonthlySnapshots(
   await backfillClosingBalances(supabase, userId)
   await updateIncomeShape(supabase, userId)
   await updateFinancialPosture(supabase, userId)
+  // total_fixed_costs is computed once per refresh and applied to every
+  // snapshot row for the user. Fixed costs are a current-state attribute,
+  // not a historical one — the user's rent + reconciled recurring set is
+  // the same regardless of which month's snapshot is being inspected. The
+  // First Read pulls this off the most recent snapshot.
+  await syncTotalFixedCosts(supabase, userId)
+}
+
+/**
+ * Compute the reconciled fixed-cost total once and stamp it across the
+ * user's existing monthly_snapshots rows. The value-first onboarding flow
+ * is the first writer; legacy users get NULL → recomputed value the next
+ * time the upload pipeline runs.
+ *
+ * Exported so the processing-form server action can call it the moment
+ * rent + detected recurring are both on file (the upload-time call inside
+ * refreshMonthlySnapshots is a no-op on the first import because the
+ * recurring detector hasn't run yet at that point).
+ */
+export async function syncTotalFixedCosts(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  try {
+    const { totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId)
+    const { error } = await supabase
+      .from('monthly_snapshots')
+      .update({ total_fixed_costs: totalFixedCostsMonthly })
+      .eq('user_id', userId)
+    if (error) {
+      console.error('[syncTotalFixedCosts] update failed:', error)
+    }
+  } catch (err) {
+    console.error('[syncTotalFixedCosts] reconcile failed:', err)
+  }
 }
 
 async function refreshOneMonth(

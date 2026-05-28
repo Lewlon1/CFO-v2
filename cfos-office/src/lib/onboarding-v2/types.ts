@@ -14,8 +14,11 @@ export type OnboardingStep =
   // Value-first flow: import kicked off; the processing screen is up,
   // hosting the income + rent form alongside the parse/aggregate wait.
   | 'upload_processing'
-  // Value-first flow: form submitted and confirm/reconcile of fixed costs
-  // is complete. monthly_snapshots.total_fixed_costs is populated.
+  // Value-first flow: income + rent form submitted; awaiting confirm of the
+  // reconciled fixed-cost list. Routes to /onboarding-v2/confirm.
+  | 'details_pending'
+  // Value-first flow: confirm/reconcile of fixed costs is complete.
+  // monthly_snapshots.total_fixed_costs is populated.
   | 'details_confirmed'
   | 'value_map_started'
   | 'value_map_done'

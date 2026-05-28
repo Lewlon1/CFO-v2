@@ -67,6 +67,10 @@ export function resumeRoute(
       // Value-first — upload kicked off; processing screen hosts the
       // income+rent form alongside the parse/aggregate wait.
       return '/onboarding-v2/processing'
+    case 'details_pending':
+      // Value-first — form submitted; the confirm screen lists the
+      // reconciled fixed costs so the user can nod or drop each one.
+      return '/onboarding-v2/confirm'
     case 'details_confirmed':
       // Value-first — form submitted and fixed costs reconciled; head to Read.
       return '/onboarding-v2/first-read'

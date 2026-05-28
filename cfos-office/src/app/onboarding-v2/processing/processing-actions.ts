@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getPrimaryGoal } from '@/lib/goals/primary-goal'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
+import { syncTotalFixedCosts } from '@/lib/analytics/monthly-snapshot'
 
 export type InstantPayback =
   | { kind: 'goal_pace'; goal_name: string; monthly_required_saving: number; percent_of_income: number | null; currency: string }
@@ -81,11 +82,26 @@ export async function submitRent(rent: number): Promise<void> {
 }
 
 /**
- * Advance to the confirm/reconcile step. Stamps details_confirmed and
- * routes to /onboarding-v2/first-read. (Phase 3 inserts a /confirm screen
- * in between; for Phase 2 we route straight to the Read.)
+ * Advance from the processing form to the confirm/reconcile screen. The
+ * form-during-processing flow is the FIRST writer of total_fixed_costs for
+ * this user — the upload-time refreshMonthlySnapshots ran before rent was
+ * on file and before detectAndFlagRecurring had a chance to populate
+ * recurring_expenses, so the total was 0/null at that point. Calling
+ * syncTotalFixedCosts here closes the gap so the confirm screen's footer
+ * total + the eventual First Read free-cash-flow figure are both correct.
+ *
+ * On failure we still advance — the Read can compose without
+ * total_fixed_costs; the next upload will backfill.
  */
 export async function advanceToConfirm(): Promise<{ redirectTo: string }> {
-  await advanceStep('details_confirmed' satisfies OnboardingStep)
-  return { redirectTo: '/onboarding-v2/first-read' }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  await syncTotalFixedCosts(supabase, user.id).catch((err) => {
+    console.error('[advanceToConfirm] syncTotalFixedCosts failed', err)
+  })
+
+  await advanceStep('details_pending' satisfies OnboardingStep)
+  return { redirectTo: '/onboarding-v2/confirm' }
 }
