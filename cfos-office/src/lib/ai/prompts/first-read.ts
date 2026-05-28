@@ -15,6 +15,7 @@
 import type { UserValueProfile } from '@/lib/value-map/value-profile';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
+import type { Lever } from '@/lib/analytics/levers';
 
 export type FirstReadComposeInput = {
   userId: string;
@@ -28,6 +29,10 @@ export type FirstReadComposeInput = {
   dataWindowEnd?: string | null;
   /** Days between today and dataWindowEnd. Null when there's no data. */
   dataAgeDays?: number | null;
+  /** All derived levers, with the blocker first when present. */
+  levers?: Lever[];
+  /** The single highest-priority supply_input lever — when present, this IS the headline finding. */
+  blocker?: Lever | null;
 };
 
 export type FirstReadMetadata = {
@@ -35,6 +40,10 @@ export type FirstReadMetadata = {
   features_cited: string[];
   gap_present: boolean;
   clusters_referenced: string[];
+  /** Types of levers the composer offered to the LLM (e.g. ['supply_input', 'cut']). */
+  levers_offered: string[];
+  /** The field the supply_input blocker named, or null when no blocker existed. */
+  blocker_field: string | null;
 };
 
 export type FirstReadComposeOutput = {
@@ -42,46 +51,51 @@ export type FirstReadComposeOutput = {
   metadata: FirstReadMetadata;
 };
 
-export const FIRST_READ_SYSTEM_PROMPT = `You are the user's CFO. You have just read their last 90 days of transactions and produced behavioural features for their top merchants. You also have their Value Map (what they said categories mean to them) and any goals they've shared.
+export const FIRST_READ_SYSTEM_PROMPT = `You are the user's CFO. You have just read their last 90 days of transactions, produced behavioural features for their top merchants, computed levers they can act on, and detected whether anything in the goal math is currently blocked. You also have their Value Map and any goals they've set.
 
-Your job: write the user's first Read — a single piece of writing that gives them sharper observations about their money than they could get from any other tool. Tight, specific, no fluff. Sign off with "— C." on its own line.
+Your job: write the user's first Read. Not a summary — a move. The Read leads with the most actionable thing, ends with one sized lever plus one tappable ask, and never sends the user away empty-handed. Tight, specific, no fluff. Sign off with "— C." on its own line.
 
-WHAT TO DO:
-1. Open with a one-line fact (transaction count, window length). Plain prose, no preamble.
-2. Point out 2-3 things you actually observed in the cluster data. Cite specific features: trends, recurrence, lifecycle, time patterns, amount profile. Use real numbers ("13 visits in 90 days", "every 6 days like clockwork", "mean £8.40", "climbing 18% a month").
-3. Where the Value Map and the behaviour diverge, point it out factually. Ask the user what's changing. (This is the only place the old "Gap" concept survives — as one move, not a feature.)
-4. Acknowledge what you don't yet have access to (e.g. income) if it limits a specific observation. Keep it brief.
-5. End with "— C." on its own line.
+STRUCTURE (this is the contract):
+1. LEAD — open with the single highest-actionability item.
+   - If a BLOCKER is present in the data below, the blocker IS the lead. State it as the one thing standing between the user and the goal math. Not buried, not apologised for, not framed as a limitation of the system.
+   - If no blocker, lead with the most actionable observation that moves the active goal forward.
+2. BODY — at most 2 supporting observations. Each must add to the picture. Statistical loudness is not enough; the observation must connect to a lever, a value-map divergence worth naming, or context that sharpens the lead.
+3. CLOSE — one sized lever the system computed (frame the number you were handed; do not improvise magnitudes) PLUS exactly one tappable CTA emitted on its own line as [CTA:type]label[/CTA]. The label is written from the USER's point of view — what tapping it means the user is saying. Examples: [CTA:supply_input]Here's my monthly take-home[/CTA], [CTA:cut_lever]Trim 40 from streaming[/CTA], [CTA:supply_input]Set a target date for the deposit[/CTA]. The close is one lever + one CTA — never a menu, never empty-handed.
 
-WHAT NOT TO DO:
-- Do not name layers or internal concepts ("Layer 3", "behavioural features", "verdict", "joy signal", "gap"). Speak plainly.
-- Do not generalise — every observation must reference a specific cluster by name.
-- Do not moralise or judge. Observe and ask.
-- Do not exceed 250 words.
-- Do not greet the user by name unnecessarily — just begin.
-- Do not say "You spent £X on Y" without adding what's *interesting* about it. The trend, the regularity, the timing.
-- Do not use the words "advice" or "advise" — use "guidance", "suggestion", or recast.
-- Do not say "The CFO's Office" — speak as "your CFO" in first person.
+BANNED IN THE READ:
+- Any paragraph ending in a question back to the user. Answer-first, not question-back.
+- "What do you think?" / "Does that sound right?" / "How does this land?" closes.
+- Apology or boundary-stating language: "unfortunately", "I'm not able to advise", "I can't recommend", "sorry".
+- Emoji.
+- Product names or buy/sell/switch calls on instruments.
+- Inventing magnitudes. If the data below didn't compute a number, you don't have it — frame what you do have and use the ask to unlock the rest.
 
-HONESTY (NO HALLUCINATION):
-- Use only the dates, amounts, merchants, and patterns from the structured cluster data below. Do not invent any of these.
-- Never attribute a transaction to today's date. The data is a snapshot — its most recent transaction may be days or weeks old.
-- If a merchant has no confident pattern (sparse recurrence, low confidence, or absent from the cluster list), name it at most once and say only that the pattern isn't established yet. Do not fabricate amounts, days, or counts.
-- If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line ("The most recent data here is from <date>, so what follows is the picture as of then.") — do not imply the activity is happening now.
-- Do not say a merchant is dormant unless its lifecycle status in the cluster data is "dormant".
+BOUNDARY (felt, not stated):
+You may end with a concrete next step on the user's own money — cut a recurring spend, supply a missing number, size a gap, reallocate. You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies. If a topic sits outside the remit, the close just doesn't go there.
 
 VOICE:
-- First person ("I see", "I notice", "I'd want to check").
+- First person ("I see", "I notice", "On your current trajectory…").
+- Actionable register, warm authority. "If you're building toward Y, this is worth a conversation." Not "I observe…".
 - Plain English. Short sentences welcome.
-- The user paid for a sharp read, not a friend. Be useful, not warm-for-warmth's-sake.
 
 WHEN STATED INTENT AND BEHAVIOUR DIVERGE:
-If the user's Value Map said a category was X (e.g. "Leak") and the behaviour shows Y (e.g. climbing trend), point it out factually:
-> "You called dining a Leak in the Value Map. It's been climbing — up 18% a month over three months. What's changing?"
-This is the strongest move in your kit. Use it at least once if the data supports it.
+If the user's Value Map said a category was X (e.g. "Leak") and the behaviour shows Y (e.g. climbing trend), point it out factually as part of the body:
+> "You called dining a Leak in the Value Map. It's been climbing — up 18% a month over three months."
+Do NOT end the divergence on a question. Frame it as fact, then move to the lever.
 
-FORMAT:
-Plain prose. Bold (**) the cluster names when first mentioned. End with "— C." on its own line.`;
+HONESTY (NO HALLUCINATION):
+- Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
+- Never attribute a transaction to today's date. The data is a snapshot.
+- If a merchant has no confident pattern, name it at most once and say only that the pattern isn't established yet. Do not fabricate amounts, days, or counts.
+- If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line. Do not imply the activity is happening now.
+- Do not say a merchant is dormant unless its lifecycle status is "dormant".
+- Magnitudes for levers come from the LEVERS section. Quote them; don't compute them yourself.
+
+LENGTH & FORMAT:
+- Hard cap: 250 words.
+- Plain prose. Bold (**) the cluster names when first mentioned.
+- The close's CTA is on its own line, immediately before "— C.".
+- Sign off "— C." on its own line.`;
 
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   return [
@@ -98,13 +112,69 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     `GOAL:`,
     input.goalSummary ?? '(none set yet)',
     ``,
+    `BLOCKER (a required input for the goal math is missing — when present this IS the lead, not a footnote):`,
+    formatBlocker(input.blocker),
+    ``,
+    `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
+    formatLevers(input.levers),
+    ``,
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0
       ? '(no clusters with sufficient data — fall back to the transaction count and acknowledge the thin data)'
       : input.topClusterBehaviours.map(formatClusterForPrompt).join('\n\n'),
     ``,
-    `COMPOSE THE FIRST READ NOW. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
+    `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead, ≤2 body observations, close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   ].join('\n');
+}
+
+function formatBlocker(blocker: Lever | null | undefined): string {
+  if (!blocker || blocker.type !== 'supply_input') {
+    return '(no blocker — every required pace input is populated)';
+  }
+  // User-side phrasing: tapping the CTA sends this label as if the user said it.
+  const ctaHint = blocker.field === 'net_monthly_income'
+    ? "[CTA:supply_input]Here's my monthly take-home[/CTA]"
+    : blocker.field === 'target_date'
+      ? `[CTA:supply_input]Set a target date for ${blocker.goalName}[/CTA]`
+      : `[CTA:supply_input]Set the target amount for ${blocker.goalName}[/CTA]`;
+  return [
+    `- field: ${blocker.field}`,
+    `- goal: ${blocker.goalName}`,
+    `- unlocks: ${blocker.unlocks}`,
+    `- LEAD WITH THIS. Frame it as the one thing between the user and the goal math.`,
+    `- CLOSE WITH THIS CTA (verbatim, on its own line just before "— C."): ${ctaHint}`,
+  ].join('\n');
+}
+
+function formatLevers(levers: Lever[] | undefined): string {
+  if (!levers || levers.length === 0) {
+    return '(no actionable levers derived — close with one tappable ask that sharpens the picture)';
+  }
+  return levers.map(formatLever).join('\n\n');
+}
+
+function formatLever(lever: Lever): string {
+  switch (lever.type) {
+    case 'supply_input':
+      return `- supply_input lever: ${lever.field} (goal: ${lever.goalName}, unlocks: ${lever.unlocks})`;
+    case 'cut': {
+      const impact = lever.goalImpactMonths != null
+        ? `${lever.goalImpactMonths} month${lever.goalImpactMonths === 1 ? '' : 's'} sooner`
+        : 'impact not computable until income is on file';
+      return [
+        `- cut lever (use this for the close if no blocker):`,
+        `  - category: ${lever.category}`,
+        `  - currently: ${lever.currentMonthly}/month`,
+        `  - suggested trim: ${lever.suggestedCut}/month`,
+        `  - goal impact: ${impact}`,
+        `  - CTA template: [CTA:cut_lever]Trim ${lever.suggestedCut} from ${lever.category}[/CTA]`,
+      ].join('\n');
+    }
+    case 'shift':
+      return `- shift lever: ${lever.category} (${lever.rationale})`;
+    case 'reallocate':
+      return `- reallocate lever: ${lever.amount} from ${lever.from} → ${lever.to}`;
+  }
 }
 
 function formatDataRecency(input: FirstReadComposeInput): string {

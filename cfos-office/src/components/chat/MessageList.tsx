@@ -486,8 +486,17 @@ export function MessageList({
                 <TappableOptions options={options} onSelect={optionSelectHandler} />
               )}
 
-              {/* CTA block */}
-              {cta && <ChatCTA type={cta.type} label={cta.label} />}
+              {/* CTA block — action-type CTAs (supply_input, cut_lever, etc.)
+                  re-use the OPTIONS chip-tap handler so wow tracking + chat
+                  send stay in one place. value_checkin (the existing deep-link)
+                  ignores onAction and renders its Link as before. */}
+              {cta && (
+                <ChatCTA
+                  type={cta.type}
+                  label={cta.label}
+                  onAction={optionSelectHandler}
+                />
+              )}
 
               {/* Onboarding v2 — Value Map action button. Renders when either
                   the persisted metadata stamps the action (post-stream) OR the

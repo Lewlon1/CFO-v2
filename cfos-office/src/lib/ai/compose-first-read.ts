@@ -20,6 +20,7 @@ import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
 import { getDataWindowEnd } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
+import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
 
 import {
   FIRST_READ_SYSTEM_PROMPT,
@@ -41,12 +42,13 @@ export async function composeFirstRead(params: {
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd] = await Promise.all([
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
     getTopMerchantKeys(supabase, params.userId),
     getActiveGoal(supabase, params.userId),
     getTransactionCount(supabase, params.userId, WINDOW_DAYS),
     getDataWindowEnd(supabase, params.userId),
+    deriveLevers({ supabase, userId: params.userId }),
   ]);
 
   // Fetched once, threaded into every cluster lookup. Without this every
@@ -97,6 +99,8 @@ export async function composeFirstRead(params: {
     windowDays: WINDOW_DAYS,
     dataWindowEnd,
     dataAgeDays,
+    levers: leverPackage.levers,
+    blocker: leverPackage.blocker,
   });
 
   const result = await generateText({
@@ -114,6 +118,7 @@ export async function composeFirstRead(params: {
     composedMessage,
     usableClusters,
     goalSummary,
+    leverPackage,
   });
 
   return { composedMessage, metadata };
@@ -190,6 +195,7 @@ export function extractCompositionMetadata(args: {
   composedMessage: string;
   usableClusters: ClusterBehaviour[];
   goalSummary: string | null;
+  leverPackage?: LeverPackage;
 }): FirstReadMetadata {
   const text = args.composedMessage.toLowerCase();
 
@@ -214,5 +220,12 @@ export function extractCompositionMetadata(args: {
       return probe.length > 2 && args.composedMessage.toLowerCase().includes(probe);
     });
 
-  return { layers_used, features_cited, gap_present, clusters_referenced };
+  return {
+    layers_used,
+    features_cited,
+    gap_present,
+    clusters_referenced,
+    levers_offered: args.leverPackage?.levers.map((l) => l.type) ?? [],
+    blocker_field: args.leverPackage?.blocker?.type === 'supply_input' ? args.leverPackage.blocker.field : null,
+  };
 }

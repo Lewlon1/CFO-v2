@@ -9,6 +9,29 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session B / Phase 2 revised — The Read, Actionability Fix — 2026-05-28
+
+**Branch:** `session-32/the-read`
+**Scope:** Composition layer of the first Read. No DB migrations.
+
+The Spain test (194 transactions, €50k house deposit, income unknown) produced a competent transaction-summariser that helped with nothing. Diagnosis and lessons:
+
+- **Diagnosis:** We built the CFO to see and never defined what it does with what it sees. Noticing ≠ wow. Wow = noticing + a clear next step.
+- **Boundary was misapplied, not limiting.** `CFO-CONSTITUTION.md:141` forbids products and buy/sell/switch calls — not next steps on the user's own money. The help-with-nothing output violated the constitution (stated the boundary, dodged the actionable phrases it's told to use), it didn't honour it.
+- **Actionability > notability.** Observations are now ordered by what the user can do, not how unusual they are — and the ordering happens via the LEVERS / BLOCKER structured data fed into the composition, not via `insight-engine.ts` (which serves the legacy V1/V2 path the layered Read doesn't touch). The "actionability sort" lives in the prompt + the lever derivation, not in a `.score` field.
+- **Levers are computed, never improvised.** `src/lib/analytics/levers.ts` derives `cut` magnitudes from a counterfactual on the existing surplus calculation. The model frames numbers it is handed.
+- **Math-blocking = a required pace input is null.** Income was the Spain instance, not a hardcoded special case. The detector reads `goals.target_date` and `user_profiles.net_monthly_income` — the same hard blockers documented in `pace.ts` — and emits a `supply_input` lever that becomes the headline of the Read.
+- **The close never offloads.** One lever + one tappable `[CTA:type]label[/CTA]` ask; no question-back, no apology. The CTA label is written from the user's POV ("Here's my monthly take-home") so tapping it sends a coherent user message back into chat.
+- **Affordance plumbing reuses what's there.** `[CTA:…]…[/CTA]` and `[OPTIONS]…[/OPTIONS]` parsers already existed in `MessageList.tsx`. New action-type CTAs (`supply_input`, `cut_lever`) share the chip-tap path so wow events flow through the existing `chip_tapped` channel — no new enum value, no migration, no Session-C plumbing built ahead of schedule.
+
+**Files touched:** `CFO-CONSTITUTION.md`, `COPY-DECK.md`, `src/lib/ai/system-prompt.ts`, `src/lib/ai/prompts/first-read.ts`, `src/lib/ai/compose-first-read.ts`, `src/lib/analytics/levers.ts` (new), `src/lib/analytics/__tests__/levers.test.ts` (new), `src/components/chat/ChatCTA.tsx`, `src/components/chat/MessageList.tsx`. Build green; 822 tests pass (was 816 pre-session; +6 lever).
+
+**Scope correction worth flagging for future sessions:** the brief asked for an `insight-engine.ts:306` ranking change. The layered Read doesn't consume `insight-engine.ts` — that file powers the legacy V1/V2 path through `/api/chat`. If the legacy path ever returns, the same notability→actionability treatment applies there. Out of scope for this session.
+
+**Out of scope (deferred):** richer `shift` / `reallocate` lever derivation; conditional Session E archetype removal; thin-data footer for ≤1-month users (skipped at user direction in the Marcus/Dorcas/Lewis pass that merged in first); migration to add `cta_tapped` as a distinct wow event type.
+
+---
+
 ## v2.5.2 — IA Simplification + Palette Reset + Component Reuse — 2026-05-19
 
 **Branch:** `claude/v2.5-ia-simplification-AWnKN`
