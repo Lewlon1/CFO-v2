@@ -42,15 +42,18 @@ export function UploadOrchestrator({ layered = false }: { layered?: boolean }) {
   const handleDone = useCallback(async () => {
     if (advancedRef.current) return
     advancedRef.current = true
+    // Value-first flow (layered): once the import has kicked off, hand off
+    // to the processing screen which hosts the income+rent form alongside
+    // the parse/aggregate wait. The unflagged (non-layered) path is the
+    // legacy direct-to-archetype hop and is preserved unchanged.
     try {
-      await advanceStep('upload_done')
+      await advanceStep(layered ? 'upload_processing' : 'upload_done')
     } catch (err) {
       console.error('[onboarding-v2.upload] advance failed', err)
     }
-    // Session 32 (B) — layered-read users go to the parallel /first-read route;
-    // unflagged users continue to the archetype reveal. The flag is evaluated
-    // server-side and passed in via the `layered` prop.
-    const destination = layered ? '/onboarding-v2/first-read' : '/onboarding-v2/archetype'
+    const destination = layered
+      ? '/onboarding-v2/processing'
+      : '/onboarding-v2/archetype'
     router.push(destination)
   }, [router, layered])
 

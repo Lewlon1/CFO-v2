@@ -14,7 +14,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * AND at least one of:
  *   - a value_map_sessions row exists for profile_id = userId, OR
  *   - the user has reached the first-read terminal state (onboarding_step
- *     in {'first_read_shown', 'archetype_shown', 'complete'}).
+ *     in {'first_read_shown', 'first_read_delivered', 'archetype_shown',
+ *     'complete'}). `first_read_delivered` is the value-first flow's name
+ *     for the same beat.
  *
  * Either path satisfies completion. The first Read is the default path
  * under the new flow; the Value Map is an opt-in deepening move that
@@ -39,6 +41,7 @@ export async function markOnboardingCompleteIfReady(
 
   const readReached =
     profile.onboarding_step === 'first_read_shown' ||
+    profile.onboarding_step === 'first_read_delivered' ||
     profile.onboarding_step === 'archetype_shown' ||
     profile.onboarding_step === 'complete'
 

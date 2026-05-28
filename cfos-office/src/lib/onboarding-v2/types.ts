@@ -8,8 +8,11 @@ export type OnboardingStep =
   // then routes to /onboarding-v2/upload. Users stamped here continue to
   // land on upload — the data is already populated.
   | 'essentials_done'
-  // Value-first flow: goal confirmed in chat, upload kicked off, processing
-  // screen hosts the income+rent form. Stamps when the goal lands.
+  // Value-first flow: goal confirmed in chat; user is on the upload screen
+  // but has not yet imported. Routes to /onboarding-v2/upload.
+  | 'upload_pending'
+  // Value-first flow: import kicked off; the processing screen is up,
+  // hosting the income + rent form alongside the parse/aggregate wait.
   | 'upload_processing'
   // Value-first flow: form submitted and confirm/reconcile of fixed costs
   // is complete. monthly_snapshots.total_fixed_costs is populated.

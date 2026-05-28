@@ -59,7 +59,7 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
 
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update({ onboarding_step: 'upload_processing' satisfies OnboardingStep })
+    .update({ onboarding_step: 'upload_pending' satisfies OnboardingStep })
     .eq('id', user.id)
 
   if (updateErr) {
@@ -95,7 +95,7 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
 
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update({ onboarding_step: 'upload_processing' satisfies OnboardingStep })
+    .update({ onboarding_step: 'upload_pending' satisfies OnboardingStep })
     .eq('id', user.id)
 
   if (updateErr) {

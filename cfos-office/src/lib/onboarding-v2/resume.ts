@@ -60,6 +60,9 @@ export function resumeRoute(
       // net_monthly_income / monthly_rent and auto-skips the form so these
       // users don't re-enter what they already provided.
       return '/onboarding-v2/upload'
+    case 'upload_pending':
+      // Value-first — goal landed; user is on /upload, ready to import.
+      return '/onboarding-v2/upload'
     case 'upload_processing':
       // Value-first — upload kicked off; processing screen hosts the
       // income+rent form alongside the parse/aggregate wait.
