@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import type { ReconciledBill } from '@/lib/analytics/reconcile-fixed-costs'
 import { formatCurrency } from '@/lib/format/currency'
+import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format'
 import { confirmFixedCosts } from '@/app/onboarding-v2/confirm/confirm-actions'
 
 type Props = {
@@ -141,11 +142,20 @@ export function ConfirmFixedCosts({
                   {item.source === 'detected' && ' · detected'}
                   {item.source === 'declared' && item.matched_detected && ' · matched'}
                 </p>
-                {item.benchmark_flag && (
-                  <p className="text-xs text-amber-500 mt-1">
-                    Above peer average
-                  </p>
-                )}
+                {(() => {
+                  const observation = item.benchmark_verdict
+                    ? formatBenchmarkObservation({
+                        label: item.label,
+                        monthly_amount: item.monthly_equivalent,
+                        verdict: item.benchmark_verdict,
+                      })
+                    : null
+                  return observation ? (
+                    <p className="text-xs text-amber-500 mt-1 leading-snug">
+                      {observation}
+                    </p>
+                  ) : null
+                })()}
               </div>
               <button
                 type="button"

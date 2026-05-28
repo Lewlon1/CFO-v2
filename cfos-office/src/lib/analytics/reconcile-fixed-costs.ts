@@ -18,7 +18,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { monthlyEquivalent } from './recurring-detector'
-import { flagAgainstBenchmark, type BenchmarkFlag } from './flag-against-benchmark'
+import { flagAgainstBenchmark } from './flag-against-benchmark'
+import type { BenchmarkVerdict, BillSubtype } from './benchmark/types'
+import { classifyBillSubtype } from './benchmark/classify-subtype'
 
 /** Cadence ladder used for adjacency matching. Order matters. */
 const CADENCE_LADDER = [
@@ -47,7 +49,16 @@ export type ReconciledBill = FixedCostInput & {
   matched_detected: boolean
   /** True when this row was the dedupe loser and contributes 0 to the total. */
   superseded: boolean
-  benchmark_flag: BenchmarkFlag | null
+  /**
+   * Observational benchmark verdict (band-based; never a point). Populated
+   * only when the bill has a resolved subtype AND the user's country has a
+   * sourced band in `benchmark_reference`. The First Read narrates only
+   * verdicts with verdict==='above'; the UI may render `within` / `below`
+   * differently in future.
+   */
+  benchmark_verdict: BenchmarkVerdict | null
+  /** Server-classified bill subtype carried through reconcile (audit). */
+  bill_subtype: BillSubtype | null
 }
 
 export type ReconcileResult = {
@@ -100,17 +111,17 @@ export async function reconcileFixedCosts(
   const [profileRes, declaredRes, recurringRes] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('monthly_rent, primary_currency')
+      .select('monthly_rent, primary_currency, country')
       .eq('id', userId)
       .maybeSingle(),
     supabase
       .from('user_declared_fixed_costs')
-      .select('id, label, amount, cadence, status')
+      .select('id, label, amount, cadence, status, bill_subtype')
       .eq('user_id', userId)
       .neq('status', 'dismissed'),
     supabase
       .from('recurring_expenses')
-      .select('id, name, amount, frequency, status, category_id')
+      .select('id, name, amount, frequency, status, category_id, bill_subtype')
       .eq('user_id', userId)
       .in('status', ['detected', 'tracked']),
   ])
@@ -119,6 +130,8 @@ export async function reconcileFixedCosts(
     typeof profileRes.data?.monthly_rent === 'number'
       ? profileRes.data.monthly_rent
       : null
+  const country =
+    typeof profileRes.data?.country === 'string' ? (profileRes.data.country as string) : null
 
   const items: ReconciledBill[] = []
 
@@ -131,7 +144,8 @@ export async function reconcileFixedCosts(
       monthly_equivalent: monthlyRent,
       matched_detected: false,
       superseded: false,
-      benchmark_flag: null,
+      benchmark_verdict: null,
+      bill_subtype: null,
     })
   }
 
@@ -142,6 +156,7 @@ export async function reconcileFixedCosts(
     cadence: Cadence
     monthly_equivalent: number
     consumed_by_declared: boolean
+    bill_subtype: BillSubtype | null
   }
   const detectedSlots: DetectedSlot[] = (recurringRes.data ?? []).map((r) => {
     const cadence = normaliseCadence(r.frequency as string)
@@ -152,6 +167,7 @@ export async function reconcileFixedCosts(
       cadence,
       monthly_equivalent: monthlyEquivalent(amount, cadence),
       consumed_by_declared: false,
+      bill_subtype: (r.bill_subtype as BillSubtype | null) ?? null,
     }
   })
 
@@ -181,7 +197,8 @@ export async function reconcileFixedCosts(
         monthly_equivalent: monthly,
         matched_detected: false,
         superseded: true,
-        benchmark_flag: null,
+        benchmark_verdict: null,
+        bill_subtype: null,
       })
       continue
     }
@@ -199,18 +216,34 @@ export async function reconcileFixedCosts(
       }
     }
 
+    const declaredSubtype = (d.bill_subtype as BillSubtype | null) ?? null
+    // Subtype resolution: declared row's stored subtype wins (user / earlier
+    // classification), then the matched detected slot, then on-the-fly
+    // classification of the label. The flagger silences itself when all
+    // three return null.
+    const resolvedSubtype: BillSubtype | null =
+      declaredSubtype ??
+      matchedSlot?.bill_subtype ??
+      classifyBillSubtype((d.label as string) ?? '').subtype
+
     const candidate: FixedCostInput = {
       label: (d.label as string) ?? 'Recurring bill',
       amount,
       cadence,
       source: 'declared',
     }
+    const verdict = await flagAgainstBenchmark(
+      supabase,
+      { ...candidate, bill_subtype: resolvedSubtype },
+      country,
+    )
     items.push({
       ...candidate,
       monthly_equivalent: monthly,
       matched_detected: matchedSlot != null,
       superseded: false,
-      benchmark_flag: flagAgainstBenchmark(candidate),
+      benchmark_verdict: verdict,
+      bill_subtype: resolvedSubtype,
     })
   }
 
@@ -230,12 +263,20 @@ export async function reconcileFixedCosts(
       cadence: slot.cadence,
       source: 'detected',
     }
+    const resolvedSubtype: BillSubtype | null =
+      slot.bill_subtype ?? classifyBillSubtype(slot.label).subtype
+    const verdict = await flagAgainstBenchmark(
+      supabase,
+      { ...candidate, bill_subtype: resolvedSubtype },
+      country,
+    )
     items.push({
       ...candidate,
       monthly_equivalent: slot.monthly_equivalent,
       matched_detected: false,
       superseded: false,
-      benchmark_flag: flagAgainstBenchmark(candidate),
+      benchmark_verdict: verdict,
+      bill_subtype: resolvedSubtype,
     })
   }
 

@@ -39,6 +39,13 @@ export type FirstReadComposeInput = {
   financialFacts?: FinancialFacts | null;
   /** Value-first additions — the 2-3 items the Read ends on as a HOOK. Empty / undefined for default mode. */
   hookCandidates?: HookCandidate[];
+  /**
+   * Pre-rendered observational sentence about the user's most-above-band bill,
+   * or null when no above-band verdict exists. Single sentence, safe-phrased
+   * by `formatBenchmarkObservation`. The model surfaces this near-verbatim
+   * when present — never invents or recomputes it.
+   */
+  benchmarkObservation?: string | null;
 };
 
 export type FirstReadMetadata = {
@@ -202,6 +209,19 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     );
   }
 
+  if (input.benchmarkObservation) {
+    sections.push(
+      `BENCHMARK OBSERVATION (single sentence, pre-rendered, cite near-verbatim — do not recompute or rephrase the band):`,
+      input.benchmarkObservation,
+      ``,
+      `Rules for the BENCHMARK OBSERVATION:`,
+      `- Surface it at most once, neutrally, as an observation. Cite the band and source.`,
+      `- Never use the words "switch", "should", "too high", "overpaying", "recommend", or any synonym implying the user must change providers.`,
+      `- Never name a provider beyond what is already in the {label} portion of the pre-rendered sentence.`,
+      `- This is observation, not prescription. If the user wants to act, you may offer to talk through renegotiating in a later turn — never as a directive here.`,
+      ``,
+    );
+  }
   sections.push(
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0

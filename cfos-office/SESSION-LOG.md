@@ -9,6 +9,64 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Bill Benchmark Reference — 2026-05-28
+
+**Branch:** `claude/bill-benchmark-reference-vH2bh` (child of `value-first-onboarding`, off `session-32/the-read`)
+**Scope:** Light up the `flagAgainstBenchmark()` integration stubbed by the value-first onboarding session — the data layer and comparison logic that turn "your broadband is above average" from a guess into a defensible, sourced observation. One additive migration (068_benchmark_reference) applied to staging only.
+
+### What shipped
+
+**Schema (migration 068):**
+- New `bill_subtype` enum: `broadband | mobile | electricity | gas | home_insurance | auto_insurance | streaming_subscription`. The "contractual / fixed" allowlist is encoded in the type system — adding a value requires a migration, not a runtime config, and the flagger refuses subtypes outside the enum.
+- `bill_subtype` columns (nullable, forever) on `recurring_expenses` and `user_declared_fixed_costs`. NULL means "no benchmark eligible", which is the safe default.
+- `benchmark_reference` table — keyed `(country, bill_subtype)` UNIQUE; `band_low / band_high` numeric (nullable until sourced); `source NOT NULL` (citation required, `TODO: <regulator>` allowed during sourcing); `currency` + `country` whitelist via CHECK; RLS-enabled, single SELECT policy gated on `(select auth.uid()) IS NOT NULL`; service-role writes only via migration. `merchant_aggregates`-style lockdown.
+- 14 structural seed rows (GB × 7 subtypes + ES × 7) inserted with NULL bands and `TODO:` source markers. No fabricated numbers.
+
+**Code:**
+- `src/lib/analytics/benchmark/{types, classify-subtype, format}.ts` — types (`BillSubtype`, `BenchmarkVerdict`, country allowlist), pure keyword classifier (high-confidence unambiguous tokens win; low-confidence brand fallbacks for shared GB/ES telco names; null on no match), safe-phrasing helper that hard-codes the observational copy in one place.
+- `src/lib/analytics/flag-against-benchmark.ts` — full rewrite. Replaces the point-based `BenchmarkFlag` (severity / pct_above) with the band-based `BenchmarkVerdict` (verdict / band_low / band_high / currency / source / basis). Async, takes `(supabase, FlagInput, country)`. Returns null when subtype is null, country is outside the allowlist, no row matches, or bands are unsourced.
+- `src/lib/analytics/reconcile-fixed-costs.ts` — `ReconciledBill.benchmark_flag` renamed `benchmark_verdict`, plus new `bill_subtype` field. Loads `country` alongside currency from `user_profiles`. Subtype resolution order: declared-row stored subtype → matched detected slot's subtype → on-the-fly classifier on the label. Both flag call sites now `await`.
+- `src/lib/analytics/recurring-detector.ts` — classifies merchant name and persists `bill_subtype` on the recurring upsert. Wraps the existing provider matcher; no behaviour change for non-classifiable merchants.
+- `src/components/onboarding-v2/confirm-fixed-costs.tsx` — renders the verdict via `formatBenchmarkObservation`, a one-line sentence citing the band and source. Only shows for `verdict === 'above'`; silent otherwise.
+- `src/lib/ai/compose-first-read.ts` — picks the single largest above-band verdict via `getTopBenchmarkObservation` (re-runs reconcile, since verdicts are not persisted), passes the pre-rendered sentence into `buildFirstReadUserPrompt`.
+- `src/lib/ai/prompts/first-read.ts` — new `BENCHMARK OBSERVATION` section + guardrail rule appended when present. Forbidden vocabulary listed inline: "switch", "should", "too high", "overpaying", "recommend". Renegotiation framed as an optional follow-up turn, never as a directive in the Read itself.
+- `src/lib/experiments/templates.ts` — new `renegotiate_fixed_cost` catalog entry. Trigger pattern `bill_above_benchmark` is reserved — no detector emits it yet, so auto-selection is off; the template is selectable only by direct ID until a detector wraps the verdict pipeline.
+- Tests: `tests/benchmark/{classify-subtype, flag-against-benchmark}.test.ts` — 42 cases, all green. Covers high-conf / low-conf / no-match classification (UK + ES brand variants, accent stripping), verdict above/within/below across cadence conversions, every silence case (null subtype, null country, country outside allowlist, no row, unsourced bands), and string→number coercion for Supabase NUMERIC clients.
+
+**Deliverables (off-keyboard, for Lewis to action):**
+- `docs/benchmark-bands-needed.md` — enumerates every TODO row with suggested public, provider-neutral sources (Ofcom, Ofgem, ABI, ONS LCFS for GB; CNMC, IDAE, UNESPA/ICEA for ES; published retail price lists for streaming). The flagger handles unsourced rows as silence; Lewis populates bands via a hand-written follow-on migration as research lands.
+
+### Bands sourced this session
+
+None — the deliverable is the engine + the sourcing list, not the numbers. Better to ship the engine with zero well-sourced bands than fourteen guessed ones.
+
+### Boundary decisions
+
+- **Observation only.** Live precedent at `context-builder.ts:1828` (savings rates / "below current best-available rates without recommending a specific provider"). The benchmark layer uses the same shape for bills.
+- **Band, never a point.** Schema has `band_low / band_high` separately + a CHECK enforcing coherence. Verdict carries both.
+- **Source or silence.** `source NOT NULL` at schema level; flagger returns null on NULL bands. Unsourced rows are stored as structural placeholders so the table shape is stable and the bands-needed list stays auditable.
+- **Contractual / fixed categories only.** Encoded in the `bill_subtype` enum, not as a TS constant. Lifestyle-variable spend (groceries, dining, transport-as-spend) cannot be encoded into a benchmark row at the type-system level — a national average there is meaningless against one person's life.
+- **Renegotiation = experiment, not advice.** New catalog template, not a directive in chat copy. The Read may offer to talk through renegotiation in a *later* turn; the Read itself never tells the user to do anything.
+
+### Open risks / watch-fors
+
+- **Existing `search_bill_alternatives` + `provider-registry.ts` predate this boundary.** They name specific providers (Iberdrola, Octopus, EE, Movistar, …) and recommend alternatives, which contradicts `ADVISORY_BOUNDARIES` and Constitution §4. Left untouched in this session per the plan; flagged at the top of `docs/benchmark-bands-needed.md` for a separate audit / retirement session.
+- **Confirm UI does not surface a subtype-correction control yet.** The classifier auto-fills server-side; if it's wrong, the user sees silence (the safe default) but can't currently nudge the subtype. Adding a correction dropdown is a follow-on; the `user_declared_fixed_costs.bill_subtype` column exists so it can be wired without a migration.
+- **The `bill_above_benchmark` trigger pattern is reserved but unwired.** `renegotiate_fixed_cost` won't be auto-selected by the ranking layer until a pattern detector wraps the verdict pipeline.
+- **Verdicts are not persisted.** `compose-first-read` re-runs `reconcileFixedCosts` to derive them; cost is bearable for a one-shot composition but should not be called hot. If a verdict surface ever lands in the dashboard, persist verdicts into a column on a follow-on migration.
+
+### Files
+
+NEW: `supabase/migrations/068_benchmark_reference.sql` (+ `prod-backfill-068`), `src/lib/analytics/benchmark/{types, classify-subtype, format}.ts`, `tests/benchmark/{classify-subtype, flag-against-benchmark}.test.ts`, `docs/benchmark-bands-needed.md`.
+
+MODIFIED: `src/lib/analytics/{flag-against-benchmark, reconcile-fixed-costs, recurring-detector}.ts`, `src/lib/ai/compose-first-read.ts`, `src/lib/ai/prompts/first-read.ts`, `src/components/onboarding-v2/confirm-fixed-costs.tsx`, `src/lib/experiments/templates.ts`, `SESSION-LOG.md`.
+
+INSPECT-ONLY (untouched): `src/lib/bills/{brave-search, provider-registry}.ts`, `src/lib/ai/tools/search-bill-alternatives.ts` (named-provider surface flagged for separate audit), production Supabase, `main`, `docs/the-layers.md`.
+
+Build green; 42/42 new tests pass; `get_advisors` clean (no new warnings introduced by 068).
+
+---
+
 ## Session — Value-First Onboarding (alt Session 33) — 2026-05-28
 
 **Branch:** `claude/value-first-onboarding-7zfiI` (off `session-32/the-read`)

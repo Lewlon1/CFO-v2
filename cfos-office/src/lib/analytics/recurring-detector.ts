@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { matchProvider } from '@/lib/bills/provider-registry'
+import { classifyBillSubtype } from './benchmark/classify-subtype'
 
 type TxnRow = {
   id: string
@@ -164,6 +165,12 @@ export async function detectAndFlagRecurring(
     const providerMatch = matchProvider(latestRow.description)
     const providerName = providerMatch?.provider.name ?? null
 
+    // Classify the merchant into a benchmarkable subtype. High-confidence
+    // matches persist immediately; ambiguous ones store the best guess too
+    // — the flagger gates on country + sourced bands, not on confidence,
+    // so an incorrect subtype only matters once real bands exist.
+    const subtype = classifyBillSubtype(normDesc).subtype
+
     const ids = rows.map((r) => r.id)
     await supabase.from('transactions').update({ is_recurring: true }).in('id', ids)
 
@@ -182,6 +189,7 @@ export async function detectAndFlagRecurring(
           billing_day: billingDay,
           category_id: latestRow.category_id,
           provider: providerName,
+          bill_subtype: subtype,
         },
         { onConflict: 'user_id,name', ignoreDuplicates: false }
       )

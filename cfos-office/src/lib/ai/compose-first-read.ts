@@ -22,6 +22,11 @@ import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
 import {
+  reconcileFixedCosts,
+  type ReconciledBill,
+} from '@/lib/analytics/reconcile-fixed-costs';
+import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
+import {
   selectHookCandidates,
   type HookCandidate,
 } from '@/lib/ai/compose-first-read-hooks';
@@ -51,7 +56,7 @@ export async function composeFirstRead(params: {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts] = await Promise.all([
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts, benchmarkObservation] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
     getTopMerchantKeys(supabase, params.userId),
     getActiveGoal(supabase, params.userId),
@@ -59,6 +64,7 @@ export async function composeFirstRead(params: {
     getDataWindowEnd(supabase, params.userId),
     deriveLevers({ supabase, userId: params.userId }),
     getFinancialFacts(supabase, params.userId),
+    getTopBenchmarkObservation(supabase, params.userId),
   ]);
 
   // Fetched once, threaded into every cluster lookup. Without this every
@@ -119,6 +125,7 @@ export async function composeFirstRead(params: {
     blocker: leverPackage.blocker,
     financialFacts,
     hookCandidates: mode === 'value_first' ? hookCandidates : undefined,
+    benchmarkObservation,
   });
 
   const systemPrompt =
@@ -248,6 +255,49 @@ async function getActiveGoal(
         target_date: data.target_date as string | null,
       }
     : null;
+}
+
+/**
+ * Picks the single most-above-band bill verdict and renders it as a safe
+ * observational sentence. The Read narrates at most one benchmark line — more
+ * dilutes the headline and pushes us closer to "audit" territory. Returns
+ * null when no above-band verdict exists (the silent case is the default).
+ *
+ * Re-runs reconcileFixedCosts to derive verdicts fresh. The verdicts are
+ * not persisted anywhere (reconcile is the source of truth), so this is
+ * the read path. Cost: one extra round-trip of small queries against
+ * user_profiles + user_declared_fixed_costs + recurring_expenses, plus N
+ * benchmark_reference lookups (N = number of confirmed bills, typically
+ * 3-7). Bearable for a one-shot composition; do not call hot.
+ */
+async function getTopBenchmarkObservation(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  let reconciled: { items: ReconciledBill[] }
+  try {
+    reconciled = await reconcileFixedCosts(supabase, userId)
+  } catch (err) {
+    console.error('[compose-first-read] reconcile for benchmark failed:', err)
+    return null
+  }
+
+  const above = reconciled.items
+    .filter((b) => b.benchmark_verdict?.verdict === 'above' && !b.superseded)
+    .map((b) => ({
+      bill: b,
+      delta: b.monthly_equivalent - (b.benchmark_verdict!.band_high ?? b.monthly_equivalent),
+    }))
+    .sort((a, b) => b.delta - a.delta)
+
+  const top = above[0]
+  if (!top || !top.bill.benchmark_verdict) return null
+
+  return formatBenchmarkObservation({
+    label: top.bill.label,
+    monthly_amount: top.bill.monthly_equivalent,
+    verdict: top.bill.benchmark_verdict,
+  })
 }
 
 async function getTransactionCount(
