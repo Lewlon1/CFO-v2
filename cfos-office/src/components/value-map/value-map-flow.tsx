@@ -50,11 +50,26 @@ interface ValueMapFlowProps {
   returnTo?: 'archetype' | null
   onComplete?: (personalityType: string, dominantQuadrant: string, breakdown: Record<string, { total: number; percentage: number; count: number }>, results?: ValueMapResult[]) => void
   onTransactionResult?: (result: ValueMapResult, index: number, total: number) => void
+  /**
+   * Value-first onboarding: real flagged transactions derived from the First
+   * Read's hook candidates. When provided in onboarding mode, replaces the
+   * curated SAMPLE_TRANSACTIONS so the user maps the exact items the CFO
+   * said it couldn't read without them — the engagement linchpin of the
+   * value-first flow. Empty array or undefined falls back to samples.
+   */
+  realTransactions?: ValueMapTransaction[]
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, onComplete, onTransactionResult }: ValueMapFlowProps) {
+export function ValueMapFlow({
+  currency,
+  mode = 'onboarding',
+  returnTo = null,
+  onComplete,
+  onTransactionResult,
+  realTransactions,
+}: ValueMapFlowProps) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
   const [step, setStep] = useState<FlowStep>(
@@ -273,14 +288,22 @@ export function ValueMapFlow({ currency, mode = 'onboarding', returnTo = null, o
   const handleStart = useCallback(() => {
     trackEvent('value_map_started', { mode })
     // Onboarding is the only mode that reaches the intro step; checkin and
-    // personal skip it via the initial step state. Always use sample data.
-    // Pass SAMPLE_TRANSACTIONS directly — selectTransactions() sorts by
-    // amount descending, which would destroy the curated narrative arc of
-    // the 10 scenario cards (rent → groceries → … → gift).
-    setTransactions([...SAMPLE_TRANSACTIONS])
-    setIsRealData(false)
+    // personal skip it via the initial step state. Value-first onboarding
+    // (post-Read opt-in from the hook CTA) passes realTransactions — the
+    // exact items the First Read named as "I can see this but can't read
+    // it without you." When realTransactions is provided we use those; the
+    // legacy onboarding path falls back to SAMPLE_TRANSACTIONS (curated
+    // narrative arc — selectTransactions() sorts by amount descending,
+    // which would destroy that arc).
+    if (realTransactions && realTransactions.length > 0) {
+      setTransactions(realTransactions)
+      setIsRealData(true)
+    } else {
+      setTransactions([...SAMPLE_TRANSACTIONS])
+      setIsRealData(false)
+    }
     setStep('exercise')
-  }, [mode, trackEvent])
+  }, [mode, trackEvent, realTransactions])
 
   const handleExerciseComplete = useCallback(
     (exerciseResults: ValueMapResult[]) => {

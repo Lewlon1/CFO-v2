@@ -1,9 +1,20 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
 import { useTrackEvent } from '@/lib/events/use-track-event'
+
+// Strip [CTA:type]label[/CTA] tokens from the composed message before
+// rendering it as plain article text. The value-first hook close embeds a
+// start_value_map_real CTA inside the message; the orchestrator renders
+// the inviting chip beneath the article so the inline token would render
+// as visible junk if not stripped.
+const CTA_TOKEN_RE = /\[CTA:\w+\]\s*[\s\S]*?\s*\[\/CTA\]/g
+
+function stripCtaTokens(text: string): string {
+  return text.replace(CTA_TOKEN_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+}
 
 type Props = {
   displayName: string | null
@@ -40,6 +51,11 @@ export function FirstReadOrchestrator({ entryStruggle, valueFirst = false }: Pro
   const [error, setError] = useState<string | null>(null)
   const requestedRef = useRef(false)
   const stampedShownRef = useRef(false)
+
+  const displayMessage = useMemo(
+    () => (composedMessage ? stripCtaTokens(composedMessage) : null),
+    [composedMessage],
+  )
 
   useEffect(() => {
     if (requestedRef.current) return
@@ -127,12 +143,12 @@ export function FirstReadOrchestrator({ entryStruggle, valueFirst = false }: Pro
         <div className="flex-1">
           {loading ? (
             <FirstReadSkeleton />
-          ) : composedMessage ? (
+          ) : displayMessage ? (
             <article
               className="whitespace-pre-wrap text-[15px] leading-[1.65] text-foreground"
               style={{ fontFamily: 'var(--font-cormorant), serif' }}
             >
-              {composedMessage}
+              {displayMessage}
             </article>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -172,12 +188,15 @@ export function FirstReadOrchestrator({ entryStruggle, valueFirst = false }: Pro
               onClick={() => {
                 trackEvent('onboarding_v2.first_read_value_map_optin', {
                   entry_struggle: entryStruggle ?? null,
+                  value_first: valueFirst,
                 })
                 router.push('/onboarding-v2/value-map')
               }}
               className="text-left text-[14px] text-foreground underline underline-offset-2 hover:opacity-80"
             >
-              Want to deepen this with a quick exercise on what you actually value?
+              {valueFirst
+                ? 'Tell me what those unread items mean — turns this into a personalised plan.'
+                : 'Want to deepen this with a quick exercise on what you actually value?'}
             </button>
           </div>
         )}
