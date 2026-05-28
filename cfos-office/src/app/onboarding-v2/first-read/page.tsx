@@ -39,10 +39,17 @@ export default async function OnboardingV2FirstReadPage() {
   const expected = resumeRoute(step, profile?.entry_struggle ?? null)
   if (expected !== '/onboarding-v2/first-read') redirect(expected)
 
+  // Value-first onboarding signal: the user arrived here via /processing →
+  // /confirm, so their step is `details_confirmed` (about to flip to
+  // `first_read_delivered`) or already `first_read_delivered` on refresh.
+  const valueFirst =
+    step === 'details_confirmed' || step === 'first_read_delivered'
+
   return (
     <FirstReadOrchestrator
       displayName={profile?.display_name ?? null}
       entryStruggle={profile?.entry_struggle ?? null}
+      valueFirst={valueFirst}
     />
   )
 }

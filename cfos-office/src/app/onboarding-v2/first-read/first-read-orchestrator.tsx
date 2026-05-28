@@ -8,6 +8,11 @@ import { useTrackEvent } from '@/lib/events/use-track-event'
 type Props = {
   displayName: string | null
   entryStruggle: string | null
+  /** When true (value-first onboarding), stamp first_read_delivered as the
+   *  terminal step name and surface the Value Map invite as the "tell me
+   *  what these mean" hook resolution. Default false preserves the
+   *  baseline first_read_shown behaviour. */
+  valueFirst?: boolean
 }
 
 /**
@@ -25,7 +30,7 @@ type Props = {
  * /office?chat=open&conversationId=… so the chat sheet opens with the
  * conversation already loaded.
  */
-export function FirstReadOrchestrator({ entryStruggle }: Props) {
+export function FirstReadOrchestrator({ entryStruggle, valueFirst = false }: Props) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
   const [composedMessage, setComposedMessage] = useState<string | null>(null)
@@ -76,7 +81,11 @@ export function FirstReadOrchestrator({ entryStruggle }: Props) {
         if (!cancelled) setLoading(false)
         if (!stampedShownRef.current && !cancelled) {
           stampedShownRef.current = true
-          void advanceStep('first_read_shown').catch((stepErr) => {
+          // Value-first flow stamps `first_read_delivered` (which markComplete
+          // recognises as the terminal step too). Baseline stays on
+          // `first_read_shown` for continuity with Session 32 B.
+          const terminalStep = valueFirst ? 'first_read_delivered' : 'first_read_shown'
+          void advanceStep(terminalStep).catch((stepErr) => {
             console.error('[onboarding-v2.first-read] advanceStep failed', stepErr)
           })
         }

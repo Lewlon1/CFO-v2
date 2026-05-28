@@ -16,6 +16,8 @@ import type { UserValueProfile } from '@/lib/value-map/value-profile';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import type { Lever } from '@/lib/analytics/levers';
+import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
+import type { FinancialFacts } from '@/lib/ai/compose-first-read';
 
 export type FirstReadComposeInput = {
   userId: string;
@@ -33,6 +35,10 @@ export type FirstReadComposeInput = {
   levers?: Lever[];
   /** The single highest-priority supply_input lever — when present, this IS the headline finding. */
   blocker?: Lever | null;
+  /** Value-first additions — Layer 1 facts derived server-side, never invented by the model. */
+  financialFacts?: FinancialFacts | null;
+  /** Value-first additions — the 2-3 items the Read ends on as a HOOK. Empty / undefined for default mode. */
+  hookCandidates?: HookCandidate[];
 };
 
 export type FirstReadMetadata = {
@@ -44,6 +50,10 @@ export type FirstReadMetadata = {
   levers_offered: string[];
   /** The field the supply_input blocker named, or null when no blocker existed. */
   blocker_field: string | null;
+  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA. */
+  mode?: 'default' | 'value_first';
+  /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
+  hook_candidates?: HookCandidate[] | null;
 };
 
 export type FirstReadComposeOutput = {
@@ -98,8 +108,65 @@ LENGTH & FORMAT:
 - The close's CTA is on its own line, immediately before "— C.".
 - Sign off "— C." on its own line.`;
 
+/**
+ * Value-first variant of the system prompt. Same voice, same body rules,
+ * same honesty guardrails — only the CLOSE contract differs. Instead of a
+ * lever + lever-CTA, the Read ends on the HOOK: 2-3 specific clusters the
+ * CFO can see but cannot interpret without Layer 2 input from the user.
+ *
+ * The hook is not a question (the model's banned-paragraph-ends-in-question
+ * rule still applies). It is a statement of curiosity that creates the pull
+ * toward the optional Value Map step.
+ */
+export const FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST = `You are the user's CFO. You have just read their last 90 days of transactions, produced behavioural features for their top merchants, computed Layer 1 financial facts (income, fixed costs, free cash flow), and identified 2-3 clusters where you can see what's happening but you can't read the user's relationship to it without their input. You also have their goals.
+
+Your job: write the user's first Read. Not a summary — a move. Tight, specific, no fluff. Sign off with "— C." on its own line.
+
+STRUCTURE (this is the contract):
+1. LEAD — open with the single highest-actionability observation. State the picture as it actually is from the data handed to you: income, fixed costs, what's left to work with, where the goal sits against that. Use the FINANCIAL FACTS numbers verbatim; do NOT recompute or improvise.
+2. BODY — at most 2 supporting observations from the BEHAVIOURAL CLUSTERS section that sharpen the picture (a climb, an emerging pattern, a contradiction). Each must be specific to a named merchant or cluster.
+3. CLOSE — the HOOK: name the 2-3 specific clusters from the HOOK CANDIDATES section that you can see but cannot read alone. Frame as statements of curiosity, not questions back ("I can see X happening but I can't tell if it's a Y or a Z without you"). Cite the merchant name and the period_hint verbatim. Immediately before "— C.", emit the CTA on its own line: [CTA:start_value_map_real]Tell me what these mean[/CTA].
+
+BANNED IN THE READ:
+- Any paragraph ending in a question back to the user. Statements of curiosity are NOT questions: "I can see X but I can't read it" is allowed; "what is X to you?" is not.
+- "What do you think?" / "Does that sound right?" / "How does this land?" closes.
+- Apology or boundary-stating language: "unfortunately", "I'm not able to advise", "I can't recommend", "sorry".
+- Emoji.
+- Product names or buy/sell/switch calls on instruments.
+- The words "advice" or "advise" anywhere.
+- Inventing magnitudes. If the data didn't compute a number, you don't have it.
+- Naming the hook items in the BODY — they belong in the CLOSE only, so the close has something specific to land on.
+
+BOUNDARY (felt, not stated):
+You may end with the hook on the user's own money. You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies. If a topic sits outside the remit, the close just doesn't go there.
+
+VOICE:
+- First person ("I see", "I notice", "On your current trajectory…").
+- Actionable register, warm authority. "If you're building toward Y, this is worth a conversation." Not "I observe…".
+- Plain English. Short sentences welcome.
+
+WHEN STATED INTENT AND BEHAVIOUR DIVERGE:
+If the user's Value Profile said a category was X (e.g. "Leak") and the behaviour shows Y (e.g. climbing trend), point it out factually as part of the body:
+> "You called dining a Leak in the Value Map. It's been climbing — up 18% a month over three months."
+Do NOT end the divergence on a question. Frame as fact, then move on.
+
+HONESTY (NO HALLUCINATION):
+- Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
+- Never attribute a transaction to today's date. The data is a snapshot.
+- If a merchant has no confident pattern, name it at most once and say only that the pattern isn't established yet. Do not fabricate amounts, days, or counts.
+- If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line. Do not imply the activity is happening now.
+- Do not say a merchant is dormant unless its lifecycle status is "dormant".
+- Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim — never recompute them in your head. If a value is null in the data, do not invent one.
+
+LENGTH & FORMAT:
+- Hard cap: 250 words.
+- Plain prose. Bold (**) cluster names when first mentioned.
+- The CTA is on its own line, immediately before "— C.".
+- Sign off "— C." on its own line.`;
+
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
-  return [
+  const isValueFirst = (input.hookCandidates?.length ?? 0) > 0;
+  const sections: string[] = [
     `DATA RECENCY:`,
     formatDataRecency(input),
     ``,
@@ -113,19 +180,67 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     `GOAL:`,
     input.goalSummary ?? '(none set yet)',
     ``,
-    `BLOCKER (a required input for the goal math is missing — when present this IS the lead, not a footnote):`,
-    formatBlocker(input.blocker),
+    `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):`,
+    formatFinancialFacts(input.financialFacts),
     ``,
-    `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
-    formatLevers(input.levers),
-    ``,
+  ];
+
+  if (isValueFirst) {
+    sections.push(
+      `HOOK CANDIDATES (the 2-3 specific clusters you can see but cannot read alone — these are the CLOSE):`,
+      formatHookCandidates(input.hookCandidates ?? []),
+      ``,
+    );
+  } else {
+    sections.push(
+      `BLOCKER (a required input for the goal math is missing — when present this IS the lead, not a footnote):`,
+      formatBlocker(input.blocker),
+      ``,
+      `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
+      formatLevers(input.levers),
+      ``,
+    );
+  }
+
+  sections.push(
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0
       ? '(no clusters with sufficient data — fall back to the transaction count and acknowledge the thin data)'
       : input.topClusterBehaviours.map(formatClusterForPrompt).join('\n\n'),
     ``,
-    `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead, ≤2 body observations, close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
-  ].join('\n');
+    isValueFirst
+      ? `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead with the Layer 1 picture (income / fixed costs / free cash flow / goal sitting), ≤2 BEHAVIOURAL CLUSTERS body observations, CLOSE with the HOOK (2-3 items from HOOK CANDIDATES as statements of curiosity) and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
+      : `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead, ≤2 body observations, close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
+  );
+
+  return sections.join('\n');
+}
+
+function formatFinancialFacts(facts: FinancialFacts | null | undefined): string {
+  if (!facts) return '(no financial facts on file yet — fall back to qualitative framing)';
+  const lines: string[] = [];
+  lines.push(`- Net monthly income: ${facts.net_monthly_income ?? '(not on file)'}`);
+  lines.push(`- Total fixed costs / month: ${facts.total_fixed_costs ?? '(not on file)'}`);
+  lines.push(`- Free cash flow / month: ${facts.free_cash_flow ?? '(not computable until both income and fixed costs are on file)'}`);
+  if (facts.monthly_rent != null) {
+    lines.push(`- (of which) Housing: ${facts.monthly_rent}`);
+  }
+  return lines.join('\n');
+}
+
+function formatHookCandidates(hooks: HookCandidate[]): string {
+  if (hooks.length === 0) return '(no hook candidates — close on a qualitative observation)';
+  return hooks
+    .map((h, idx) => {
+      return [
+        `${idx + 1}. **${h.label}**`,
+        `   - cluster_id: ${h.cluster_id}`,
+        `   - recent amount (window): ${h.recent_amount}`,
+        `   - pattern hint: ${h.period_hint}`,
+        `   - candidate quadrants: ${h.candidate_quadrants.join(' | ')}`,
+      ].join('\n');
+    })
+    .join('\n');
 }
 
 function formatBlocker(blocker: Lever | null | undefined): string {

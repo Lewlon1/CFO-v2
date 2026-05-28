@@ -21,9 +21,14 @@ import { getDataWindowEnd } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
+import {
+  selectHookCandidates,
+  type HookCandidate,
+} from '@/lib/ai/compose-first-read-hooks';
 
 import {
   FIRST_READ_SYSTEM_PROMPT,
+  FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST,
   buildFirstReadUserPrompt,
   type FirstReadComposeOutput,
   type FirstReadMetadata,
@@ -36,19 +41,24 @@ const MAX_OUTPUT_TOKENS = 700;
 
 const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
 
+export type ComposeFirstReadMode = 'default' | 'value_first';
+
 export async function composeFirstRead(params: {
   userId: string;
   supabase?: SupabaseClient;
+  mode?: ComposeFirstReadMode;
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
+  const mode = params.mode ?? 'default';
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage] = await Promise.all([
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
     getTopMerchantKeys(supabase, params.userId),
     getActiveGoal(supabase, params.userId),
     getTransactionCount(supabase, params.userId, WINDOW_DAYS),
     getDataWindowEnd(supabase, params.userId),
     deriveLevers({ supabase, userId: params.userId }),
+    getFinancialFacts(supabase, params.userId),
   ]);
 
   // Fetched once, threaded into every cluster lookup. Without this every
@@ -90,6 +100,12 @@ export async function composeFirstRead(params: {
     ? Math.max(0, Math.floor((Date.now() - new Date(dataWindowEnd).getTime()) / 86_400_000))
     : null;
 
+  // Value-first mode: pre-compute the hook candidates the Read will end on.
+  // The candidates are persisted into conversation.metadata by the caller
+  // so the Value Map step can run on the same real flagged transactions.
+  const hookCandidates: HookCandidate[] =
+    mode === 'value_first' ? selectHookCandidates(usableClusters, valueProfile) : [];
+
   const userPrompt = buildFirstReadUserPrompt({
     userId: params.userId,
     valueProfile,
@@ -101,11 +117,18 @@ export async function composeFirstRead(params: {
     dataAgeDays,
     levers: leverPackage.levers,
     blocker: leverPackage.blocker,
+    financialFacts,
+    hookCandidates: mode === 'value_first' ? hookCandidates : undefined,
   });
+
+  const systemPrompt =
+    mode === 'value_first' && hookCandidates.length > 0
+      ? FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST
+      : FIRST_READ_SYSTEM_PROMPT;
 
   const result = await generateText({
     model: bedrock(COMPOSE_MODEL),
-    system: FIRST_READ_SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     temperature: 0.5,
@@ -119,6 +142,8 @@ export async function composeFirstRead(params: {
     usableClusters,
     goalSummary,
     leverPackage,
+    mode,
+    hookCandidates,
   });
 
   return { composedMessage, metadata };
@@ -153,6 +178,55 @@ async function getTopMerchantKeys(
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_CLUSTER_LIMIT)
     .map(([key]) => key);
+}
+
+export type FinancialFacts = {
+  net_monthly_income: number | null;
+  monthly_rent: number | null;
+  total_fixed_costs: number | null;
+  free_cash_flow: number | null;
+};
+
+async function getFinancialFacts(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<FinancialFacts> {
+  const [profileRes, snapshotRes] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('net_monthly_income, monthly_rent')
+      .eq('id', userId)
+      .maybeSingle(),
+    supabase
+      .from('monthly_snapshots')
+      .select('total_fixed_costs')
+      .eq('user_id', userId)
+      .order('month', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const income =
+    typeof profileRes.data?.net_monthly_income === 'number'
+      ? profileRes.data.net_monthly_income
+      : null;
+  const rent =
+    typeof profileRes.data?.monthly_rent === 'number'
+      ? profileRes.data.monthly_rent
+      : null;
+  const totalFixed =
+    typeof snapshotRes.data?.total_fixed_costs === 'number'
+      ? snapshotRes.data.total_fixed_costs
+      : null;
+  const freeCashFlow =
+    income != null && totalFixed != null
+      ? Math.round((income - totalFixed) * 100) / 100
+      : null;
+  return {
+    net_monthly_income: income,
+    monthly_rent: rent,
+    total_fixed_costs: totalFixed,
+    free_cash_flow: freeCashFlow,
+  };
 }
 
 async function getActiveGoal(
@@ -196,6 +270,8 @@ export function extractCompositionMetadata(args: {
   usableClusters: ClusterBehaviour[];
   goalSummary: string | null;
   leverPackage?: LeverPackage;
+  mode?: ComposeFirstReadMode;
+  hookCandidates?: HookCandidate[];
 }): FirstReadMetadata {
   const text = args.composedMessage.toLowerCase();
 
@@ -227,5 +303,7 @@ export function extractCompositionMetadata(args: {
     clusters_referenced,
     levers_offered: args.leverPackage?.levers.map((l) => l.type) ?? [],
     blocker_field: args.leverPackage?.blocker?.type === 'supply_input' ? args.leverPackage.blocker.field : null,
+    mode: args.mode ?? 'default',
+    hook_candidates: args.hookCandidates ?? null,
   };
 }

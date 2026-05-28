@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { computeFirstInsight } from '@/lib/analytics/insight-engine'
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2'
 import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
-import { composeFirstRead } from '@/lib/ai/compose-first-read'
+import { composeFirstRead, type ComposeFirstReadMode } from '@/lib/ai/compose-first-read'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -31,7 +31,20 @@ export async function POST(req: Request) {
   // conversation row so Session C's wow_assessment plumbing can read it.
   // Unflagged users continue down the V1/V2 narrate-via-trigger path below.
   if (isLayeredReadEnabled()) {
-    return handleLayeredFirstRead({ supabase, userId: user.id, importBatchId })
+    // Value-first onboarding signal: the user has walked through the
+    // processing + confirm screens, so their step has landed on
+    // `details_confirmed`. The composer's value_first mode adds the HOOK
+    // close + Layer 1 financial facts to the prompt. Other entry paths
+    // (manual upload of a new statement, legacy archetype hop, etc.) get
+    // the default composition.
+    const { data: stepProfile } = await supabase
+      .from('user_profiles')
+      .select('onboarding_step')
+      .eq('id', user.id)
+      .maybeSingle()
+    const mode: ComposeFirstReadMode =
+      stepProfile?.onboarding_step === 'details_confirmed' ? 'value_first' : 'default'
+    return handleLayeredFirstRead({ supabase, userId: user.id, importBatchId, mode })
   }
 
   // Idempotency: if a FRESH first_insight conversation already exists (zero
@@ -126,9 +139,10 @@ type LayeredHandlerArgs = {
   supabase: Awaited<ReturnType<typeof createClient>>
   userId: string
   importBatchId: string | null
+  mode: ComposeFirstReadMode
 }
 
-async function handleLayeredFirstRead({ supabase, userId, importBatchId }: LayeredHandlerArgs) {
+async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }: LayeredHandlerArgs) {
   // Idempotency: if a layered first_insight conversation already exists for
   // this user, return it. (Identified by metadata.layered_read = true, which
   // every layered run stamps.) Avoids double-composing if the upload
@@ -171,7 +185,7 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId }: Layer
 
   let composed: Awaited<ReturnType<typeof composeFirstRead>>
   try {
-    composed = await composeFirstRead({ userId, supabase: svc })
+    composed = await composeFirstRead({ userId, supabase: svc, mode })
   } catch (err) {
     console.error('[post-upload.layered] composeFirstRead failed:', err)
     return NextResponse.json({ error: 'Failed to compose first read' }, { status: 500 })
