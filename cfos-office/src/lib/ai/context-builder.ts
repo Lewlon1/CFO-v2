@@ -1364,6 +1364,7 @@ function buildProfileContext(profile: any): string {
   if (profile.risk_tolerance) fields.push(`Risk tolerance: ${profile.risk_tolerance}`);
   if (profile.values_ranking) fields.push(`Values ranking: ${JSON.stringify(profile.values_ranking)}`);
   if (profile.financial_awareness) fields.push(`Financial awareness: ${profile.financial_awareness}`);
+  if (profile.spending_triggers) fields.push(`Spending triggers: ${JSON.stringify(profile.spending_triggers)}`);
   if (profile.residency_status) fields.push(`Residency status: ${profile.residency_status}`);
   if (profile.tax_residency_country) fields.push(`Tax residency: ${profile.tax_residency_country}`);
   if (profile.years_in_country) fields.push(`Years in country: ${profile.years_in_country}`);
@@ -1409,7 +1410,41 @@ function buildProfileContext(profile: any): string {
     doNotAskBlock = `\n\nCRITICAL — You already have: ${knownFieldLabels.join(', ')}. DO NOT ask for any of these again. Use the values above directly. If the user volunteers an update, accept it — but never re-ask.`;
   }
 
-  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}${doNotAskBlock}`;
+  // Psychological lens — make values_ranking, financial_awareness, and
+  // spending_triggers load-bearing rather than background metadata.
+  // Pre-value-first these columns were being written by the profile form
+  // + chat structured input but never used as a lens for interpretation;
+  // the lines above injected them as flat facts. This block tells the
+  // model what to do with them.
+  const lensFields: string[] = [];
+  if (profile.values_ranking) {
+    lensFields.push(`- Stated values ranking: ${JSON.stringify(profile.values_ranking)}`);
+  }
+  if (profile.financial_awareness) {
+    lensFields.push(`- Financial awareness: ${profile.financial_awareness}`);
+  }
+  if (profile.spending_triggers) {
+    lensFields.push(`- Stated spending triggers: ${JSON.stringify(profile.spending_triggers)}`);
+  }
+  let lensBlock = '';
+  if (lensFields.length > 0) {
+    lensBlock = [
+      '',
+      '',
+      '## Psychological lens (interpretive aid, not chit-chat)',
+      '',
+      'Use these the user has shared in earlier conversations to interpret behaviour. Do NOT recite them; let them shape how you read patterns.',
+      '',
+      ...lensFields,
+      '',
+      '- When a cluster\'s trend contradicts what they ranked as most important, name the contradiction once as fact (no question back).',
+      '- When financial_awareness is "beginner", swap jargon for tangible comparisons. When "advanced", keep numbers tight and skip framing they already know.',
+      '- When you spot behaviour that lines up with a stated spending trigger, name the trigger as context, never as a judgment.',
+      '- Do not re-ask any of these.',
+    ].join('\n');
+  }
+
+  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}${doNotAskBlock}${lensBlock}`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1428,6 +1463,13 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
     if (latest.total_spending) parts.push(`Total spending: ${currency} ${latest.total_spending}`);
     if (latest.total_income) parts.push(`Total income: ${currency} ${latest.total_income}`);
     if (latest.surplus_deficit) parts.push(`Surplus/deficit: ${currency} ${latest.surplus_deficit}`);
+    if (latest.total_fixed_costs != null) {
+      parts.push(`Fixed costs (rent + reconciled recurring): ${currency} ${latest.total_fixed_costs}`);
+      if (profile?.net_monthly_income) {
+        const freeCash = Math.round((Number(profile.net_monthly_income) - Number(latest.total_fixed_costs)) * 100) / 100;
+        parts.push(`Free cash flow (income − fixed costs): ${currency} ${freeCash}`);
+      }
+    }
     if (latest.spending_by_category && Object.keys(latest.spending_by_category).length > 0) {
       // Include uncategorised as a labelled signal. Hiding it caused the LLM
       // to deny the bucket existed when users asked directly, and to invent
