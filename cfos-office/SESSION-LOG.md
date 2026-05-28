@@ -9,6 +9,58 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Value-First Onboarding (alt Session 33) — 2026-05-28
+
+**Branch:** `claude/value-first-onboarding-7zfiI` (off `session-32/the-read`)
+**Scope:** Alternative onboarding sequence for A/B comparison. Same Session 32 Read backend underneath; six-step flow on top. One additive migration (067_user_declared_fixed_costs) applied to staging only.
+
+### What shipped
+
+Six-step value-first sequence:
+
+1. **Intent + goal** — struggle picker → goal-derive-confirm chat. Goal-only; essentials stripped from this beat (commit d18143d had moved them into chat; the value-first spec re-relocates them to the processing wait).
+2. **Upload** — same UploadWizard + autoImport; handleDone now stamps `upload_processing` and routes to `/processing` under the layered flag.
+3. **Processing screen** (new) — hosts an income + rent form alongside a parse/aggregate progress strip. Income blur triggers an inline goal-pace one-liner via a server-callable `submitIncome` (no model round-trip).
+4. **Confirm / reconcile** (new) — deduped list of declared bills + detected recurring + rent. Reconcile rule: 10 % amount-band, ±1-step cadence-ladder match. Form labels win on match; detected counted once. `monthly_snapshots.total_fixed_costs` (column existed in 001 but was never written) is populated here.
+5. **First Read** — `composeFirstRead` extended with `mode: 'value_first'`. New system prompt variant + HOOK section. Layer 1 facts (income, total_fixed_costs, free cash flow) handed verbatim. Close ends with 2–3 hook items + `[CTA:start_value_map_real]Tell me what these mean[/CTA]`.
+6. **Value Map (optional)** — runs on the EXACT real flagged transactions named by the hook. Completion calls `/api/insights/recompose-first-read` which appends a Layer-2-aware Read to the same conversation. Skipping leaves the user fully onboarded.
+
+`onboarding_completed_at` stamps at `first_read_delivered` (step name added; markComplete + advanceStep recognise it parallel to first_read_shown). The Value Map is pure upgrade.
+
+State machine additions: `upload_pending`, `upload_processing`, `details_pending`, `details_confirmed`, `first_read_delivered`, `value_map_offered`. Forward-only; legacy `essentials_done` users still route to `/upload` (the processing screen auto-detects existing income/rent so they aren't re-prompted).
+
+Also wired this session (out-of-scope but cheap to close while we were in the file):
+- `spending_triggers`, `values_ranking`, `financial_awareness` had been "collected but never injected" into the prompt as load-bearing context. A new "Psychological lens" block in `buildProfileContext` makes them interpretive aids: stated-values comparator when behaviour diverges, jargon control via financial_awareness, trigger-as-context (not judgment) calls.
+- `total_fixed_costs` + free-cash-flow now also surface in the ongoing chat's Financial Summary block so follow-up conversations stay anchored to the Read's numbers.
+
+### What was learned
+
+- **The baseline had already moved the needle a long way.** Commit d18143d (essentials-in-chat, Value-Map opt-in post-Read) made the value-first sequence's real deltas narrower than the spec described: form-during-processing, explicit confirm/reconcile, populate `total_fixed_costs`, hook → real-transactions Value Map. The audit caught this before designing on top of the wrong baseline.
+- **`total_fixed_costs` was the silent gap.** Column existed since 001; no writer. The Read's free-cash-flow line silently fell back to nulls before this session.
+- **Dedupe is load-bearing.** The match-band reconciler is exercised by 6 unit tests covering rent-vs-rent dedupe, declared-label-wins, weekly normalisation, and unmatched-detected pass-through. A doubled rent corrupts free cash flow, which corrupts the Read's lead, which kills trust on first impression — this isn't polish.
+- **`compute_goal_pace` was already server-callable.** The instant payback on income blur cost ~30 lines of code; no model round-trip, no flicker.
+
+### Open risks / watch-fors
+
+- **Hook copy is the engagement linchpin.** If the value-first First Read's close lands flat, the optional Value Map dies and Layer 2 never activates for this cohort. The `selectHookCandidates` heuristic is small (high recent spend, no L2 rule, ambiguous category) and will need iteration once the preview is walked.
+- **Above-peer-average bill flagging is stubbed.** `flagAgainstBenchmark` returns null with a `TODO(benchmark-session)` marker; the confirm row renders no peer chip until the companion benchmark session lights it up.
+- **Layer 2 confidence gate.** `buildUserValueProfile` requires 3 signals per category for confidence. The hook caps at 3 cards. If the user classifies fewer than 3 in the same category, the recomposed Read's L2 may be suppressed. Padding with sample cards (vs lowering the threshold) is the recommended response — does NOT touch the Session 32 backend.
+- **Form-during-processing race.** The 30-s import grace cap is fire-and-forget — background work continues if it spills over. Acceptable; mentioned here so the next session knows to monitor if the snapshot refresh ever takes longer than that.
+
+### For the comparison
+
+Deploy `claude/value-first-onboarding-7zfiI` to its own Vercel preview, leave `session-32/the-read` as the baseline preview, walk the same CSV + same goal through both. The question isn't "which Read is better" (same composeFirstRead backend) — it's "which sequence makes me want to keep going, and which one earns the Value Map."
+
+### Files
+
+NEW: `src/app/onboarding-v2/processing/{page, processing-orchestrator, processing-actions}`, `src/app/onboarding-v2/confirm/{page, confirm-orchestrator, confirm-actions}`, `src/components/onboarding-v2/{processing-form, processing-progress, goal-pace-inline, confirm-fixed-costs}.tsx`, `src/lib/analytics/{reconcile-fixed-costs, flag-against-benchmark}.ts`, `src/lib/analytics/__tests__/reconcile-fixed-costs.test.ts`, `src/lib/ai/compose-first-read-hooks.ts`, `src/lib/value-map/hook-transactions.ts`, `src/app/api/insights/recompose-first-read/route.ts`, `supabase/migrations/067_user_declared_fixed_costs.sql` (+ companion prod-backfill).
+
+MODIFIED: `src/lib/onboarding-v2/{types, resume}.ts`, `src/app/onboarding-v2/{actions-step, goal-beat-actions}.ts`, `src/app/onboarding-v2/upload/upload-orchestrator.tsx`, `src/app/onboarding-v2/first-read/{page, first-read-orchestrator}.tsx`, `src/app/onboarding-v2/value-map/{page, value-map-orchestrator}.tsx`, `src/components/onboarding-v2/goal-beat-watcher.tsx`, `src/components/value-map/value-map-flow.tsx`, `src/app/api/chat/route.ts`, `src/app/api/insights/post-upload/route.ts`, `src/lib/ai/{context-builder, compose-first-read}.ts`, `src/lib/ai/prompts/first-read.ts`, `src/lib/analytics/monthly-snapshot.ts`, `src/lib/onboarding/markComplete.ts`.
+
+INSPECT-ONLY (untouched): `src/lib/analytics/cluster-behaviour/*`, `src/lib/analytics/chat-signals/*`, `src/lib/feature-flags/layered-read.ts`, `src/lib/analytics/{pattern-detectors, recurring-detector}.ts`, `merchant_aggregates` MV. Build green; reconcile tests 6/6.
+
+---
+
 ## Session B / Phase 2 revised — The Read, Actionability Fix — 2026-05-28
 
 **Branch:** `session-32/the-read`
