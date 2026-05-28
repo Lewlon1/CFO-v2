@@ -252,18 +252,20 @@ A priority queue that determines which profile questions to ask and when. See th
 
 ### Onboarding completion
 
-A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. **The Value Map is the canonical completion signal** — no other path stamps the timestamp. Both onboarding routes (Marcus / chat-path) converge on the Value Map.
+A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. **Either the first Read or the Value Map can stamp the timestamp.** The Read is the default path under the current flow; the Value Map is an opt-in deepening move that also satisfies completion when the user takes it.
 
-The goal-chat beat (`completeGoalBeat` / `skipGoalBeat` in `app/onboarding-v2/goal-beat-actions.ts`) stamps `onboarding_step = 'goal_set' | 'goal_skipped'` only — it does NOT stamp `onboarding_completed_at`. Chat-path users carry themselves into the Value Map via the in-chat `<ACTION:start_value_map>` CTA emitted in the goal-chat wrap-up (or via the office banner); Marcus users are force-redirected. Either way, completion happens when the Value Map session is recorded.
+The goal-chat beat (`completeGoalBeat` in `app/onboarding-v2/goal-beat-actions.ts`) now collects three things inline: a goal (or a `dont_know` pivot to skip), `net_monthly_income`, and `monthly_rent`. The `GoalBeatWatcher` polls `/api/onboarding/essentials-status` and advances when income AND rent both land, stamping `onboarding_step = 'essentials_done'` and routing to `/onboarding-v2/upload`. The beat does NOT stamp `onboarding_completed_at`.
 
-Two paths can set the timestamp:
+`skipGoalBeat` (the 90s "continue without setting a goal" escape for Marcus) is the legacy fallback — it stamps `goal_skipped` and routes to `/onboarding-v2/value-map`. Users mid-flow on the old stamps (`goal_set` / `goal_skipped`) continue to see the Value Map; nobody is stranded.
+
+Two paths can set the completion timestamp:
 
 1. **Modal path** (`POST /api/onboarding/complete`) — fires when the user reaches the `handoff` beat in the onboarding modal and dismisses. Also seeds `financial_portrait` via `seedFromOnboarding`. Legacy surface; not in active use under onboarding-v2.
-2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires after a Value Map session insert (`api/value-map/personal`). Stamps the timestamp only; does not seed.
+2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from the upload API, chat API, Value Map session insert, archetype generation, and from `advanceStep` when reaching the read-terminal states.
 
-**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND a `value_map_sessions` row exists for `profile_id = userId`.
+**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND either (a) a `value_map_sessions` row exists for `profile_id = userId`, OR (b) `onboarding_step` is in `{'first_read_shown', 'archetype_shown', 'complete'}`.
 
-The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. Transactions and chat messages alone no longer satisfy completion — the Value Map is mandatory.
+The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. The Value Map is no longer mandatory for completion; users who skip it complete via the Read.
 
 ### The CFO Persona
 

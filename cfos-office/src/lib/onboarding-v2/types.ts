@@ -4,6 +4,10 @@ export type OnboardingStep =
   | 'goal_chat_tentative'
   | 'goal_set'
   | 'goal_skipped'
+  // Goal + essentials (net_monthly_income, monthly_rent) all collected
+  // inside the goal-chat. Routes onward to /onboarding-v2/upload — Value
+  // Map is no longer a gate, it becomes an opt-in chip after the Read.
+  | 'essentials_done'
   | 'value_map_started'
   | 'value_map_done'
   | 'upload_done'

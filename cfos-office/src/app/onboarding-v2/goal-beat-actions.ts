@@ -9,19 +9,20 @@ export type CompleteGoalBeatResult = {
 }
 
 /**
- * Called by the GoalBeatWatcher in the office layout when polling detects a
- * new active goal during the goal-derive-and-confirm beat. Idempotent — if the
- * step has already moved past 'goal_chat_started', returns alreadyComplete: true.
+ * Called by the GoalBeatWatcher in the office layout when polling detects
+ * that both essentials (net_monthly_income and monthly_rent) have landed
+ * during the goal-derive-and-confirm beat. A goal is optional — the dont_know
+ * pivot path collects essentials without a confirmed goal.
  *
- * Stamps onboarding_step='goal_set' for both routes. Does NOT stamp
- * onboarding_completed_at — completion is the Value Map's responsibility now,
- * so chat-path users finish onboarding via the VM, same as Marcus.
+ * Idempotent — if the step has already moved past 'goal_chat_started',
+ * returns alreadyComplete: true.
  *
- * For Marcus (entry_struggle = 'dont_know'): marks the goal-chat conversation
- * completed so the watcher's refresh doesn't reopen it. Does NOT force-redirect
- * — that yanked the user mid-stream and they missed the wrap-up message + chip.
- * Both routes now rely on the in-chat <ACTION:start_value_map> chip (or the
- * office banner as backup) to hand off into the Value Map at the user's pace.
+ * Stamps onboarding_step='essentials_done' and routes the user to
+ * /onboarding-v2/upload. The Value Map is no longer a completion gate.
+ * Completion is stamped after the first Read by markOnboardingCompleteIfReady.
+ *
+ * Marks the goal-chat conversation as completed for all routes so it doesn't
+ * re-open as the user moves on to upload.
  */
 export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
   const supabase = await createClient()
@@ -36,26 +37,27 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
 
   const currentStep = profile?.onboarding_step as OnboardingStep | null
 
-  // Already past this beat — nothing to do.
-  if (currentStep && currentStep !== 'goal_chat_started') {
+  // Already past this beat — nothing to do. Accept both the primary beat
+  // state and the tentative state the chat stall handler moves users into.
+  const inBeat =
+    currentStep === 'goal_chat_started' ||
+    currentStep === 'goal_chat_tentative'
+  if (currentStep && !inBeat) {
     return { redirectTo: null, alreadyComplete: true }
   }
 
-  const isMarcus = profile?.entry_struggle === 'dont_know'
-
-  if (isMarcus) {
-    // Mark the goal-chat conversation completed so it doesn't re-open later.
-    await supabase
-      .from('conversations')
-      .update({ status: 'completed', updated_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .eq('type', 'onboarding_goal_chat')
-      .eq('status', 'active')
-  }
+  // Mark the goal-chat conversation completed so it doesn't re-open on
+  // refresh once the user is on /onboarding-v2/upload.
+  await supabase
+    .from('conversations')
+    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .eq('type', 'onboarding_goal_chat')
+    .eq('status', 'active')
 
   const { error: updateErr } = await supabase
     .from('user_profiles')
-    .update({ onboarding_step: 'goal_set' satisfies OnboardingStep })
+    .update({ onboarding_step: 'essentials_done' satisfies OnboardingStep })
     .eq('id', user.id)
 
   if (updateErr) {
@@ -63,7 +65,7 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
     throw new Error('Failed to complete goal beat')
   }
 
-  return { redirectTo: null, alreadyComplete: false }
+  return { redirectTo: '/onboarding-v2/upload', alreadyComplete: false }
 }
 
 /**

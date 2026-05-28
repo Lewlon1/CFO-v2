@@ -2,19 +2,23 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Permissive onboarding completion. Fire-and-forget from any write site
- * that produces the canonical engagement signal (Value Map session).
- * Idempotent and one-way: the UPDATE's WHERE clause guarantees a second
- * call after the timestamp is set matches zero rows.
+ * that produces a canonical engagement signal. Idempotent and one-way:
+ * the UPDATE's WHERE clause guarantees a second call after the timestamp
+ * is set matches zero rows.
  *
- * Eligibility (all required):
+ * Eligibility (all base conditions required):
  *   - user_profiles row exists for userId
  *   - anonymised_at IS NULL
  *   - onboarding_completed_at IS NULL
- *   - a value_map_sessions row exists for profile_id = userId
  *
- * The Value Map is the mandatory completion signal — transactions or chat
- * messages alone do not satisfy it. Both the chat-path and value-map (Marcus)
- * onboarding routes converge here.
+ * AND at least one of:
+ *   - a value_map_sessions row exists for profile_id = userId, OR
+ *   - the user has reached the first-read terminal state (onboarding_step
+ *     in {'first_read_shown', 'archetype_shown', 'complete'}).
+ *
+ * Either path satisfies completion. The first Read is the default path
+ * under the new flow; the Value Map is an opt-in deepening move that
+ * also satisfies completion when the user takes it.
  *
  * Does NOT seed financial_portrait. Portrait traits are written by the
  * route-based onboarding-v2 archetype endpoint and by the post-conversation
@@ -26,20 +30,28 @@ export async function markOnboardingCompleteIfReady(
 ): Promise<void> {
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('id, onboarding_completed_at, anonymised_at')
+    .select('id, onboarding_completed_at, anonymised_at, onboarding_step')
     .eq('id', userId)
     .maybeSingle()
   if (!profile) return
   if (profile.onboarding_completed_at) return
   if (profile.anonymised_at) return
 
-  const { count: vmCount } = await supabase
-    .from('value_map_sessions')
-    .select('id', { head: true, count: 'exact' })
-    .eq('profile_id', userId)
-    .limit(1)
+  const readReached =
+    profile.onboarding_step === 'first_read_shown' ||
+    profile.onboarding_step === 'archetype_shown' ||
+    profile.onboarding_step === 'complete'
 
-  if ((vmCount ?? 0) === 0) return
+  let eligible = readReached
+  if (!eligible) {
+    const { count: vmCount } = await supabase
+      .from('value_map_sessions')
+      .select('id', { head: true, count: 'exact' })
+      .eq('profile_id', userId)
+      .limit(1)
+    eligible = (vmCount ?? 0) > 0
+  }
+  if (!eligible) return
 
   const { error } = await supabase
     .from('user_profiles')

@@ -91,10 +91,20 @@ export default async function OfficeLayout({ children }: { children: React.React
     if (onboardingStep === 'first_read_shown') redirect('/onboarding-v2/first-read')
   }
 
-  // If the user is mid-goal-beat, look up their active goal-chat conversation
-  // so the GoalBeatWatcher can open it in the chat sheet.
+  // Universal post-essentials redirect (applies to all routes). Once a user
+  // is past the goal-chat beat with both essentials supplied, they should be
+  // on the upload screen — refreshing /office shouldn't strand them on an
+  // empty office before they've ever shared their statements.
+  if (!profile?.onboarding_completed_at && onboardingStep === 'essentials_done') {
+    redirect('/onboarding-v2/upload')
+  }
+
+  // If the user is mid-goal-beat (either the primary state or the tentative
+  // state the chat stall handler moves users into), look up their active
+  // goal-chat conversation so the GoalBeatWatcher can open it in the chat
+  // sheet.
   let goalChatConversationId: string | null = null
-  if (onboardingStep === 'goal_chat_started') {
+  if (onboardingStep === 'goal_chat_started' || onboardingStep === 'goal_chat_tentative') {
     const { data: goalConv } = await supabase
       .from('conversations')
       .select('id')
@@ -184,10 +194,12 @@ export default async function OfficeLayout({ children }: { children: React.React
             loads the conversation, and triggers free-text opener if needed. */}
         <ChatOpenerTrigger />
 
-        {/* Activates only when onboarding_step='goal_chat_started'. Opens the
-            goal-chat conversation in the sheet, polls /api/goals/active-count
-            for create_goal completion, advances the step + routes onward.
-            Renders a skip control after 90s for dont_know users. */}
+        {/* Activates when onboarding_step is 'goal_chat_started' or
+            'goal_chat_tentative'. Opens the goal-chat conversation in the
+            sheet, polls /api/onboarding/essentials-status until income+rent
+            both land, advances the step → 'essentials_done' + routes to
+            /onboarding-v2/upload. Renders a skip control after 90s for
+            dont_know users (legacy → /onboarding-v2/value-map). */}
         <GoalBeatWatcher
           onboardingStep={onboardingStep}
           entryStruggle={profile?.entry_struggle ?? null}

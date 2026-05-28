@@ -20,8 +20,24 @@ export default async function OnboardingV2ValueMapPage() {
     .single()
 
   const step = (profile?.onboarding_step ?? null) as OnboardingStep | null
-  const expected = resumeRoute(step, profile?.entry_struggle ?? null)
-  if (expected !== '/onboarding-v2/value-map') redirect(expected)
 
-  return <ValueMapOrchestrator currency={profile?.primary_currency ?? 'GBP'} />
+  // Post-read opt-in: users who have already reached the first-read terminal
+  // state (or completed onboarding) can take the Value Map as a deepening
+  // move. Don't bounce them back to resume.
+  const postReadOptIn =
+    step === 'first_read_shown' ||
+    step === 'archetype_shown' ||
+    step === 'complete'
+
+  if (!postReadOptIn) {
+    const expected = resumeRoute(step, profile?.entry_struggle ?? null)
+    if (expected !== '/onboarding-v2/value-map') redirect(expected)
+  }
+
+  return (
+    <ValueMapOrchestrator
+      currency={profile?.primary_currency ?? 'GBP'}
+      postReadOptIn={postReadOptIn}
+    />
+  )
 }

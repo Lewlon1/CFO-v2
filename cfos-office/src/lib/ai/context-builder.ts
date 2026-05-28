@@ -819,7 +819,41 @@ function buildGoalDeriveConfirmContext(
   const struggle = (profile?.entry_struggle ?? null) as string | null
   const struggleText = (profile?.entry_struggle_text ?? null) as string | null
 
-  if (Array.isArray(goals) && goals.length > 0) return ''
+  const hasGoal = Array.isArray(goals) && goals.length > 0
+  const onboardingStep = (profile?.onboarding_step ?? null) as string | null
+  const incomeMissing = profile?.net_monthly_income == null
+  const rentMissing = profile?.monthly_rent == null
+  const essentialsComplete = !incomeMissing && !rentMissing
+
+  // Pivot to essentials when:
+  //   - The user has a goal, OR
+  //   - The user is in the tentative stall state (5+ turns without a goal).
+  // In tentative mode we no longer try to extract a goal — the chat-stall
+  // system note has already redirected the conversation. The next move is
+  // sizing the numbers and proceeding to upload.
+  const inEssentialsBranch = hasGoal || onboardingStep === 'goal_chat_tentative'
+
+  // Essentials complete (and goal-or-tentative reached) → the GoalBeatWatcher
+  // will route to /onboarding-v2/upload within the next poll tick. Emit a
+  // brief hand-off so the CFO doesn't keep questioning into the void.
+  if (inEssentialsBranch && essentialsComplete) {
+    return [
+      '## Wrap-up',
+      '',
+      'You have their monthly take-home and housing cost.',
+      'In one short message, acknowledge what you have, and say you are about to',
+      'pull their statements so you can see where the money is actually going.',
+      'Do NOT call any more tools. Do NOT ask another question. Keep it to 2–3',
+      'sentences.',
+    ].join('\n')
+  }
+
+  // Essentials branch but one or both numbers missing → collect them. The
+  // structured input components write directly to user_profiles
+  // (net_monthly_income / monthly_rent) via /api/profile/update.
+  if (inEssentialsBranch) {
+    return buildEssentialsCollectContext(incomeMissing, rentMissing)
+  }
 
   const struggleSummary = (() => {
     if (struggle === 'dont_know') {
@@ -880,18 +914,67 @@ function buildGoalDeriveConfirmContext(
     '',
     "### When the user can't articulate a goal",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this.\" — and hand off to the Value Map in the same response by including this token verbatim: <ACTION:start_value_map>. A goal will land later, once they have reflection and transactions to anchor it on. Do not describe the token to the user; the system renders an action button for them.",
+    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this once we can see your money moving.\" — and pivot to the essentials. In the same response, call request_structured_input for net_monthly_income (see the structured-input rules below). A goal will land later once they have a clearer picture; for now, the read is the next move.",
     '',
-    '### After create_goal succeeds — hand off to the Value Map',
+    '### After create_goal succeeds — collect the essentials',
     '',
-    'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
+    'The goal sets the target. To pace anything against it — and to make the first read of their transactions useful — you need their monthly take-home and their biggest fixed line (housing).',
     '',
     'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
-    '- Briefly confirm the goal you have set.',
-    '- Say (in your own voice): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
-    '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
-    '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
+    '- Briefly confirm the goal you have set, in one line.',
+    '- Say (in your own voice) that to pace this realistically you need two quick numbers — monthly take-home and housing — and that you will then look at their transactions.',
+    '- Immediately call request_structured_input for net_monthly_income with input_type="currency_amount", label="What\'s your monthly take-home pay?", rationale="So I can pace this against what you actually have to work with.".',
+    '',
+    'Do NOT in the same message push the user to upload a statement or ask any other question. The next move is the income input, then rent — nothing else.',
+    '',
+    '### Structured-input rules (essentials)',
+    '',
+    'After the user submits net_monthly_income, in your very next response call request_structured_input for monthly_rent with input_type="currency_amount", label="And the biggest fixed line — what\'s housing?", rationale="The fixed cost shapes everything else.". Use a single short framing sentence before the call; no second question, no other tool.',
+    '',
+    'After the user submits monthly_rent, do NOT call another tool. Acknowledge in 2–3 sentences that you have what you need and you are about to look at their transactions. The system will route them to the upload screen.',
+    '',
+    'If the user has not yet supplied net_monthly_income, call request_structured_input for it. If they have, but rent is missing, call it for monthly_rent. Never ask the same question conversationally if a structured input is available — the structured input is the canonical path.',
   ]
+
+  return lines.join('\n')
+}
+
+function buildEssentialsCollectContext(
+  incomeMissing: boolean,
+  rentMissing: boolean,
+): string {
+  const lines = [
+    '## Your task in this conversation',
+    '',
+    'The user has a goal. You still need their monthly take-home and their biggest fixed line (housing) to pace anything realistically and to make the first read of their transactions useful.',
+    '',
+    '### What to do next',
+    '',
+  ]
+
+  if (incomeMissing) {
+    lines.push(
+      '- Open with one short sentence framing why this matters — pacing the goal, sizing what is actually movable.',
+      '- Then call request_structured_input with field="net_monthly_income", input_type="currency_amount", label="What\'s your monthly take-home pay?", rationale="So I can pace this against what you actually have to work with.".',
+      '- Do not ask the question conversationally. The structured input is the canonical path.',
+    )
+  } else if (rentMissing) {
+    lines.push(
+      '- The user has supplied their income. Now you need housing.',
+      '- In one short framing sentence say that the fixed cost shapes everything else.',
+      '- Then call request_structured_input with field="monthly_rent", input_type="currency_amount", label="And the biggest fixed line — what\'s housing?", rationale="The fixed cost shapes everything else.".',
+      '- Do not ask the question conversationally. The structured input is the canonical path.',
+    )
+  }
+
+  lines.push(
+    '',
+    '### Rules',
+    '',
+    '- Exactly one structured-input call per turn. No second question, no other tool.',
+    '- Never recompute, project, or comment on the numbers yet — you have not seen their transactions. The read comes next.',
+    '- Do NOT offer the Value Map and do NOT emit <ACTION:start_value_map>. The next move is the upload screen, which the system will route to once both numbers land.',
+  )
 
   return lines.join('\n')
 }

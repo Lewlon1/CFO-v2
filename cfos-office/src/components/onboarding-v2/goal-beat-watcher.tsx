@@ -17,9 +17,12 @@ const SKIP_VISIBLE_AFTER_MS = 90_000
 /**
  * Mounted in the office layout. Activates only when the user is mid-goal-beat
  * (onboarding_step = 'goal_chat_started'). Opens the goal-chat conversation in
- * the chat sheet, polls for create_goal completion, and routes onward when the
- * goal lands. For Marcus (dont_know) users, also surfaces a skip control after
- * 90s in case the user can't articulate a target.
+ * the chat sheet, polls /api/onboarding/essentials-status until both
+ * net_monthly_income AND monthly_rent have landed (a goal is optional —
+ * the dont_know pivot path collects essentials without a confirmed goal),
+ * and routes onward to /onboarding-v2/upload when essentials complete.
+ * For Marcus (dont_know) users, also surfaces a skip control after 90s in
+ * case the user can't articulate anything.
  */
 export function GoalBeatWatcher({
   onboardingStep,
@@ -33,7 +36,12 @@ export function GoalBeatWatcher({
   const completedRef = useRef(false)
   const openedRef = useRef(false)
 
-  const isActive = onboardingStep === 'goal_chat_started'
+  // Active for the goal-derive beat AND the tentative state the chat route's
+  // stall handler advances to after 5 turns without a goal — both still need
+  // essentials collection, both should advance to upload once income+rent land.
+  const isActive =
+    onboardingStep === 'goal_chat_started' ||
+    onboardingStep === 'goal_chat_tentative'
 
   // Open the goal-chat conversation in the sheet when the watcher activates.
   useEffect(() => {
@@ -59,17 +67,22 @@ export function GoalBeatWatcher({
     return () => clearTimeout(t)
   }, [isActive, entryStruggle])
 
-  // Poll for goal creation. When the user's first active goal lands, complete
-  // the beat and route per the user's path.
+  // Poll for essentials completion. When both net_monthly_income AND
+  // monthly_rent have landed (regardless of whether a goal was set),
+  // complete the beat and route to /onboarding-v2/upload.
   useEffect(() => {
     if (!isActive || completedRef.current) return
     const interval = setInterval(async () => {
       if (completedRef.current) return
       try {
-        const res = await fetch('/api/goals/active-count', { cache: 'no-store' })
+        const res = await fetch('/api/onboarding/essentials-status', { cache: 'no-store' })
         if (!res.ok) return
-        const { count } = (await res.json()) as { count: number }
-        if (count > 0 && !completedRef.current) {
+        const { income, rent } = (await res.json()) as {
+          goal: boolean
+          income: boolean
+          rent: boolean
+        }
+        if (income && rent && !completedRef.current) {
           completedRef.current = true
           clearInterval(interval)
           startTransition(async () => {
@@ -78,9 +91,6 @@ export function GoalBeatWatcher({
               if (redirectTo) {
                 router.push(redirectTo)
               } else {
-                // Chat-path: stay in /office continuing the goal-chat
-                // conversation. Refresh so the layout picks up the new
-                // onboarding_step + onboarding_completed_at.
                 router.refresh()
               }
             } catch (err) {

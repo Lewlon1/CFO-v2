@@ -152,6 +152,26 @@ export function FirstReadOrchestrator({ entryStruggle }: Props) {
         <p className="text-xs text-muted-foreground text-center mt-3">
           Ask the CFO anything. It already has the context.
         </p>
+
+        {!loading && composedMessage && (
+          <div className="mt-6 pt-5 border-t border-border/60">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+              Optional · 2 minutes
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                trackEvent('onboarding_v2.first_read_value_map_optin', {
+                  entry_struggle: entryStruggle ?? null,
+                })
+                router.push('/onboarding-v2/value-map')
+              }}
+              className="text-left text-[14px] text-foreground underline underline-offset-2 hover:opacity-80"
+            >
+              Want to deepen this with a quick exercise on what you actually value?
+            </button>
+          </div>
+        )}
       </div>
     </main>
   )

@@ -276,8 +276,8 @@ export async function POST(req: Request) {
   // primary mechanism; this is a safety net for the case where the model
   // doesn't comply. After 5 user turns in `onboarding_goal_chat` without an
   // active goal, the onboarding state advances to `goal_chat_tentative` and a
-  // transient system note tells the CFO to acknowledge and pivot to the Value
-  // Map. The user can set a specific goal later — tentative state is a
+  // transient system note tells the CFO to pivot to the essentials (income +
+  // rent). The user can set a specific goal later — tentative state is a
   // feature, not a failure mode.
   let stallSystemNote: string | null = null;
   if (
@@ -317,9 +317,11 @@ export async function POST(req: Request) {
 
       stallSystemNote =
         '[SYSTEM] The user has exchanged 5+ turns without committing to a goal. ' +
-        'Acknowledge that there is enough context for now and propose moving to the Value Map next — ' +
-        'they can set a specific goal later. Do NOT ask another goal-related question. ' +
-        'Include the <ACTION:start_value_map> token verbatim in your response.';
+        'Acknowledge that there is enough context for now and pivot to the essentials. ' +
+        'Do NOT ask another goal-related question. ' +
+        'In your next response, call request_structured_input for net_monthly_income ' +
+        '(input_type="currency_amount", label="What\'s your monthly take-home pay?", ' +
+        'rationale="So I can pace anything against what you actually have to work with.").';
     }
   }
 
