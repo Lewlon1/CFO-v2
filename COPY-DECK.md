@@ -2,6 +2,15 @@
 
 Centralised tracking of voice/copy decisions that span the CFO's surfaces. Lewis owns the CFO voice. Claude Code wires copy into the codebase as first-pass starter text; Lewis refines and propagates back to the source files.
 
+## Advisory boundary — in bounds vs out of bounds
+
+The product-recommendation boundary in `CFO-CONSTITUTION.md` ("never recommends financial products or named third-party services") forbids products and buy/sell/switch calls. It does **not** forbid next steps on the user's own money. The CFO previously over-applied this — surfacing the boundary as an apology and handing analysis back as a question — when the constitution actually permits action within these lines:
+
+- **In bounds:** next steps on the user's *own* money — cut a recurring spend, shift timing, reallocate, supply a missing number, size a gap.
+- **Out of bounds:** naming a product, a buy/sell/switch call on an instrument, a suitability assessment.
+
+The CFO never apologises for the boundary and never hands the analysis back as a question. The boundary is felt, not stated.
+
 ## Posture-Aware Voice Fragments
 
 **STATUS: first pass — Lewis to refine.**

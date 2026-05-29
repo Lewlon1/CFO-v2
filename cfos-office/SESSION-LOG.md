@@ -9,6 +9,139 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Bill Benchmark Reference — 2026-05-28
+
+**Branch:** `claude/bill-benchmark-reference-vH2bh` (child of `value-first-onboarding`, off `session-32/the-read`)
+**Scope:** Light up the `flagAgainstBenchmark()` integration stubbed by the value-first onboarding session — the data layer and comparison logic that turn "your broadband is above average" from a guess into a defensible, sourced observation. One additive migration (068_benchmark_reference) applied to staging only.
+
+### What shipped
+
+**Schema (migration 068):**
+- New `bill_subtype` enum: `broadband | mobile | electricity | gas | home_insurance | auto_insurance | streaming_subscription`. The "contractual / fixed" allowlist is encoded in the type system — adding a value requires a migration, not a runtime config, and the flagger refuses subtypes outside the enum.
+- `bill_subtype` columns (nullable, forever) on `recurring_expenses` and `user_declared_fixed_costs`. NULL means "no benchmark eligible", which is the safe default.
+- `benchmark_reference` table — keyed `(country, bill_subtype)` UNIQUE; `band_low / band_high` numeric (nullable until sourced); `source NOT NULL` (citation required, `TODO: <regulator>` allowed during sourcing); `currency` + `country` whitelist via CHECK; RLS-enabled, single SELECT policy gated on `(select auth.uid()) IS NOT NULL`; service-role writes only via migration. `merchant_aggregates`-style lockdown.
+- 14 structural seed rows (GB × 7 subtypes + ES × 7) inserted with NULL bands and `TODO:` source markers. No fabricated numbers.
+
+**Code:**
+- `src/lib/analytics/benchmark/{types, classify-subtype, format}.ts` — types (`BillSubtype`, `BenchmarkVerdict`, country allowlist), pure keyword classifier (high-confidence unambiguous tokens win; low-confidence brand fallbacks for shared GB/ES telco names; null on no match), safe-phrasing helper that hard-codes the observational copy in one place.
+- `src/lib/analytics/flag-against-benchmark.ts` — full rewrite. Replaces the point-based `BenchmarkFlag` (severity / pct_above) with the band-based `BenchmarkVerdict` (verdict / band_low / band_high / currency / source / basis). Async, takes `(supabase, FlagInput, country)`. Returns null when subtype is null, country is outside the allowlist, no row matches, or bands are unsourced.
+- `src/lib/analytics/reconcile-fixed-costs.ts` — `ReconciledBill.benchmark_flag` renamed `benchmark_verdict`, plus new `bill_subtype` field. Loads `country` alongside currency from `user_profiles`. Subtype resolution order: declared-row stored subtype → matched detected slot's subtype → on-the-fly classifier on the label. Both flag call sites now `await`.
+- `src/lib/analytics/recurring-detector.ts` — classifies merchant name and persists `bill_subtype` on the recurring upsert. Wraps the existing provider matcher; no behaviour change for non-classifiable merchants.
+- `src/components/onboarding-v2/confirm-fixed-costs.tsx` — renders the verdict via `formatBenchmarkObservation`, a one-line sentence citing the band and source. Only shows for `verdict === 'above'`; silent otherwise.
+- `src/lib/ai/compose-first-read.ts` — picks the single largest above-band verdict via `getTopBenchmarkObservation` (re-runs reconcile, since verdicts are not persisted), passes the pre-rendered sentence into `buildFirstReadUserPrompt`.
+- `src/lib/ai/prompts/first-read.ts` — new `BENCHMARK OBSERVATION` section + guardrail rule appended when present. Forbidden vocabulary listed inline: "switch", "should", "too high", "overpaying", "recommend". Renegotiation framed as an optional follow-up turn, never as a directive in the Read itself.
+- `src/lib/experiments/templates.ts` — new `renegotiate_fixed_cost` catalog entry. Trigger pattern `bill_above_benchmark` is reserved — no detector emits it yet, so auto-selection is off; the template is selectable only by direct ID until a detector wraps the verdict pipeline.
+- Tests: `tests/benchmark/{classify-subtype, flag-against-benchmark}.test.ts` — 42 cases, all green. Covers high-conf / low-conf / no-match classification (UK + ES brand variants, accent stripping), verdict above/within/below across cadence conversions, every silence case (null subtype, null country, country outside allowlist, no row, unsourced bands), and string→number coercion for Supabase NUMERIC clients.
+
+**Deliverables (off-keyboard, for Lewis to action):**
+- `docs/benchmark-bands-needed.md` — enumerates every TODO row with suggested public, provider-neutral sources (Ofcom, Ofgem, ABI, ONS LCFS for GB; CNMC, IDAE, UNESPA/ICEA for ES; published retail price lists for streaming). The flagger handles unsourced rows as silence; Lewis populates bands via a hand-written follow-on migration as research lands.
+
+### Bands sourced this session
+
+None — the deliverable is the engine + the sourcing list, not the numbers. Better to ship the engine with zero well-sourced bands than fourteen guessed ones.
+
+### Boundary decisions
+
+- **Observation only.** Live precedent at `context-builder.ts:1828` (savings rates / "below current best-available rates without recommending a specific provider"). The benchmark layer uses the same shape for bills.
+- **Band, never a point.** Schema has `band_low / band_high` separately + a CHECK enforcing coherence. Verdict carries both.
+- **Source or silence.** `source NOT NULL` at schema level; flagger returns null on NULL bands. Unsourced rows are stored as structural placeholders so the table shape is stable and the bands-needed list stays auditable.
+- **Contractual / fixed categories only.** Encoded in the `bill_subtype` enum, not as a TS constant. Lifestyle-variable spend (groceries, dining, transport-as-spend) cannot be encoded into a benchmark row at the type-system level — a national average there is meaningless against one person's life.
+- **Renegotiation = experiment, not advice.** New catalog template, not a directive in chat copy. The Read may offer to talk through renegotiation in a *later* turn; the Read itself never tells the user to do anything.
+
+### Open risks / watch-fors
+
+- **Existing `search_bill_alternatives` + `provider-registry.ts` predate this boundary.** They name specific providers (Iberdrola, Octopus, EE, Movistar, …) and recommend alternatives, which contradicts `ADVISORY_BOUNDARIES` and Constitution §4. Left untouched in this session per the plan; flagged at the top of `docs/benchmark-bands-needed.md` for a separate audit / retirement session.
+- **Confirm UI does not surface a subtype-correction control yet.** The classifier auto-fills server-side; if it's wrong, the user sees silence (the safe default) but can't currently nudge the subtype. Adding a correction dropdown is a follow-on; the `user_declared_fixed_costs.bill_subtype` column exists so it can be wired without a migration.
+- **The `bill_above_benchmark` trigger pattern is reserved but unwired.** `renegotiate_fixed_cost` won't be auto-selected by the ranking layer until a pattern detector wraps the verdict pipeline.
+- **Verdicts are not persisted.** `compose-first-read` re-runs `reconcileFixedCosts` to derive them; cost is bearable for a one-shot composition but should not be called hot. If a verdict surface ever lands in the dashboard, persist verdicts into a column on a follow-on migration.
+
+### Files
+
+NEW: `supabase/migrations/068_benchmark_reference.sql` (+ `prod-backfill-068`), `src/lib/analytics/benchmark/{types, classify-subtype, format}.ts`, `tests/benchmark/{classify-subtype, flag-against-benchmark}.test.ts`, `docs/benchmark-bands-needed.md`.
+
+MODIFIED: `src/lib/analytics/{flag-against-benchmark, reconcile-fixed-costs, recurring-detector}.ts`, `src/lib/ai/compose-first-read.ts`, `src/lib/ai/prompts/first-read.ts`, `src/components/onboarding-v2/confirm-fixed-costs.tsx`, `src/lib/experiments/templates.ts`, `SESSION-LOG.md`.
+
+INSPECT-ONLY (untouched): `src/lib/bills/{brave-search, provider-registry}.ts`, `src/lib/ai/tools/search-bill-alternatives.ts` (named-provider surface flagged for separate audit), production Supabase, `main`, `docs/the-layers.md`.
+
+Build green; 42/42 new tests pass; `get_advisors` clean (no new warnings introduced by 068).
+
+---
+
+## Session — Value-First Onboarding (alt Session 33) — 2026-05-28
+
+**Branch:** `claude/value-first-onboarding-7zfiI` (off `session-32/the-read`)
+**Scope:** Alternative onboarding sequence for A/B comparison. Same Session 32 Read backend underneath; six-step flow on top. One additive migration (067_user_declared_fixed_costs) applied to staging only.
+
+### What shipped
+
+Six-step value-first sequence:
+
+1. **Intent + goal** — struggle picker → goal-derive-confirm chat. Goal-only; essentials stripped from this beat (commit d18143d had moved them into chat; the value-first spec re-relocates them to the processing wait).
+2. **Upload** — same UploadWizard + autoImport; handleDone now stamps `upload_processing` and routes to `/processing` under the layered flag.
+3. **Processing screen** (new) — hosts an income + rent form alongside a parse/aggregate progress strip. Income blur triggers an inline goal-pace one-liner via a server-callable `submitIncome` (no model round-trip).
+4. **Confirm / reconcile** (new) — deduped list of declared bills + detected recurring + rent. Reconcile rule: 10 % amount-band, ±1-step cadence-ladder match. Form labels win on match; detected counted once. `monthly_snapshots.total_fixed_costs` (column existed in 001 but was never written) is populated here.
+5. **First Read** — `composeFirstRead` extended with `mode: 'value_first'`. New system prompt variant + HOOK section. Layer 1 facts (income, total_fixed_costs, free cash flow) handed verbatim. Close ends with 2–3 hook items + `[CTA:start_value_map_real]Tell me what these mean[/CTA]`.
+6. **Value Map (optional)** — runs on the EXACT real flagged transactions named by the hook. Completion calls `/api/insights/recompose-first-read` which appends a Layer-2-aware Read to the same conversation. Skipping leaves the user fully onboarded.
+
+`onboarding_completed_at` stamps at `first_read_delivered` (step name added; markComplete + advanceStep recognise it parallel to first_read_shown). The Value Map is pure upgrade.
+
+State machine additions: `upload_pending`, `upload_processing`, `details_pending`, `details_confirmed`, `first_read_delivered`, `value_map_offered`. Forward-only; legacy `essentials_done` users still route to `/upload` (the processing screen auto-detects existing income/rent so they aren't re-prompted).
+
+Also wired this session (out-of-scope but cheap to close while we were in the file):
+- `spending_triggers`, `values_ranking`, `financial_awareness` had been "collected but never injected" into the prompt as load-bearing context. A new "Psychological lens" block in `buildProfileContext` makes them interpretive aids: stated-values comparator when behaviour diverges, jargon control via financial_awareness, trigger-as-context (not judgment) calls.
+- `total_fixed_costs` + free-cash-flow now also surface in the ongoing chat's Financial Summary block so follow-up conversations stay anchored to the Read's numbers.
+
+### What was learned
+
+- **The baseline had already moved the needle a long way.** Commit d18143d (essentials-in-chat, Value-Map opt-in post-Read) made the value-first sequence's real deltas narrower than the spec described: form-during-processing, explicit confirm/reconcile, populate `total_fixed_costs`, hook → real-transactions Value Map. The audit caught this before designing on top of the wrong baseline.
+- **`total_fixed_costs` was the silent gap.** Column existed since 001; no writer. The Read's free-cash-flow line silently fell back to nulls before this session.
+- **Dedupe is load-bearing.** The match-band reconciler is exercised by 6 unit tests covering rent-vs-rent dedupe, declared-label-wins, weekly normalisation, and unmatched-detected pass-through. A doubled rent corrupts free cash flow, which corrupts the Read's lead, which kills trust on first impression — this isn't polish.
+- **`compute_goal_pace` was already server-callable.** The instant payback on income blur cost ~30 lines of code; no model round-trip, no flicker.
+
+### Open risks / watch-fors
+
+- **Hook copy is the engagement linchpin.** If the value-first First Read's close lands flat, the optional Value Map dies and Layer 2 never activates for this cohort. The `selectHookCandidates` heuristic is small (high recent spend, no L2 rule, ambiguous category) and will need iteration once the preview is walked.
+- **Above-peer-average bill flagging is stubbed.** `flagAgainstBenchmark` returns null with a `TODO(benchmark-session)` marker; the confirm row renders no peer chip until the companion benchmark session lights it up.
+- **Layer 2 confidence gate.** `buildUserValueProfile` requires 3 signals per category for confidence. The hook caps at 3 cards. If the user classifies fewer than 3 in the same category, the recomposed Read's L2 may be suppressed. Padding with sample cards (vs lowering the threshold) is the recommended response — does NOT touch the Session 32 backend.
+- **Form-during-processing race.** The 30-s import grace cap is fire-and-forget — background work continues if it spills over. Acceptable; mentioned here so the next session knows to monitor if the snapshot refresh ever takes longer than that.
+
+### For the comparison
+
+Deploy `claude/value-first-onboarding-7zfiI` to its own Vercel preview, leave `session-32/the-read` as the baseline preview, walk the same CSV + same goal through both. The question isn't "which Read is better" (same composeFirstRead backend) — it's "which sequence makes me want to keep going, and which one earns the Value Map."
+
+### Files
+
+NEW: `src/app/onboarding-v2/processing/{page, processing-orchestrator, processing-actions}`, `src/app/onboarding-v2/confirm/{page, confirm-orchestrator, confirm-actions}`, `src/components/onboarding-v2/{processing-form, processing-progress, goal-pace-inline, confirm-fixed-costs}.tsx`, `src/lib/analytics/{reconcile-fixed-costs, flag-against-benchmark}.ts`, `src/lib/analytics/__tests__/reconcile-fixed-costs.test.ts`, `src/lib/ai/compose-first-read-hooks.ts`, `src/lib/value-map/hook-transactions.ts`, `src/app/api/insights/recompose-first-read/route.ts`, `supabase/migrations/067_user_declared_fixed_costs.sql` (+ companion prod-backfill).
+
+MODIFIED: `src/lib/onboarding-v2/{types, resume}.ts`, `src/app/onboarding-v2/{actions-step, goal-beat-actions}.ts`, `src/app/onboarding-v2/upload/upload-orchestrator.tsx`, `src/app/onboarding-v2/first-read/{page, first-read-orchestrator}.tsx`, `src/app/onboarding-v2/value-map/{page, value-map-orchestrator}.tsx`, `src/components/onboarding-v2/goal-beat-watcher.tsx`, `src/components/value-map/value-map-flow.tsx`, `src/app/api/chat/route.ts`, `src/app/api/insights/post-upload/route.ts`, `src/lib/ai/{context-builder, compose-first-read}.ts`, `src/lib/ai/prompts/first-read.ts`, `src/lib/analytics/monthly-snapshot.ts`, `src/lib/onboarding/markComplete.ts`.
+
+INSPECT-ONLY (untouched): `src/lib/analytics/cluster-behaviour/*`, `src/lib/analytics/chat-signals/*`, `src/lib/feature-flags/layered-read.ts`, `src/lib/analytics/{pattern-detectors, recurring-detector}.ts`, `merchant_aggregates` MV. Build green; reconcile tests 6/6.
+
+---
+
+## Session B / Phase 2 revised — The Read, Actionability Fix — 2026-05-28
+
+**Branch:** `session-32/the-read`
+**Scope:** Composition layer of the first Read. No DB migrations.
+
+The Spain test (194 transactions, €50k house deposit, income unknown) produced a competent transaction-summariser that helped with nothing. Diagnosis and lessons:
+
+- **Diagnosis:** We built the CFO to see and never defined what it does with what it sees. Noticing ≠ wow. Wow = noticing + a clear next step.
+- **Boundary was misapplied, not limiting.** `CFO-CONSTITUTION.md:141` forbids products and buy/sell/switch calls — not next steps on the user's own money. The help-with-nothing output violated the constitution (stated the boundary, dodged the actionable phrases it's told to use), it didn't honour it.
+- **Actionability > notability.** Observations are now ordered by what the user can do, not how unusual they are — and the ordering happens via the LEVERS / BLOCKER structured data fed into the composition, not via `insight-engine.ts` (which serves the legacy V1/V2 path the layered Read doesn't touch). The "actionability sort" lives in the prompt + the lever derivation, not in a `.score` field.
+- **Levers are computed, never improvised.** `src/lib/analytics/levers.ts` derives `cut` magnitudes from a counterfactual on the existing surplus calculation. The model frames numbers it is handed.
+- **Math-blocking = a required pace input is null.** Income was the Spain instance, not a hardcoded special case. The detector reads `goals.target_date` and `user_profiles.net_monthly_income` — the same hard blockers documented in `pace.ts` — and emits a `supply_input` lever that becomes the headline of the Read.
+- **The close never offloads.** One lever + one tappable `[CTA:type]label[/CTA]` ask; no question-back, no apology. The CTA label is written from the user's POV ("Here's my monthly take-home") so tapping it sends a coherent user message back into chat.
+- **Affordance plumbing reuses what's there.** `[CTA:…]…[/CTA]` and `[OPTIONS]…[/OPTIONS]` parsers already existed in `MessageList.tsx`. New action-type CTAs (`supply_input`, `cut_lever`) share the chip-tap path so wow events flow through the existing `chip_tapped` channel — no new enum value, no migration, no Session-C plumbing built ahead of schedule.
+
+**Files touched:** `CFO-CONSTITUTION.md`, `COPY-DECK.md`, `src/lib/ai/system-prompt.ts`, `src/lib/ai/prompts/first-read.ts`, `src/lib/ai/compose-first-read.ts`, `src/lib/analytics/levers.ts` (new), `src/lib/analytics/__tests__/levers.test.ts` (new), `src/components/chat/ChatCTA.tsx`, `src/components/chat/MessageList.tsx`. Build green; 822 tests pass (was 816 pre-session; +6 lever).
+
+**Scope correction worth flagging for future sessions:** the brief asked for an `insight-engine.ts:306` ranking change. The layered Read doesn't consume `insight-engine.ts` — that file powers the legacy V1/V2 path through `/api/chat`. If the legacy path ever returns, the same notability→actionability treatment applies there. Out of scope for this session.
+
+**Out of scope (deferred):** richer `shift` / `reallocate` lever derivation; conditional Session E archetype removal; thin-data footer for ≤1-month users (skipped at user direction in the Marcus/Dorcas/Lewis pass that merged in first); migration to add `cta_tapped` as a distinct wow event type.
+
+---
+
 ## v2.5.2 — IA Simplification + Palette Reset + Component Reuse — 2026-05-19
 
 **Branch:** `claude/v2.5-ia-simplification-AWnKN`
@@ -1455,3 +1588,209 @@ Don't touch either until (1) and (2) are planned — they interact (removing the
 4. **`requires_income_signal` is unused.** When a future template legitimately needs income cadence, set the flag and add the filter at `propose-catalog-experiment` and `experiments/limit.ts`. The signal computation is already wired.
 5. **Cache invalidation cost for open-items.** Built INTO the cached system prompt per user decision. For users who chat frequently in `general` conversations, this trades cache hits for fresh resumption context. Watch the Bedrock usage log over the next week — if cache-hit rate drops noticeably for repeat users, switch to a second uncached system message.
 6. **Compare-first-insight on the calibration personas.** Lewis to run `npx tsx scripts/compare-first-insight.ts <userId>` against the 5 calibration personas to confirm the income-signal threshold and the dropped "Greet warmly" changes don't regress narration quality on a Dorcas / Marcus / Lewis cohort.
+
+
+---
+
+## Session 32 (A) — Foundation, Behavioural Engine, Layer 4 Backend — 2026-05-26
+
+**Branch:** `session-32/the-read` (off `main` at `b99e92e`)
+**Headline:** No user-facing changes. Backend foundation for the layered Read architecture — Layer 3 behavioural engine (`cluster-behaviour/`), Layer 4 conversational-signal extraction (`chat-signals/`), gated tools and system-prompt section. Sessions B/C/D build on what this session laid down.
+
+### What shipped
+
+- **Architecture spec:** [cfos-office/docs/the-layers.md](cfos-office/docs/the-layers.md) — five-layer model (Transactions / Stated Intent / Behavioural Features / Conversational Signals / Goals & Life Context). Replaces the "Gap as signature feature" framing.
+- **Pre-session audit:** [cfos-office/docs/audits/2026-05-26-session-32.md](cfos-office/docs/audits/2026-05-26-session-32.md) — gap-analyser (14 importers), archetype (active in onboarding-v2, not vestigial as initial recon suggested), pattern-detectors call sites, merchant-normalisation gate decision (Path A).
+- **Feature flag:** [`isLayeredReadEnabled()`](cfos-office/src/lib/feature-flags/layered-read.ts) at `src/lib/feature-flags/layered-read.ts`. Gates the new tools, system-prompt section, and signal extraction hook. Removed in Session D.
+- **Behavioural engine:** [`src/lib/analytics/cluster-behaviour/`](cfos-office/src/lib/analytics/cluster-behaviour/) — five derive functions (recurrence, trend, time_pattern, amount_profile, lifecycle) + composer + summary. 28 unit tests.
+- **Layer 4 backend:** [`src/lib/analytics/chat-signals/`](cfos-office/src/lib/analytics/chat-signals/) — pattern library (5 signal types, ~25 regexes) + Haiku LLM fallback + extraction orchestrator. 42 unit tests.
+- **Migrations:**
+  - `062_merchant_aggregates.sql` — materialized view + pg_cron nightly refresh + service-role-only RPC. Applied to staging (qlbhvlssksnrhsleadzn).
+  - `063_chat_signals.sql` — chat_signals table + enums + RLS. Applied to staging.
+  - Companion `prod-backfill-NNN_*.sql` files written but NOT applied (Lewis runs manually before merge).
+- **Tool registrations (flag-gated):** `get_cluster_behaviour`, `get_conversation_signals`. Existing 45 tools unchanged.
+- **System prompt:** new gated `## Behavioural features and prior conversation` section in `buildSystemPrompt()` — describes the two new tools and the layered Read discipline (never invent features, never use internal labels).
+- **Chat route hook:** fire-and-forget `extractAndStoreSignals()` after user-message persist, via `after()`, gated by the flag. Captures the user message id by adding `.select('id').single()` to the existing insert.
+- **CLAUDE.md updates:** replaced "The Gap" section with "The layered Read (current architecture)"; added "Feature flags" subsection under Tech Stack Details.
+
+### Phase 0.5 outcome — merchant normalisation
+
+**Path A** chosen: use `transactions.description` as the merchant key in the materialized view. No schema change to transactions.
+
+- Dorcas dataset: 233 transactions, 89 distinct descriptions across 3 months
+- Per-description fragmentation test (multiple raw_descriptions per description): 0 cases
+- Key-collapse test (descriptions that should have merged under a normalised key): 0 cases
+- **Caveat:** descriptions in this dataset carry bank prefixes (`POS PURCHASE`, `ATM WITHDRAWAL`), branch codes (`#142`, `#2218`), and locations (`CAROLINA PR`). `POLLO TROPICAL #142` and `POLLO TROPICAL DRIVE THRU` are still treated as separate merchants. The cluster-behaviour engine works at description granularity — meaningful per-merchant features, but no brand-level rollup.
+
+**Follow-up flagged:** brand-level normalisation is a future enhancement. Recommended approach captured in the audit doc (add `transactions.merchant_normalised TEXT` + backfill, reuse and extend `normaliseMerchant()` in pattern-detectors.ts).
+
+### What was learned
+
+1. **Recon agent was wrong about archetype being vestigial.** Initial Explore agent classified archetype references as "purely cosmetic". The Phase 0.2 grep showed it's deeply embedded in onboarding-v2 (`archetype_shown` is an `onboarding_step` state, `/onboarding-v2/archetype/` is the post-upload reveal page, `/api/onboarding/generate-archetype` is a live Bedrock endpoint). Session D archetype removal will be a significant sub-track. Lesson: agents that scan code can miss the *flow* — they see file contents but miss state-machine integration. Verify load-bearing claims with the actual greps before trusting them.
+2. **`mcp__supabase__*` connected to the wrong project by default.** The non-prefixed Supabase MCP tool was pointed at an unrelated project (services/testimonials/blog_posts — looked like an astrology site). First `list_tables` revealed no `transactions` table. Switched to the project_id-aware tools (`mcp__3949509e-...__*`) and routed every call through CFO Staging (`qlbhvlssksnrhsleadzn`). The lessons-learned note from v2.5.2 about MCP project verification holds.
+3. **Materialized views need explicit lockdown for all four roles.** `REVOKE ALL ... FROM PUBLIC` and `FROM authenticated` is not enough — Supabase advisors flagged `merchant_aggregates` as still selectable by `anon`. Added `REVOKE ... FROM anon` and locked the `refresh_merchant_aggregates` RPC the same way (PUBLIC + anon + authenticated). Embedded the lockdowns inline in the canonical migration source.
+4. **PR #53's "dormant infrastructure" framing was accurate.** `value-profile.ts` (Layer 2), `emit_action` tool, and `merchant_fragmentation`'s `topMerchant` enrichment all merged into main before this session. Building on them was clean — no rework. The commit message said "dormant infrastructure until the system prompt is updated in session-32"; we activated it.
+5. **Plan said `_pence` columns; reality is `NUMERIC amount`.** The original plan's SQL referenced `amount_pence` (BIGINT), `merchant_normalised`, `merchant_raw`, `transaction_date` — none exist. Actual schema uses `amount` (NUMERIC), `description`, `raw_description`, `date` (TIMESTAMPTZ). The plan-mode review caught this and clarified with the user before writing the migration; otherwise the SQL would have failed at apply time. Lesson: schema-touching plans should ground-truth column names against migration files, not assumed conventions.
+6. **Near-flat regression looks like volatile.** First test pass on `deriveTrend` for amounts `[100, 101, 99]` (essentially flat) returned `volatile` because R² is undefined when denominator variance is near zero. Fixed by classifying as `stable` when the data's CV is below 1%. Worth adding an integration smoke test against real Dorcas data in Session B to catch any other thresholds that are off.
+
+### What to watch for in Sessions B and C
+
+- **Tool-calling discipline.** Even with the new system-prompt section, the CFO may not call `get_cluster_behaviour` when it should. Phase 7.2 manual verification (Lewis on preview deploy) will reveal whether the prompt is sufficient or needs iteration.
+- **Pattern hit rate vs LLM fallback rate.** `extraction_method` column on `chat_signals` lets us measure pattern vs LLM split. Worth adding a count metric (signals stored per day, % via LLM) to monitor in Session C's dashboard.
+- **Merchant attribution.** The pattern path uses a simple substring-match heuristic over the user's last 30 days of merchants. Crude. The LLM fallback does better attribution but only fires when patterns miss or are low confidence. Worth revisiting if Session B's onboarding test shows attribution misses.
+- **`messages.id` insert capture.** I added `.select('id').single()` to the existing user-message insert. If this changes anything about how the existing chat flow uses the persisted message, the change is centred at [route.ts:205](cfos-office/src/app/api/chat/route.ts:205).
+- **Idempotent `cron.schedule`.** The Phase 3 migration includes `SELECT cron.schedule(...)`. pg_cron 1.6 updates the job if the name already exists; if Lewis's prod has an older pg_cron, the prod-backfill may need an `unschedule` first.
+
+### Audit findings worth surfacing
+
+- **gap-analyser has 14 importers including a full UI route** (`/office/values/the-gap/` with 5 components). Session D removal must plan the route's replacement.
+- **Archetype removal is non-trivial** — it's a load-bearing onboarding-v2 state and a Bedrock endpoint, not just a sidebar widget. Treat as its own sub-track.
+- **Migration numbering inconsistency.** DB shows `061_user_hypotheses` (May 21) that has no corresponding file in `cfos-office/supabase/migrations/`. Someone applied a migration directly via MCP. Used `062`/`063` to avoid collision; flagged for whoever reconciles next.
+
+### Open follow-ups
+
+1. **Manual verification on preview deploy.** Phase 7's four manual tests are deferred to Lewis: (a) sign in as Dorcas, (b) ask about her most-frequent merchant — confirm `get_cluster_behaviour` is invoked and ≥2 features cited, (c) send a regret message — confirm `chat_signals` row appears, (d) confirm signal recall in same conversation.
+2. **Brand-level merchant normalisation.** Future session: add `transactions.merchant_normalised TEXT` + backfill, swap the materialized view to use it, re-run Phase 0.5 to confirm chain collapse.
+3. **Audit metric.** Session C's dashboard work should include a "signals stored per day" + "% via LLM" count from `chat_signals`.
+4. **`mode() WITHIN GROUP` for `dominant_category_id`** assumes the most-frequent category per (user, merchant, month) is "the" category. Fine for stable categorisations; if a merchant's category drifts, the rollup will follow. Worth confirming with a Session B query on a user with category corrections.
+5. **`category_aggregates` rolling up across merchants** is currently approximated (max-of-stddev for cross-month stddev). If the CFO needs precise category-level variance, swap to a sub-query or add a second materialized view.
+6. **Tests in `__tests__/` subdir, not top-level `tests/`.** Plan called for `cfos-office/tests/cluster-behaviour/...`; matched repo convention and put them under `src/lib/analytics/{cluster-behaviour,chat-signals}/__tests__/` instead. Same vitest pickup.
+
+---
+
+## Session 32 (B) — First Read Composition, Pipeline Rewrite, Parallel Onboarding — 2026-05-26
+
+**Branch:** `session-32/the-read` (continued from Session A; HEAD `e9c083d`)
+
+**Headline:** the first Read is composed end-to-end behind the layered-read flag. New parallel onboarding terminal route at `/onboarding-v2/first-read/`. Old archetype flow completely untouched for unflagged users.
+
+### What shipped
+
+- **Merchant normaliser** — [src/lib/analytics/merchant-normalise/index.ts](cfos-office/src/lib/analytics/merchant-normalise/index.ts). Strips bank-side prefixes (`POS PURCHASE`, `ATM WITHDRAWAL`, `DIRECT DEP`, etc.) and trailing reference noise. 15 unit tests. Used by `compose-first-read` to clean merchant_keys before they appear in the LLM context — Session A's `resolveMerchantKeys` already solved the brand-rollup-via-substring problem at the query layer, so this normaliser is for display, not tool-call correction.
+- **First Read composition prompt** — [src/lib/ai/prompts/first-read.ts](cfos-office/src/lib/ai/prompts/first-read.ts). System prompt + user-prompt builder. Voice rules, citation requirements, "When stated intent and behaviour diverge" framing.
+- **First Read orchestrator** — [src/lib/ai/compose-first-read.ts](cfos-office/src/lib/ai/compose-first-read.ts). One-shot `generateText` (no tool calls during composition; tools are for ongoing chat). Pulls Layer 2 (Value Profile), Layer 3 (top-10 merchant cluster behaviours), Layer 5 (active goal). Returns `{ composedMessage, metadata }` where metadata records `layers_used`, `features_cited`, `gap_present`, `clusters_referenced` — the hooks Session C's wow_assessment plumbing will read.
+- **Post-upload pipeline rewrite** — [src/app/api/insights/post-upload/route.ts](cfos-office/src/app/api/insights/post-upload/route.ts). New `handleLayeredFirstRead` branch gated by `isLayeredReadEnabled()`. Awaits `refresh_merchant_aggregates`, calls `composeFirstRead`, persists conversation + pre-written assistant message in a single round-trip. The pre-written message bypasses `ChatProvider`'s `msgs.length === 0` auto-trigger guard. Idempotency uses `metadata->>'layered_read'`. Unflagged flow is byte-for-byte untouched.
+- **Parallel onboarding route** — [src/app/onboarding-v2/first-read/page.tsx](cfos-office/src/app/onboarding-v2/first-read/page.tsx) + [first-read-orchestrator.tsx](cfos-office/src/app/onboarding-v2/first-read/first-read-orchestrator.tsx). Server-side flag check redirects to `/onboarding-v2/archetype` if the flag is off (defence in depth). Client orchestrator triggers the layered composition via POST `/api/insights/post-upload`, fetches the pre-written message via GET `/api/conversations/recent?id=…`, displays it, and the "Continue the conversation →" CTA lands the user in `/office?chat=open&conversationId=…`. Stamps `onboarding_step = 'first_read_shown'` on mount; stamps `'complete'` on continue.
+- **OnboardingStep type union** — [src/lib/onboarding-v2/types.ts](cfos-office/src/lib/onboarding-v2/types.ts). Added `'first_read_shown'`. **No DB migration needed** — the column is freeform `text` with no enum or CHECK constraint, so the TS union is the only place this value needs to be enumerated.
+- **resumeRoute + layout redirect** — flag-aware, additive. Users with `upload_done` route to `/onboarding-v2/first-read` when layered, `/onboarding-v2/archetype` otherwise. `'archetype_shown'` continues to bounce back to `/onboarding-v2/archetype` regardless of flag — anyone already in the old flow finishes the old flow.
+- **Upload orchestrator redirect** — flag-aware destination, prop-driven (`layered: boolean`). Flag value evaluated server-side in `upload/page.tsx` and passed through, because `isLayeredReadEnabled()` reads non-public env vars that aren't available client-side.
+- **System prompt strengthening** — [src/lib/ai/context-builder.ts:1267](cfos-office/src/lib/ai/context-builder.ts:1267). Strengthened the layered-read tool-invocation language from "When discussing a merchant or category, call these tools" (advisory) to "**MANDATORY** — You MUST call `get_cluster_behaviour` before responding whenever…" with concrete examples and an explicit citation requirement (≥2 features per merchant discussion). This is the Phase 0.4 proactive iteration the plan called for.
+- **Welcome + Processing screen polish** — [struggle-question.tsx](cfos-office/src/components/onboarding-v2/struggle-question.tsx) gets a flag-aware eyebrow + subtitle ("YOUR CFO IS READY", "A few minutes of setup. One sharp read of your last 90 days."). [first-read-orchestrator.tsx](cfos-office/src/app/onboarding-v2/first-read/first-read-orchestrator.tsx) shows progressive flash lines during composition ("Reading your last 90 days." → "Looking for patterns." → "Where habits and intent diverge." → "Drafting your read.") instead of a static skeleton.
+
+### Tool validation outcome (Phase 0.4 — the inherited gap)
+
+Runtime validation that the CFO actually invokes `get_cluster_behaviour` was NOT executed in this session — that requires either a Vercel preview browser session or a CLI chat harness, neither of which was practical to construct in-band. The mandatory-gate playbook from the plan was followed in spirit: **strengthen the prompt proactively** (now imperative + example-laden) and **document the runtime check as a Lewis spot-check before merge**.
+
+Confirmed prerequisites: Dorcas has 170 rows across 89 merchants in `merchant_aggregates` (CFO Staging). Tool registration is intact at [src/lib/ai/tools/index.ts:101](cfos-office/src/lib/ai/tools/index.ts:101). Substring-ILIKE resolution in `resolveMerchantKeys` already forgives raw bank prefixes, so cluster_id robustness is solved at the query layer regardless of how the model phrases the hint.
+
+**Pre-merge action required:** on the `session-32/the-read` Vercel preview, sign in as Dorcas (or any user with `merchant_aggregates` rows), ask "What does my spending at Pollo Tropical look like over the last three months?", confirm `get_cluster_behaviour` fires and ≥2 features are cited. If the tool doesn't fire reliably, iterate at [context-builder.ts:1267](cfos-office/src/lib/ai/context-builder.ts:1267).
+
+### What was learned
+
+1. **Post-upload route mental model in the plan was wrong.** The plan described persisting a "first_insight message" with a `message_type` field. Reality: there's no `message_type` column anywhere; the existing route creates a `conversations` row (with `type='first_insight'`) but no message, and the narrative is generated later when the user opens the conversation via ChatProvider's auto-trigger. The fix: pre-write the composed message as an assistant `messages` row so `msgs.length > 0` bypasses the auto-trigger guard. Composition metadata lives on `conversations.metadata.first_read_metadata`.
+2. **`onboarding_step` has no DB-level constraint.** Plan suggested migration 065 to extend an enum/check. Reality: it's freeform `text`. The TS `OnboardingStep` union is the only place this is enumerated. Skipped the no-op migration; documented the choice.
+3. **Feature flag is not client-safe.** `isLayeredReadEnabled()` reads `VERCEL_GIT_COMMIT_REF` and `LAYERED_READ_LOCAL_OVERRIDE`, neither of which is `NEXT_PUBLIC_*`. Evaluating it inside a `'use client'` component always returns `false`. Pattern: evaluate server-side in the parent page, pass the result as a prop. Applied this to `upload-orchestrator` (received `layered: boolean`) and `struggle-question` (received `layered?: boolean`).
+4. **Session A already solved brand rollup at the query layer.** `resolveMerchantKeys` does substring ILIKE match — `"pollo tropical"` already matches both `POS PURCHASE POLLO TROPICAL #142` and `POS PURCHASE POLLO TROPICAL DRIVE THRU` and rolls them up per-month. This narrowed the role of Phase 1's merchant normaliser: it now cleans merchant_keys for *display in the composition prompt*, not for tool-call inputs.
+5. **`vitest` and `tsc` need the project directory.** Running from the worktree root fails because path aliases (`@/lib/...`) resolve relative to `cfos-office/src/`. `cd cfos-office && npm test` works; `npx vitest run cfos-office/...` from the worktree root does not.
+6. **No `typecheck` npm script in this repo.** Plan said `npm run typecheck`. Reality: only `build`, `test`, `lint`. Used `npx tsc -p tsconfig.json --noEmit` for incremental checks and `npm run build` for the full verification.
+7. **Migration 064 was already taken** by an earlier Session A late-add (`vcr_unique_index_repair.sql`). Plan referenced `064` and `065` — `065` is still available for future migrations.
+
+### Verification
+
+- `npm test` — **785 tests pass across 67 files** (15 new merchant-normalise tests, 11 new compose-first-read metadata tests, all Session A regression tests intact).
+- `npx tsc -p tsconfig.json --noEmit` — clean.
+- `npm run build` — clean, `/onboarding-v2/first-read` appears in the route manifest.
+- Supabase advisors (CFO Staging) — no new critical/high warnings introduced by this session. Pre-existing project-level warnings (pg_trgm in public, demo-table RLS, SECURITY DEFINER functions, leaked-password protection) unchanged.
+
+### Items for Session C
+
+- **Wow assessment metadata is in place.** `conversations.metadata.first_read_metadata` carries `layers_used`, `features_cited`, `gap_present`, `clusters_referenced`. The cron + dashboard plumbing Session C builds should query `conversations` where `type = 'first_insight' AND metadata->>'layered_read' = 'true'` and read this jsonb.
+- **Conversation, not message, is the row to look at.** Session C's cron should filter on `conversations`, not `messages` — the metadata is on the conversation row (messages have no metadata jsonb in this schema).
+- **Composition latency is ~3-5s** (one Sonnet generate call, 20s timeout). Wow assessment shouldn't run inline with composition — fire-and-forget in `after()` is the right pattern.
+
+### Items for Session D / future
+
+- **Brand-level merchant normalisation** (still deferred from Session A audit). The Session B normaliser handles prefixes only; chain-level rollup of branch codes + location suffixes + channel markers requires either rule-heavy code or LLM normalisation.
+- **Archetype removal coordination.** The parallel-route approach means both surfaces ship. Session D should plan retirement of `/onboarding-v2/archetype/`, `/api/onboarding/generate-archetype/`, `lib/onboarding/archetype-prompt`, `lib/value-map/regenerate-archetype`, and the archetype display on the office home sidebar + values page.
+- **gap-analyser removal + `/office/values/the-gap/` retirement** (Session A audit Section 0.1 — 14 importers).
+- **A migration may eventually want a CHECK constraint** on `onboarding_step` to prevent typos. Low priority; the TS union catches drift in practice.
+
+### Pre-merge action items
+
+1. Manual flag-on verification on Vercel preview: sign in as Dorcas, walk the layered onboarding flow end-to-end. Confirm composition fires, message appears, "Continue the conversation" lands in `/office` with the conversation loaded.
+2. Manual flag-off regression check: confirm the existing archetype flow still works untouched for an unflagged user.
+3. Tool-fire spot-check (Phase 0.4): exercise `get_cluster_behaviour` via a real chat prompt. Iterate prompt language at [context-builder.ts:1267](cfos-office/src/lib/ai/context-builder.ts:1267) if needed.
+
+## Session 32 (C) — Wow Measurement and Synthetic Validation — 2026-05-26
+
+**Branch:** `session-32/the-read` (continuing from A + B)
+
+Behavioural measurement layer for the first Read: capture what the user actually does after seeing the layered insight, persist it, and surface it in an admin dashboard so individual sessions can be read as complete stories. Synthetic persona library expanded to cover failure modes the existing 8 personas didn't hit.
+
+### What shipped
+
+| Layer | Files |
+|---|---|
+| Schema | `065_wow_events.sql`, `066_wow_assessments.sql` (+ paired `prod-backfill-*` files, **not** applied to prod) |
+| Realised-score library | `src/lib/wow/event-types.ts`, `src/lib/wow/realised-score.ts`, `__tests__/realised-score.test.ts` (15 new tests, all green) |
+| API | `POST /api/wow/event` (auth-guarded, idempotent), `GET /api/cron/wow-aggregate` (daily, snapshots composition metadata, computes realised score, detects D2 returns) |
+| Client | `src/lib/wow/event-tracker.ts` (fire-and-forget with client-side de-dup), `src/components/chat/ResonanceTap.tsx`, instrumentation injected into the first assistant message of every `first_insight` conversation via `MessageList.tsx` (delivered + scroll observer + chip tap tracking) |
+| Provider | `ChatProvider` exposes `conversationType` + `registerFirstInsightDelivery`; `handleSend` invokes `detectSubstantiveReply` against the registered context (5-min window, ≥10 char threshold) |
+| Admin dashboard | `/admin/wow` (sortable table + headline stats), `/admin/wow/[insightId]` (single-session deep dive: insight body, composition, event timeline, follow-up messages, ResonanceTap state). ADMIN_EMAILS-gated via `notFound()` on mismatch |
+| Cron config | `vercel.json` adds `wow-aggregate` at `30 3 * * *` (after `expire-experiments` at `0 3`) |
+| Synthetic personas | `aiko-low-transaction.ts` (sparse data), `sofia-chaotic.ts` (freelancer), `tom-long-history.ts` (18 months), `zane-spain.ts` (ES with bi-monthly Endesa) — registered in `personas/index.ts`. Total persona count: 12 |
+
+### What was learned
+
+1. **The plan's `chat_messages.message_type = 'first_insight'` filter doesn't exist.** This codebase uses `messages` (not `chat_messages`) and identifies first-insight via `conversations.type = 'first_insight'`. There is no `message_type` column. The cron filter has to JOIN `messages → conversations` and reduce to the first assistant message per conversation. The audit at [docs/audits/2026-05-26-session-32C.md](cfos-office/docs/audits/2026-05-26-session-32C.md) catches this.
+2. **`predicted_wow_score` and `judge_id` are NULL on creation** because `composeFirstRead` doesn't score its own output yet. The eval/ champion judge can backfill later; this is a known seam, not a bug.
+3. **Composition metadata snapshots from `conversations.metadata.first_read_metadata`**, not from message metadata. The shape is what Session B's `extractCompositionMetadata` writes: `{ layers_used, features_cited, gap_present, clusters_referenced }`. The cron upsert lifts these into typed columns on `wow_assessments`.
+4. **AssistantMessage doesn't exist as a component.** Plan said "modify AssistantMessage." Reality: rendering happens inline in `MessageList.tsx`. The wow instrumentation is mounted as a small `FirstInsightInstrumentation` sub-component (IntersectionObserver + delivered emitter + registration hook) inside the assistant branch of the message map.
+5. **`drifter-expat` already models Spain — but bills Endesa MONTHLY**, which is wrong. Spanish electricity is bi-monthly. The new `zane-spain` persona models this correctly (and tests for the failure pattern explicitly). This is a Session D candidate fix for drifter-expat itself.
+6. **Persona expansion: 4, not 6.** Plan listed Imani (debt-heavy) and Henrik (disciplined) as new personas. Both are already covered by `anchor-debt` and `fortress-saver` respectively. Adding them would have duplicated coverage. Net-new personas: Aiko, Sofia, Tom, Zane.
+7. **Reply detection uses an explicit registration handshake**, not a derived-from-messages scan. The first time MessageList mounts the first-insight delivery, it calls `registerFirstInsightDelivery({message_id, conversation_id})` which captures `Date.now()` once. `handleSend` reads that ref. This is more robust than trying to recover `delivered_at` from `UIMessage.createdAt`, which isn't reliably set on streamed messages.
+
+### Manual setup required from Lewis (before testing)
+
+These are not code changes — they're Vercel/dashboard actions:
+
+1. **Set `CRON_SECRET`** in Vercel preview env vars (if not already set for `session-32/the-read`). The existing crons already use this same secret; the new `wow-aggregate` cron uses the same pattern.
+2. **Set `ADMIN_EMAILS`** in Vercel preview env vars — comma-separated list of admin email addresses. Without this, `/admin/wow` returns 404 even for Lewis. Example: `ADMIN_EMAILS=lewis@example.com,gf@example.com`.
+3. **Apply prod migrations 065 + 066 manually** before any merge to main. The paired `prod-backfill-065_wow_events.sql` and `prod-backfill-066_wow_assessments.sql` are ready in `supabase/migrations/`. Do this BEFORE merging the branch — the new client code references the `wow_events` table.
+
+### Persona observations (no eval run executed)
+
+The `npm run test:onboarding` Playwright suite was NOT run in this session — each full run costs ~$1-2 in Bedrock judge calls and takes 10-20 min, which is better deferred to Lewis with deliberate control over timing and persona subset. Instead, this session verified:
+
+- `npm test` — 815 tests passing (15 new wow tests + all existing). `tsc --noEmit` clean.
+- `npm run build` — clean. All four new routes (`/admin/wow`, `/admin/wow/[insightId]`, `/api/wow/event`, `/api/cron/wow-aggregate`) appear in the manifest.
+- All 12 personas load via `personas/index.ts` and conform to the `Persona` type.
+- CSV row counts per persona: aiko 14 (sparse by design), sofia 41, tom 217 (18 months by design), zane 64.
+
+When Lewis runs the full eval, the personas to watch for failure modes:
+- **aiko-low-transaction** — does the first Read avoid confident pattern claims when there's only 21 days of data? The `bannedPatterns` block explicitly fails on "every Friday" / "climbing trend" style assertions.
+- **sofia-chaotic** — does the first Read avoid imposing rhythm where there is none? Should ground in the genuinely-recurring Adobe + Figma subs, not invent groove from irregular client invoices.
+- **tom-long-history** — does the 90-day window default hold? The `bannedPatterns` block fails if the first Read mentions Tom's 2024 Lisbon/Madrid holidays as if they were recent.
+- **zane-spain** — does the read use EUR symbols (€), not £? Does it correctly observe Endesa's bi-monthly cadence (not monthly)?
+
+### Items for the testing phase
+
+1. **Run `/admin/wow` after triggering at least one first Read on the preview** — confirm the dashboard renders, click into a detail view, see the full picture.
+2. **Manually trigger the cron via curl** to test the aggregation path end-to-end: `curl -H "Authorization: Bearer $CRON_SECRET" https://<preview>/api/cron/wow-aggregate`. Expect `{processed, d2_inserted, candidate_count}`.
+3. **Fire a real reply within 5 min of a first Read** and confirm `replied_substantively` appears in `wow_events`. Then reload the page and confirm the `delivered` event doesn't duplicate (idempotency via partial unique index).
+4. **Tap ResonanceTap "Yes"** then "Not really" on different sessions — confirm both insert as expected and the button locks.
+5. **Optional: run `npm run test:onboarding -- --personas aiko-low-transaction,sofia-chaotic,tom-long-history,zane-spain`** for a targeted eval over just the new personas (~5-10 min, ~$1).
+
+### Items for Session D / future
+
+- **Drifter-expat: fix Endesa monthly → bi-monthly.** Captured by zane-spain. Update drifter-expat's CSV when convenient.
+- **Compose-first-read self-scoring** — wire the eval/ champion judge into the composition pipeline so `predicted_wow_score` and `judge_id` get populated on creation instead of NULL.
+- **Remove `LAYERED_READ_LOCAL_OVERRIDE` and the `VERCEL_GIT_COMMIT_REF` gate** once layered becomes default (per the Session A flag comment).
+- **Promote `wow_events.metadata.aggregator_source` schema discipline** — document the metadata shape per event_type if/when more sources start writing events.
+- **`.env.example` doesn't exist in this repo.** If env-var documentation matures, consider creating one. Until then, the CLAUDE.md "Environment Variables Required" section is the source of truth.
+
+### Pre-merge action items (Lewis)
+
+1. Set `CRON_SECRET` + `ADMIN_EMAILS` on Vercel preview env (see above).
+2. Apply `prod-backfill-065_wow_events.sql` + `prod-backfill-066_wow_assessments.sql` to production Supabase before merging to main.
+3. Run the manual end-to-end check from the plan's Phase 7.10 (single persona, full event flow, dashboard inspection).

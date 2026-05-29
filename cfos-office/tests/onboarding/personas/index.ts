@@ -7,6 +7,10 @@ import { anchorDebt } from './anchor-debt'
 import { skipValueMap } from './skip-value-map'
 import { skipCsvUpload } from './skip-csv-upload'
 import { timeSaverExpert } from './time-saver-expert'
+import { aikoLowTransaction } from './aiko-low-transaction'
+import { sofiaChaotic } from './sofia-chaotic'
+import { tomLongHistory } from './tom-long-history'
+import { zaneSpain } from './zane-spain'
 
 export const PERSONAS: readonly Persona[] = [
   builderClassic,
@@ -17,6 +21,13 @@ export const PERSONAS: readonly Persona[] = [
   skipValueMap,
   skipCsvUpload,
   timeSaverExpert,
+  // Session 32 (C) — first-Read calibration personas. Each targets a
+  // failure mode the existing suite didn't cover. See
+  // docs/audits/2026-05-26-session-32C.md for the coverage decisions.
+  aikoLowTransaction,
+  sofiaChaotic,
+  tomLongHistory,
+  zaneSpain,
 ] as const
 
 export function getPersona(id: string): Persona | undefined {

@@ -14,6 +14,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
+import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
 import {
   buildLabelRecapTrigger,
   type LabelTransactionsQuadrantId,
@@ -53,6 +54,13 @@ interface ChatContextValue {
   startConversation: (type?: string, metadata?: Record<string, string>) => void
   loadConversation: (id: string) => void
   conversationId: string | null
+  conversationType: string | null
+  /** Wow plumbing: MessageList calls this when it renders the first-insight
+   *  delivery. Used by handleSend to detect substantive replies within 5 min. */
+  registerFirstInsightDelivery: (ctx: {
+    first_insight_message_id: string
+    conversation_id: string
+  }) => void
   chatError: string | null
   dismissError: () => void
   handleOptionSelect: (text: string) => void
@@ -97,9 +105,37 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
+  const [conversationType, setConversationType] = useState<string | null>(null)
 
   const [input, setInput] = useState('')
   const [chatError, setChatError] = useState<string | null>(null)
+
+  // Wow plumbing: holds the active first-Read delivery so handleSend can
+  // detect substantive replies within 5 minutes of it being shown.
+  const firstInsightCtxRef = useRef<{
+    first_insight_message_id: string
+    conversation_id: string
+    delivered_at: number
+  } | null>(null)
+
+  const registerFirstInsightDelivery = useCallback(
+    (ctx: { first_insight_message_id: string; conversation_id: string }) => {
+      // Re-registering the same insight is a no-op (component re-mount,
+      // re-render). Only the FIRST delivery captures the timestamp — that's
+      // what the 5-minute window measures from.
+      if (
+        firstInsightCtxRef.current?.first_insight_message_id ===
+        ctx.first_insight_message_id
+      ) {
+        return
+      }
+      firstInsightCtxRef.current = {
+        ...ctx,
+        delivered_at: Date.now(),
+      }
+    },
+    [],
+  )
 
   // Conversation type — set when starting a typed conversation (nudge, review, etc.)
   const conversationTypeRef = useRef<string | undefined>(undefined)
@@ -179,6 +215,9 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       .then((data) => {
         if (data?.conversation) {
           setConversationId(data.conversation.id)
+          if (typeof data.conversation.type === 'string') {
+            setConversationType(data.conversation.type)
+          }
           if (data.messages?.length > 0) {
             setMessages(data.messages)
           }
@@ -277,6 +316,8 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       autoTriggeredRef.current = false
       conversationTypeRef.current = type
       conversationMetadataRef.current = metadata
+      setConversationType(type ?? null)
+      firstInsightCtxRef.current = null
       setChatError(null)
       setInput('')
 
@@ -296,6 +337,8 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       conversationIdRef.current = id
       conversationTypeRef.current = undefined
       conversationMetadataRef.current = undefined
+      setConversationType(null)
+      firstInsightCtxRef.current = null
       autoTriggeredRef.current = false
       setChatError(null)
       setInput('')
@@ -328,6 +371,9 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
             pendingTriggerRef.current = { type: convType, metadata: convMetadata }
             setPendingTriggerNonce((n) => n + 1)
           }
+          if (typeof convType === 'string') {
+            setConversationType(convType)
+          }
         })
         .catch((err) => {
           // If the fetch fails the UI stays on the previously loaded
@@ -345,6 +391,17 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     setChatError(null)
     setInput('')
     trackEvent('message_sent')
+    // Wow plumbing: if the user is replying within 5 min of a first Read
+    // delivery, log a substantive-reply event. The helper enforces the
+    // length + window thresholds; this site just provides the context.
+    const ctx = firstInsightCtxRef.current
+    if (ctx) {
+      detectSubstantiveReply(text, {
+        first_insight_message_id: ctx.first_insight_message_id,
+        first_insight_delivered_at: ctx.delivered_at,
+        conversation_id: ctx.conversation_id,
+      })
+    }
     sendMessage({ text })
   }, [input, sendMessage, trackEvent])
 
@@ -419,6 +476,8 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     startConversation,
     loadConversation,
     conversationId,
+    conversationType,
+    registerFirstInsightDelivery,
     chatError,
     dismissError,
     handleOptionSelect,

@@ -195,6 +195,24 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     reach: 'broad',
     measurability: 'self_report_clear',
   },
+  {
+    // The renegotiate template ships alongside the bill benchmark layer.
+    // Trigger pattern `bill_above_benchmark` is reserved; no detector emits it
+    // yet, so this template is selectable only by direct ID at the moment.
+    // Auto-selection lights up when a detector wraps the verdict pipeline.
+    id: 'renegotiate_fixed_cost',
+    experiment_type: 'pause_recurring',
+    title_template: 'Try renegotiating a recurring bill this week',
+    hypothesis: 'A bill running above the typical published range is often renegotiable. A single call can lock in a lower rate without changing provider.',
+    success_criterion_template: 'You report a lower locked-in rate on the bill within 14 days',
+    duration_days: 14,
+    target_metric: { kind: 'completed', field: 'subscription' },
+    trigger_patterns: ['bill_above_benchmark'],
+    goal_affinity: { debt_clearance: 0.85, savings: 0.85, investment: 0.7, general: 0.75 },
+    effort: 'low',
+    reach: 'narrow',
+    measurability: 'self_report_clear',
+  },
 ] as const;
 
 export function templatesForPattern(patternId: string): ExperimentTemplate[] {

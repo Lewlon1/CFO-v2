@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { StruggleQuestion } from '@/components/onboarding-v2/struggle-question'
 import { resumeRoute } from '@/lib/onboarding-v2/resume'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
+import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,7 @@ export default async function OnboardingV2Page() {
     <StruggleQuestion
       userId={user.id}
       firstName={profile?.display_name ?? null}
+      layered={isLayeredReadEnabled()}
     />
   )
 }

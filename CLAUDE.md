@@ -185,6 +185,12 @@ ALERT_WEBHOOK_URL=         # Resend webhook URL for error alerts
 NEXT_PUBLIC_APP_URL=
 ```
 
+### Feature flags
+
+Active branch-scoped flags:
+
+- **`isLayeredReadEnabled()`** in [cfos-office/src/lib/feature-flags/layered-read.ts](cfos-office/src/lib/feature-flags/layered-read.ts) — gates the layered Read tools (`get_cluster_behaviour`, `get_conversation_signals`), the gated system-prompt section, and the `chat_signals` extractor hook. Fires when `VERCEL_GIT_COMMIT_REF === 'session-32/the-read'` on deploy, or when `LAYERED_READ_LOCAL_OVERRIDE=true` locally. Session D removes this flag and makes the layered model the default.
+
 ---
 
 ## Key Concepts
@@ -220,13 +226,21 @@ The results are sent to Claude which generates a personality archetype (e.g. "Th
 4. Value Map results seed: financial_portrait, value_category_rules
 5. After CSV upload → "The Gap" analysis compares self-perception with reality
 
-### The Gap
+### The layered Read (current architecture)
 
-The killer feature. Compares what users believe about their spending (from Value Map) with what their actual transactions show.
+The CFO composes natural-language insight by drawing from five layers:
 
-Example: "You called gym spending an Investment (confidence 3/5). Reality: you haven't been charged by a gym in 47 days."
+1. **Transactions** — the facts (counts, totals)
+2. **Stated Intent (Value Map)** — what the user said categories mean to them
+3. **Behavioural Features** — recurrence, trend, time pattern, amount profile, lifecycle, derived per merchant or category cluster
+4. **Conversational Signals** — regret, enjoyment, context (who / event / situation) mined from prior chat
+5. **Goals & Life Context** — what the user is trying to do, as the relevance filter
 
-This appears after the first document upload (if Value Map was completed), in monthly reviews when patterns shift, and on demand in chat.
+The CFO never names the layers or uses internal vocabulary ("verdict", "joy signal", "the Gap"). It cites specific facts and asks sharp questions.
+
+"The Gap" — comparing stated intent vs actual behaviour — survives as a *capability* the CFO invokes when Layer 2 and Layer 3 diverge. It is no longer a separate feature surface.
+
+**Source of truth:** [cfos-office/docs/the-layers.md](cfos-office/docs/the-layers.md). See also: [`buildUserValueProfile`](cfos-office/src/lib/value-map/value-profile.ts) (Layer 2), `cfos-office/src/lib/analytics/cluster-behaviour/` (Layer 3 — Session 32 A), `cfos-office/src/lib/analytics/chat-signals/` (Layer 4 — Session 32 A).
 
 ### Progressive Profiling
 
@@ -238,18 +252,20 @@ A priority queue that determines which profile questions to ask and when. See th
 
 ### Onboarding completion
 
-A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. **The Value Map is the canonical completion signal** — no other path stamps the timestamp. Both onboarding routes (Marcus / chat-path) converge on the Value Map.
+A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. **Either the first Read or the Value Map can stamp the timestamp.** The Read is the default path under the current flow; the Value Map is an opt-in deepening move that also satisfies completion when the user takes it.
 
-The goal-chat beat (`completeGoalBeat` / `skipGoalBeat` in `app/onboarding-v2/goal-beat-actions.ts`) stamps `onboarding_step = 'goal_set' | 'goal_skipped'` only — it does NOT stamp `onboarding_completed_at`. Chat-path users carry themselves into the Value Map via the in-chat `<ACTION:start_value_map>` CTA emitted in the goal-chat wrap-up (or via the office banner); Marcus users are force-redirected. Either way, completion happens when the Value Map session is recorded.
+The goal-chat beat (`completeGoalBeat` in `app/onboarding-v2/goal-beat-actions.ts`) now collects three things inline: a goal (or a `dont_know` pivot to skip), `net_monthly_income`, and `monthly_rent`. The `GoalBeatWatcher` polls `/api/onboarding/essentials-status` and advances when income AND rent both land, stamping `onboarding_step = 'essentials_done'` and routing to `/onboarding-v2/upload`. The beat does NOT stamp `onboarding_completed_at`.
 
-Two paths can set the timestamp:
+`skipGoalBeat` (the 90s "continue without setting a goal" escape for Marcus) is the legacy fallback — it stamps `goal_skipped` and routes to `/onboarding-v2/value-map`. Users mid-flow on the old stamps (`goal_set` / `goal_skipped`) continue to see the Value Map; nobody is stranded.
+
+Two paths can set the completion timestamp:
 
 1. **Modal path** (`POST /api/onboarding/complete`) — fires when the user reaches the `handoff` beat in the onboarding modal and dismisses. Also seeds `financial_portrait` via `seedFromOnboarding`. Legacy surface; not in active use under onboarding-v2.
-2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires after a Value Map session insert (`api/value-map/personal`). Stamps the timestamp only; does not seed.
+2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from the upload API, chat API, Value Map session insert, archetype generation, and from `advanceStep` when reaching the read-terminal states.
 
-**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND a `value_map_sessions` row exists for `profile_id = userId`.
+**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND either (a) a `value_map_sessions` row exists for `profile_id = userId`, OR (b) `onboarding_step` is in `{'first_read_shown', 'archetype_shown', 'complete'}`.
 
-The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. Transactions and chat messages alone no longer satisfy completion — the Value Map is mandatory.
+The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. The Value Map is no longer mandatory for completion; users who skip it complete via the Read.
 
 ### The CFO Persona
 

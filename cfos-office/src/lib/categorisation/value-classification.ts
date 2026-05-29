@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from './normalise-merchant'
 import { CATEGORY_AMBIGUITY } from './context-signals'
 import { getTimeContext } from '@/lib/utils/time-context'
+import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ export async function applyValueClassification(
       last_signal_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
-    { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' }
+    { onConflict: VCR_ON_CONFLICT }
   )
 
   // For high-ambiguity categories at contextual times, also create a merchant_time rule
@@ -105,7 +106,7 @@ export async function applyValueClassification(
           last_signal_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' }
+        { onConflict: VCR_ON_CONFLICT }
       )
     }
   }

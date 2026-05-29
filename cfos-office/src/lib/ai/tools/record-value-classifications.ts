@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { ToolContext } from './types'
 import { applyValueClassification } from '@/lib/categorisation/value-classification'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
+import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -164,7 +165,7 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
                 last_signal_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               },
-              { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' }
+              { onConflict: VCR_ON_CONFLICT }
             )
 
           if (ruleErr) {

@@ -127,4 +127,30 @@ describe('buildUserValueProfile', () => {
     expect(profile.signal_count.health).toBe(4);
     expect(profile.by_category.health.foundation).toBe(1);
   });
+
+  it('aggregates merchant rules from the real-transactions Value Map into by_merchant', async () => {
+    // The value-first onboarding writes one rule per merchant with
+    // source='value_map_personal' and match_type='merchant'. Earlier code
+    // filtered both out of the profile, so the recompose never knew the
+    // user had categorised them. This test pins the fix.
+    const supabase = makeSupabaseStub({
+      rules: [
+        { match_value: 'aldi', value_category: 'foundation', source: 'value_map_personal', match_type: 'merchant' },
+        { match_value: 'claude.ai', value_category: 'investment', source: 'value_map_personal', match_type: 'merchant' },
+      ],
+      sessions: [{ id: 's1' }],
+    });
+    const profile = await buildUserValueProfile(supabase, 'user-1');
+
+    // Merchants land in the merchant dictionaries with no MIN threshold —
+    // one rule = mapped.
+    expect(profile.by_merchant.aldi.foundation).toBe(1);
+    expect(profile.by_merchant['claude.ai'].investment).toBe(1);
+    expect(profile.signal_count_by_merchant.aldi).toBe(2); // 1 rule × RULE_WEIGHT=2
+    expect(profile.signal_count_by_merchant['claude.ai']).toBe(2);
+
+    // Category dicts stay empty — merchant rules don't bleed into them.
+    expect(profile.by_category).toEqual({});
+    expect(profile.signal_count).toEqual({});
+  });
 });

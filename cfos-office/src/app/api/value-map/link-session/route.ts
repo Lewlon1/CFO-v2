@@ -10,6 +10,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { NextResponse } from 'next/server'
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import { calculatePersonality } from '@/lib/value-map/personalities'
+import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
 
 export async function POST(request: Request) {
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
 
     const { error: rulesError } = await service
       .from('value_category_rules')
-      .upsert(rules, { onConflict: "user_id,match_type,match_value,coalesce(time_context,'__none__')" })
+      .upsert(rules, { onConflict: VCR_ON_CONFLICT })
 
     if (rulesError) {
       console.error('[link-session] value_category_rules seed error:', rulesError)

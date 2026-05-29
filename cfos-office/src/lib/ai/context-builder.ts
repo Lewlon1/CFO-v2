@@ -13,6 +13,7 @@ import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
+import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -818,7 +819,30 @@ function buildGoalDeriveConfirmContext(
   const struggle = (profile?.entry_struggle ?? null) as string | null
   const struggleText = (profile?.entry_struggle_text ?? null) as string | null
 
-  if (Array.isArray(goals) && goals.length > 0) return ''
+  const hasGoal = Array.isArray(goals) && goals.length > 0
+  const onboardingStep = (profile?.onboarding_step ?? null) as string | null
+
+  // Value-first flow: the goal beat is goal-only. Income and rent are
+  // collected later on the processing screen. Once a goal is confirmed
+  // (or the tentative-stall path runs out), the GoalBeatWatcher polls
+  // /api/onboarding/essentials-status, sees goal=true, and routes to
+  // /onboarding-v2/upload. Emit a brief, single-shot hand-off so the
+  // CFO doesn't try to collect income/rent here.
+  if (hasGoal || onboardingStep === 'goal_chat_tentative') {
+    return [
+      '## Wrap-up',
+      '',
+      hasGoal
+        ? 'You have their goal. The next move is their transactions — the system is about to route them to the upload screen.'
+        : 'The user is taking a moment to decide on a goal. That is fine — say so briefly. The next move is their transactions; the system will route them to upload.',
+      '',
+      'In one short message (2–3 sentences):',
+      '- Acknowledge what you have (or that a goal can wait).',
+      '- Say you are about to look at their numbers so the picture gets specific.',
+      '',
+      'Do NOT call any tools. Do NOT ask for income, rent, or any other number — those are collected on the next screen, not here. Do NOT ask another question.',
+    ].join('\n')
+  }
 
   const struggleSummary = (() => {
     if (struggle === 'dont_know') {
@@ -879,17 +903,11 @@ function buildGoalDeriveConfirmContext(
     '',
     "### When the user can't articulate a goal",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this.\" — and hand off to the Value Map in the same response by including this token verbatim: <ACTION:start_value_map>. A goal will land later, once they have reflection and transactions to anchor it on. Do not describe the token to the user; the system renders an action button for them.",
+    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this once we can see your money moving.\" — and stop. Do NOT ask for any numbers; do NOT call request_structured_input. The system will route the user to the upload screen on its own; your job here is just to acknowledge and stop.",
     '',
-    '### After create_goal succeeds — hand off to the Value Map',
+    '### After create_goal succeeds',
     '',
-    'The goal sets the target. The Value Map is how you both see whether spending actually moves toward it. The wrap-up after create_goal is the hand-off.',
-    '',
-    'In the same response that calls create_goal (or the next one if confirmation is still pending), do all of:',
-    '- Briefly confirm the goal you have set.',
-    '- Say (in your own voice): we want to look at your transactions, through our unique Value Map activity — that\'s the next step.',
-    '- Include this token verbatim somewhere in the message: <ACTION:start_value_map>',
-    '- Do NOT in the same message push the user to upload a statement. The Value Map is next; the statement comes after.',
+    "Confirm the goal in one line and stop. Do NOT in the same message push the user to upload a statement and do NOT ask for any other number — income, rent, and other fixed costs are collected on the next screen, not here. The system will route the user onward once the goal lands.",
   ]
 
   return lines.join('\n')
@@ -1248,6 +1266,7 @@ export async function buildSystemPrompt(
     buildTripsContext(dedupedTrips, profile),
     experimentContext,
     buildToolUsageInstructions(),
+    isLayeredReadEnabled() ? buildLayeredReadInstructions() : '',
     valueMappingContext,
     valueCheckinNudge,
     retakeSuggestion,
@@ -1257,6 +1276,52 @@ export async function buildSystemPrompt(
   ].filter(Boolean);
 
   return sections.join('\n\n---\n\n');
+}
+
+// Session 32 (A) — Layered Read instructions. Gated by isLayeredReadEnabled().
+// Active on deploys of session-32/the-read and local with LAYERED_READ_LOCAL_OVERRIDE=true.
+// Strengthened in Session 32 (B) to make tool invocation mandatory rather than advisory.
+// Removed in Session D when the layered model becomes default.
+function buildLayeredReadInstructions(): string {
+  return [
+    '## Behavioural features and prior conversation',
+    '',
+    'You have access to two tools that surface the user\'s actual behavioural patterns:',
+    '',
+    '- `get_cluster_behaviour(cluster_type, cluster_id, window_days?)` — returns five features for a merchant or category cluster:',
+    '  - recurrence (pattern_label: daily/weekly/monthly/irregular/sparse, with median interval and regularity)',
+    '  - trend (direction: climbing/declining/stable/volatile, with slope_percent_per_month)',
+    '  - time_pattern (weekday share, dominant day of week)',
+    '  - amount_profile (mean, stddev, consistency_label: fixed/tight/variable/wide)',
+    '  - lifecycle (status: new/active/dormant/returning, with first_seen and days_since_last)',
+    '- `get_conversation_signals(target_merchant?, target_category?, signal_types?, limit?)` — returns signals (regret, enjoyment, context_person, context_event, context_situation) extracted from prior chat.',
+    '',
+    'WHEN TO CALL `get_cluster_behaviour` (MANDATORY):',
+    '',
+    'You MUST call `get_cluster_behaviour` before responding whenever the user asks about, or you are about to discuss:',
+    '- A specific merchant (e.g. "what does my Pret spend look like?", "I\'ve been at Pollo Tropical a lot")',
+    '- A specific category (e.g. "how\'s my dining spending?", "am I overdoing it on transport?")',
+    '- A pattern, trend, or change in spending behaviour ("is this getting worse?", "am I spending more lately?")',
+    '',
+    'Pass the cluster_id as a brand name the user would say — `"Pollo Tropical"`, `"Pret"`, `"Starbucks"`. The tool resolves substring matches and rolls up brand variants (`#142`, ` DRIVE THRU`, location codes) into one cluster. Do NOT pass the raw description (`"POS PURCHASE POLLO TROPICAL #142"`) — pass the clean brand.',
+    '',
+    'AFTER the tool returns, you MUST cite at least two specific features in your reply. Examples of good citation:',
+    '- "13 visits in 90 days, climbing 18% a month, mostly weekday mornings — mean £4.65."',
+    '- "First hit in April, every 6 days like clockwork, mean £8.40."',
+    '- "Three months in, the trend is flat but the day-of-week pattern shifted from weekday lunches to weekend dinners."',
+    '',
+    'Never name a merchant or assert a pattern without specific features behind it. If the tool returns thin data (data_completeness < 0.4), say so honestly: "I\'ve only got a few weeks on this one — early signal."',
+    '',
+    'WHEN TO CALL `get_conversation_signals`:',
+    '',
+    'Call this when the user references regret, enjoyment, social context, or "I should/shouldn\'t" framing, OR when you want to check what they\'ve previously said about a merchant or category before commenting on it.',
+    '',
+    'STYLE:',
+    '',
+    'Never use internal labels in your reply — no "verdict", no "joy signal", no "Layer 3", no "the Gap" as a feature name. Speak in plain language about what you observe.',
+    '',
+    'When the user\'s Value Map states an intent (e.g. "dining is a Leak") and the behavioural trend conflicts (e.g. dining climbing), point out the divergence factually and ask the user what\'s changing. This is the only place "the Gap" concept survives — as a move you make in conversation, not a feature name.',
+  ].join('\n');
 }
 
 function buildCurrentDateContext(): string {
@@ -1299,6 +1364,7 @@ function buildProfileContext(profile: any): string {
   if (profile.risk_tolerance) fields.push(`Risk tolerance: ${profile.risk_tolerance}`);
   if (profile.values_ranking) fields.push(`Values ranking: ${JSON.stringify(profile.values_ranking)}`);
   if (profile.financial_awareness) fields.push(`Financial awareness: ${profile.financial_awareness}`);
+  if (profile.spending_triggers) fields.push(`Spending triggers: ${JSON.stringify(profile.spending_triggers)}`);
   if (profile.residency_status) fields.push(`Residency status: ${profile.residency_status}`);
   if (profile.tax_residency_country) fields.push(`Tax residency: ${profile.tax_residency_country}`);
   if (profile.years_in_country) fields.push(`Years in country: ${profile.years_in_country}`);
@@ -1344,7 +1410,41 @@ function buildProfileContext(profile: any): string {
     doNotAskBlock = `\n\nCRITICAL — You already have: ${knownFieldLabels.join(', ')}. DO NOT ask for any of these again. Use the values above directly. If the user volunteers an update, accept it — but never re-ask.`;
   }
 
-  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}${doNotAskBlock}`;
+  // Psychological lens — make values_ranking, financial_awareness, and
+  // spending_triggers load-bearing rather than background metadata.
+  // Pre-value-first these columns were being written by the profile form
+  // + chat structured input but never used as a lens for interpretation;
+  // the lines above injected them as flat facts. This block tells the
+  // model what to do with them.
+  const lensFields: string[] = [];
+  if (profile.values_ranking) {
+    lensFields.push(`- Stated values ranking: ${JSON.stringify(profile.values_ranking)}`);
+  }
+  if (profile.financial_awareness) {
+    lensFields.push(`- Financial awareness: ${profile.financial_awareness}`);
+  }
+  if (profile.spending_triggers) {
+    lensFields.push(`- Stated spending triggers: ${JSON.stringify(profile.spending_triggers)}`);
+  }
+  let lensBlock = '';
+  if (lensFields.length > 0) {
+    lensBlock = [
+      '',
+      '',
+      '## Psychological lens (interpretive aid, not chit-chat)',
+      '',
+      'Use these the user has shared in earlier conversations to interpret behaviour. Do NOT recite them; let them shape how you read patterns.',
+      '',
+      ...lensFields,
+      '',
+      '- When a cluster\'s trend contradicts what they ranked as most important, name the contradiction once as fact (no question back).',
+      '- When financial_awareness is "beginner", swap jargon for tangible comparisons. When "advanced", keep numbers tight and skip framing they already know.',
+      '- When you spot behaviour that lines up with a stated spending trigger, name the trigger as context, never as a judgment.',
+      '- Do not re-ask any of these.',
+    ].join('\n');
+  }
+
+  return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}${doNotAskBlock}${lensBlock}`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1363,6 +1463,13 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
     if (latest.total_spending) parts.push(`Total spending: ${currency} ${latest.total_spending}`);
     if (latest.total_income) parts.push(`Total income: ${currency} ${latest.total_income}`);
     if (latest.surplus_deficit) parts.push(`Surplus/deficit: ${currency} ${latest.surplus_deficit}`);
+    if (latest.total_fixed_costs != null) {
+      parts.push(`Fixed costs (rent + reconciled recurring): ${currency} ${latest.total_fixed_costs}`);
+      if (profile?.net_monthly_income) {
+        const freeCash = Math.round((Number(profile.net_monthly_income) - Number(latest.total_fixed_costs)) * 100) / 100;
+        parts.push(`Free cash flow (income − fixed costs): ${currency} ${freeCash}`);
+      }
+    }
     if (latest.spending_by_category && Object.keys(latest.spending_by_category).length > 0) {
       // Include uncategorised as a labelled signal. Hiding it caused the LLM
       // to deny the bucket existed when users asked directly, and to invent

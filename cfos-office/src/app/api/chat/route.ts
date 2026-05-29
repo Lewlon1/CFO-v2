@@ -34,6 +34,9 @@ import {
 } from '@/lib/ai/insight-validator';
 import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
 import { sanitisePersona } from '@/lib/ai/persona-sanitiser';
+import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
+import { extractAndStoreSignals } from '@/lib/analytics/chat-signals';
+import { VCR_ON_CONFLICT } from '@/lib/prediction/types';
 
 export const maxDuration = 60;
 
@@ -202,18 +205,58 @@ export async function POST(req: Request) {
   if (lastUserMessage?.role === 'user') {
     const textContent = extractTextFromParts(lastUserMessage);
     if (textContent && !textContent.startsWith('[System:')) {
-      await supabase.from('messages').insert({
-        conversation_id: activeConversationId,
-        user_id: user.id,
-        role: 'user',
-        content: textContent,
-      });
+      const { data: insertedMessage } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: activeConversationId,
+          user_id: user.id,
+          role: 'user',
+          content: textContent,
+        })
+        .select('id')
+        .single();
 
       // Permissive onboarding completion — fire-and-forget. Helper itself
       // enforces the >=3 user-message threshold; no pre-count needed here.
       markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
         console.error('[chat] markOnboardingCompleteIfReady failed:', err);
       });
+
+      // Session 32 (A) — Layer 4: extract conversational signals from this
+      // message and store in chat_signals. Fire-and-forget via after().
+      // Pattern matching is cheap; LLM fallback (Haiku) only fires when patterns
+      // miss or are low-confidence. Failures are swallowed.
+      if (isLayeredReadEnabled() && insertedMessage?.id) {
+        const persistedMessageId = insertedMessage.id as string;
+        after(async () => {
+          try {
+            // Recent merchants for attribution context (top N from last 30 days).
+            const serviceClient = createServiceClient();
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+            const { data: topMerchants } = await serviceClient
+              .from('transactions')
+              .select('description')
+              .eq('user_id', user.id)
+              .is('deleted_at', null)
+              .gte('date', thirtyDaysAgo)
+              .not('description', 'is', null)
+              .limit(50);
+            const merchantSet = new Set<string>();
+            for (const row of (topMerchants ?? []) as Array<{ description: string }>) {
+              if (row.description) merchantSet.add(row.description);
+              if (merchantSet.size >= 10) break;
+            }
+            await extractAndStoreSignals({
+              userId: user.id,
+              messageId: persistedMessageId,
+              messageText: textContent,
+              recentMerchants: Array.from(merchantSet),
+            });
+          } catch (err) {
+            console.error('[chat] chat-signals extraction failed:', err);
+          }
+        });
+      }
     }
   }
 
@@ -233,9 +276,9 @@ export async function POST(req: Request) {
   // primary mechanism; this is a safety net for the case where the model
   // doesn't comply. After 5 user turns in `onboarding_goal_chat` without an
   // active goal, the onboarding state advances to `goal_chat_tentative` and a
-  // transient system note tells the CFO to acknowledge and pivot to the Value
-  // Map. The user can set a specific goal later — tentative state is a
-  // feature, not a failure mode.
+  // transient system note tells the CFO to acknowledge and stop. Value-first
+  // flow: the next screen handles income / rent — do NOT collect them here.
+  // The GoalBeatWatcher's tentative-aware polling will route the user onward.
   let stallSystemNote: string | null = null;
   if (
     conversationType === 'onboarding_goal_chat' &&
@@ -274,9 +317,11 @@ export async function POST(req: Request) {
 
       stallSystemNote =
         '[SYSTEM] The user has exchanged 5+ turns without committing to a goal. ' +
-        'Acknowledge that there is enough context for now and propose moving to the Value Map next — ' +
-        'they can set a specific goal later. Do NOT ask another goal-related question. ' +
-        'Include the <ACTION:start_value_map> token verbatim in your response.';
+        'Acknowledge that briefly — a goal can come later — and say you are about to ' +
+        'look at their transactions so the picture gets specific. Do NOT ask another ' +
+        'goal-related question. Do NOT call any tools. Do NOT ask for income, rent, ' +
+        'or any other number — those are collected on the next screen, not here. ' +
+        'Keep the reply to 2-3 sentences.';
     }
   }
 
@@ -408,7 +453,7 @@ export async function POST(req: Request) {
                 last_signal_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               },
-              { onConflict: 'user_id,match_type,match_value,coalesce(time_context,\'__none__\')' },
+              { onConflict: VCR_ON_CONFLICT },
             );
 
           if (ruleError) {

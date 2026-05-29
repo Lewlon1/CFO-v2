@@ -12,8 +12,11 @@ import { advanceStep } from '@/app/onboarding-v2/actions-step'
  *
  * Mirrors <UploadBeat>'s category fetch and onDone behavior, without the
  * "I'll do this later" skip control.
+ *
+ * `layered` is the server-evaluated isLayeredReadEnabled() value — passed in
+ * because the flag's process.env reads are server-only in Next.js.
  */
-export function UploadOrchestrator() {
+export function UploadOrchestrator({ layered = false }: { layered?: boolean }) {
   const router = useRouter()
   const [categories, setCategories] = useState<Category[]>([])
   const totalImportedRef = useRef(0)
@@ -39,13 +42,20 @@ export function UploadOrchestrator() {
   const handleDone = useCallback(async () => {
     if (advancedRef.current) return
     advancedRef.current = true
+    // Value-first flow (layered): once the import has kicked off, hand off
+    // to the processing screen which hosts the income+rent form alongside
+    // the parse/aggregate wait. The unflagged (non-layered) path is the
+    // legacy direct-to-archetype hop and is preserved unchanged.
     try {
-      await advanceStep('upload_done')
+      await advanceStep(layered ? 'upload_processing' : 'upload_done')
     } catch (err) {
       console.error('[onboarding-v2.upload] advance failed', err)
     }
-    router.push('/onboarding-v2/archetype')
-  }, [router])
+    const destination = layered
+      ? '/onboarding-v2/processing'
+      : '/onboarding-v2/archetype'
+    router.push(destination)
+  }, [router, layered])
 
   return (
     <div className="min-h-dvh flex flex-col bg-background">

@@ -16,10 +16,13 @@ const SKIP_VISIBLE_AFTER_MS = 90_000
 
 /**
  * Mounted in the office layout. Activates only when the user is mid-goal-beat
- * (onboarding_step = 'goal_chat_started'). Opens the goal-chat conversation in
- * the chat sheet, polls for create_goal completion, and routes onward when the
- * goal lands. For Marcus (dont_know) users, also surfaces a skip control after
- * 90s in case the user can't articulate a target.
+ * (onboarding_step = 'goal_chat_started' or 'goal_chat_tentative'). Opens
+ * the goal-chat conversation in the chat sheet, polls
+ * /api/onboarding/essentials-status until a goal has landed (income and rent
+ * are collected later on the processing screen), and routes onward to
+ * /onboarding-v2/upload when the goal lands. For users who can't articulate
+ * anything, surfaces a skip control after 90s that routes to upload too —
+ * value-first has no bifurcation.
  */
 export function GoalBeatWatcher({
   onboardingStep,
@@ -33,7 +36,12 @@ export function GoalBeatWatcher({
   const completedRef = useRef(false)
   const openedRef = useRef(false)
 
-  const isActive = onboardingStep === 'goal_chat_started'
+  // Active for the goal-derive beat AND the tentative state the chat route's
+  // stall handler advances to after 5 turns without a goal — both still need
+  // essentials collection, both should advance to upload once income+rent land.
+  const isActive =
+    onboardingStep === 'goal_chat_started' ||
+    onboardingStep === 'goal_chat_tentative'
 
   // Open the goal-chat conversation in the sheet when the watcher activates.
   useEffect(() => {
@@ -51,25 +59,41 @@ export function GoalBeatWatcher({
     loadConversation(goalChatConversationId)
   }, [isActive, goalChatConversationId, activeConversationId, openSheet, loadConversation])
 
-  // Surface the skip control after 90 seconds for `dont_know` users only.
+  // Surface the skip control after 90 seconds for Marcus users from the start,
+  // and immediately for anyone who has hit the tentative-stall state (the
+  // chat-route stall handler advances to `goal_chat_tentative` after 5 turns
+  // without a goal). Either signal means the user is stuck on goal-picking
+  // and should be able to move to upload.
   useEffect(() => {
     if (!isActive) return
+    if (onboardingStep === 'goal_chat_tentative') {
+      setSkipVisible(true)
+      return
+    }
     if (entryStruggle !== 'dont_know') return
     const t = setTimeout(() => setSkipVisible(true), SKIP_VISIBLE_AFTER_MS)
     return () => clearTimeout(t)
-  }, [isActive, entryStruggle])
+  }, [isActive, entryStruggle, onboardingStep])
 
-  // Poll for goal creation. When the user's first active goal lands, complete
-  // the beat and route per the user's path.
+  // Poll for goal landing. Value-first flow: a goal is the only signal we
+  // need from this beat — income and rent get collected on the processing
+  // screen. As soon as a goal exists, complete the beat and route to
+  // /onboarding-v2/upload (the upload orchestrator then hands off to
+  // /onboarding-v2/processing). The essentials-status endpoint returns
+  // { goal, income, rent } — we only read `goal`.
   useEffect(() => {
     if (!isActive || completedRef.current) return
     const interval = setInterval(async () => {
       if (completedRef.current) return
       try {
-        const res = await fetch('/api/goals/active-count', { cache: 'no-store' })
+        const res = await fetch('/api/onboarding/essentials-status', { cache: 'no-store' })
         if (!res.ok) return
-        const { count } = (await res.json()) as { count: number }
-        if (count > 0 && !completedRef.current) {
+        const { goal } = (await res.json()) as {
+          goal: boolean
+          income: boolean
+          rent: boolean
+        }
+        if (goal && !completedRef.current) {
           completedRef.current = true
           clearInterval(interval)
           startTransition(async () => {
@@ -78,9 +102,6 @@ export function GoalBeatWatcher({
               if (redirectTo) {
                 router.push(redirectTo)
               } else {
-                // Chat-path: stay in /office continuing the goal-chat
-                // conversation. Refresh so the layout picks up the new
-                // onboarding_step + onboarding_completed_at.
                 router.refresh()
               }
             } catch (err) {

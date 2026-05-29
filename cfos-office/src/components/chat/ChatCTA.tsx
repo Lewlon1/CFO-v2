@@ -3,9 +3,24 @@ import Link from 'next/link'
 interface Props {
   type: string
   label: string
+  /**
+   * When set, action-style CTAs (supply_input, cut_lever, shift_lever, reallocate_lever)
+   * render as buttons that send the label back into chat as a user message. The
+   * caller wires this to the same handler that fires for OPTIONS chip taps, so
+   * wow_event tracking happens upstream.
+   */
+  onAction?: (label: string) => void
 }
 
-export function ChatCTA({ type, label }: Props) {
+const ACTION_TYPES = new Set([
+  'supply_input',
+  'cut_lever',
+  'shift_lever',
+  'reallocate_lever',
+])
+
+export function ChatCTA({ type, label, onAction }: Props) {
+  // Existing surface — Value Map check-in deep-link. Behaviour preserved.
   if (type === 'value_checkin') {
     return (
       <div className="mt-3 px-3">
@@ -20,5 +35,24 @@ export function ChatCTA({ type, label }: Props) {
       </div>
     )
   }
+
+  // New surfaces from the first Read's actionability close. Tap → send the
+  // label as the user's next reply, so the CFO can pick up the missing input.
+  if (ACTION_TYPES.has(type) && onAction) {
+    return (
+      <div className="mt-3 px-3">
+        <button
+          type="button"
+          onClick={() => onAction(label)}
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl
+                     bg-[#E8A84C] text-black text-sm font-semibold
+                     hover:opacity-90 transition-opacity min-h-[44px]"
+        >
+          {label}
+        </button>
+      </div>
+    )
+  }
+
   return null
 }
