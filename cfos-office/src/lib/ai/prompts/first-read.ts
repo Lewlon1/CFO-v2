@@ -334,16 +334,40 @@ function formatDataRecency(input: FirstReadComposeInput): string {
 
 function formatValueProfile(profile: UserValueProfile): string {
   if (!profile.has_value_map) return '(user has not completed the Value Map — Layer 2 unavailable)';
-  const entries = Object.entries(profile.by_category);
-  if (entries.length === 0) return '(no confident category-level signal yet — signal_count too low)';
-  return entries
-    .map(([category, quadrants]) => {
+
+  const categoryEntries = Object.entries(profile.by_category);
+  const merchantEntries = Object.entries(profile.by_merchant);
+
+  if (categoryEntries.length === 0 && merchantEntries.length === 0) {
+    return '(no confident signal yet — Value Map answers below threshold)';
+  }
+
+  const lines: string[] = [];
+
+  if (categoryEntries.length > 0) {
+    lines.push('Categories:');
+    for (const [category, quadrants] of categoryEntries) {
       const dominant = (Object.entries(quadrants) as Array<[keyof typeof quadrants, number]>)
         .sort((a, b) => b[1] - a[1])[0];
       const pct = Math.round(dominant[1] * 100);
-      return `- ${category}: ${dominant[0]} (${pct}%, n=${profile.signal_count[category] ?? 0})`;
-    })
-    .join('\n');
+      lines.push(`- ${category}: ${dominant[0]} (${pct}%, n=${profile.signal_count[category] ?? 0})`);
+    }
+  }
+
+  if (merchantEntries.length > 0) {
+    // Merchants the user has directly classified via the real-transactions
+    // Value Map. Cite these by name when they appear in BEHAVIOURAL CLUSTERS
+    // and DO NOT surface them as "I can't read alone" — the user already said
+    // what they think.
+    lines.push('Merchants classified directly:');
+    for (const [merchant, quadrants] of merchantEntries) {
+      const dominant = (Object.entries(quadrants) as Array<[keyof typeof quadrants, number]>)
+        .sort((a, b) => b[1] - a[1])[0];
+      lines.push(`- ${merchant}: ${dominant[0]} (n=${profile.signal_count_by_merchant[merchant] ?? 0})`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 function formatClusterForPrompt(b: ClusterBehaviour): string {

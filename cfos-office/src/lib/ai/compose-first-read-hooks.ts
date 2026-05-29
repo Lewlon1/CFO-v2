@@ -96,10 +96,16 @@ export function selectHookCandidates(
   if (clusters.length === 0) return []
 
   // Determine which clusters lack Layer 2 confidence so we can prefer
-  // them. A merchant cluster has no direct category mapping here — treat
-  // it as unmapped by default and let the ambiguous-category gate handle
-  // categories proper.
+  // them. Merchant clusters check signal_count_by_merchant — the value-first
+  // real-transactions Value Map writes merchant rules (one per merchant), so
+  // any rule = mapped. Earlier versions treated merchant clusters as
+  // unconditionally unmapped, which made every recompose surface the same
+  // merchants the user had just classified.
   const unmappedFor = (cluster: ClusterBehaviour): boolean => {
+    if (cluster.cluster_type === 'merchant') {
+      const key = cluster.cluster_id.toLowerCase()
+      return (valueProfile.signal_count_by_merchant[key] ?? 0) === 0
+    }
     const cat = clusterCategory(cluster)
     if (!cat) return true
     const n = valueProfile.signal_count[cat] ?? 0
