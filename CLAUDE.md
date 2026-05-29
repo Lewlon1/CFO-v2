@@ -252,20 +252,28 @@ A priority queue that determines which profile questions to ask and when. See th
 
 ### Onboarding completion
 
-A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. **Either the first Read or the Value Map can stamp the timestamp.** The Read is the default path under the current flow; the Value Map is an opt-in deepening move that also satisfies completion when the user takes it.
+A user is considered onboarded when `user_profiles.onboarding_completed_at` is non-null. **Either the first Read or the Value Map can stamp the timestamp.** Under the value-first flow (the default — see the layered-read flag below), the first Read is the completion gate; the Value Map is an opt-in deepening move that also satisfies completion when the user takes it.
 
-The goal-chat beat (`completeGoalBeat` in `app/onboarding-v2/goal-beat-actions.ts`) now collects three things inline: a goal (or a `dont_know` pivot to skip), `net_monthly_income`, and `monthly_rent`. The `GoalBeatWatcher` polls `/api/onboarding/essentials-status` and advances when income AND rent both land, stamping `onboarding_step = 'essentials_done'` and routing to `/onboarding-v2/upload`. The beat does NOT stamp `onboarding_completed_at`.
+The value-first onboarding sequence (`app/onboarding-v2/*`):
 
-`skipGoalBeat` (the 90s "continue without setting a goal" escape for Marcus) is the legacy fallback — it stamps `goal_skipped` and routes to `/onboarding-v2/value-map`. Users mid-flow on the old stamps (`goal_set` / `goal_skipped`) continue to see the Value Map; nobody is stranded.
+1. **Goal chat (goal-only).** `completeGoalBeat` / `skipGoalBeat` in `app/onboarding-v2/goal-beat-actions.ts` confirm or skip a goal and stamp `onboarding_step = 'upload_pending'`, routing to `/onboarding-v2/upload`. Essentials are NOT collected here, and neither beat stamps `onboarding_completed_at`. There is no Marcus bifurcation — the skip path routes to upload like the confirm path.
+2. **Upload → processing.** On import the step advances to `upload_processing`; the `/onboarding-v2/processing` screen hosts an income + rent form alongside the parse wait (income blur fires an instant goal-pace line via a server action). On submit: `details_pending`.
+3. **Confirm / reconcile.** `/onboarding-v2/confirm` dedupes user-declared vs detected fixed costs and writes `monthly_snapshots.total_fixed_costs`. On confirm: `details_confirmed`.
+4. **First Read.** Composed in `value_first` mode, leading with the Layer-1 picture and closing on a HOOK + `[CTA:start_value_map_real]`. Delivery stamps `first_read_delivered` — **this is the completion gate**; the Value Map is now pure upgrade.
+5. **Value Map (optional).** Runs on the real flagged transactions named by the hook, then `/api/insights/recompose-first-read` appends a Layer-2-aware follow-up Read into the same conversation. Skipping leaves the user fully onboarded.
+
+Legacy stamps (`essentials_done`, `goal_set`, `goal_skipped`) are retained so users mid-flow are not stranded; they route forward to `/upload`.
 
 Two paths can set the completion timestamp:
 
-1. **Modal path** (`POST /api/onboarding/complete`) — fires when the user reaches the `handoff` beat in the onboarding modal and dismisses. Also seeds `financial_portrait` via `seedFromOnboarding`. Legacy surface; not in active use under onboarding-v2.
-2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from the upload API, chat API, Value Map session insert, archetype generation, and from `advanceStep` when reaching the read-terminal states.
+1. **Modal path** (`POST /api/onboarding/complete`) — legacy onboarding-modal surface; seeds `financial_portrait` via `seedFromOnboarding`. Not in active use under onboarding-v2.
+2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from the upload API, chat API, Value Map session insert, archetype generation, and from `advanceStep` when reaching read-terminal states.
 
-**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND either (a) a `value_map_sessions` row exists for `profile_id = userId`, OR (b) `onboarding_step` is in `{'first_read_shown', 'archetype_shown', 'complete'}`.
+**Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND either (a) a `value_map_sessions` row exists for `profile_id = userId`, OR (b) `onboarding_step` is in `{'first_read_shown', 'first_read_delivered', 'archetype_shown', 'complete'}`.
 
-The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The modal path may overwrite it with a slightly later value when both paths fire — this is acceptable. The Value Map is no longer mandatory for completion; users who skip it complete via the Read.
+The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The Value Map is not mandatory for completion; users who skip it complete via the Read.
+
+**Layered-read flag / kill-switch.** The value-first layered Read is on by default (`isLayeredReadEnabled()` in `lib/feature-flags/layered-read.ts` returns true). Set `LAYERED_READ_DISABLED=true` (env / Vercel) to instantly revert every user to the legacy pre-layered onboarding with no redeploy — kept as a runtime rollback through the first live cohort. The dead pre-layered path is slated for removal in a follow-up once the layered flow is proven in prod. Going live requires migrations `062`–`069` applied in the target environment.
 
 ### The CFO Persona
 
