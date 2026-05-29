@@ -39,6 +39,7 @@
 - **Layered-read legacy path** — `!isLayeredReadEnabled()` branches + `computeFirstInsight`; retained kill-switch rollback, remove "once proven in prod" (per the flag docstring).
 - **~10–15 genuinely-uncalled exports** (`predictValueCategory`, `estimateCostUSD`, `templatesForPattern`, `findAction`, …) — un-export or remove (feature scaffolding).
 - **Migration registry/file drift** — 86 applied vs 069 files; staging ahead of prod.
+- **Audit remaining `SECURITY DEFINER` functions** (`fn_import_batches`, `get_import_history`, `prediction_metrics_txn`) for references to dropped tables — the same class of bug that broke `delete_user_account` + `export_user_data` (both referenced the dropped `public.trips`; fixed in migration `070_fix_gdpr_functions_drop_trips.sql`). The code sweep only scanned TS `.from()` calls, not SQL function bodies.
 
 ## E. FALSE-POSITIVE / KEEP — verified alive (the audit's hardening asset)
 Things that *looked* dead to tooling but are live — do **not** re-flag next audit:

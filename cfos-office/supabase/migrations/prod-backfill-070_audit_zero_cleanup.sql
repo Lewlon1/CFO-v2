@@ -12,6 +12,12 @@
 --
 -- Source of truth: audit/audit-zero.md, audit/audit-zero-killlist.md
 -- Approved by Lewis at the Audit Zero Phase-5 gate (2026-05-29).
+--
+-- ⚠️ PREREQUISITE: apply migration `070_fix_gdpr_functions_drop_trips.sql` to
+-- production FIRST. Without it, Part 2's delete_user_account() call fails with
+-- `relation "public.trips" does not exist` (the bug that surfaced here). That
+-- migration also fixes export_user_data — both GDPR functions were broken in
+-- prod until then.
 
 ------------------------------------------------------------------------------
 -- PART 1 — Drop the two dead seed tables (prod-only).

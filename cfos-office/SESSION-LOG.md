@@ -38,6 +38,9 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 - **Code-vs-schema drift:** `value-map-flow.tsx` has a dead transaction-insert path writing to the non-existent `bank_accounts` table + reading the dead `merchant_category_map`; `reveal/route.ts:16` queries a non-existent `agents` table (tolerated via `?? 'unknown'`). Both in protected files.
 - **DB:** staging 44 / prod 45 tables (near-identical — NOT "staging 10 ahead"). `merchant_category_map` has **no writer** (its one ref is a read in the dead path). `messages.tool_results` is a phantom column (never existed).
 
+### Post-gate finding — broken GDPR functions (fixed)
+Running the prod cleanup surfaced a **live production bug** the code sweep missed: both GDPR `SECURITY DEFINER` functions referenced the dropped `public.trips` table, so **account deletion (`delete_user_account` / `/api/account/delete`) and data export (`export_user_data` / `/api/account/export`) were failing for every prod user** (`42P01 relation "public.trips" does not exist`). `export_user_data` also read `action_items` by a non-existent `profile_id`. Both fixed + validated on staging; migration `070_fix_gdpr_functions_drop_trips.sql` (Lewis applies to prod, which also unblocks the cleanup's user deletes). **Audit gap recorded:** the sweep scanned only `.from()` calls in TS, not SQL function bodies — remaining `SECURITY DEFINER` functions (`fn_import_batches`, `get_import_history`, `prediction_metrics_txn`) need the same check.
+
 ### Doc-drift as recurring debt (proposed ritual)
 End every schema/route-touching session by updating BUILD-STATUS.md's header (date, version, test/migration/table counts) + adding the SESSION-LOG entry (~2 min). Deeper fix: make CODE-MAP.md a **generated** snapshot (a script that emits route/table/tool counts) so it can't drift.
 
@@ -48,7 +51,7 @@ End every schema/route-touching session by updating BUILD-STATUS.md's header (da
 `merchant_category_map` drop (needs protected-file edit), the dead `value-map-flow.tsx` path, `agents` scaffold, `user_hypotheses`, `benchmarks` vs `benchmark_reference`, `@types/pdf-parse`, `proxy.ts` `protectedPaths`, ~10–15 uncalled exports, migration registry/file drift, executing the prod-backfill SQL.
 
 ### Files
-NEW: `audit/audit-zero.md`, `audit/audit-zero-killlist.md`, `cfos-office/supabase/migrations/prod-backfill-070_audit_zero_cleanup.sql`.
+NEW: `audit/audit-zero.md`, `audit/audit-zero-killlist.md`, `cfos-office/supabase/migrations/070_fix_gdpr_functions_drop_trips.sql` (applied to staging; Lewis applies to prod), `cfos-office/supabase/migrations/prod-backfill-070_audit_zero_cleanup.sql`.
 DELETED: `cfos-office/{apply-migration,check-staging,check-staging2,check-staging3,test-normalise,test-rules}.ts`, `cfos-office/src/components/scenarios/ScenariosClient.tsx`.
 MODIFIED: `CLAUDE.md`, `BUILD-STATUS.md`, `CODE-MAP.md`, `BACKLOG.md`, `cfos-office/package.json`, `cfos-office/SESSION-LOG.md`.
 Build green; tsc clean; 877/877 tests; lint 33 err / 45 warn (baseline); advisors 0 critical/high (no DB changes applied).
