@@ -21,6 +21,7 @@ import { monthlyEquivalent } from './recurring-detector'
 import { flagAgainstBenchmark } from './flag-against-benchmark'
 import type { BenchmarkVerdict, BillSubtype } from './benchmark/types'
 import { classifyBillSubtype } from './benchmark/classify-subtype'
+import { classifyCommitment } from './fixed-cost-classify'
 
 /** Cadence ladder used for adjacency matching. Order matters. */
 const CADENCE_LADDER = [
@@ -64,6 +65,12 @@ export type ReconciledBill = FixedCostInput & {
 export type ReconcileResult = {
   items: ReconciledBill[]
   totalFixedCostsMonthly: number
+  /**
+   * Detected recurring rows that are discretionary-but-regular (a stable
+   * coffee habit) — shown informationally, NEVER summed into the total, so
+   * "free cash flow" keeps meaning income minus committed outgoings.
+   */
+  variableRecurring: ReconciledBill[]
 }
 
 function cadenceIndex(c: string): number {
@@ -157,6 +164,7 @@ export async function reconcileFixedCosts(
     monthly_equivalent: number
     consumed_by_declared: boolean
     bill_subtype: BillSubtype | null
+    category_id: string | null
   }
   const detectedSlots: DetectedSlot[] = (recurringRes.data ?? []).map((r) => {
     const cadence = normaliseCadence(r.frequency as string)
@@ -168,8 +176,15 @@ export async function reconcileFixedCosts(
       monthly_equivalent: monthlyEquivalent(amount, cadence),
       consumed_by_declared: false,
       bill_subtype: (r.bill_subtype as BillSubtype | null) ?? null,
+      category_id: (r.category_id as string | null) ?? null,
     }
   })
+
+  // Detected rows the user never declared that are discretionary-but-regular
+  // (no benchmark subtype + a discretionary category) are held out of the
+  // total. They are NOT a commitment, so counting them would understate free
+  // cash flow. Surfaced separately for the "Recurring, but it flexes" section.
+  const variableRecurring: ReconciledBill[] = []
 
   // Match declared → detected first. Declared wins on label; detected is
   // marked consumed so it doesn't double-count later. Also dedupe declared
@@ -263,8 +278,32 @@ export async function reconcileFixedCosts(
       cadence: slot.cadence,
       source: 'detected',
     }
-    const resolvedSubtype: BillSubtype | null =
-      slot.bill_subtype ?? classifyBillSubtype(slot.label).subtype
+    const classified = classifyBillSubtype(slot.label)
+    const resolvedSubtype: BillSubtype | null = slot.bill_subtype ?? classified.subtype
+
+    // Hold discretionary-but-regular detected spend out of the total. Only a
+    // HIGH-confidence subtype rescues a discretionary category back to
+    // committed — a low-confidence guess is too weak (the classifier's 'ee'
+    // token matches "coffee", which must not force a coffee habit into the
+    // fixed-cost total). resolvedSubtype is still used for the (dormant)
+    // benchmark, where a wrong subtype is harmless until bands are sourced.
+    const commitmentSubtype: BillSubtype | null =
+      classified.confidence === 'high' ? classified.subtype : null
+    if (
+      classifyCommitment({ category_id: slot.category_id, bill_subtype: commitmentSubtype }) ===
+      'variable'
+    ) {
+      variableRecurring.push({
+        ...candidate,
+        monthly_equivalent: slot.monthly_equivalent,
+        matched_detected: false,
+        superseded: false,
+        benchmark_verdict: null,
+        bill_subtype: null,
+      })
+      continue
+    }
+
     const verdict = await flagAgainstBenchmark(
       supabase,
       { ...candidate, bill_subtype: resolvedSubtype },
@@ -285,5 +324,9 @@ export async function reconcileFixedCosts(
     0,
   )
 
-  return { items, totalFixedCostsMonthly: Math.round(totalFixedCostsMonthly * 100) / 100 }
+  return {
+    items,
+    totalFixedCostsMonthly: Math.round(totalFixedCostsMonthly * 100) / 100,
+    variableRecurring,
+  }
 }

@@ -7,7 +7,14 @@ import { reconcileFixedCosts } from '../reconcile-fixed-costs'
 function buildStub(args: {
   profile?: { monthly_rent: number | null; primary_currency: string | null } | null
   declared?: Array<{ label: string; amount: number; cadence: string; status: string }>
-  recurring?: Array<{ name: string; amount: number; frequency: string; status: string }>
+  recurring?: Array<{
+    name: string
+    amount: number
+    frequency: string
+    status: string
+    category_id?: string | null
+    bill_subtype?: string | null
+  }>
 }) {
   const tableData: Record<string, unknown> = {
     user_profiles: { data: args.profile ?? { monthly_rent: null, primary_currency: 'EUR' } },
@@ -104,6 +111,36 @@ describe('reconcileFixedCosts', () => {
     const result = await reconcileFixedCosts(supabase, 'user-1')
     // weekly × 4.33 = 433
     expect(result.totalFixedCostsMonthly).toBeCloseTo(433, 2)
+  })
+
+  it('holds a detected discretionary recurring row out of the total (variable split)', async () => {
+    // The detector can legitimately flag a stable coffee habit as recurring.
+    // It is recurring spend, not a commitment — it must NOT count toward
+    // total_fixed_costs (free cash flow = income − committed outgoings), but
+    // it should still surface informationally.
+    const supabase = buildStub({
+      profile: { monthly_rent: 950, primary_currency: 'EUR' },
+      recurring: [
+        { name: 'Satans Coffee', amount: 6, frequency: 'monthly', status: 'detected', category_id: 'eat_drinking_out' },
+        { name: 'Spotify', amount: 9.99, frequency: 'monthly', status: 'detected', category_id: 'subscriptions' },
+      ],
+    })
+    const result = await reconcileFixedCosts(supabase, 'user-1')
+    // Coffee is variable → excluded; rent + Spotify (subscriptions = committed) counted.
+    expect(result.totalFixedCostsMonthly).toBeCloseTo(950 + 9.99, 2)
+    expect(result.variableRecurring.some((i) => i.label === 'Satans Coffee')).toBe(true)
+    expect(result.items.some((i) => i.label === 'Satans Coffee')).toBe(false)
+    expect(result.items.some((i) => i.label === 'Spotify')).toBe(true)
+  })
+
+  it('keeps an empty variableRecurring array when nothing is discretionary', async () => {
+    const supabase = buildStub({
+      profile: { monthly_rent: 950, primary_currency: 'EUR' },
+      recurring: [{ name: 'Gym', amount: 45, frequency: 'monthly', status: 'tracked' }],
+    })
+    const result = await reconcileFixedCosts(supabase, 'user-1')
+    expect(result.variableRecurring).toEqual([])
+    expect(result.totalFixedCostsMonthly).toBeCloseTo(950 + 45, 2)
   })
 
   it('excludes dismissed declared bills from the total', async () => {

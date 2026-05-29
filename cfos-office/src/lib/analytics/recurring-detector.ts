@@ -83,13 +83,108 @@ export function qualifiesAsRecurring(signals: RecurringSignals): boolean {
   return true
 }
 
+export type RecurringCluster = {
+  /** Normalised merchant key (the grouping key). */
+  normName: string
+  occurrences: number
+  /** Per-occurrence magnitudes (always positive). */
+  amounts: number[]
+  gapsDays: number[]
+  /** detectFrequency(avgGap) — 'weekly'..'annual' or 'irregular'. */
+  frequency: string
+  /** Whether the detected cadence implies a billing day (monthly+). */
+  hasBillingDay: boolean
+  /** Distinct YYYY-MM months the cluster spans. */
+  months: number
+  avgAmount: number
+  latestCategoryId: string | null
+  /** Raw description of the latest occurrence (for provider matching). */
+  latestDescription: string
+  /** 'YYYY-MM-DD' of the latest occurrence (for billing-day derivation). */
+  lastDate: string
+  /** Transaction ids in the cluster (for the is_recurring flag). */
+  txnIds: string[]
+  /** Exactly the shape qualifiesAsRecurring() consumes. */
+  signals: RecurringSignals
+}
+
+/**
+ * Read the user's outflows over the 6-month window and group them into
+ * clusters by normalised merchant — the shared, PRE-GATE grouping that both
+ * the strict detector (detectAndFlagRecurring) and the looser candidate pass
+ * (computeRecurringCandidates) consume. Single source of truth for
+ * normalisation + cadence inference; no DB writes, no gating beyond "a cluster
+ * needs at least one gap" (≥2 occurrences).
+ */
+export async function groupRecurringClusters(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<RecurringCluster[]> {
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+  const { data: txns } = await supabase
+    .from('transactions')
+    .select('id, date, amount, description, category_id')
+    .eq('user_id', userId)
+    .gte('date', sixMonthsAgo.toISOString().slice(0, 10))
+    .lt('amount', 0)
+    .order('date', { ascending: true })
+
+  if (!txns) return []
+
+  // Group by normalised description
+  const groups = new Map<string, TxnRow[]>()
+  for (const txn of txns) {
+    const key = normaliseMerchant(txn.description)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(txn)
+  }
+
+  const clusters: RecurringCluster[] = []
+  for (const [normName, rows] of groups) {
+    if (rows.length < 2) continue // need ≥1 gap to infer a cadence
+
+    const months = new Set(rows.map((r) => r.date.slice(0, 7)))
+    const sorted = [...rows].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    )
+    const dates = sorted.map((r) => new Date(r.date))
+    const gaps: number[] = []
+    for (let i = 1; i < dates.length; i++) {
+      gaps.push(
+        Math.round((dates[i].getTime() - dates[i - 1].getTime()) / (1000 * 60 * 60 * 24)),
+      )
+    }
+    const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length
+    const { frequency, billingDay: hasBillingDay } = detectFrequency(avgGap)
+    const amounts = rows.map((r) => Math.abs(r.amount))
+    const avgAmount = amounts.reduce((s, v) => s + v, 0) / amounts.length
+    const latest = sorted[sorted.length - 1]
+
+    clusters.push({
+      normName,
+      occurrences: rows.length,
+      amounts,
+      gapsDays: gaps,
+      frequency,
+      hasBillingDay,
+      months: months.size,
+      avgAmount,
+      latestCategoryId: latest.category_id,
+      latestDescription: latest.description,
+      lastDate: latest.date,
+      txnIds: rows.map((r) => r.id),
+      signals: { occurrences: rows.length, amounts, gapsDays: gaps, frequency },
+    })
+  }
+  return clusters
+}
+
 export async function detectAndFlagRecurring(
   supabase: SupabaseClient,
   userId: string
 ): Promise<void> {
-  const sixMonthsAgo = new Date()
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-
   // Fetch dismissed names so we can skip them. Re-normalise before lookup
   // so older rows written with mixed-case names still match the canonical
   // lowercase keys produced by the detector today.
@@ -103,78 +198,36 @@ export async function detectAndFlagRecurring(
     (dismissedRows ?? []).map((r) => normaliseMerchant(r.name as string)),
   )
 
-  const { data: txns } = await supabase
-    .from('transactions')
-    .select('id, date, amount, description, category_id')
-    .eq('user_id', userId)
-    .gte('date', sixMonthsAgo.toISOString().slice(0, 10))
-    .lt('amount', 0)
-    .order('date', { ascending: true })
-
-  if (!txns || txns.length < MIN_OCCURRENCES) return
-
-  // Group by normalised description
-  const groups = new Map<string, TxnRow[]>()
-  for (const txn of txns) {
-    const key = normaliseMerchant(txn.description)
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(txn)
-  }
+  // Shared grouping (also used by the candidate pass). The strict gates below
+  // are unchanged: ≥MIN_OCCURRENCES, spans ≥2 months, passes qualifiesAsRecurring.
+  const clusters = await groupRecurringClusters(supabase, userId)
 
   // Track which merchants qualified this sweep so we can clean up stale
   // 'detected' rows at the end (false positives previously written that
   // would no longer qualify under the tighter thresholds).
   const qualifiedMerchants = new Set<string>()
 
-  for (const [normDesc, rows] of groups) {
-    if (rows.length < MIN_OCCURRENCES) continue
-    if (dismissedNames.has(normDesc)) continue
+  for (const c of clusters) {
+    if (c.occurrences < MIN_OCCURRENCES) continue
+    if (dismissedNames.has(c.normName)) continue
+    if (c.months < 2) continue
+    if (!qualifiesAsRecurring(c.signals)) continue
 
-    const months = new Set(rows.map((r) => r.date.slice(0, 7)))
-    if (months.size < 2) continue
-
-    const dates = rows.map((r) => new Date(r.date)).sort((a, b) => a.getTime() - b.getTime())
-    const gaps: number[] = []
-    for (let i = 1; i < dates.length; i++) {
-      gaps.push(
-        Math.round((dates[i].getTime() - dates[i - 1].getTime()) / (1000 * 60 * 60 * 24))
-      )
-    }
-    const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length
-
-    const { frequency, billingDay: hasBillingDay } = detectFrequency(avgGap)
-    const amounts = rows.map((r) => Math.abs(r.amount))
-
-    if (
-      !qualifiesAsRecurring({
-        occurrences: rows.length,
-        amounts,
-        gapsDays: gaps,
-        frequency,
-      })
-    ) {
-      continue
-    }
-
-    const billingDay = hasBillingDay ? dates[dates.length - 1].getDate() : null
-
-    const avgAmount = amounts.reduce((s, v) => s + v, 0) / amounts.length
-    const latestRow = rows[rows.length - 1]
+    const billingDay = c.hasBillingDay ? new Date(c.lastDate).getDate() : null
 
     // Check if this is a known bill provider
-    const providerMatch = matchProvider(latestRow.description)
+    const providerMatch = matchProvider(c.latestDescription)
     const providerName = providerMatch?.provider.name ?? null
 
     // Classify the merchant into a benchmarkable subtype. High-confidence
     // matches persist immediately; ambiguous ones store the best guess too
     // — the flagger gates on country + sourced bands, not on confidence,
     // so an incorrect subtype only matters once real bands exist.
-    const subtype = classifyBillSubtype(normDesc).subtype
+    const subtype = classifyBillSubtype(c.normName).subtype
 
-    const ids = rows.map((r) => r.id)
-    await supabase.from('transactions').update({ is_recurring: true }).in('id', ids)
+    await supabase.from('transactions').update({ is_recurring: true }).in('id', c.txnIds)
 
-    qualifiedMerchants.add(normDesc)
+    qualifiedMerchants.add(c.normName)
 
     // Upsert to recurring_expenses — relies on unique constraint (user_id, name)
     await supabase
@@ -182,12 +235,12 @@ export async function detectAndFlagRecurring(
       .upsert(
         {
           user_id: userId,
-          name: normDesc,
-          amount: Math.round(avgAmount * 100) / 100,
+          name: c.normName,
+          amount: Math.round(c.avgAmount * 100) / 100,
           currency: 'EUR',
-          frequency,
+          frequency: c.frequency,
           billing_day: billingDay,
-          category_id: latestRow.category_id,
+          category_id: c.latestCategoryId,
           provider: providerName,
           bill_subtype: subtype,
         },
