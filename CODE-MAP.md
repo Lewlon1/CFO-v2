@@ -2,6 +2,14 @@
 
 *A truthful read of the codebase before the next refactor lands. Read-only audit, 2026-05-13. All paths are relative to repo root unless noted; source code lives in `cfos-office/`.*
 
+> **⚠️ Partially superseded by Audit Zero (2026-05-29)** — see `audit/audit-zero-*.md`. Corrections to this 2026-05-13 snapshot:
+> - **Orphan API routes (the "none should hit production" line): DISPROVEN.** Those routes (`/api/dashboard/summary` ×11, `/api/dashboard/trends`, `/api/balance-sheet` ×7, `/api/bills/history`, `/api/value-map/personal/impact`, `/api/profile/export/*`, …) are **live** via fetch/SWR/route-type-imports. Only `analyze-conversation` + `value-map/regenerate` are gone (deleted Session 05). **All 59 API routes are live; 0 orphans** (8 crons all in `vercel.json`).
+> - **`/chat` resolution: RESOLVED** — `next.config.ts` permanent redirect `/chat`→`/office`; middleware is `src/proxy.ts` (Next 15 `proxy` convention).
+> - **AI tools "23/23": now ~43** via string-keyed `createToolbox()`.
+> - **"37 tables": now staging 44 / prod 45.**
+> - **`scenarios/` "100% live": stale** — `ScenariosClient.tsx` was an orphan (Scenarios folder dropped v2.5); removed in Audit Zero.
+> - The **"refactor, not rebuild"** conclusion stands — Audit Zero corroborates it.
+
 Per-phase detail lives under `audit/0X-*.md`. This document is the synthesis.
 
 ---

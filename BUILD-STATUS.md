@@ -1,16 +1,18 @@
 # Build Status
 
-> **Last updated:** 2026-05-18
-> **Current version:** v2.1 on main (Sessions 11–14 via #42, onboarding-v2 fix via #43)
-> **Active work:** v2.3 — Experiment Engine (alongside v2.2 in review)
-> **Next session:** v2.2 cohort flip per `cfos-office/docs/v2.2-rollout.md`; v2.3 manual prod-backfill (`cfos-office/supabase/prod-backfill-experiments.sql`) when Lewis is ready.
-> **Branch state:** `claude/experiment-engine-oKzua` carries migration 052 (applied to staging), the 10-template catalog, scoring + limit modules, 5 new lifecycle tools, removal of legacy `PatternResult.experiment`, cron `/api/cron/expire-experiments`. 554/554 tests passing. PR not yet opened.
+> **Last updated:** 2026-05-29 (v2.6 — Audit Zero)
+> **Current version:** v2.6 on `session-33/audit-zero`; `package.json` = 2.6.0. Main is post-Session-32.
+> **Main tip:** Session 32 (#54) + layered-Read-default kill-switch (#55) + docs (#56).
+> **Counts:** 877 tests passing / 74 files · 069 numbered migrations (86 applied in each env's registry — tracking drift, see `audit/audit-zero.md`) · staging 44 / prod 45 public tables.
+> **Verification:** build green · tsc clean · lint 33 errors + 45 warnings (pre-existing baseline).
 
 ## Branch Topology
 
 ```
 main (deployed to Vercel → production)
-└── feature/v2.2-chat-intelligence (open, ~15 commits)
+├── session-33/audit-zero            (this work — Audit Zero, v2.6)
+├── docs/rescue-session-30-latency   (unmerged)
+└── session-32/staging-user-hygiene  (unmerged — staging reset tooling)
 ```
 
 ## Session History

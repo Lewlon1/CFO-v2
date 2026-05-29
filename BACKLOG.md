@@ -4,6 +4,23 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ---
 
+## Audit Zero (v2.6, 2026-05-29) — NEEDS-LEWIS follow-ups
+
+Verified in Audit Zero but intentionally not actioned this session (protected files / deeper work). Full evidence + three-search: `audit/audit-zero-killlist.md`.
+
+- **Dead `value-map-flow.tsx` transaction-insert path** (~L352–390) — writes to non-existent `bank_accounts`, reads dead `merchant_category_map`; superseded by `/api/upload`. Protected file → dedicated follow-up. Removing it unblocks dropping `merchant_category_map`.
+- **`agents` phantom** — `value-map/reveal/route.ts:16` queries a non-existent table (tolerated via `?? 'unknown'`); retire the dead `getAgentId` scaffold.
+- **`user_hypotheses`** — staging-only scaffold (0 refs / 0 rows); drop or wire the feature.
+- **`benchmarks` vs `benchmark_reference`** — possible redundancy; confirm which is canonical.
+- **`@types/pdf-parse`** — knip-unused devDep; verify `tsc` without it before removing.
+- **`proxy.ts` `protectedPaths`** — legacy route names, omits `/office` (vestigial; office gated by the `(office)` layout).
+- **Layered-read legacy path** — `!isLayeredReadEnabled()` branches + `computeFirstInsight`; retained kill-switch rollback, remove once proven in prod.
+- **~10–15 genuinely-uncalled exports** (`predictValueCategory`, `estimateCostUSD`, `templatesForPattern`, `findAction`, …) — un-export or remove.
+- **Migration registry/file drift** — 86 applied vs 069 numbered files; staging ahead of prod.
+- **Prod row cleanup** (Lewis runs the guarded SQL): drop `savings_tips` (18) + `third_party_data_flows` (3); delete test users `lewis@test.com` + `gsbs@test.com`. See `cfos-office/supabase/migrations/prod-backfill-070_audit_zero_cleanup.sql`.
+
+---
+
 ## Constitution v1.2 candidates (Session 06 findings) — RESOLVED
 
 **Status: all five lifted into Constitution v1.2 in the same session as the BASE_PERSONA rewrite,** at Lewis's direction. (The original Session 06 rule "Constitution updates are their own session" was waived once the harness re-run at 8/8 made the persona-level rules concrete enough to formalise.)
@@ -108,6 +125,8 @@ Verbatim from the harness at `eu.anthropic.claude-sonnet-4-6` with `providerOpti
 The Tier 2 candidate list flagged `merchant_category_map` for deletion, but `cfos-office/src/components/value-map/value-map-flow.tsx:357` reads from it during first-categorisation at signup. Dropping it without a refactor regresses new-user onboarding.
 
 **Work to do:** migrate the lookup to `user_merchant_rules` (or another live table), then drop. Likely a half-session because the read happens on the unauthenticated public flow and the source data needs a home.
+
+> **Audit Zero correction (2026-05-29):** the stated blocker is out of date. The read (now `value-map-flow.tsx:381`) sits inside a **dead transaction-insert path** that also writes to the non-existent `bank_accounts` table (`newAccount!.id` would throw if reached) and is superseded by the `/api/upload` pipeline — it does **not** run on the live signup flow. `merchant_category_map` is 0-rows in both envs, has **no writer**, and **zero FK deps**. Real blocker = removing that dead path (protected file `components/value-map/**`) + Lewis sign-off, not an onboarding-regression risk.
 
 ### Tier 1 leftover — `ValuePill.tsx`
 
