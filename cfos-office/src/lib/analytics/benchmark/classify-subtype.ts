@@ -100,6 +100,47 @@ const LOW_CONFIDENCE_KEYWORDS: Array<{ token: string; bestGuess: BillSubtype }> 
   { token: 'energia', bestGuess: 'electricity' },
 ]
 
+// A few low-confidence brand tokens are also common English/Spanish words or
+// appear as substrings of unrelated merchants: "orange" the fruit, "ee" inside
+// "coffee", "o2" inside "co2", "three" the number. Word-boundary matching alone
+// still lets the *standalone* word through ("Orange Juice", "O2 Arena", "Three
+// Bears"), so for these we additionally require that the token IS the whole
+// label or that a telco/bill context word sits beside it. Distinctive brands
+// (vodafone, movistar, …) and generic descriptors (insurance, energy, …) are
+// exempt — for them a word-boundary match is signal enough.
+const COLLISION_PRONE_TOKENS = new Set(['orange', 'ee', 'o2', 'three'])
+
+// Words that, alongside an ambiguous brand token, signal a genuine telecoms /
+// utility bill rather than a coincidental name collision. Stored normalised.
+const TELCO_CONTEXT_WORDS = [
+  'mobile',
+  'broadband',
+  'fibre',
+  'fiber',
+  'wifi',
+  'wi-fi',
+  'fibra',
+  'sim',
+  'plan',
+  'line',
+  'data',
+  'phone',
+  'internet',
+  'movil',
+  'airtime',
+  'contract',
+  'tariff',
+  'bill',
+  // Region / market qualifiers — telco brands routinely carry one ("Three UK",
+  // "O2 UK", "Orange España"), so a brand token beside one is a genuine bill,
+  // not a "Three Bears Cafe" collision. Bare 'es' is intentionally excluded
+  // (too collision-prone as a two-letter word).
+  'uk',
+  'gb',
+  'espana',
+  'spain',
+]
+
 /**
  * Strip accents and lowercase. We intentionally do NOT strip punctuation
  * (so "disney+" still matches the keyword "disney+").
@@ -109,6 +150,18 @@ function normalise(label: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{Diacritic}+/gu, '')
+}
+
+/**
+ * Whole-word match of `normalisedToken` within an already-normalised label,
+ * anchored on whitespace or string boundaries: `(^|\s)token(\s|$)`. This is the
+ * word-boundary counterpart of a bare `includes` substring check, so "ee"
+ * matches "ee mobile" but not "coffee", and "o2" matches "o2 arena" but not
+ * "co2". The token is regex-escaped before use.
+ */
+function matchesWord(normalisedLabel: string, normalisedToken: string): boolean {
+  const escaped = normalisedToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|\\s)${escaped}(\\s|$)`).test(normalisedLabel)
 }
 
 /**
@@ -137,9 +190,20 @@ export function classifyBillSubtype(label: string | null | undefined): ClassifyR
   }
 
   for (const { token, bestGuess } of LOW_CONFIDENCE_KEYWORDS) {
-    if (normalised.includes(normalise(token))) {
-      return { subtype: bestGuess, confidence: 'low' }
+    const normToken = normalise(token)
+    if (!matchesWord(normalised, normToken)) continue
+
+    // Collision-prone brand tokens only count when they stand alone as the
+    // whole label or sit beside a telco/bill context word — otherwise a
+    // coincidental common word ("Orange Juice", "O2 Arena") would masquerade
+    // as a bill.
+    if (COLLISION_PRONE_TOKENS.has(normToken)) {
+      const isWholeLabel = normalised === normToken
+      const hasTelcoContext = TELCO_CONTEXT_WORDS.some((w) => matchesWord(normalised, w))
+      if (!isWholeLabel && !hasTelcoContext) continue
     }
+
+    return { subtype: bestGuess, confidence: 'low' }
   }
 
   return { subtype: null, confidence: 'low' }

@@ -13,16 +13,21 @@ type Props = {
 
 const POLL_INTERVAL_MS = 2500
 const SKIP_VISIBLE_AFTER_MS = 90_000
+// Grace period after the tentative hand-off signal lands, so the CFO's
+// streamed acknowledgement is visible before we redirect to the upload screen.
+const TENTATIVE_ROUTE_GRACE_MS = 4000
 
 /**
  * Mounted in the office layout. Activates only when the user is mid-goal-beat
  * (onboarding_step = 'goal_chat_started' or 'goal_chat_tentative'). Opens
  * the goal-chat conversation in the chat sheet, polls
- * /api/onboarding/essentials-status until a goal has landed (income and rent
- * are collected later on the processing screen), and routes onward to
- * /onboarding-v2/upload when the goal lands. For users who can't articulate
- * anything, surfaces a skip control after 90s that routes to upload too —
- * value-first has no bifurcation.
+ * /api/onboarding/essentials-status, and routes onward to /onboarding-v2/upload
+ * when EITHER a goal lands OR the step reaches 'goal_chat_tentative' (the
+ * deferral / stall hand-off — the user is moving on without a confirmed goal).
+ * Income and rent are collected later on the processing screen. Routing on the
+ * tentative signal is what stops a user who declines a goal from being
+ * stranded on the chat screen. The skip control below is a manual fallback for
+ * the residual case where the tentative signal hasn't landed yet.
  */
 export function GoalBeatWatcher({
   onboardingStep,
@@ -75,47 +80,72 @@ export function GoalBeatWatcher({
     return () => clearTimeout(t)
   }, [isActive, entryStruggle, onboardingStep])
 
-  // Poll for goal landing. Value-first flow: a goal is the only signal we
-  // need from this beat — income and rent get collected on the processing
-  // screen. As soon as a goal exists, complete the beat and route to
-  // /onboarding-v2/upload (the upload orchestrator then hands off to
-  // /onboarding-v2/processing). The essentials-status endpoint returns
-  // { goal, income, rent } — we only read `goal`.
+  // Poll for the beat's hand-off signal. Value-first flow: a goal is the
+  // happy-path signal — income and rent get collected on the processing
+  // screen. But a confirmed goal is NOT required to move on: when the user
+  // defers a goal ("just visibility") or stalls, the chat route advances the
+  // onboarding step to `goal_chat_tentative`, and that is also a hand-off
+  // signal. Routing on EITHER is what stops a non-`dont_know` decliner from
+  // being stranded on the chat screen (the documented intent of the
+  // tentative-aware polling — see app/api/chat/route.ts). The essentials-status
+  // endpoint returns { goal, income, rent, step } — we read `goal` and `step`.
+  //
+  // Small grace before routing on the tentative signal so the CFO's streamed
+  // acknowledgement ("a goal can wait — let's look at your numbers") is visible
+  // before the redirect, rather than yanking the screen away mid-sentence.
   useEffect(() => {
     if (!isActive || completedRef.current) return
+    let graceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const complete = () => {
+      if (completedRef.current) return
+      completedRef.current = true
+      startTransition(async () => {
+        try {
+          const { redirectTo } = await completeGoalBeat()
+          if (redirectTo) {
+            router.push(redirectTo)
+          } else {
+            router.refresh()
+          }
+        } catch (err) {
+          console.error('[GoalBeatWatcher] completeGoalBeat failed', err)
+          completedRef.current = false
+        }
+      })
+    }
+
     const interval = setInterval(async () => {
       if (completedRef.current) return
       try {
         const res = await fetch('/api/onboarding/essentials-status', { cache: 'no-store' })
         if (!res.ok) return
-        const { goal } = (await res.json()) as {
+        const { goal, step } = (await res.json()) as {
           goal: boolean
           income: boolean
           rent: boolean
+          step: string | null
         }
-        if (goal && !completedRef.current) {
-          completedRef.current = true
+        if (completedRef.current) return
+        if (goal) {
+          // Confirmed goal — route immediately.
           clearInterval(interval)
-          startTransition(async () => {
-            try {
-              const { redirectTo } = await completeGoalBeat()
-              if (redirectTo) {
-                router.push(redirectTo)
-              } else {
-                router.refresh()
-              }
-            } catch (err) {
-              console.error('[GoalBeatWatcher] completeGoalBeat failed', err)
-              completedRef.current = false
-            }
-          })
+          if (graceTimer) clearTimeout(graceTimer)
+          complete()
+        } else if (step === 'goal_chat_tentative' && !graceTimer) {
+          // Deferral / stall hand-off — let the acknowledgement land, then route.
+          clearInterval(interval)
+          graceTimer = setTimeout(complete, TENTATIVE_ROUTE_GRACE_MS)
         }
       } catch (err) {
         // Network/parse failures are recoverable — next tick will retry.
         console.error('[GoalBeatWatcher] poll failed', err)
       }
     }, POLL_INTERVAL_MS)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      if (graceTimer) clearTimeout(graceTimer)
+    }
   }, [isActive, router])
 
   const handleSkip = useCallback(() => {

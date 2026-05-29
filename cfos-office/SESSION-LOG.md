@@ -9,6 +9,98 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Fixed-Cost Confidence (value-first onboarding) — 2026-05-29
+
+**Branch:** `claude/quirky-easley-78125c` (worktree off main `9221eed`; the plan's
+provisional `claude/fixed-cost-confidence` name — value-first is already on main).
+**Scope:** Candidate-recurring tier + category coverage + utilities/observation
+capture + fixed-vs-variable split on the Step-4 confirm screen
+(`/onboarding-v2/confirm`). Migration-free; no production writes.
+
+### What shipped
+- `groupRecurringClusters` extracted from `recurring-detector.ts` (no strict-pass
+  behaviour change — the strict gate, thresholds, `is_recurring` flagging,
+  provider match, billing-day and stale-cleanup are all preserved). The cluster
+  carries `txnIds`/`latestDescription`/`lastDate`/`hasBillingDay` so the strict
+  pass works verbatim off the shared grouping.
+- `computeRecurringCandidates` (`recurring-candidates.ts`) — loose pass surfacing
+  committed-looking clusters that fail strict. Never written to
+  `recurring_expenses`; computed on the fly at confirm load.
+- `classifyCommitment` (`fixed-cost-classify.ts`) — discretionary-but-regular spend
+  held out of `total_fixed_costs`.
+- `assessCategoryCoverage` (`category-coverage.ts`) — transaction-level coverage
+  driving "No utilities in this statement" + per-line capture.
+- `reconcileFixedCosts` now returns `variableRecurring` (additive; consumers
+  `syncTotalFixedCosts` + `compose-first-read` ×2 destructure only the fields they
+  already used — verified safe).
+- `confirmFixedCosts` rewritten to a batched `ConfirmPayload`: accepted candidates
+  + captured gap/utility lines → `user_declared_fixed_costs` (status `confirmed`,
+  source `candidate_confirm` / `gap_capture`); skipped candidates + section-1 drops
+  → `dismissed` (recurring_expenses / declared). One commit on Continue.
+- Confirm UI: stateful `confirm-orchestrator` composes four sections + sticky total;
+  `confirm-fixed-costs` (presentational, €0 empty-state, benchmark verdict preserved),
+  new `candidate-bills`, new `missing-costs`, shared `fixed-cost-display` helpers.
+
+### Decisions / tradeoffs (incl. deviations from the plan)
+- **DISCRETIONARY_CATEGORY_IDS = `{groceries, eat_drinking_out, shopping}`.** Phase-0
+  pinned the real category-id slugs: the plan's placeholders (`eating_out`,
+  `entertainment`) were wrong. `entertainment`/`transport`/`subscriptions` MUST stay
+  committed so the plan's own expected candidates (Playtomic, TMB, Shell, Claude.ai)
+  surface. Minimal-set is also the conservative direction (under-counting fixed costs
+  is the failure mode).
+- **Candidate `months >= 2` guard** added (beyond the plan's occurrence-only gate) —
+  mirrors the strict detector's own months guard; stops a same-month pair from
+  inferring a nonsense cadence + wild monthly equivalent off a single gap.
+- **High-confidence-only subtype gating in the reconcile commitment decision.**
+  `classifyBillSubtype` low-confidence token `'ee'` substring-matches "coff**ee**" →
+  `mobile`, which would have forced a coffee habit into the fixed total (the exact
+  "discretionary → committed → inflated" failure the plan warns of). Fixed at the
+  commitment layer (only a HIGH-confidence subtype rescues a discretionary category)
+  — `classify-subtype.ts` left untouched per the manifest; the dormant benchmark
+  flagger still uses the looser resolved subtype harmlessly.
+- Candidates kept OFF `recurring_expenses` by design; accepted ones route through the
+  existing declared→reconcile dedupe (rent band-match, declared↔detected). Migration-
+  free for exactly this reason.
+- Removed the redundant `total` prop from the orchestrator (it derives the live total
+  from items + counted candidates + captured lines; reconcile-only `total` excluded
+  default-counted candidates so it was wrong for display anyway). FCF stays the First
+  Read's payoff — the confirm screen shows the fixed-cost total only.
+- Added a `typecheck` npm script (`tsc --noEmit`) — CLAUDE.md documents the gate as
+  `npm run typecheck` but no script existed.
+- Added `fixed-cost-display.ts` (one shared concern: cadence labels + display-only
+  monthly-equivalent + key→subtype) used by the orchestrator + both new components.
+- **`BUILD-STATUS.md` does not exist in the repo** (Audit Zero consolidated into this
+  single log); not created to avoid an orphan doc.
+
+### Verification
+- `npm run typecheck` clean; `npm run build` clean (all `/onboarding-v2/confirm`
+  compiles).
+- 47 vitest tests across 6 files green: `fixed-cost-classify` (5), `category-coverage`
+  (6), `recurring-candidates` (7), `recurring-detector` (19, incl. 3 new group tests +
+  16 preserved), `reconcile-fixed-costs` (8, incl. variable split), `confirm-actions`
+  (2, batched payload + ordering). All written test-first (red→green).
+- `get_advisors(security)` on staging `qlbhvlssksnrhsleadzn`: 10 pre-existing baseline
+  WARNs (pg_trgm-in-public, demo_* anon inserts, GDPR SECURITY DEFINER fns, leaked-
+  password protection), none introduced here. No DDL ran → performance advisors moot.
+
+### Follow-ups
+- **Manual staging QA (Lewis):** load `/onboarding-v2/confirm` as Dorcas and as a
+  multi-account-shaped user (import Lewis's Jan–Mar Revolut CSVs to a staging user):
+  expect Banked €0 + the five candidates under "Worth a look" (3 counted, Shell +
+  Claude skipped) + the utilities observation; accept one + fill electricity/water →
+  Continue → confirm `user_declared_fixed_costs` has the new `confirmed` rows,
+  `monthly_snapshots.total_fixed_costs` matches the displayed total, the First Read's
+  FCF reflects it, and decisions are sticky on reload (no resurface).
+- Optional additive staging migration later: persist `spend_type`; add `'water'` to
+  the `bill_subtype` enum for water benchmarking (water currently captures as
+  `bill_subtype: null`).
+- Consider word-boundary low-confidence matching in `classify-subtype.ts` (root fix
+  for the `'ee'`/`'o2'`/`'orange'` over-match) when the benchmark layer wakes up.
+- Revisit `DISCRETIONARY_CATEGORY_IDS` after Wave 2 (e.g. `personal_care`); flip
+  high-confidence candidates to opt-in if Wave-2 feedback shows over-counting.
+
+---
+
 ## v2.6 — Audit Zero — 2026-05-29
 
 **Branch:** `session-33/audit-zero` (off main `2875904`)

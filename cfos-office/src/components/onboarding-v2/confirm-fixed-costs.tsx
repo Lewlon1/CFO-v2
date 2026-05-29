@@ -1,138 +1,82 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
 import type { ReconciledBill } from '@/lib/analytics/reconcile-fixed-costs'
 import { formatCurrency } from '@/lib/format/currency'
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format'
-import { confirmFixedCosts } from '@/app/onboarding-v2/confirm/confirm-actions'
 
-type Props = {
-  initialItems: ReconciledBill[]
-  initialTotal: number
-  currency: string
-  onAdvance: (redirectTo: string) => void
-}
-
-type DecisionMap = Record<string, 'confirm' | 'dismiss'>
-
-function itemKey(item: ReconciledBill, idx: number): string {
+/** Stable key for a banked row — shared with the orchestrator so dismissals
+ *  map back to the right declared label / detected name. */
+export function bankedKey(item: ReconciledBill, idx: number): string {
   return `${item.source}:${item.label}:${item.amount}:${idx}`
 }
 
+type Props = {
+  /** Visible (non-superseded) reconcile items — rent + declared + committed detected. */
+  items: ReconciledBill[]
+  /** Keys (from bankedKey) the user has dropped. */
+  dismissed: Set<string>
+  onToggle: (key: string) => void
+  currency: string
+}
+
 /**
- * A list to nod at, not a form to fill. The reconciler has already deduped
- * declared vs detected — this screen surfaces the merged set so the user
- * can confirm or dismiss each row. Defaults to confirm; the user only acts
- * on the ones they want to drop.
- *
- * The footer total live-updates as the user toggles. The "Looks right"
- * submit hands the confirmed-only list to the server action which writes
- * status flags to user_declared_fixed_costs and refreshes
- * monthly_snapshots.total_fixed_costs to match.
+ * Section 1 — "Banked automatically". The reconciler already deduped declared
+ * vs detected and held discretionary-but-regular spend out; this surfaces the
+ * committed set the user can nod at or drop. Presentational only: the
+ * orchestrator owns the dismissal state and the single commit.
  */
-export function ConfirmFixedCosts({
-  initialItems,
-  initialTotal,
-  currency,
-  onAdvance,
-}: Props) {
-  const items = useMemo(
-    () => initialItems.filter((item) => !item.superseded),
-    [initialItems],
-  )
-
-  const [decisions, setDecisions] = useState<DecisionMap>(() =>
-    Object.fromEntries(items.map((item, idx) => [itemKey(item, idx), 'confirm'])),
-  )
-  const [pending, startTransition] = useTransition()
-
-  const liveTotal = useMemo(() => {
-    return items.reduce((sum, item, idx) => {
-      const decision = decisions[itemKey(item, idx)] ?? 'confirm'
-      if (decision === 'dismiss') return sum
-      return sum + item.monthly_equivalent
-    }, 0)
-  }, [items, decisions])
-
-  function toggle(key: string) {
-    setDecisions((prev) => ({
-      ...prev,
-      [key]: prev[key] === 'confirm' ? 'dismiss' : 'confirm',
-    }))
-  }
-
-  function handleSubmit() {
-    if (pending) return
-    startTransition(async () => {
-      try {
-        const confirmed = items
-          .map((item, idx) => ({
-            label: item.label,
-            amount: item.amount,
-            cadence: item.cadence,
-            source: item.source,
-            decision: decisions[itemKey(item, idx)] ?? 'confirm',
-          }))
-          .filter((row) => row.decision === 'confirm')
-        const { redirectTo } = await confirmFixedCosts(confirmed)
-        onAdvance(redirectTo)
-      } catch (err) {
-        console.error('[confirm-fixed-costs] submit failed', err)
-      }
-    })
-  }
-
+export function ConfirmFixedCosts({ items, dismissed, onToggle, currency }: Props) {
   if (items.length === 0) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-lg font-medium text-text-primary leading-tight">
-          Nothing recurring jumped out yet.
+      <section className="space-y-2">
+        <h2 className="text-base font-medium text-text-primary leading-tight">
+          Banked automatically
         </h2>
-        <p className="text-sm text-text-secondary leading-snug">
-          That can happen with thin data. The picture will sharpen as more
-          months land — let&apos;s look at what&apos;s there.
-        </p>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={handleSubmit}
-          className="w-full min-h-[44px] rounded-lg bg-text-primary text-bg-base text-sm font-medium px-4 py-3 disabled:opacity-40"
-        >
-          Show me the picture
-        </button>
-      </div>
+        <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-muted)] px-4 py-4">
+          <p className="text-sm text-text-secondary leading-snug">
+            Nothing clean enough to count on its own yet — nothing repeated at a
+            steady amount and date. Anything real that&apos;s missing, add it below.
+          </p>
+        </div>
+      </section>
     )
   }
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-2">
-        <h2 className="text-lg font-medium text-text-primary leading-tight">
-          The fixed costs I can see.
+    <section className="space-y-3">
+      <div className="space-y-1">
+        <h2 className="text-base font-medium text-text-primary leading-tight">
+          Banked automatically
         </h2>
         <p className="text-sm text-text-secondary leading-snug">
-          Nod at the ones that are right; tap to drop the ones that aren&apos;t.
+          Steady, repeating costs I could see. Drop anything that isn&apos;t a real fixed cost.
         </p>
       </div>
 
       <ul className="space-y-2">
         {items.map((item, idx) => {
-          const key = itemKey(item, idx)
-          const decision = decisions[key] ?? 'confirm'
-          const isConfirmed = decision === 'confirm'
+          const key = bankedKey(item, idx)
+          const isDismissed = dismissed.has(key)
+          const observation = item.benchmark_verdict
+            ? formatBenchmarkObservation({
+                label: item.label,
+                monthly_amount: item.monthly_equivalent,
+                verdict: item.benchmark_verdict,
+              })
+            : null
           return (
             <li
               key={key}
               className={`rounded-lg border px-3 py-3 flex items-center justify-between gap-3 transition-opacity ${
-                isConfirmed
-                  ? 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]'
-                  : 'border-[var(--border-subtle)] bg-[var(--bg-muted)] opacity-60'
+                isDismissed
+                  ? 'border-[var(--border-subtle)] bg-[var(--bg-muted)] opacity-60'
+                  : 'border-[var(--border-subtle)] bg-[var(--bg-elevated)]'
               }`}
             >
               <div className="min-w-0">
                 <p
                   className={`text-sm font-medium text-text-primary truncate ${
-                    !isConfirmed ? 'line-through' : ''
+                    isDismissed ? 'line-through' : ''
                   }`}
                 >
                   {item.label}
@@ -142,49 +86,22 @@ export function ConfirmFixedCosts({
                   {item.source === 'detected' && ' · detected'}
                   {item.source === 'declared' && item.matched_detected && ' · matched'}
                 </p>
-                {(() => {
-                  const observation = item.benchmark_verdict
-                    ? formatBenchmarkObservation({
-                        label: item.label,
-                        monthly_amount: item.monthly_equivalent,
-                        verdict: item.benchmark_verdict,
-                      })
-                    : null
-                  return observation ? (
-                    <p className="text-xs text-amber-500 mt-1 leading-snug">
-                      {observation}
-                    </p>
-                  ) : null
-                })()}
+                {observation ? (
+                  <p className="text-xs text-amber-500 mt-1 leading-snug">{observation}</p>
+                ) : null}
               </div>
               <button
                 type="button"
-                onClick={() => toggle(key)}
-                aria-pressed={!isConfirmed}
-                className="text-xs px-3 py-2 min-h-[44px] min-w-[44px] rounded border border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] transition-colors"
+                onClick={() => onToggle(key)}
+                aria-pressed={isDismissed}
+                className="text-xs px-3 py-2 min-h-[44px] min-w-[44px] rounded border border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] transition-colors shrink-0"
               >
-                {isConfirmed ? 'Drop' : 'Keep'}
+                {isDismissed ? 'Keep' : 'Drop'}
               </button>
             </li>
           )
         })}
       </ul>
-
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-3 flex items-center justify-between">
-        <p className="text-sm text-text-secondary">Fixed costs / month</p>
-        <p className="text-base font-medium text-text-primary tabular-nums">
-          {formatCurrency(liveTotal, currency)}
-        </p>
-      </div>
-
-      <button
-        type="button"
-        disabled={pending}
-        onClick={handleSubmit}
-        className="w-full min-h-[44px] rounded-lg bg-text-primary text-bg-base text-sm font-medium px-4 py-3 disabled:opacity-40"
-      >
-        {pending ? 'Saving…' : 'Looks right — show me the picture'}
-      </button>
-    </div>
+    </section>
   )
 }

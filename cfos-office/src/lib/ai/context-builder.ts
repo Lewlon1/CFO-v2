@@ -840,7 +840,7 @@ function buildGoalDeriveConfirmContext(
       '- Acknowledge what you have (or that a goal can wait).',
       '- Say you are about to look at their numbers so the picture gets specific.',
       '',
-      'Do NOT call any tools. Do NOT ask for income, rent, or any other number — those are collected on the next screen, not here. Do NOT ask another question.',
+      'Do NOT call any tools. Do NOT ask for income, rent, or any other number — those are collected on the next screen, not here. Do NOT ask another question. Do NOT tell the user to upload anything or that there is an upload button here — the system moves them to the upload screen automatically.',
     ].join('\n')
   }
 
@@ -903,7 +903,7 @@ function buildGoalDeriveConfirmContext(
     '',
     "### When the user can't articulate a goal",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this once we can see your money moving.\" — and stop. Do NOT ask for any numbers; do NOT call request_structured_input. The system will route the user to the upload screen on its own; your job here is just to acknowledge and stop.",
+    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this once we can see your money moving.\" — and stop. Do NOT ask for any numbers; do NOT call request_structured_input. The system will route the user to the upload screen on its own; your job here is just to acknowledge and stop. There is NO upload control on this screen: never tell the user to upload anything here, to drag in a statement, or that an upload button is below the chat — the system takes them to the upload screen automatically.",
     '',
     '### After create_goal succeeds',
     '',

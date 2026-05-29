@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { resumeRoute } from '@/lib/onboarding-v2/resume'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 import { reconcileFixedCosts } from '@/lib/analytics/reconcile-fixed-costs'
+import { computeRecurringCandidates } from '@/lib/analytics/recurring-candidates'
+import { assessCategoryCoverage } from '@/lib/analytics/category-coverage'
 import { ConfirmOrchestrator } from './confirm-orchestrator'
 
 export const dynamic = 'force-dynamic'
@@ -31,15 +33,21 @@ export default async function OnboardingV2ConfirmPage() {
   if (expected !== '/onboarding-v2/confirm') redirect(expected)
 
   const currency = (profile?.primary_currency as string | null) ?? 'EUR'
-  const { items, totalFixedCostsMonthly } = await reconcileFixedCosts(
-    supabase,
-    user.id,
-  )
+
+  // Computed on the fly at confirm load. Candidates + coverage are read-only
+  // passes around the strict reconcile; none write to recurring_expenses.
+  const [{ items, variableRecurring }, candidates, coverage] = await Promise.all([
+    reconcileFixedCosts(supabase, user.id),
+    computeRecurringCandidates(supabase, user.id),
+    assessCategoryCoverage(supabase, user.id),
+  ])
 
   return (
     <ConfirmOrchestrator
       items={items}
-      total={totalFixedCostsMonthly}
+      variable={variableRecurring}
+      candidates={candidates}
+      coverage={coverage}
       currency={currency}
     />
   )
