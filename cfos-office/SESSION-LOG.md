@@ -9,6 +9,51 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Consistency, Phase 0 (Audit + Styleguide) — 2026-05-29
+
+**Branch:** `claude/visual-consistency-audit`
+**Scope:** Identification only — no token, constant, or feature file touched; no DB/migrations. Two deliverables: a full visual-consistency audit (`audit/visual-consistency.md`) extending the v2.5 colour-only finding into colour + spacing + radii + typography + primitive/state coverage, and a dev-only `/styleguide` route (`src/app/styleguide/`) that renders the live token layer — drift included — as the seed of a future visual-regression surface.
+
+### Headline counts (src = 556 `.ts/.tsx`)
+
+- **197** raw hex sites + **82** raw rgba (excl. tokens.ts/globals.css); **37** arbitrary `…-[#]` colour brackets.
+- **260** arbitrary spacing/size brackets; **382** arbitrary type/radius brackets; **30** distinct `text-[Npx]` sizes (7→76px, incl. half-pixels); **11** distinct `rounded-[…]` radii.
+- **Token-delivery ratio — inline `style={{}}` : `var(--…)` bracket-read ≈ 224 : 42 ≈ 5.3 : 1.** Plus the (correct, uncounted) `@theme`-generated utility layer.
+
+### Confirmed conflicts
+
+1. **Two palette generations.** `tokens.ts` + `UI-DIRECTION.md` are the stale "grey gen" (bg `#0F0F0D`, text `#F5F5F0`, white-alpha); `globals.css` + `layout.tsx` are the shipped "walnut gen" (`#13110D` / `#F4EDD9` / vellum). `tokens.ts` — self-labelled "single source of truth" — disagrees with the shipped CSS on every neutral and is theme-blind (light mode lives only in globals.css).
+2. **Foundation/Investment inversion (the headline bug).** Token layer says Foundation green / Investment blue; the **shipped** value-map QUADRANTS (`#4A90D9` / `#48BB78`) and dashboard `VALUE_COLORS` (blue/green) say the opposite. **The user sees Foundation = blue.** Verified live in the styleguide conflict panel (computed chip colours). First logged v2.5 BACKLOG #8; still open.
+3. **Fonts.** Loaded = Instrument Serif / Instrument Sans / Geist Mono. `tokens.fonts` (DM Sans / JetBrains Mono / Cormorant Garamond) and `UI-DIRECTION` name fonts that never load. `Briefing.tsx` references `var(--font-cormorant)` (undefined) → silently renders Georgia — a real visible bug.
+4. **No encoded scales** for spacing, radii, or type — UI-DIRECTION documents them in prose only.
+5. **Primitives:** one real shared UI primitive (`ui/button`, no loading/active state); dead `data/` layer (`MetricTile`/`ValuePill`/`FolderCard`, 0 consumers); **5** competing EmptyStates (plan said 3).
+6. `UI-DIRECTION.md` still says "dark theme only — no light mode planned for v1", but a full WCAG-tuned light theme ships.
+
+### Decisions handed to Lewis (Phase 1)
+
+- **D1 — Inversion direction.** Foundation = blue / Investment = green (shipped) vs green / blue (declared). **Recommend align-to-shipped**; introduce `--value-*` vars and migrate all four files. Lewis picks the canonical hue pair.
+- **D2 — Token-delivery fork.** `@theme`-generated utilities (recommend, static) vs `var(--…)` reads (dynamic only); eliminate hardcoded `style={{}}` literals under either.
+
+### Verification
+
+- `npm run typecheck` clean · `npm run build` clean (`/styleguide` in manifest as `○`; `notFound()` in prod).
+- Styleguide is **hex/rgba/arbitrary-px free**: `grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(|-\[[0-9]" src/app/styleguide` → empty. Arbitrary sizes/radii are rendered via inline `style` from JS number arrays; resolved hex via `getComputedStyle`.
+- Browser-verified on the worktree dev server: 7 sections render; theme toggle flips the whole page (`--bg-base` walnut→vellum); conflict panel shows tokens green→blue vs the two shipped sources blue→green; three EmptyStates side by side at `lg`.
+- `git status` — only `audit/visual-consistency.md` + `src/app/styleguide/` added. No token/constant/feature file modified.
+
+### Notes for the next agent
+
+- **Audit battery correction:** the session plan's `grep … --include=*.tsx` aborts under zsh (`no matches found`) — **quote the globs** (`--include='*.tsx'`) and prepend `unsetopt nomatch`. Corrected commands are in the audit doc's appendix; reuse those.
+- **Local preview of a fresh worktree** needs `cfos-office/.env.local` (gitignored — copy from the main checkout) or the `proxy.ts` middleware 500s on every route; and `.claude/launch.json` is tracked and hardcodes the **main** repo path, so it must be temporarily repointed at the worktree to preview local changes (revert after — done this session).
+- Phase 1 = single token source (surface/radii/spacing/type scales) + resolve conflicts + repoint `dashboard.ts`/`value-map/constants.ts` + record decisions in `UI-DIRECTION.md`. Phase 2 = primitive layer to demand (≥3-consumer). Phase 3 = per-folder call-site migration. Phase 4 = ESLint ban on raw hex / arbitrary brackets.
+
+### Files
+
+- NEW `audit/visual-consistency.md`, `src/app/styleguide/page.tsx`, `src/app/styleguide/StyleguideClient.tsx`
+- MODIFIED `SESSION-LOG.md` (this entry)
+
+---
+
 ## Session — Fixed-Cost Confidence (value-first onboarding) — 2026-05-29
 
 **Branch:** `claude/quirky-easley-78125c` (worktree off main `9221eed`; the plan's
