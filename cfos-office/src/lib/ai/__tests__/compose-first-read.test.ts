@@ -8,6 +8,8 @@ function mockCluster(name: string): ClusterBehaviour {
     cluster_id: name,
     window_days: 90,
     data_completeness: 1,
+    transaction_count: 14,
+    total_amount: -117.6,
     recurrence: {
       median_interval_days: 6,
       interval_stddev: 1,

@@ -10,6 +10,11 @@ export type ClusterBehaviour = {
   /** 0-1, proportion of window covered by data. <1 when user has fewer days than the requested window. */
   data_completeness: number;
 
+  /** Exact count of transactions in the cluster within `window_days`. Server-computed; never derived by the LLM. */
+  transaction_count: number;
+  /** Signed total of transaction amounts in the cluster within `window_days` (negative for spend in this codebase). Server-computed. */
+  total_amount: number;
+
   recurrence: RecurrenceFeature;
   trend: TrendFeature;
   time_pattern: TimePatternFeature;

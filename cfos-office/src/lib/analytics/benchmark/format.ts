@@ -23,6 +23,10 @@ const COUNTRY_LABELS: Record<BenchmarkCountry, string> = {
  * Example output:
  *   "Octopus broadband at £45/month sits above the typical UK range of
  *    £25–£35. Source: Ofcom Pricing Trends."
+ *
+ * When the source is unsourced (TEST: / TODO:) or doesn't reduce to a
+ * sensible short citation, the source clause is dropped entirely rather than
+ * leaked verbatim to the user. The boundary stays observational either way.
  */
 export function formatBenchmarkObservation(args: {
   label: string
@@ -35,6 +39,33 @@ export function formatBenchmarkObservation(args: {
   const amount = formatCurrency(args.monthly_amount, args.verdict.currency)
   const lo = formatCurrency(args.verdict.band_low, args.verdict.currency)
   const hi = formatCurrency(args.verdict.band_high, args.verdict.currency)
+  const citation = sanitiseCitation(args.verdict.source)
 
-  return `${args.label} at ${amount}/month sits above the typical ${country} range of ${lo}–${hi}. Source: ${args.verdict.source}.`
+  const head = `${args.label} at ${amount}/month sits above the typical ${country} range of ${lo}–${hi}`
+  return citation ? `${head}. Source: ${citation}.` : `${head}.`
+}
+
+/**
+ * Shape the raw `benchmark_reference.source` column into a user-safe citation,
+ * or return null so the caller emits no source clause at all. Two reasons we
+ * never pass the raw column through:
+ *
+ *   1. Unsourced bands carry a `TODO: …` marker as a sourcing hint to Lewis.
+ *      We surface those rows silently (no source phrase) rather than printing
+ *      "Source: TODO: Ofcom Pricing Trends." to the user.
+ *   2. Demo / test seeds carry `TEST: …`. Same logic — we want the rest of the
+ *      observation to render correctly without leaking the seed metadata.
+ *
+ * For real sources, we keep only the leading clause (before the first comma
+ * or paren) so "CNMC sector report (telecoms)" → "CNMC sector report" and
+ * "Ofcom Pricing Trends, single household, 2025" → "Ofcom Pricing Trends".
+ * Anything still suspiciously long (>60 chars) gets dropped — better silent
+ * than verbose.
+ */
+function sanitiseCitation(source: string): string | null {
+  const trimmed = source.trim()
+  if (/^(TEST|TODO)\b/i.test(trimmed)) return null
+  const head = trimmed.split(/[,(]/)[0].trim()
+  if (head.length === 0 || head.length > 60) return null
+  return head
 }

@@ -220,10 +220,25 @@ async function getFinancialFacts(
     typeof profileRes.data?.monthly_rent === 'number'
       ? profileRes.data.monthly_rent
       : null;
-  const totalFixed =
+  let totalFixed: number | null =
     typeof snapshotRes.data?.total_fixed_costs === 'number'
       ? snapshotRes.data.total_fixed_costs
       : null;
+  // Fallback to a live reconcile when the snapshot has no fixed-cost total.
+  // Two scenarios this catches: (1) a fresh user whose first snapshot hasn't
+  // been generated yet, and (2) any historical snapshot written before the
+  // monthly_snapshots.total_fixed_costs column existed (the Supabase insert
+  // silently dropped the field). Without this fallback the Read announces
+  // "fixed costs aren't on file" even when reconcile would produce a number.
+  if (totalFixed == null) {
+    try {
+      const { totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId);
+      totalFixed = totalFixedCostsMonthly ?? null;
+    } catch (err) {
+      console.error('[compose-first-read] reconcile fallback for fixed costs failed:', err);
+      totalFixed = null;
+    }
+  }
   const freeCashFlow =
     income != null && totalFixed != null
       ? Math.round((income - totalFixed) * 100) / 100

@@ -90,11 +90,22 @@ export async function getClusterBehaviour(params: {
     dataWindowEnd,
   });
 
+  // Compute the in-window count + signed total directly from the per-transaction
+  // slice. txDetails.amounts is bounded by the same window_days filter as the
+  // aggregates, so summing this rather than the monthly rollups avoids the
+  // month-boundary spill that would slightly over-count when the window starts
+  // mid-month. These are the only quantities the LLM is allowed to cite as
+  // "totalled X over Y days"; everything else in the prompt is interpretive.
+  const transaction_count = txDetails.amounts.length;
+  const total_amount = txDetails.amounts.reduce((sum, a) => sum + a, 0);
+
   const base = {
     cluster_type: params.clusterType,
     cluster_id: params.clusterId,
     window_days: effectiveWindow,
     data_completeness: Number(dataCompleteness.toFixed(2)),
+    transaction_count,
+    total_amount,
     recurrence,
     trend,
     time_pattern,

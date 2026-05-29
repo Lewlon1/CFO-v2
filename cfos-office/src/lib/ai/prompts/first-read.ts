@@ -104,6 +104,7 @@ HONESTY (NO HALLUCINATION):
 - Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
 - Never attribute a transaction to today's date. The data is a snapshot.
 - If a merchant has no confident pattern, name it at most once and say only that the pattern isn't established yet. Do not fabricate amounts, days, or counts.
+- Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS (e.g. "7 txns totalling 256.62 over 90d"). Never multiply mean × span, multiply mean × occurrence-count, or otherwise compute a sum yourself. If the volume line is absent for a cluster, do not cite a total.
 - If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line. Do not imply the activity is happening now.
 - Do not say a merchant is dormant unless its lifecycle status is "dormant".
 - Magnitudes for levers come from the LEVERS section. Quote them; don't compute them yourself.
@@ -161,6 +162,7 @@ HONESTY (NO HALLUCINATION):
 - Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
 - Never attribute a transaction to today's date. The data is a snapshot.
 - If a merchant has no confident pattern, name it at most once and say only that the pattern isn't established yet. Do not fabricate amounts, days, or counts.
+- Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS (e.g. "7 txns totalling 256.62 over 90d"). Never multiply mean × span, multiply mean × occurrence-count, or otherwise compute a sum yourself. If the volume line is absent for a cluster, do not cite a total.
 - If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line. Do not imply the activity is happening now.
 - Do not say a merchant is dormant unless its lifecycle status is "dormant".
 - Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim — never recompute them in your head. If a value is null in the data, do not invent one.
@@ -215,7 +217,8 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
       input.benchmarkObservation,
       ``,
       `Rules for the BENCHMARK OBSERVATION:`,
-      `- Surface it at most once, neutrally, as an observation. Cite the band and source.`,
+      `- Surface it at most once, neutrally, as an observation. Cite the band.`,
+      `- Cite the source ONLY if the pre-rendered sentence already contains "Source: …". If it does not, do not invent a regulator, dataset, or organisation name and do not add a "per X" clause. Silent on source is the correct behaviour for unsourced bands.`,
       `- Never use the words "switch", "should", "too high", "overpaying", "recommend", or any synonym implying the user must change providers.`,
       `- Never name a provider beyond what is already in the {label} portion of the pre-rendered sentence.`,
       `- This is observation, not prescription. If the user wants to act, you may offer to talk through renegotiating in a later turn — never as a directive here.`,
@@ -379,6 +382,10 @@ function formatClusterForPrompt(b: ClusterBehaviour): string {
 
   lines.push(
     `- amount: mean ${b.amount_profile.mean_amount.toFixed(2)}, range ${b.amount_profile.min_amount.toFixed(2)}–${b.amount_profile.max_amount.toFixed(2)}, consistency ${b.amount_profile.consistency_label}`,
+  );
+
+  lines.push(
+    `- volume: ${b.transaction_count} txns totalling ${Math.abs(b.total_amount).toFixed(2)} over ${b.window_days}d`,
   );
 
   lines.push(

@@ -75,15 +75,12 @@ function periodHint(cluster: ClusterBehaviour): string {
 }
 
 function recentAmountFor(cluster: ClusterBehaviour): number {
-  // amount_profile.mean_amount is per-occurrence; scale by an approximate
-  // occurrence count within the window using recurrence pattern hints.
-  // Cheap approximation — the hook decision doesn't need precision, just
-  // relative ranking across clusters.
-  const mean = Math.abs(cluster.amount_profile?.mean_amount ?? 0)
-  const interval = cluster.recurrence?.median_interval_days
-  const window = cluster.window_days || 90
-  const approxN = interval && interval > 0 ? Math.max(1, Math.floor(window / interval)) : 1
-  return mean * approxN
+  // Real in-window spend total from the cluster, server-computed. Earlier
+  // versions approximated as mean × (window / interval), which on irregular
+  // merchants produced ~4-22x over-counts that leaked into the Read prompt as
+  // hook-candidate `recent_amount` and got cited verbatim by the model. The
+  // honest number is the one already on the cluster.
+  return Math.abs(cluster.total_amount ?? 0)
 }
 
 /**
