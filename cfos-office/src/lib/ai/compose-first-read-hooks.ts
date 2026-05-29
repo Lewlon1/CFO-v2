@@ -18,6 +18,18 @@ import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types'
 import type { UserValueProfile } from '@/lib/value-map/value-profile'
 import { MIN_SIGNAL_FOR_CONFIDENCE } from '@/lib/value-map/value-profile'
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise'
+import { categoriseByRules } from '@/lib/categorisation/rules-engine'
+
+/**
+ * Categories that are NEVER a value-ambiguous hook. Income is money in (a
+ * "leak vs investment" question is meaningless); housing (rent / mortgage) is
+ * a committed Foundation cost already surfaced verbatim in Layer 1 FINANCIAL
+ * FACTS; transfers are not spend. Closing the Read on any of these reads as an
+ * obvious question ("is your payroll a salary or a contractor draw?", "is your
+ * rent long-term or flexible?") rather than a genuine unread. The hook must
+ * stay on discretionary spend the user has a real, unresolved relationship to.
+ */
+const STRUCTURAL_CATEGORIES = new Set(['income', 'housing', 'transfers'])
 
 /** Categories where the quadrant question is genuinely open and worth surfacing. */
 const AMBIGUOUS_CATEGORIES = new Set([
@@ -49,6 +61,26 @@ export type HookCandidate = {
   period_hint: string
   /** Quadrants the Value Map step will offer. Always investment/leak today. */
   candidate_quadrants: Array<'investment' | 'leak'>
+}
+
+/**
+ * True when a cluster is structural — income/refunds/transfers-in, or a
+ * committed housing/transfer outflow — and therefore never belongs in the
+ * hook. Two independent signals so neither has to be perfect:
+ *   1. Inflows. Spend is negative in this codebase (see ClusterBehaviour
+ *      .total_amount), so any non-negative total is money in, not spend.
+ *   2. Category. Category clusters carry their slug directly; merchant
+ *      clusters are run through the keyword tier of the rules engine (empty
+ *      categories => keyword-only), which labels rent/mortgage as `housing`,
+ *      salary/payroll as `income`, and pot/bank transfers as `transfers`.
+ */
+function isStructuralCluster(cluster: ClusterBehaviour): boolean {
+  if ((cluster.total_amount ?? 0) >= 0) return true
+  const slug =
+    cluster.cluster_type === 'category'
+      ? cluster.cluster_id.toLowerCase()
+      : categoriseByRules(cluster.cluster_id, []).categoryId
+  return slug != null && STRUCTURAL_CATEGORIES.has(slug)
 }
 
 function clusterCategory(cluster: ClusterBehaviour): string | null {
@@ -84,16 +116,27 @@ function recentAmountFor(cluster: ClusterBehaviour): number {
 }
 
 /**
- * Pick 2-3 clusters whose quadrant the Read can't infer alone. The selector
- * never returns empty when `clusters.length >= 1` — if the ambiguous-category
- * filter yields too few candidates, it falls back to top-by-spend
- * unmapped clusters.
+ * Pick 2-3 discretionary clusters whose quadrant the Read can't infer alone.
+ * Structural clusters (income, rent/housing, transfers) are stripped first —
+ * see isStructuralCluster. Among what remains, if the ambiguous-category
+ * filter yields too few candidates it falls back to top-by-spend unmapped
+ * clusters. Returns empty only when there is no discretionary spend to hook on
+ * (e.g. a dataset of income + rent alone); the composer then falls back to the
+ * default, non-value-first close.
  */
 export function selectHookCandidates(
   clusters: ClusterBehaviour[],
   valueProfile: UserValueProfile,
 ): HookCandidate[] {
   if (clusters.length === 0) return []
+
+  // Strip structural clusters (income, rent/housing, transfers) before any
+  // ranking. They dominate by raw amount on thin datasets and would otherwise
+  // win the looser/top-by-spend fallbacks, closing the Read on an obvious
+  // question instead of a genuine unread. If nothing discretionary survives,
+  // the hook is empty and the composer falls back to the default close.
+  const discretionary = clusters.filter((c) => !isStructuralCluster(c))
+  if (discretionary.length === 0) return []
 
   // Determine which clusters lack Layer 2 confidence so we can prefer
   // them. Merchant clusters check signal_count_by_merchant — the value-first
@@ -112,7 +155,7 @@ export function selectHookCandidates(
     return n < MIN_SIGNAL_FOR_CONFIDENCE
   }
 
-  const ranked = clusters
+  const ranked = discretionary
     .filter((c) => recentAmountFor(c) >= MIN_RECENT_AMOUNT)
     .map((c) => ({
       cluster: c,
