@@ -20,6 +20,7 @@ import { extractProfileFields } from '@/lib/ai/profile-extraction';
 import { createServiceClient } from '@/lib/supabase/service';
 import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-classifier';
 import { quickClassifyDecline } from '@/lib/onboarding-v2/value-map-decline-quickcheck';
+import { quickClassifyGoalDeferral } from '@/lib/onboarding-v2/goal-deferral-quickcheck';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import {
@@ -299,7 +300,22 @@ export async function POST(req: Request) {
 
     // The user message for THIS turn is already persisted above (L203),
     // so userTurnCount reflects the count including the current turn.
-    if ((userTurnCount ?? 0) >= 5 && (goalCount ?? 0) === 0) {
+    //
+    // Two ways out of the goal beat without a confirmed goal:
+    //  (a) the 5-turn stall safety net, and
+    //  (b) the user explicitly deferring ("just visibility", "no goal yet").
+    // (b) is what unblocks users who decline a goal early — without it, a
+    // non-`dont_know` user who declines on turn 1-2 has no path forward (the
+    // skip control only renders for `dont_know`, and a goal never lands), so
+    // the watcher never routes and they get stuck staring at the chat.
+    const lastUserTextForDeferral =
+      lastUserMessage?.role === 'user' ? extractTextFromParts(lastUserMessage) : '';
+    const deferredGoal =
+      !!lastUserTextForDeferral &&
+      !lastUserTextForDeferral.startsWith('[System:') &&
+      quickClassifyGoalDeferral(lastUserTextForDeferral) === 'deferred';
+
+    if (((userTurnCount ?? 0) >= 5 || deferredGoal) && (goalCount ?? 0) === 0) {
       const existingProgress =
         profileForChat.onboarding_progress && typeof profileForChat.onboarding_progress === 'object'
           ? (profileForChat.onboarding_progress as Record<string, unknown>)
@@ -316,11 +332,13 @@ export async function POST(req: Request) {
         .eq('id', user.id);
 
       stallSystemNote =
-        '[SYSTEM] The user has exchanged 5+ turns without committing to a goal. ' +
+        '[SYSTEM] The user is moving on without a confirmed goal. ' +
         'Acknowledge that briefly — a goal can come later — and say you are about to ' +
         'look at their transactions so the picture gets specific. Do NOT ask another ' +
         'goal-related question. Do NOT call any tools. Do NOT ask for income, rent, ' +
         'or any other number — those are collected on the next screen, not here. ' +
+        'Do NOT tell the user to upload anything or that there is an upload button ' +
+        'here — the system moves them to the upload screen automatically. ' +
         'Keep the reply to 2-3 sentences.';
     }
   }
