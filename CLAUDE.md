@@ -24,20 +24,18 @@ The CFO's Office uses MAJOR.MINOR versioning, tied to architectural epochs and s
 
 ### Current
 
-- **v2.0** — Office filesystem architecture, onboarding flow merged (current baseline)
+- **v2.6** — Audit Zero: codebase + database consolidation + doc reconciliation (current)
+- **v2.0** — Office filesystem architecture, onboarding flow merged (baseline)
 
 ### Roadmap
 
 | Version | Description | Status |
 |---|---|---|
-| v2.1 | Phase A — P0 brand & polish fixes | Next |
-| v2.2 | Session 26 — Chat Intelligence | Planned |
-| v2.3 | Session 27 — Folder Fix-Up | Planned |
-| v2.4 | Phase B — Primitive layer expansion | Planned |
-| v2.5 | Phase C — Consumer sweep (inline → primitives) | Planned |
-| v2.6 | Phase D — Mobile/a11y polish | Planned |
-| v2.7 | Phase E — Brand continuity (auth + landing) | Planned |
+| v2.1–v2.5 | Phases A–C + Sessions 26–32 (chat intelligence, folder fix-up, primitives, layered Read, value-first onboarding, bill benchmark) | Shipped |
+| v2.6 | Audit Zero — codebase + DB consolidation + doc reconciliation | Shipped (this session) |
+| v2.7 | Phase D — Mobile/a11y polish | Planned |
 | v2.8 | Sessions 28–30 — Confidence / Prediction / Value Map Retake | Designed |
+| v2.9 | Phase E — Brand continuity (auth + landing) | Planned |
 | v3.0 | Premium tier launch (~August 2026) | Future |
 
 ### Conventions
@@ -189,7 +187,7 @@ NEXT_PUBLIC_APP_URL=
 
 Active branch-scoped flags:
 
-- **`isLayeredReadEnabled()`** in [cfos-office/src/lib/feature-flags/layered-read.ts](cfos-office/src/lib/feature-flags/layered-read.ts) — gates the layered Read tools (`get_cluster_behaviour`, `get_conversation_signals`), the gated system-prompt section, and the `chat_signals` extractor hook. Fires when `VERCEL_GIT_COMMIT_REF === 'session-32/the-read'` on deploy, or when `LAYERED_READ_LOCAL_OVERRIDE=true` locally. Session D removes this flag and makes the layered model the default.
+- **`isLayeredReadEnabled()`** in [cfos-office/src/lib/feature-flags/layered-read.ts](cfos-office/src/lib/feature-flags/layered-read.ts) — **default-ON since #55**: returns `true` unless `LAYERED_READ_DISABLED=true` (a runtime kill-switch). Gates the layered Read tools (`get_cluster_behaviour`, `get_conversation_signals`), the layered system-prompt section, the `chat_signals` extractor hook, and the value-first onboarding sequence. The `!isLayeredReadEnabled()` branches + the legacy `computeFirstInsight` path are retained as rollback and slated for removal once the layered flow is proven in prod.
 
 ---
 
@@ -266,7 +264,7 @@ Legacy stamps (`essentials_done`, `goal_set`, `goal_skipped`) are retained so us
 
 Two paths can set the completion timestamp:
 
-1. **Modal path** (`POST /api/onboarding/complete`) — legacy onboarding-modal surface; seeds `financial_portrait` via `seedFromOnboarding`. Not in active use under onboarding-v2.
+1. **Modal path** (legacy onboarding-modal surface) — seeded `financial_portrait` via `seedFromOnboarding`. **The `POST /api/onboarding/complete` route has been removed** (post-onboarding-v2; Audit Zero confirmed zero callers and it is absent from the route inventory).
 2. **Permissive path** (`markOnboardingCompleteIfReady(supabase, userId)` in `lib/onboarding/markComplete.ts`) — fires from the upload API, chat API, Value Map session insert, archetype generation, and from `advanceStep` when reaching read-terminal states.
 
 **Eligibility predicate (permissive path):** `user_profiles` row exists, `anonymised_at IS NULL`, `onboarding_completed_at IS NULL`, AND either (a) a `value_map_sessions` row exists for `profile_id = userId`, OR (b) `onboarding_step` is in `{'first_read_shown', 'first_read_delivered', 'archetype_shown', 'complete'}`.
@@ -627,19 +625,18 @@ Write styles for the smallest screen first, then layer in larger-screen override
 
 ## Design system — folder accent palette
 
-The five office folders each have an accent colour applied as a left border + icon tint on the home folder card. All five live in [`cfos-office/src/lib/tokens.ts`](cfos-office/src/lib/tokens.ts) as `folderColors`. Single-value (not theme-aware) — accents preserve folder identity across light and dark themes.
+The four office folders each have an accent colour applied as a left border + icon tint on the home folder card. All four live in [`cfos-office/src/lib/tokens.ts`](cfos-office/src/lib/tokens.ts) as `folderColors`. Single-value (not theme-aware) — accents preserve folder identity across light and dark themes.
 
 | Folder | Token | Hex | Notes |
 |---|---|---|---|
 | Goals | `folderColors.goals` | `#9C7B2C` | Deeper brass — anchors as the prime folder |
 | Cash Flow | `folderColors.cashflow` | `#22C55E` | Green |
-| Values | `folderColors.values` | `#E8A84C` | Amber |
+| Values | `folderColors.values` | `#7C4D9E` | Royal purple (retoned from amber in v2.5) |
 | Net Worth | `folderColors.networth` | `#06B6D4` | Cyan |
-| Scenarios | `folderColors.scenarios` | `#F43F5E` | Red |
 
-**Rule:** never hardcode these hex values inline. Import `folderColors` from `@/lib/tokens` and reference the token. The five-folder palette is the load-bearing visual identity of the office home — divergence creates inconsistency.
+**Rule:** never hardcode these hex values inline. Import `folderColors` from `@/lib/tokens` and reference the token. The four-folder palette is the load-bearing visual identity of the office home — divergence creates inconsistency.
 
-History: Goals' provisional accent (Session 11) was `#D4A24C`, numerically and visually too close to Values amber. Session 14 finalised the palette and shifted Goals to `#9C7B2C` after side-by-side validation in both themes.
+History: Goals' provisional accent (Session 11) was `#D4A24C`, too close to the old Values amber; Session 14 shifted Goals to `#9C7B2C`. **v2.5** dropped the **Scenarios** folder (What-If moved into chat via the `model_scenario` tool; `/scenarios` → `/office/goals`) and retoned **Values** from `#E8A84C` amber to `#7C4D9E` royal purple, cleanly separating it from Goals' brass.
 
 ---
 

@@ -9,6 +9,52 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## v2.6 — Audit Zero — 2026-05-29
+
+**Branch:** `session-33/audit-zero` (off main `2875904`)
+**Scope:** Foundation audit before any rebuild/rewrap. One verified map of what is live across code + DB; remove only provably-dead + approved items; reconcile the canonical docs to reality. Phases 0–4 read-only; Phase 5 gated on Lewis approval.
+
+### What shipped
+- **Deletions (approved at the gate):** 6 zero-ref root debug scripts (`apply-migration.ts`, `check-staging{,2,3}.ts`, `test-normalise.ts`, `test-rules.ts`) + `src/components/scenarios/ScenariosClient.tsx` (orphan from the v2.5-dropped Scenarios folder; `folderColors.scenarios` was already gone).
+- **Docs reconciled:** CLAUDE.md (flag self-contradiction, 4-folder palette + Values→purple, roadmap→v2.6, removed `/api/onboarding/complete`), BUILD-STATUS.md (header/topology/counts), CODE-MAP.md (supersession note; disproven orphan-route line), BACKLOG.md (merchant_category_map correction + follow-ups). `package.json` → 2.6.0.
+- **Audit deliverables:** `audit/audit-zero.md` (consolidated phases 0–4) + `audit/audit-zero-killlist.md`.
+- **Prod (NOT applied):** `supabase/migrations/prod-backfill-070_audit_zero_cleanup.sql` — guarded drop of `savings_tips`/`third_party_data_flows` + GDPR-fn delete of the 2 `@test.com` users. Lewis runs it manually.
+- **`git tag v2.6`** = Lewis's post-merge step.
+
+### The false-positive list (the session's real asset — do NOT re-flag next audit)
+- **PATTERN_LIBRARY ×12 detectors** — registry-dispatched (`insight-engine.ts:142`); knip flags 8 as "unused export". Export redundant; code live.
+- **~43 tool modules** — string-keyed `createToolbox()` dispatch (`chat/route.ts:382`); each has only the factory import.
+- **EmptyState ×3 + GoalsEmptyState** — live `from './…'` sibling imports. The class that broke a prior build.
+- **17 default+named export pairs** — default import used by routes; named export redundant.
+- **Generated `lib/supabase/types.ts`** — CLI typegen.
+- **All 59 API routes** — 54 code-called (incl. route-type-imports, e.g. `/api/dashboard/summary/route` ×11) + 8 crons in `vercel.json`. The prior "14 orphan / none should hit production" was wrong.
+- **chat-signals / Layer-4** — wired & default-ON; 0 rows ≠ dead.
+- **`scripts/**` + `eval/**`** — manual `tsx` tooling (incl. `reextract-portrait.ts` = the documented `manual_reextraction` path).
+- **Dormant FK-linked tables** — `accounts` (hub), `investment_holdings`, `nudges`, `correction_signals`, `chat_signals`, `persona_sanitiser_log`, `profile_extraction_candidates`, `wow_*`.
+
+### New do-not-touch / drift discoveries
+- **#55 made the layered Read default-ON** (`LAYERED_READ_DISABLED` kill-switch). `!isLayeredReadEnabled()` branches + `computeFirstInsight` are dead-in-practice but **intentionally retained** as rollback — do not remove until proven in prod.
+- **Middleware = `src/proxy.ts`** (Next 15 `proxy` convention), not `middleware.ts`. Legacy paths are `next.config.ts` redirects → `/office`.
+- **Code-vs-schema drift:** `value-map-flow.tsx` has a dead transaction-insert path writing to the non-existent `bank_accounts` table + reading the dead `merchant_category_map`; `reveal/route.ts:16` queries a non-existent `agents` table (tolerated via `?? 'unknown'`). Both in protected files.
+- **DB:** staging 44 / prod 45 tables (near-identical — NOT "staging 10 ahead"). `merchant_category_map` has **no writer** (its one ref is a read in the dead path). `messages.tool_results` is a phantom column (never existed).
+
+### Doc-drift as recurring debt (proposed ritual)
+End every schema/route-touching session by updating BUILD-STATUS.md's header (date, version, test/migration/table counts) + adding the SESSION-LOG entry (~2 min). Deeper fix: make CODE-MAP.md a **generated** snapshot (a script that emits route/table/tool counts) so it can't drift.
+
+### Rebuild posture (one honest line)
+**Rewrap, don't rebuild.** Build/tsc/tests green; 0 orphan routes; tools + detectors cleanly dispatched; schema disciplined and near-identical across envs. The only real debris is localised (one dead value-map path, two phantom-table queries, the intentional layered-read rollback). The bones are sound.
+
+### NEEDS-LEWIS (deferred — see BACKLOG / killlist)
+`merchant_category_map` drop (needs protected-file edit), the dead `value-map-flow.tsx` path, `agents` scaffold, `user_hypotheses`, `benchmarks` vs `benchmark_reference`, `@types/pdf-parse`, `proxy.ts` `protectedPaths`, ~10–15 uncalled exports, migration registry/file drift, executing the prod-backfill SQL.
+
+### Files
+NEW: `audit/audit-zero.md`, `audit/audit-zero-killlist.md`, `cfos-office/supabase/migrations/prod-backfill-070_audit_zero_cleanup.sql`.
+DELETED: `cfos-office/{apply-migration,check-staging,check-staging2,check-staging3,test-normalise,test-rules}.ts`, `cfos-office/src/components/scenarios/ScenariosClient.tsx`.
+MODIFIED: `CLAUDE.md`, `BUILD-STATUS.md`, `CODE-MAP.md`, `BACKLOG.md`, `cfos-office/package.json`, `cfos-office/SESSION-LOG.md`.
+Build green; tsc clean; 877/877 tests; lint 33 err / 45 warn (baseline); advisors 0 critical/high (no DB changes applied).
+
+---
+
 ## Session — Bill Benchmark Reference — 2026-05-28
 
 **Branch:** `claude/bill-benchmark-reference-vH2bh` (child of `value-first-onboarding`, off `session-32/the-read`)
