@@ -9,6 +9,18 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Consistency, Phase 3 (P3.0 reconciliation) — 2026-05-30
+
+**Branch:** `claude/dead-code-audit`. P3.0 (the mandated, no-code reconciliation) done; **P3.1+ bracket sweep deferred** — full manifest in `audit/visual-phase3-manifest.md`.
+
+**Re-run drift (post-P1/P2):** 240 hex · 105 rgba · 53 colour-brackets · 313 type-brackets · 52 radius-brackets. **Already migrated by P1/P2:** every JS consumer of `colors`/`folderColors`/`valueCategories` now gets theme-aware `var()` strings (charts incl.), so P3.3's chart migration is effectively satisfied; `VALUE_COLORS`/`QUADRANTS` repointed; primitives + scales exist to migrate onto.
+
+**Why the sweep is deferred, not done:** Phase 3 §P3.4 mandates per-surface eyeballing in both themes, but a Next dev server won't run in this worktree under the harness tooling (same friction that blocked the P1/P2 visual checks). Migrating ~640 *visual* brackets blind risks regressions build+grep can't catch (paired line-heights on the `--text-*` tokens; light-mode colour-context flips; hover/active). Recommendation: run P3.1+ with a working preview (post-merge or local `npm run dev`), surface by surface per the manifest's order.
+
+**Special cases decided:** charts already on `var()` (P1); `api/balance-sheet/route.ts` colour-in-payload → own sub-phase/defer (implies client change); `CATEGORY_COLORS` → out of scope (DB-coupled).
+
+---
+
 ## Session — Visual Consistency, Phase 1 (Colour & Font Source of Truth) — 2026-05-30
 
 **Branch:** `claude/dead-code-audit` (the arc's working line). **Done AFTER Phase 2 this session** (out of nominal order — Phase 1's precondition was discovered missing mid-Phase-3; ran it then). Pure front-end + docs; no DB; `CATEGORY_COLORS` untouched.
