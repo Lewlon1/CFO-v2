@@ -42,45 +42,6 @@ export function MonthSelector({ label, onPrev, onNext }: MonthSelectorProps) {
 }
 
 // ============================================================
-// CategoryBar
-// ============================================================
-interface CategoryBarProps {
-  icon: string
-  name: string
-  amount: string
-  percentage: string
-  barWidth: number
-  color?: string
-}
-
-export function CategoryBar({ icon, name, amount, percentage, barWidth, color = '#22C55E' }: CategoryBarProps) {
-  return (
-    <div
-      className="flex items-center gap-2 py-2"
-      style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
-    >
-      <div className="w-4 text-center text-[13px] shrink-0">{icon}</div>
-      <div className="flex-1">
-        <div className="text-[11px] font-semibold">{name}</div>
-        <div
-          className="h-[5px] rounded-[2.5px] mt-[3px] overflow-hidden"
-          style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
-        >
-          <div
-            className="h-full rounded-[2.5px]"
-            style={{ width: `${barWidth}%`, backgroundColor: color }}
-          />
-        </div>
-      </div>
-      <div className="text-right shrink-0">
-        <div className="font-data text-[11px] font-medium">{amount}</div>
-        <div className="font-data text-[8px] text-text-tertiary">{percentage}</div>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
 // TransactionRow
 // ============================================================
 interface TransactionRowProps {
@@ -166,36 +127,6 @@ export function ProvenanceLine({ text }: ProvenanceLineProps) {
     <div className="font-data text-[7px] text-text-ghost flex items-center gap-[3px] mt-1">
       <div className="w-[3px] h-[3px] rounded-full bg-card" />
       {text}
-    </div>
-  )
-}
-
-// ============================================================
-// FileRow
-// ============================================================
-interface FileRowProps {
-  icon: string
-  label: string
-  type: string
-  color: string
-  onClick?: () => void
-}
-
-export function FileRow({ icon, label, type, color, onClick }: FileRowProps) {
-  return (
-    <div
-      onClick={onClick}
-      className="flex items-center gap-2.5 p-3 rounded-[10px] mb-1.5 min-h-[48px] cursor-pointer active:bg-[rgba(255,255,255,0.03)] transition-colors"
-      style={{ border: '1px solid rgba(255,255,255,0.04)' }}
-    >
-      <div className="w-4 text-center text-[12px] shrink-0" style={{ color }}>
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[12px] font-semibold">{label}</div>
-        <div className="font-data text-[8px] text-text-muted mt-[1px]">{type}</div>
-      </div>
-      <div className="text-text-ghost text-[13px]">&rsaquo;</div>
     </div>
   )
 }

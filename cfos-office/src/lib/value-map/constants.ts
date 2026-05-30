@@ -1,4 +1,5 @@
 import type { QuadrantDef, PersonalityDef, ValueMapTransaction } from './types'
+import { valueColors } from '@/lib/tokens'
 
 // ── Quadrant definitions ─────────────────────────────────────────────────────
 
@@ -6,7 +7,7 @@ export const QUADRANTS: Record<string, QuadrantDef> = {
   foundation: {
     id: 'foundation',
     name: 'Foundation',
-    colour: '#4A90D9',
+    colour: valueColors.foundation,
     emoji: '\u{1F3D7}\uFE0F', // 🏗️
     tagline: 'I needed this',
     description:
@@ -15,7 +16,7 @@ export const QUADRANTS: Record<string, QuadrantDef> = {
   investment: {
     id: 'investment',
     name: 'Investment',
-    colour: '#48BB78',
+    colour: valueColors.investment,
     emoji: '\u{1F4C8}', // 📈
     tagline: 'This grew my life',
     description:
@@ -24,7 +25,7 @@ export const QUADRANTS: Record<string, QuadrantDef> = {
   burden: {
     id: 'burden',
     name: 'Burden',
-    colour: '#9C8B7A',
+    colour: valueColors.burden,
     emoji: '\u2693', // ⚓
     tagline: 'Had to, but it hurts',
     description:
@@ -33,7 +34,7 @@ export const QUADRANTS: Record<string, QuadrantDef> = {
   leak: {
     id: 'leak',
     name: 'Leak',
-    colour: '#E53E3E',
+    colour: valueColors.leak,
     emoji: '\u{1F573}\uFE0F', // 🕳️
     tagline: "Didn't need it, didn't help",
     description:

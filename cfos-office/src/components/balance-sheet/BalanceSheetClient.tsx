@@ -9,7 +9,9 @@ import { NetWorthCards } from './NetWorthCards'
 import { AssetGroupCard } from './AssetGroupCard'
 import { LiabilityGroupCard } from './LiabilityGroupCard'
 import { DataGaps } from './DataGaps'
-import { EmptyState } from './EmptyState'
+import { Scale } from 'lucide-react'
+import { useChatContext } from '@/components/chat/ChatProvider'
+import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
 import type { Category } from '@/lib/parsers/types'
 
 const ChartSkeleton = () => <div className="h-64 bg-muted rounded-lg animate-pulse" />
@@ -55,6 +57,19 @@ export function BalanceSheetClient({ categories, view = 'full' }: Props) {
     })
   }
 
+  // Chat-context action moved here from the (now-collapsed) balance-sheet EmptyState.
+  let chatCtx: ReturnType<typeof useChatContext> | null = null
+  try {
+    chatCtx = useChatContext()
+  } catch {
+    // Not inside ChatProvider — the conversation CTA simply no-ops.
+  }
+  function handleStartConversation() {
+    if (!chatCtx) return
+    chatCtx.startConversation('balance_sheet_setup')
+    chatCtx.setInput("I'd like to set up my balance sheet — what do you need to know?")
+  }
+
   if (isLoading || !balanceSheet) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
@@ -77,7 +92,15 @@ export function BalanceSheetClient({ categories, view = 'full' }: Props) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-        <EmptyState onUploadClick={scrollToUpload} />
+        <DashboardEmptyState
+          icon={<Scale className="h-6 w-6 text-text-muted" />}
+          title="Your CFO doesn't know what you own or owe yet"
+          body="Start by telling your CFO about your savings, investments, or debts in a conversation, or upload a statement below."
+          actionLabel="Start a conversation"
+          onAction={handleStartConversation}
+          secondaryActionLabel="Upload a document"
+          onSecondaryAction={scrollToUpload}
+        />
         {showUpload && (
           <div ref={uploadRef} className="rounded-xl border border-border bg-card p-4 md:p-6">
             <h2 className="text-sm font-medium text-foreground mb-3">Upload a statement</h2>

@@ -7,7 +7,9 @@ import { billTypeGroup, BILL_TYPE_GROUPS, matchProvider } from '@/lib/bills/prov
 import { BillCard, type BillRecord } from './BillCard'
 import { BillDetailPanel } from './BillDetailPanel'
 import { BillUploadModal } from './BillUploadModal'
-import { EmptyBillsState } from './EmptyBillsState'
+import { UploadZone } from '@/components/upload/UploadZone'
+import { Card } from '@/components/ui/Card'
+import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
 
 interface Props {
   bills: BillRecord[]
@@ -112,7 +114,14 @@ export function BillsClient({ bills: initialBills }: Props) {
   if (bills.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-6">
-        <EmptyBillsState onFiles={handleFilesFromEmptyState} />
+        <DashboardEmptyState
+          title="No bills tracked yet"
+          body="Upload one or more bills to extract plan details, track costs, and get savings recommendations."
+        >
+          <Card className="p-4">
+            <UploadZone onFiles={handleFilesFromEmptyState} context="bills" />
+          </Card>
+        </DashboardEmptyState>
         {showUpload && (
           <BillUploadModal
             bill={null}

@@ -2,6 +2,7 @@
 
 import { normaliseToMonthly, frequencyLabel } from '@/lib/bills/normalise'
 import { billTypeIcon, matchProvider } from '@/lib/bills/provider-registry'
+import { Badge } from '@/components/ui/Badge'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type BillRecord = Record<string, any>
@@ -41,9 +42,7 @@ export function BillCard({ bill, onClick, onPromote, onDismiss }: Props) {
               {bill.provider || bill.name}
             </h3>
             {isDetected && (
-              <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded flex-shrink-0">
-                Detected
-              </span>
+              <Badge tone="neutral" className="flex-shrink-0">Detected</Badge>
             )}
           </div>
 

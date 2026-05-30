@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/Input'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { calculateProfileCompleteness } from '@/lib/profiling/engine'
 
@@ -161,14 +162,13 @@ function SignupForm() {
           <label htmlFor="email" className="block text-sm text-muted-foreground mb-1.5">
             Email
           </label>
-          <input
+          <Input
             id="email"
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
             autoComplete="email"
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="you@example.com"
           />
         </div>
@@ -177,14 +177,13 @@ function SignupForm() {
           <label htmlFor="name" className="block text-sm text-muted-foreground mb-1.5">
             First name
           </label>
-          <input
+          <Input
             id="name"
             type="text"
             value={displayName}
             onChange={e => setDisplayName(e.target.value)}
             required
             autoComplete="given-name"
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Your first name"
           />
         </div>
@@ -213,7 +212,7 @@ function SignupForm() {
           <label htmlFor="password" className="block text-sm text-muted-foreground mb-1.5">
             Password
           </label>
-          <input
+          <Input
             id="password"
             type="password"
             value={password}
@@ -221,7 +220,6 @@ function SignupForm() {
             required
             minLength={8}
             autoComplete="new-password"
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="At least 8 characters"
           />
         </div>
