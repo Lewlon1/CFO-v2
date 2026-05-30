@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Wallet, TrendingUp, Target, Scale, Plus } from 'lucide-react'
 
 // --- token sources (inspect-only; imported, never hardcoded) ---
-import { colors, folderColors, valueCategories, fonts } from '@/lib/tokens'
+import { colors, folderColors, valueCategories } from '@/lib/tokens'
 import { QUADRANTS } from '@/lib/value-map/constants'
 import { VALUE_COLORS } from '@/lib/constants/dashboard'
 
@@ -16,9 +16,9 @@ import { DetailHeader } from '@/components/office/dashboards/DetailHeader'
 import { DrillDownRow } from '@/components/office/dashboards/DrillDownRow'
 import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
 import { EmptyState as DashboardClientEmptyState } from '@/components/dashboard/EmptyState'
-import { EmptyState as BalanceSheetEmptyState } from '@/components/balance-sheet/EmptyState'
-import { MetricTile } from '@/components/data/MetricTile'
-import { ValuePill } from '@/components/data/ValuePill'
+import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { Input, Textarea } from '@/components/ui/Input'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Live-theme hook: re-renders when the global data-theme attribute flips, so
@@ -253,15 +253,18 @@ export function StyleguideClient() {
         title="Value categories + source conflict"
         note="tokens.ts says Foundation green / Investment blue. The shipped value-map quadrant and the dashboard badges say the opposite — Foundation blue / Investment green. The user sees blue. The panel renders all three sources so the inversion is visible, not just tabulated."
       >
-        <Sub>tokens.ts · valueCategories (+ the real ValuePill primitive)</Sub>
+        <Sub>tokens.ts · valueCategories</Sub>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {VALUE_KEYS.map((k) => (
             <ValueSwatch key={k} value={valueCategories[k].color} label={valueCategories[k].label} sub={k} />
           ))}
         </div>
-        <div className="flex flex-wrap items-start gap-3">
-          {VALUE_KEYS.map((k) => <ValuePill key={k} category={k} />)}
-        </div>
+        <p className="max-w-3xl font-mono text-xs text-muted-foreground">
+          Value-category pills (Foundation/Burden/Investment/Leak) are intentionally NOT a Badge
+          tone yet — they need the canonical --value-* tokens Visual Phase 1 introduces (decision
+          D1). The Badge primitive ships with semantic tones only (see §06). ValuePill stays live
+          in TransactionRow until then.
+        </p>
 
         <Sub>Conflict panel — Foundation vs Investment, across three sources</Sub>
         <div className="overflow-hidden rounded-md border border-border">
@@ -284,7 +287,7 @@ export function StyleguideClient() {
       <Section
         n="04"
         title="Typography"
-        note="Loaded via next/font: Instrument Serif, Instrument Sans, Geist Mono. tokens.ts and UI-DIRECTION still name DM Sans / JetBrains Mono / Cormorant Garamond — none of those load. There is no encoded type scale: ~30 distinct arbitrary text sizes exist, shown below as a would-be scale plus the outliers no scale predicts."
+        note="Root loads Instrument Serif/Sans + Geist Mono; the (office) layout layers on DM Sans / JetBrains Mono / Cormorant Garamond (scoped to /office). This styleguide route is OUTSIDE (office)/, so those three don't load HERE and fall back. Phase 2a encoded the type scale (shown below)."
       >
         <Sub>Fonts in role (loaded)</Sub>
         <div className="space-y-2">
@@ -299,13 +302,28 @@ export function StyleguideClient() {
           </p>
         </div>
 
-        <Sub>Declared but never loaded (tokens.ts → fonts)</Sub>
-        <div className="font-mono text-xs text-muted-foreground">
-          <div>fonts.body → {fonts.body}</div>
-          <div>fonts.mono → {fonts.mono}</div>
-          <div>fonts.logo → {fonts.logo}</div>
-          <div className="mt-1 text-foreground">↳ none are loaded; Briefing&apos;s var(--font-cormorant) silently falls back to Georgia.</div>
+        <Sub>Encoded type scale — Phase 2a (named, collision-free utilities)</Sub>
+        <div className="space-y-1">
+          <div className="flex items-baseline gap-4"><span className="text-display text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-display · 20 · page title</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-h1 text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-h1 · 18 · folder heading</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-h2 text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-h2 · 16 · metric / hero</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-h3 text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-h3 · 15 · chat header</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-body text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-body · 13 · body, chat</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-body-sm text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-body-sm · 12 · inbox preview</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-label text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-label · 11 · pills, labels</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-caption text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-caption · 10 · subtitle</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-tag text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-tag · 9 · provenance</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-micro text-foreground">Ag €1,640</span><span className="font-mono text-xs text-muted-foreground">text-micro · 8 · bar labels</span></div>
+          <div className="flex items-baseline gap-4"><span className="text-nano text-foreground">AG €1,640</span><span className="font-mono text-xs text-muted-foreground">text-nano · 7 · status badges</span></div>
         </div>
+
+        <Sub>Fonts — tokens.ts cleanup (Phase 1)</Sub>
+        <p className="font-mono text-xs text-muted-foreground">
+          Removed only the dead `fonts` STRING export from tokens.ts. The families all load:
+          Instrument Serif/Sans + Geist Mono (root) and DM Sans / JetBrains Mono / Cormorant
+          Garamond (office subtree). Briefing correctly renders Cormorant in /office — it falls
+          back to Georgia HERE because the styleguide route sits outside (office)/.
+        </p>
 
         <Sub>Type sizes found in the wild (declared-ish cluster)</Sub>
         <div className="space-y-2">
@@ -348,6 +366,13 @@ export function StyleguideClient() {
           ))}
         </div>
 
+        <Sub>Encoded radii — Phase 2a (control / card / pill)</Sub>
+        <div className="flex flex-wrap gap-5">
+          <div className="flex flex-col items-center gap-1"><span className="h-16 w-16 rounded-control border border-border bg-card" /><span className="font-mono text-xs text-muted-foreground">rounded-control · 8px</span></div>
+          <div className="flex flex-col items-center gap-1"><span className="h-16 w-16 rounded-card border border-border bg-card" /><span className="font-mono text-xs text-muted-foreground">rounded-card · 14px</span></div>
+          <div className="flex flex-col items-center gap-1"><span className="h-16 w-16 rounded-pill border border-border bg-card" /><span className="font-mono text-xs text-muted-foreground">rounded-pill · full</span></div>
+        </div>
+
         <Sub>Spacing (distinct values found)</Sub>
         <div className="space-y-2">
           {SPACING.map((w) => (
@@ -363,7 +388,7 @@ export function StyleguideClient() {
       <Section
         n="06"
         title="Primitives"
-        note="Button is the only shared UI primitive. State coverage: hover ✓ · focus-visible ✓ (ring) · disabled ✓ · active ✗ · loading ✗. Card, Badge, Input, Dialog and Toast don't exist yet — shown as gaps."
+        note="Phase 2b added Card, Badge and Input + Button loading/active states, all reading the Phase-2a scales and one shared focus-visible ring. Dialog/Sheet and Toast stay deferred — under the ≥3-consumer build-to-demand bar."
       >
         <Sub>Button — variants</Sub>
         <div className="flex flex-wrap items-center gap-3">
@@ -389,9 +414,41 @@ export function StyleguideClient() {
           <Button size="icon" aria-label="Add"><Plus size={16} /></Button>
         </div>
 
-        <Sub>Missing primitives (Phase-1 gaps)</Sub>
+        <Sub>Button — loading + active (tap = background shift, not opacity)</Sub>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button loading>Saving…</Button>
+          <Button variant="outline" loading>Loading</Button>
+          <Button variant="ghost" loading aria-label="Loading" />
+        </div>
+
+        <Sub>Card — variants (default / elevated / inset) + interactive</Sub>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="p-4"><p className="text-body text-text-primary">default</p></Card>
+          <Card variant="elevated" className="p-4"><p className="text-body text-text-primary">elevated</p></Card>
+          <Card variant="inset" className="p-4"><p className="text-body text-text-primary">inset</p></Card>
+          <Card interactive className="p-4"><p className="text-body text-text-primary">interactive — hover, focus (Tab), active</p></Card>
+        </div>
+
+        <Sub>Badge — semantic tones (value-category tones deferred to Phase 1)</Sub>
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge>neutral</Badge>
+          <Badge tone="gold">gold</Badge>
+          <Badge tone="positive">positive</Badge>
+          <Badge tone="negative">negative</Badge>
+          <Badge tone="info">info</Badge>
+        </div>
+
+        <Sub>Input + Textarea — default · disabled · error (aria-invalid)</Sub>
+        <div className="grid max-w-md grid-cols-1 gap-3">
+          <Input placeholder="you@example.com" />
+          <Input placeholder="Disabled" disabled />
+          <Input placeholder="Invalid — aria-invalid" aria-invalid />
+          <Textarea placeholder="Notes…" />
+        </div>
+
+        <Sub>Still deferred (≥3-consumer bar not met this session)</Sub>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          {['Card', 'Badge / Pill', 'Input', 'Dialog / Sheet', 'Toast'].map((g) => <Gap key={g} name={g} />)}
+          {['Dialog / Sheet', 'Toast'].map((g) => <Gap key={g} name={g} />)}
         </div>
       </Section>
 
@@ -399,7 +456,7 @@ export function StyleguideClient() {
       <Section
         n="07"
         title="Representative molecules"
-        note="Real components with real props. The Briefing renders in Georgia (it references var(--font-cormorant), which nothing defines — Q4 bug). The three EmptyStates below are genuinely separate implementations of the same idea — collapse target for Phase 1."
+        note="Real components with real props. The Briefing below renders Georgia ONLY because this styleguide route is outside (office)/ where Cormorant loads — in /office it renders Cormorant Garamond (no bug; the Phase-0 'Georgia bug' was this styleguide artifact). EmptyStates were collapsed in Phase 2c: one survivor shown in both CTA modes; dashboard/EmptyState stays fenced for session-32."
       >
         <Sub>Briefing</Sub>
         <Briefing accentColor={folderColors.cashflow}>
@@ -415,11 +472,20 @@ export function StyleguideClient() {
           <DrillDownRow title="Recurring" subtitle="9 detected" href="/styleguide" icon="↻" accentColor={folderColors.values} />
         </div>
 
-        <Sub>Stat-card grid — MetricTile (a dead data/ primitive)</Sub>
+        <Sub>Stat-card grid — now Card + tokens + type scale (MetricTile deleted)</Sub>
         <div className="grid grid-cols-3 gap-3">
-          <MetricTile label="INCOME" value="€3,200" color={colors.positive} trend="+4%" trendColor={colors.positive} />
-          <MetricTile label="SPENDING" value="€2,460" color={colors.negative} />
-          <MetricTile label="SURPLUS" value="€740" color={colors.gold} />
+          <Card variant="inset" className="p-3">
+            <p className="text-micro uppercase tracking-wider text-text-tertiary">INCOME</p>
+            <p className="text-h2 font-semibold tabular-nums text-positive">€3,200</p>
+          </Card>
+          <Card variant="inset" className="p-3">
+            <p className="text-micro uppercase tracking-wider text-text-tertiary">SPENDING</p>
+            <p className="text-h2 font-semibold tabular-nums text-negative">€2,460</p>
+          </Card>
+          <Card variant="inset" className="p-3">
+            <p className="text-micro uppercase tracking-wider text-text-tertiary">SURPLUS</p>
+            <p className="text-h2 font-semibold tabular-nums text-accent-gold">€740</p>
+          </Card>
         </div>
 
         <Sub>EmptyStates — three competing implementations, side by side</Sub>
@@ -439,12 +505,21 @@ export function StyleguideClient() {
             <p className="border-t border-border p-2 font-mono text-xs text-muted-foreground">dashboard/EmptyState</p>
           </div>
           <div className="rounded-md border border-border">
-            <BalanceSheetEmptyState onUploadClick={() => {}} />
-            <p className="border-t border-border p-2 font-mono text-xs text-muted-foreground">balance-sheet/EmptyState</p>
+            <DashboardEmptyState
+              title="Nothing here yet"
+              body="The survivor also renders Button CTAs (onAction) with an optional secondary action."
+              actionLabel="Primary"
+              onAction={() => {}}
+              secondaryActionLabel="Secondary"
+              onSecondaryAction={() => {}}
+            />
+            <p className="border-t border-border p-2 font-mono text-xs text-muted-foreground">DashboardEmptyState · button CTAs</p>
           </div>
         </div>
         <p className="font-mono text-xs text-muted-foreground">
-          (Two more exist — office/sections/GoalsEmptyState and office/goals/GoalsEmptyStateCTA — so 5 total.)
+          balance-sheet/EmptyState + bills/EmptyBillsState were collapsed into the survivor (deleted).
+          dashboard/EmptyState, office/sections/GoalsEmptyState + its GoalsEmptyStateCTA stay fenced
+          (session-32/staging-user-hygiene edits them) — a post-merge follow-up finishes 6→1.
         </p>
       </Section>
 

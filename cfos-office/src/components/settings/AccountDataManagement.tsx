@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Input } from '@/components/ui/Input'
 
 /**
  * Two sections:
@@ -139,12 +140,11 @@ export function AccountDataManagement() {
               Type <span className="font-mono font-semibold">DELETE MY ACCOUNT</span> to
               confirm:
             </p>
-            <input
+            <Input
               type="text"
               value={confirmationText}
               onChange={e => setConfirmationText(e.target.value)}
               disabled={deleting}
-              className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="DELETE MY ACCOUNT"
               autoFocus
             />

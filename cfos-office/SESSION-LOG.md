@@ -9,6 +9,90 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Consistency, Phase 1 (Colour & Font Source of Truth) — 2026-05-30
+
+**Branch:** `claude/dead-code-audit` (the arc's working line). **Done AFTER Phase 2 this session** (out of nominal order — Phase 1's precondition was discovered missing mid-Phase-3; ran it then). Pure front-end + docs; no DB; `CATEGORY_COLORS` untouched.
+
+**1a — Colour source of truth + inversion.** `globals.css` is now canonical. Added `--value-foundation/investment/leak/burden/unsure` (D1) in `:root` (dark) + AA-deepened `:root[data-theme="light"]`; added `--folder-goals/cashflow/networth` (single-value, joining the existing `--folder-values`); extended `@theme inline` with `--color-value-*` + `--color-folder-*` (generates `bg-value-foundation`, `text-value-investment`, `border-folder-networth`, …). **Demoted `tokens.ts`** to a var-string accessor: `colors`/`folderColors` now return `var(--…)`; added `valueColors`; `valueCategories` kept (shape + `ValueCategory` type, used in 21 files) but repointed to the vars with a `color-mix` 12% `bg`. **Deleted** the grey-gen neutral literals, `colors.purple` (zero consumers), and the `fonts` export. **Inversion resolved at the token layer:** `valueCategories` was Foundation=green/Investment=blue (inverted); now blue/green via the vars. `VALUE_COLORS` (dashboard) + `QUADRANTS` (value-map) repointed onto the canonical utilities/var-strings — both were already blue/green, so value-map + dashboard badges are **unchanged on screen**; the office Values surfaces that read `valueCategories` (ValuesDonut, ValuesTrendChart, ValuesDashboard, OfficeValuesBreakdown, ValuesSection) **visibly flip green→blue foundation** to finally agree — that's the inversion fix landing. No importer needed a var-string-vs-literal fix (all CSS contexts: className, inline style, Recharts fill/stroke).
+
+**1b — Fonts: AUDIT WAS WRONG, changes reverted.** The Phase-0/spec premise ("`--font-cormorant` never defined → Briefing silently Georgia"; "DM Sans / JetBrains Mono / Cormorant Garamond dead") is **false**: `app/(office)/layout.tsx` loads all three via `next/font` (`--font-jetbrains-mono`, `--font-dm-sans`, `--font-cormorant`) and applies them on its wrapper, so the office subtree deliberately uses **six** families (root Instrument Serif/Sans + Geist Mono; office DM Sans + JetBrains Mono + Cormorant). Briefing renders **Cormorant in /office** — the "Georgia bug" was only the styleguide (which sits outside `(office)/`). I initially repointed Briefing→Instrument-Serif and the `--font-data`/`--font-ui` chains→Geist/Instrument; **both were regressions and have been reverted.** Kept only the genuinely-dead `tokens.ts fonts` STRING export deletion. **Open design decision (NOT a bug):** whether to consolidate the office's three extra families onto the root trio — deferred to Lewis; affects Phase 3 font-bracket migration.
+
+**1c — Theme integrity.** ~19 `dark:text-{emerald|red|amber}-*` usages exist (bills/upload) but are **inert**: `layout.tsx` statically pins `class="dark"`, so they never respond to the `data-theme` toggle (app themes via `data-theme` + CSS vars). Documented in UI-DIRECTION (don't use `dark:`); no code change (toggling `.dark` would be a risky global behaviour shift). These palette usages are Phase-3 token-migration targets.
+
+**1d — Docs + rule correction.** UI-DIRECTION rewritten: source-of-truth rule (globals.css canonical, tokens.ts = var accessor, no third source), value table → `--value-*` with the inversion noted, font stack → the true six families + the audit-correction note, "dark theme only" → dual-theme. **Rule correction (§7):** the standing "tokens.ts wins" rule is retired — it was right when tokens.ts was curated; the v2.5 walnut retheme made it stale (the same drift the rule existed to prevent). New rule: one source (`globals.css`), tokens.ts is a typed `var()` accessor over it.
+
+**Verify.** P1a+1b built clean (`CHAIN_EXIT=0`, typecheck + build, `/styleguide` + all routes compiled). `tokens.ts` carries zero live hex/rgba (only a comment). Font reverts restore prior-known-good (lower-risk than the verified state); build re-verify queued. **Visual checks (inversion now blue across all Values surfaces; charts render via var-strings; Briefing=Cormorant) NOT yet eyeballed** — a dev server won't hold in this worktree under the preview tooling (same friction as Phase 2); `cd <worktree>/cfos-office && npm run dev` → /office + /styleguide to confirm.
+
+**Follow-ups.** Office-fonts consolidation decision (Lewis). Phase 3: migrate the ~640 brackets / 240 hex / 105 rgba onto these tokens + Phase-2 primitives; add Badge value-category tones (now unblocked by `--value-*`); the `dark:` palette usages → semantic tokens.
+
+---
+
+## Session — Visual Consistency, Phase 2 (Primitives + Scales + EmptyState + dead `data/`) — 2026-05-29
+
+**Branch:** `claude/dead-code-audit` (the visual + dead-code arc's working line — Phase 0 audits + dev-only `/styleguide` live here; not yet on `main`).
+**Scope:** Pure front-end. Built the canonical component layer + the dimensional scales it consumes; collapsed EmptyState; deleted the dead `data/` trio. No DB / `supabase/`. No Phase-3 bulk call-site sweep.
+
+**Precondition reconciliation.** The spec's hard precondition ("Visual Phase 1 merged") was **not met** — Phase 1 (token consolidation: one colour source + `--value-*` + Foundation/Investment inversion fix + font-story fix) was never run anywhere, and `--value-*` does not exist. Reconciled rather than blocked: the canonical **colour + font** source (`globals.css @theme`) already exists and is sound (the audit agrees); the radii/type **scales** are Phase 2a's own deliverable; the only genuinely Phase-1-dependent piece is **value-category Badge tones**, which the spec fences off anyway (`CATEGORY_COLORS` is DO-NOT-TOUCH). So Phase 2 proceeded here with that one variant deferred.
+
+**2a — scales (collision-free `@theme`).** Named tokens only — deliberately NOT redefining Tailwind v4 defaults (audit: `text-sm` 370×, `text-xs` 275×, `rounded-lg` 128× in use). Radii: `--radius-control` (8) / `--radius-card` (14) / `--radius-pill` (full); 10px + 2.5–7px noise → Phase-3 nearest-step. Type: 11 steps under `text-display/h1/h2/h3/body/body-sm/label/caption/tag/micro/nano` (paired line-heights + tracking), mapping UI-DIRECTION's `xl/lg/hero/md/sm/xs/…`. Spacing: Tailwind's 4px default (no parallel tokens). **Tailwind-v4/CSS gotcha:** a comment containing `--radius-*/--text-*` — the `*/` closed the comment early and broke the Turbopack CSS build. It was masked for several gates because `npm run build | tail` reports `tail`'s exit (0); caught only by reading build *output*. Fixed; all gates re-run capturing the true exit (`exit $ec`).
+
+**2b — primitives (≥3-consumer demand bar).** Counts: Card 58, Badge 20 (14 status + 6 value-cat), Input 16 → **built**. Dialog/Sheet (4 heterogeneous — modal vs side-sheet vs ChatSheet, no 3-of-a-kind) + Toast (2) → **deferred**. Type primitive → shipped as **utilities, not components** (cleaner adoption; 382-bracket migration is Phase 3). New: `ui/Card` (default/elevated/inset + interactive), `ui/Badge` (neutral/gold/positive/negative/info), `ui/Input`+`Textarea`, `ui/focus.ts` (one shared `focusRing` = `ring-2 ring-ring ring-offset-2`). `ui/button` upgraded: `loading` (dependency-free CSS spinner + `aria-busy`; avoided lucide `Loader2` on the unusual `lucide-react@^1.7.0`) + `active` bg-shift + shared ring; radius/size left for Phase 3. Faithful migrations (3 each): Card → AssetGroupCard, LiabilityGroupCard, BillsClient; Badge → AssetGroupCard, LiabilityGroupCard, BillCard; Input → login, signup, AccountDataManagement.
+
+**2c — EmptyState (6 → survivor + 2 collapsed + 3 fenced).** Survivor = extended `office/dashboards/DashboardEmptyState`. API: `{ icon?, title?, body, accent?, actionLabel?, actionHref?, onAction?, secondaryActionLabel?, onSecondaryAction?, children? }`; CTA modes (first match): `children` → `onAction` (Button) → `actionHref` (text-link). Collapsed `balance-sheet/EmptyState` (its chat-context action moved into `BalanceSheetClient`) + `bills/EmptyBillsState` (UploadZone via `children`, wrapped in `Card`). **Chose to FENCE, not merge, session-32:** `dashboard/EmptyState`, `office/sections/GoalsEmptyState`, and its dependency `GoalsEmptyStateCTA` are left untouched (session-32/staging-user-hygiene edits the first two; the third is transitively required by the fenced GoalsEmptyState). Post-session-32 follow-up finishes 6→1 (add `no_data`/`no_values` presets to the survivor then).
+
+**2d — dead `data/`.** Deleted `FolderCard`/`FolderMetric`, `MetricTile`, and the `CategoryBar`/`FileRow` functions; cleaned `data/index.ts`. **`ValuePill` KEPT — the dead-code audit's §2b "KILL" was wrong:** it is live inside `TransactionRow` (`DataComponents.tsx:121`), shipped via `OfficeTransactionsClient`; deleting it would have broken the build. The 6 live `DataComponents` exports retained.
+
+**2e — `/styleguide`.** Swapped off the deleted `MetricTile`/`ValuePill`/`balance-sheet EmptyState`; added encoded type + radii demos (literal utilities so Tailwind emits the full scale), Card/Badge/Input demos, Button loading/active, the survivor's button-CTA mode; trimmed the "missing primitives" panel to the deferred Dialog/Toast.
+
+**Verify.** `npm run typecheck` clean. `npm run build` clean — true `BUILD_EXIT=0`, `/styleguide` + all routes compiled. `git status`: only the primitive layer + the 9 counted consumers + 2 EmptyState call sites + scales + styleguide + docs — no Phase-3 churn.
+
+**Follow-ups.** *Phase 1:* one colour source + `--value-*` (D1 inversion) + value-category Badge tones + the `Briefing` `--font-cormorant`→Georgia fix. *Phase 3:* migrate the ~640 brackets / ~280 colour literals onto these primitives + scales; finish EmptyState 6→1 after session-32 merges.
+
+---
+
+## Session — Dead-Code Audit, Phase 0 (Repo Hygiene) — 2026-05-29
+
+**Branch:** `claude/dead-code-audit` (off `claude/visual-consistency-audit`).
+**Scope:** Identification only — nothing deleted/moved/merged; no DB. Produced `audit/dead-code.md`: a reachability-accurate, triage-classified (KILL/ARCHIVE/MERGE/KEEP/VERIFY, +SPARE for Lewis) whole-app dead-code inventory via `knip` (primary) + `ts-prune` + `madge`, replacing the stale `audit/03-*` snapshot. **Revision 1:** added a full per-export enumeration, a rigorous per-route API caller check, resolution of the VERIFY items (pattern-detectors + insight-engine → KEEP, live via the `PATTERN_LIBRARY` registry / internal calls), and a card-cluster re-check (no merge candidate).
+
+### Headline counts (knip, current branch)
+
+- **18 unused files — but 0 in `src/`.** All are `scripts/`/`eval/`/`tests/` standalone CLIs/harness (incl. the CLAUDE.md-documented `reextract-portrait.ts`, `show-shape-and-posture.ts`); knip flags them only because it lacks an entry glob for those dirs. **True deletable source files: 0.**
+- **88 unused exports**, 79 unused type exports, 17 duplicate (named+redundant-`default`) exports, 3 circular deps, 1 unused devDep.
+- **0 superseded routes** (no `(app)` group — already removed), **0 unwired crons** (8/8 in `vercel.json`), **0 unwired API routes** (rigorous per-route caller check; down from old BUILD-STATUS's "3 crons / 4 API"). `portfolio-analyzer`/`tool-handlers` already gone.
+
+### The correction (why the old "63" was unsafe)
+
+Stale `03-summary.md`: 113 components / **63 orphans** / "true ~19" — from a different machine snapshot (`/home/user/CFO-v2`), pre-v2.5. It listed `ScenariosDashboard` (deleted in v2.5) and three charts (`TrendChart`, `ValuesDonut`, `NetWorthTrendChart`) as "ready for deletion" — **all three are live via `next/dynamic`**, which a grep audit can't see. knip correctly keeps them. Accurate dead code is **export-level** (the `data/` trio + `CategoryBar`/`FileRow` + `opusModel`), not 63 files. Even the "~19 true orphans" were mis-located: they map to unwired *scripts*, not components.
+
+### KILL / KEEP (Revision-1 precision)
+
+**Genuinely dead (~18 exports, `own=1`/0-ref):** `findAction`, `opusModel` (**not** `opusModelId` — used in-file), `estimateCostUSD`, `isRefundRow`, `getMerchantKey`, `detectColumnMapping`/`isMappingHighConfidence`, `templatesForPattern`, `NUDGE_ICONS`/`NUDGE_LABELS`/`PRIORITY_ORDER`, `STRUGGLE_LABELS`, `isStartUploadAction`/`isStartValueMapRealAction`, `isHoldingsMappingHighConfidence`, `predictValueCategory`, `personaIds`, `loadDotenvLocal` — plus the dead `data/` layer (`FolderCard`/`FolderMetric`, `CategoryBar`/`FileRow`, barrel entries). **KEEP (false positives recorded):** the 8 `pattern-detectors` (live via the exported `PATTERN_LIBRARY[]` array — the registry blind spot), the 4 `insight-engine` fns (called internally L149–158), `buildFirstInsightContext` V1 (still called at `context-builder.ts:1207`), the `monthly-snapshot` trio, the `next/dynamic` charts. **18 redundant `default` exports → cleanup.**
+
+### Hazards / preconditions (prominent)
+
+- **`session-32/staging-user-hygiene` (unmerged) edits `pattern-detectors.ts` + `dashboard/EmptyState.tsx` + `office/sections/GoalsEmptyState.tsx`** — overlapping the EmptyState MERGE cluster and the `pattern-detectors.ts` un-export hygiene (those 8 exports are now **KEEP** — live via `PATTERN_LIBRARY` — so no deletion conflict, but the MERGE + hygiene **must wait for that merge or fence around those files**). Other unmerged branches touch no target. O1/O2 already on `main` (stale hazard).
+- **`MetricTile`/`ValuePill` now have 1 consumer each — the dev-only `/styleguide`** on the parent `claude/visual-consistency-audit` branch. Sequence the `data/`-trio deletion with that branch. (`FolderCard`/`FolderMetric` have no consumer → clean.)
+- The EmptyState MERGE is now **6** files (added `bills/EmptyBillsState`), each with a "survivor must do:" stub for Lewis in §4.
+
+### Verification
+
+- `knip`/`ts-prune`/`madge` all ran; counts recorded. Nothing deleted/moved — `git status` shows only `audit/dead-code.md` (new) + this `SESSION-LOG.md` entry.
+- `git diff --stat` (tracked) = `SESSION-LOG.md` only; `audit/dead-code.md` untracked.
+
+### Tooling corrections for the next agent
+
+- **knip needs an entry config** (`scripts/**`, `eval/**`, `tests/onboarding/runner/cli.ts`) or it false-flags every standalone CLI; commit `knip.json` before trusting the file list, then graduate knip into a CI gate (third drift-proofing prong alongside the Visual Phase-4 ESLint ban + `/styleguide`).
+- **ts-prune is noisy** (218 src vs knip 88 — counts test-only consumers + unresolved `@/` re-exports); knip is authoritative.
+- **madge** needs `--ts-config tsconfig.json` to resolve `@/` aliases. zsh: `unsetopt nomatch` + quote `--include` globs (per the Visual Phase 0 appendix).
+
+### Files
+
+- NEW `audit/dead-code.md`
+- MODIFIED `SESSION-LOG.md` (this entry)
+
+---
+
 ## Session — Visual Consistency, Phase 0 (Audit + Styleguide) — 2026-05-29
 
 **Branch:** `claude/visual-consistency-audit`
