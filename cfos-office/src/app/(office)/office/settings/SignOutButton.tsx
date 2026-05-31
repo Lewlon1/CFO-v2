@@ -14,7 +14,7 @@ export function SignOutButton() {
   }
 
   return (
-    <div className="rounded-[10px] border border-[rgba(255,255,255,0.04)] bg-bg-deep p-4">
+    <div className="rounded-control border border-border-subtle bg-bg-deep p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[13px] font-semibold text-text-primary">Sign out</p>
@@ -23,7 +23,7 @@ export function SignOutButton() {
         <button
           type="button"
           onClick={handleSignOut}
-          className="shrink-0 rounded-lg border border-[rgba(255,255,255,0.08)] px-3 py-1.5 text-[12px] font-semibold text-text-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors"
+          className="shrink-0 rounded-lg border border-border-visible px-3 py-1.5 text-[12px] font-semibold text-text-primary hover:bg-muted transition-colors"
         >
           Sign out
         </button>

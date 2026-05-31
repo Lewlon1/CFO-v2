@@ -24,7 +24,7 @@ export default async function GoalsPage() {
   return (
     <div className="px-3.5 pt-2 pb-24 space-y-4">
       {activeGoals.length === 0 && completedGoals.length === 0 ? (
-        <div className="rounded-[10px] border border-[rgba(255,255,255,0.04)] bg-bg-deep p-6 text-center space-y-3">
+        <div className="rounded-control border border-border-subtle bg-bg-deep p-6 text-center space-y-3">
           <div className="text-3xl" aria-hidden="true">◎</div>
           <h2 className="text-[13px] font-semibold text-text-primary">No goals yet</h2>
           <p className="text-[12px] text-text-secondary max-w-sm mx-auto">
