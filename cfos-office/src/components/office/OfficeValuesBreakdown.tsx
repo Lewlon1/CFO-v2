@@ -3,14 +3,20 @@
 import { useState } from 'react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
-import { valueCategories } from '@/lib/tokens'
+import { colors, valueCategories } from '@/lib/tokens'
+
+// 12% tint of a value-category token (theme-reactive). Replaces the old frozen
+// 0.1-alpha tints on the leak/unsure chips.
+const valueTint = (color: string) => `color-mix(in oklab, ${color} 12%, transparent)`
 
 const VALUE_CONFIG = {
   foundation: { color: valueCategories.foundation.color, label: 'Foundation', desc: 'Essentials, non-negotiable' },
   investment: { color: valueCategories.investment.color, label: 'Investment', desc: 'Building future value' },
   leak: { color: valueCategories.leak.color, label: 'Leak', desc: 'Avoidable, habitual drain' },
   burden: { color: valueCategories.burden.color, label: 'Burden', desc: 'Unavoidable but resented' },
-  unsure: { color: '#F59E0B', label: 'Unsure', desc: 'Not yet classified' },
+  // Phase 3b: unsure dropped its bespoke amber for the canonical value-unsure
+  // token (grey) so it matches the rest of the app's unsure read.
+  unsure: { color: valueCategories.unsure.color, label: 'Unsure', desc: 'Not yet classified' },
 } as const
 
 type VCKey = keyof typeof VALUE_CONFIG
@@ -25,7 +31,7 @@ function ValueDonut({ segments, total }: { segments: { key: VCKey; pct: number }
     <div className="text-center">
       <svg width={120} height={120} viewBox="0 0 42 42" className="mx-auto mb-1.5 block">
         {/* Background ring */}
-        <circle cx={21} cy={21} r={R} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={4} />
+        <circle cx={21} cy={21} r={R} fill="none" stroke={colors.borderSubtle} strokeWidth={4} />
         {/* Segments */}
         {segments.map(seg => {
           const dash = (seg.pct / 100) * C
@@ -47,10 +53,10 @@ function ValueDonut({ segments, total }: { segments: { key: VCKey; pct: number }
           return el
         })}
         {/* Center text */}
-        <text x={21} y={20} textAnchor="middle" fill="rgba(245,245,240,0.6)" fontFamily="JetBrains Mono" fontSize={4.5} fontWeight={500}>
+        <text x={21} y={20} textAnchor="middle" fill={colors.textSecondary} fontFamily="JetBrains Mono" fontSize={4.5} fontWeight={500}>
           {formatCurrencyRounded(total)}
         </text>
-        <text x={21} y={25} textAnchor="middle" fill="rgba(245,245,240,0.2)" fontFamily="JetBrains Mono" fontSize={2.5}>
+        <text x={21} y={25} textAnchor="middle" fill={colors.textMuted} fontFamily="JetBrains Mono" fontSize={2.5}>
           total spent
         </text>
       </svg>
@@ -109,7 +115,7 @@ export function OfficeValuesBreakdown() {
       <div className="flex items-center justify-center gap-3.5 mb-3">
         <button
           onClick={() => idx < months.length - 1 && setMonth(months[idx + 1])}
-          className="w-7 h-7 rounded-[6px] bg-[rgba(255,255,255,0.04)] flex items-center justify-center"
+          className="w-7 h-7 rounded-control bg-muted flex items-center justify-center"
           style={{ opacity: idx < months.length - 1 ? 1 : 0.3 }}
         >
           <svg width={12} height={12} viewBox="0 0 24 24" fill="none">
@@ -119,7 +125,7 @@ export function OfficeValuesBreakdown() {
         <span className="font-data text-[11px] text-text-secondary min-w-[70px] text-center">{monthLabel}</span>
         <button
           onClick={() => idx > 0 && setMonth(months[idx - 1])}
-          className="w-7 h-7 rounded-[6px] bg-[rgba(255,255,255,0.04)] flex items-center justify-center"
+          className="w-7 h-7 rounded-control bg-muted flex items-center justify-center"
           style={{ opacity: idx > 0 ? 1 : 0.3 }}
         >
           <svg width={12} height={12} viewBox="0 0 24 24" fill="none">
@@ -143,7 +149,7 @@ export function OfficeValuesBreakdown() {
 
       {/* Value rows */}
       {segments.map(seg => (
-        <div key={seg.key} className="flex items-center gap-2 py-2 border-b border-[rgba(255,255,255,0.03)]">
+        <div key={seg.key} className="flex items-center gap-2 py-2 border-b border-border-subtle">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: VALUE_CONFIG[seg.key].color }} />
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-semibold">{VALUE_CONFIG[seg.key].label}</p>
@@ -167,10 +173,10 @@ export function OfficeValuesBreakdown() {
           <p className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mt-4 mb-1.5">
             Leaks this month
           </p>
-          <div className="flex items-center gap-2 py-2.5 border-b border-[rgba(255,255,255,0.03)]">
+          <div className="flex items-center gap-2 py-2.5 border-b border-border-subtle">
             <div
-              className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px] shrink-0 bg-[rgba(243,63,94,0.1)]"
-              style={{ color: valueCategories.leak.color }}
+              className="w-7 h-7 rounded-control flex items-center justify-center text-[12px] shrink-0"
+              style={{ color: valueCategories.leak.color, backgroundColor: valueTint(valueCategories.leak.color) }}
             >
               ↻
             </div>
@@ -191,15 +197,18 @@ export function OfficeValuesBreakdown() {
           <p className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mt-4 mb-1.5">
             Unsure this month
           </p>
-          <div className="flex items-center gap-2 py-2.5 border-b border-[rgba(255,255,255,0.03)]">
-            <div className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px] shrink-0 bg-[rgba(245,158,11,0.1)] text-[#F59E0B]">
+          <div className="flex items-center gap-2 py-2.5 border-b border-border-subtle">
+            <div
+              className="w-7 h-7 rounded-control flex items-center justify-center text-[12px] shrink-0"
+              style={{ color: valueCategories.unsure.color, backgroundColor: valueTint(valueCategories.unsure.color) }}
+            >
               ?
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-medium">Not yet classified</p>
               <p className="font-data text-[8px] text-text-muted mt-[2px]">{unsureData.count} transactions</p>
             </div>
-            <span className="font-data text-[12px] font-medium text-[#F59E0B] shrink-0">
+            <span className="font-data text-[12px] font-medium shrink-0" style={{ color: valueCategories.unsure.color }}>
               -{formatCurrencyRounded(unsureData.amount)}
             </span>
           </div>
