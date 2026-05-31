@@ -90,7 +90,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
   }
 
   return (
-    <div className="rounded-[10px] border border-[rgba(255,255,255,0.04)] bg-bg-deep p-4 space-y-3">
+    <div className="rounded-control border border-border-subtle bg-bg-deep p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-[13px] font-semibold text-text-primary truncate">{goal.name}</h3>
@@ -103,7 +103,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
               goal.priority === 'high' ? 'bg-red-500/10 text-red-400' :
               goal.priority === 'medium' ? 'bg-amber-500/10 text-amber-400' :
-              'bg-[rgba(255,255,255,0.04)] text-text-secondary'
+              'bg-muted text-text-secondary'
             }`}>
               {goal.priority}
             </span>
@@ -144,7 +144,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
             </span>
             <span className="font-data font-semibold text-text-primary">{progress}%</span>
           </div>
-          <div className="h-1.5 rounded-full bg-[rgba(255,255,255,0.04)] overflow-hidden">
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-500' : 'bg-accent-gold'}`}
               style={{ width: `${progress}%` }}
@@ -175,7 +175,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
       {(contributionState === 'open' || contributionState === 'saving' || contributionState === 'error') && (
         <form
           onSubmit={handleLogContribution}
-          className="space-y-2 pt-1 border-t border-[rgba(255,255,255,0.04)]"
+          className="space-y-2 pt-1 border-t border-border-subtle"
         >
           <div className="flex items-center gap-2">
             <label htmlFor={`contrib-amount-${goal.id}`} className="sr-only">
@@ -192,7 +192,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
               disabled={contributionState === 'saving'}
-              className="flex-1 min-h-[36px] px-3 rounded text-[12px] font-data bg-[rgba(255,255,255,0.04)] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-gold/50 disabled:opacity-50"
+              className="flex-1 min-h-[36px] px-3 rounded text-[12px] font-data bg-muted text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-gold/50 disabled:opacity-50"
             />
             <input
               type="text"
@@ -201,7 +201,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               disabled={contributionState === 'saving'}
-              className="flex-[1.5] min-h-[36px] px-3 rounded text-[12px] bg-[rgba(255,255,255,0.04)] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-gold/50 disabled:opacity-50"
+              className="flex-[1.5] min-h-[36px] px-3 rounded text-[12px] bg-muted text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-gold/50 disabled:opacity-50"
             />
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -230,7 +230,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
       )}
 
       {(deleteState === 'confirming' || deleteState === 'deleting' || deleteState === 'error') && (
-        <div className="flex items-center justify-between gap-2 pt-1 border-t border-[rgba(255,255,255,0.04)]">
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-border-subtle">
           <span className="text-[11px] text-text-secondary">
             {deleteState === 'error' ? "Couldn't delete — try again" : 'Delete this goal?'}
           </span>
