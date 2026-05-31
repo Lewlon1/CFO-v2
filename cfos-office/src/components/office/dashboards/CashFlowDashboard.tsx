@@ -69,8 +69,8 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
 
       {isLoading ? (
         <div className="space-y-3">
-          <div className="h-24 rounded-[10px] bg-bg-deep animate-pulse" />
-          <div className="h-40 rounded-[10px] bg-bg-deep animate-pulse" />
+          <div className="h-24 rounded-control bg-bg-deep animate-pulse" />
+          <div className="h-40 rounded-control bg-bg-deep animate-pulse" />
         </div>
       ) : !summary ? (
         <DashboardEmptyState
@@ -108,7 +108,7 @@ export function CashFlowDashboard({ currency }: CashFlowDashboardProps) {
 
           <Link
             href="/office/cash-flow/upload"
-            className="flex items-center justify-center gap-2 min-h-[44px] rounded-[10px] px-3.5 py-2.5 text-[12px] font-medium"
+            className="flex items-center justify-center gap-2 min-h-[44px] rounded-control px-3.5 py-2.5 text-[12px] font-medium"
             style={{
               border: `0.5px dashed ${ACCENT}`,
               color: ACCENT,
@@ -193,7 +193,7 @@ function MetricsRow({
       {metrics.map((m) => (
         <div
           key={m.label}
-          className="flex-1 min-w-0 rounded-[8px] px-2.5 py-2.5 bg-bg-card border border-[rgba(255,255,255,0.04)]"
+          className="flex-1 min-w-0 rounded-control px-2.5 py-2.5 bg-bg-card border border-border-subtle"
         >
           <div
             className="text-[9px] font-semibold uppercase tracking-[0.12em] text-text-tertiary"
@@ -243,7 +243,7 @@ function TrendBars({
                 className="w-full rounded-[2px]"
                 style={{
                   height: `${Math.max(h, 4)}%`,
-                  background: isNow ? ACCENT : 'rgba(255,255,255,0.08)',
+                  background: isNow ? ACCENT : 'var(--border-visible)',
                 }}
               />
               <div
@@ -275,7 +275,7 @@ function CategoryBreakdown({
       name: cat.name,
       amount: cat.amount,
       pct: cat.pct,
-      color: cat.color?.startsWith('#') ? cat.color : '#888',
+      color: cat.color?.startsWith('#') ? cat.color : 'var(--text-tertiary)',
     }))
     .sort((a, b) => b.amount - a.amount)
 
@@ -297,11 +297,11 @@ function CategoryBreakdown({
           All {all.length} <ArrowRight size={10} strokeWidth={2} />
         </Link>
       </div>
-      <div className="flex h-2 rounded-[4px] overflow-hidden mb-3">
+      <div className="flex h-2 rounded-pill overflow-hidden mb-3">
         {topSlice.map((c) => (
           <div key={c.slug} style={{ width: `${c.pct}%`, background: c.color }} />
         ))}
-        {other > 0 && <div style={{ width: `${other}%`, background: 'rgba(255,255,255,0.08)' }} />}
+        {other > 0 && <div style={{ width: `${other}%`, background: 'var(--border-visible)' }} />}
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {visible.map((c) => (
