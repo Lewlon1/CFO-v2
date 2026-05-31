@@ -69,7 +69,7 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
         </div>
         <Button
           onClick={onContinue}
-          className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base min-h-[44px]"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-5 text-base min-h-11"
         >
           Back to chat
           <ArrowRight className="ml-2 h-4 w-4" />
@@ -133,7 +133,7 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
 
       <Button
         onClick={onContinue}
-        className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base min-h-[44px] mt-2"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-5 text-base min-h-11 mt-2"
       >
         {totalImproved > 0 ? `See the ${totalImproved} I improved` : 'Back to chat'}
         <ArrowRight className="ml-2 h-4 w-4" />

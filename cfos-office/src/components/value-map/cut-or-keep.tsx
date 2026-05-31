@@ -86,7 +86,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
 
         {cutItems.length > 0 ? (
           <>
-            <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 max-w-sm text-center animate-cut-savings-reveal">
+            <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm text-center animate-cut-savings-reveal">
               <p className="text-sm text-muted-foreground mb-2">You&apos;d cut</p>
               <p className="text-3xl font-mono font-bold text-foreground">
                 {formatAmount(monthlyTotal, currency)}
@@ -101,20 +101,20 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
               {cutItems.map((item) => (
                 <div
                   key={item.transaction_id}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#E53E3E]/10"
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-value-leak/10"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Scissors className="h-3.5 w-3.5 text-[#E53E3E] shrink-0" />
+                    <Scissors className="h-3.5 w-3.5 text-value-leak shrink-0" />
                     <span className="text-sm text-foreground truncate">{item.merchant}</span>
                   </div>
-                  <span className="font-mono text-sm text-[#E53E3E] shrink-0">
+                  <span className="font-mono text-sm text-value-leak shrink-0">
                     {formatAmount(item.amount, currency)}
                   </span>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 max-w-sm">
+            <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm">
               <p className="text-sm text-foreground leading-relaxed">
                 Upload your real statement and I&apos;ll find the actual numbers behind these.
                 The gap between what you think and what you spend is where the savings hide.
@@ -122,7 +122,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
             </div>
           </>
         ) : (
-          <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 max-w-sm text-center">
+          <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm text-center">
             <p className="text-sm text-foreground leading-relaxed">
               You&apos;re keeping everything on the list. That&apos;s a clear signal
               &mdash; your spending feels intentional. Let&apos;s see if the real numbers back that up.
@@ -132,7 +132,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
 
         <Button
           onClick={() => onComplete(decisions)}
-          className="w-full max-w-sm bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base"
+          className="w-full max-w-sm bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5 text-base"
         >
           Continue
           <ArrowRight className="ml-2 h-4 w-4" />
@@ -154,11 +154,11 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
       <div className="px-4 pt-4 pb-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
           <span>{currentIndex + 1} of {total}</span>
-          <span className="text-[#E8A84C]">Would you cut it?</span>
+          <span className="text-accent-gold">Would you cut it?</span>
         </div>
         <div className="h-1 w-full rounded-full bg-border overflow-hidden">
           <div
-            className="h-full rounded-full bg-[#E8A84C] transition-all duration-300 ease-out"
+            className="h-full rounded-full bg-accent-gold transition-all duration-300 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -180,7 +180,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
             <span
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
               style={{
-                backgroundColor: `${quadrantDef.colour}20`,
+                backgroundColor: `color-mix(in oklab, ${quadrantDef.colour} 12%, transparent)`,
                 color: quadrantDef.colour,
               }}
             >
@@ -200,7 +200,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
             <div className="flex gap-3 pt-2">
               <Button
                 onClick={() => handleDecision(true)}
-                className="flex-1 bg-[#E53E3E] hover:bg-red-600 text-white font-semibold py-5 text-sm"
+                className="flex-1 bg-value-leak hover:bg-value-leak/90 text-white font-semibold py-5 text-sm"
               >
                 <Scissors className="mr-1.5 h-4 w-4" />
                 I&apos;d cut this

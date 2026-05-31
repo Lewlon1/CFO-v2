@@ -773,7 +773,7 @@ export function ValueMapFlow({
         <div className="flex justify-center pt-2">
           <Button
             onClick={handleStart}
-            className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-5 text-base"
           >
             Let&apos;s start
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -856,7 +856,7 @@ export function ValueMapFlow({
         </div>
         <Button
           onClick={() => router.push('/chat')}
-          className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-5 text-base"
         >
           Back to chat
           <ArrowRight className="ml-2 h-4 w-4" />
@@ -939,7 +939,7 @@ export function ValueMapFlow({
         </div>
         <Button
           onClick={() => router.push('/chat')}
-          className="bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold px-8 py-5 text-base"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-5 text-base"
         >
           Back to chat
           <ArrowRight className="ml-2 h-4 w-4" />
