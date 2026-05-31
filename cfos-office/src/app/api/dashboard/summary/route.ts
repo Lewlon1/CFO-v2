@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
       pct: totalSpending > 0 ? Math.round((amount / totalSpending) * 1000) / 10 : 0,
       name: cat?.name ?? (isUncategorised ? 'Uncategorised' : slug),
       icon: cat?.icon ?? (isUncategorised ? 'help-circle' : 'circle'),
-      color: cat?.color ?? (isUncategorised ? '#94a3b8' : 'primary'),
+      color: cat?.color ?? (isUncategorised ? 'var(--value-unsure)' : 'primary'),
       tier: cat?.tier ?? 'core',
     }
   }

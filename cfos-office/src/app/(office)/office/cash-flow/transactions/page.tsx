@@ -38,7 +38,7 @@ export default async function TransactionsPage() {
     categoryMap[cat.id] = {
       name: cat.name,
       icon: CATEGORY_EMOJI[cat.id] ?? '📋',
-      color: cat.color ?? '#22C55E',
+      color: cat.color ?? 'var(--positive)',
     }
   }
 
