@@ -135,8 +135,9 @@ function SliceBar({
           className="h-full rounded-sm transition-[width] duration-[600ms] ease-out"
           style={{
             width: `${Math.max(0, Math.min(100, share))}%`,
+            // Phase 3b: gold progress fill onto the theme-reactive accent token.
             background:
-              'linear-gradient(90deg, rgba(232,168,76,0.67), #E8A84C)',
+              'linear-gradient(90deg, color-mix(in oklab, var(--accent-gold) 67%, transparent), var(--accent-gold))',
           }}
         />
       </div>
