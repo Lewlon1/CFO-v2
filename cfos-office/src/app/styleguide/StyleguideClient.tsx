@@ -251,7 +251,7 @@ export function StyleguideClient() {
       <Section
         n="03"
         title="Value categories + source conflict"
-        note="tokens.ts says Foundation green / Investment blue. The shipped value-map quadrant and the dashboard badges say the opposite — Foundation blue / Investment green. The user sees blue. The panel renders all three sources so the inversion is visible, not just tabulated."
+        note="Resolved (Phase 1). All three sources — tokens.ts valueCategories, the value-map quadrant, and the dashboard badges — now route through the canonical --value-* tokens, so they AGREE: Foundation blue / Investment green everywhere. The panel renders all three so the agreement is visible, not just asserted; the earlier green→blue inversion is gone."
       >
         <Sub>tokens.ts · valueCategories</Sub>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -278,8 +278,8 @@ export function StyleguideClient() {
           </div>
         </div>
         <p className="max-w-3xl font-mono text-xs text-muted-foreground">
-          Row 1 (tokens) reads green → blue. Rows 2–3 (what ships) read blue → green. That flip is the
-          inversion. Decision D1 for Lewis: align the token layer to the shipped blue/green.
+          All three rows now read blue → green — they agree. Decision D1 is resolved: the token layer
+          was aligned to the shipped blue/green, so tokens.ts no longer inverts against what ships.
         </p>
       </Section>
 

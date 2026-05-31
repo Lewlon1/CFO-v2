@@ -153,12 +153,17 @@
   --folder-values: #5E3A7C;
 
   /* Value categories — deepened for AA on cream (dark-mode hues in :root above).
-     Folder accents intentionally NOT re-themed here (single-value identity). */
+     Folder accents intentionally NOT re-themed here (single-value identity).
+     Contrast vs --bg-base #F6F0E1 (WCAG AA text ≥ 4.5:1): foundation 4.68 ·
+     investment 5.00 · leak 4.81 · burden 5.49 · unsure 4.96. investment/unsure
+     were deepened from #2F855A (3.99) / #6B7280 (4.25) — both failed AA — staying
+     recognisably green / neutral grey, ahead of Phase 3 baking text-value-* into
+     ~640 sites. */
   --value-foundation: #2D6CB8;
-  --value-investment: #2F855A;
+  --value-investment: #2A7449;
   --value-leak: #C53030;
   --value-burden: #6E5E4A;
-  --value-unsure: #6B7280;
+  --value-unsure: #606873;
 
   /* Borders */
   --border-subtle: rgba(26, 22, 16, 0.08);

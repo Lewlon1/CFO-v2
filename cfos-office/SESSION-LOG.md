@@ -9,6 +9,70 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Foundation Close-Out (eyeball fixes) — 2026-05-31
+
+Four small, merge-blocking foundation deltas after the eyeball passed the main gate. Pure
+front-end; no DB; no Phase-3 call-site sweep. Branch: visual-foundation (pre-split).
+
+**F1 — font decision: KEEP Cormorant.** Confirmed Cormorant Garamond is already fully loaded
+via `next/font` in `(office)/layout.tsx` (weights 500/600/700, `--font-cormorant`) and used in
+six places — Briefing (×2), ChatSheet, ValuesDashboard (×2), NetWorthDashboard, the first-read
+orchestrator, and the "CFO's Office" wordmark. It renders correctly on the real `/office` route;
+the Georgia fallback is a `/styleguide`-scope artifact only (styleguide sits outside `(office)/`).
+Decision (Lewis): **keep Cormorant as a deliberate office family** — it is the briefing serif AND
+the wordmark, restoring original design intent. Briefing's serif is intentionally *different* from
+the heading serif (Cormorant vs Instrument Serif). No code change was needed — the wiring was
+already correct. Docs reconciled: UI-DIRECTION Font Stack block now records the decision and the
+true **six** loaded families (Instrument Serif / Instrument Sans / Geist Mono root + DM Sans /
+JetBrains Mono / Cormorant office); the stale Phase-2a "Font story" paragraph (still claiming
+"never loaded / Georgia bug") was corrected to match. Office sans/mono consolidation (DM Sans /
+JetBrains Mono → root) remains a separate open question, out of scope. (Note: SESSION-LOG entries
+1b/1d already corrected the original Phase-0 "three families" claim to six — left as the record.)
+
+**3b — AA contrast (light theme only).** Two light-theme value tokens failed WCAG AA text
+contrast vs `--bg-base #F6F0E1` and were deepened *before* Phase 3 bakes `text-value-*` into
+~640 sites:
+- `--value-investment`: `#2F855A` (3.99, FAIL) → `#2A7449` (**5.00**) — stays emerald green.
+- `--value-unsure`: `#6B7280` (4.25, FAIL) → `#606873` (**4.96**) — stays neutral slate grey.
+
+Verified ratios with a WCAG luminance calc. The other three light values are **untouched** and
+still pass (foundation 4.68 · leak 4.81 · burden 5.49). **Dark-theme value vars unchanged.** The
+Foundation=blue / Investment=green inversion mapping is **not** re-touched — this only darkens the
+green/grey hues for contrast.
+
+**3c — stale styleguide caption.** The `/styleguide` source-conflict panel (Section 03) still
+described the three value-colour sources as inverted/"disagree". Post-Phase-1 all three
+(`tokens.ts valueCategories`, value-map `QUADRANTS`, dashboard `VALUE_COLORS`) route through the
+same `--value-*` tokens and **agree** (Foundation blue / Investment green). Section note + the
+row-caption rewritten to state agreement; no-hardcode contract intact (swatches still read the
+live token layer).
+
+**3d — balance-sheet chat CTA: confirmed wired (code-level).** `BalanceSheetClient.tsx` renders
+the surviving `DashboardEmptyState` with `actionLabel="Start a conversation"` +
+`onAction={handleStartConversation}` → `chatCtx.startConversation('balance_sheet_setup')` and a
+pre-filled input; `useChatContext()` is wrapped in try/catch so it no-ops outside a provider. The
+"start a conversation" path preserved from the deleted `balance-sheet/EmptyState` is intact. **No
+code change.** *Open for Lewis:* visual confirm on a seeded account (Dorcas, staging) — the agent
+can't reach the populated route.
+
+**Verify.** `npm run typecheck` and `npm run build` — real exit codes recorded (see Validation
+Register). `git diff --stat` limited to the §5 manifest (globals.css, StyleguideClient.tsx,
+UI-DIRECTION.md, SESSION-LOG.md) — no `layout.tsx` / `Briefing.tsx` change (F1 needed none), no
+dead-code, no feature call-site churn.
+
+### Validation Register — Visual Foundation Close-Out
+
+| Item | Status |
+|---|---|
+| AA contrast (light investment/unsure ≥ 4.5:1) | ✅ Passing — 5.00 / 4.96, ratios recorded |
+| Stale styleguide conflict caption | ✅ Fixed — now states sources agree |
+| Font (F1) | ✅ Decided KEEP Cormorant; loaded == documented (six families) |
+| Balance-sheet chat CTA wiring | ✅ Confirmed wired (code-level) |
+| Balance-sheet *visual* confirm on seeded account | ⏳ Open — Lewis, Dorcas/staging (pre- or post-merge) |
+| Inversion mapping (Foundation=blue / Investment=green) | ✅ Untouched |
+
+---
+
 ## Session — Visual Consistency, Part A (branch split) — 2026-05-30
 
 Split the commingled `claude/dead-code-audit` branch into two clean PRs (Strategy 2 — fresh

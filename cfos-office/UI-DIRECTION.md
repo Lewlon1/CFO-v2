@@ -142,8 +142,15 @@ Two shifts moved together, and the rationale was the same: untangle four-way ove
 --font-cormorant         /* Office briefings + "CFO's Office" wordmark (Cormorant Garamond) */
 /* CORRECTION (Phase 1): the Phase-0 audit wrongly called the office trio "never loaded" /
    "Briefing renders Georgia" — they ARE loaded in (office)/layout. Only the dead `fonts`
-   STRING export in tokens.ts was removed. Whether to consolidate office→root fonts is an
-   open design decision, not a bug fix. */
+   STRING export in tokens.ts was removed.
+   DECIDED (F1, Visual Foundation close-out): KEEP Cormorant Garamond as a deliberate office
+   family — it is the briefing serif AND the "CFO's Office" wordmark, restoring original design
+   intent. Six families load and are used: Instrument Serif / Instrument Sans / Geist Mono (root)
+   + DM Sans / JetBrains Mono / Cormorant Garamond (office). Briefing's serif is intentionally
+   DIFFERENT from the heading serif (Cormorant vs Instrument Serif). Briefing falls back to
+   Georgia ONLY on /styleguide, which sits outside (office)/ — a scope artifact, not a bug.
+   Consolidating the office sans/mono (DM Sans / JetBrains Mono) down to the root families remains
+   a separate open question, out of scope here. */
 
 /* === Scale === */
 --text-xl:    20px / weight 800 / tracking -0.03em   /* Page title ("The CFO's Office") */
@@ -166,9 +173,11 @@ Two shifts moved together, and the rationale was the same: untangle four-way ove
 > was "md") · `text-body` (13) · `text-body-sm` (12, was "sm") · `text-label` (11) ·
 > `text-caption` (10, was "xs") · `text-tag` (9) · `text-micro` (8) · `text-nano` (7). Weight +
 > font-family stay with the consumer. The ~30 ad-hoc `text-[Npx]` sizes migrate onto these in
-> Phase 3. **Font story** — `DM Sans`/`JetBrains Mono` are named here but never loaded (Instrument
-> Sans/Serif + Geist Mono ship), and `Briefing`'s `--font-cormorant`→Georgia is a real bug — all a
-> Phase-1 fix, not Phase 2.
+> Phase 3. **Font story (corrected — see Font Stack block above)** — the Phase-0 audit was wrong:
+> `DM Sans` / `JetBrains Mono` / `Cormorant Garamond` ARE loaded, scoped to `(office)/layout`, and
+> `Briefing` correctly renders Cormorant on the real `/office` route (the `→Georgia` fallback is a
+> `/styleguide`-scope artifact, not a bug). Phase 1 only removed the dead `fonts` STRING export from
+> tokens.ts. F1 (close-out) decided to KEEP Cormorant as a deliberate family.
 
 ### Typography Rules
 
