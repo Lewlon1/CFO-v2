@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
 import type { PrimaryGoal } from '@/lib/goals/primary-goal'
-import { GoalsEmptyState } from './GoalsEmptyState'
+import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
+import { GoalsEmptyStateCTA } from '@/app/(office)/office/goals/GoalsEmptyStateCTA'
 
 interface GoalsSectionProps {
   goal: PrimaryGoal | null
@@ -11,7 +12,14 @@ interface GoalsSectionProps {
 
 export function GoalsSection({ goal, currency = 'EUR', upcomingEventsCount = 0 }: GoalsSectionProps) {
   if (!goal && upcomingEventsCount === 0) {
-    return <GoalsEmptyState />
+    return (
+      <DashboardEmptyState
+        title="No goal set."
+        body="Your CFO can't advise on a destination you haven't named."
+      >
+        <GoalsEmptyStateCTA />
+      </DashboardEmptyState>
+    )
   }
 
   return (

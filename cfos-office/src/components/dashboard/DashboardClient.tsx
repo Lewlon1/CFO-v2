@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { BarChart3, Target } from 'lucide-react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { useTrends } from '@/lib/hooks/useTrends'
 import { MonthSelector } from './MonthSelector'
 import { ViewToggle } from './ViewToggle'
 import { SummaryCards } from './SummaryCards'
-import { EmptyState } from './EmptyState'
+import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
 import { CategoryBreakdown } from './CategoryBreakdown'
 import { ValueSummary } from './ValueSummary'
 import { ValueCategoryCards } from './ValueCategoryCards'
@@ -74,7 +76,25 @@ export function DashboardClient({ hasData }: Props) {
   const { trends } = useTrends()
 
   if (!hasData) {
-    return <EmptyState variant="no_data" />
+    return (
+      <DashboardEmptyState
+        icon={<BarChart3 className="h-5 w-5 text-text-tertiary" />}
+        title="Your dashboard is waiting for data"
+        body="Upload a bank statement to see your spending breakdown, track your values, and get insights."
+      >
+        <div className="flex flex-col items-center gap-3">
+          <Link
+            href="/transactions"
+            className="rounded-control bg-primary text-primary-foreground px-5 py-2.5 text-body font-medium min-h-[44px] inline-flex items-center"
+          >
+            Upload a statement
+          </Link>
+          <p className="text-caption text-text-tertiary">
+            Supports: CSV, XLSX, PDF, or screenshots from any bank app
+          </p>
+        </div>
+      </DashboardEmptyState>
+    )
   }
 
   if (isLoading || !summary) {
@@ -167,7 +187,26 @@ export function DashboardClient({ hasData }: Props) {
       {activeView === 'values' && (
         <div className="space-y-6">
           {!hasValues ? (
-            <EmptyState variant="no_values" />
+            <DashboardEmptyState
+              icon={<Target className="h-5 w-5 text-text-tertiary" />}
+              title="Your Values View needs your input"
+              body="The Values View shows how your spending aligns with what matters to you. To get started, take the Value Map or classify some transactions manually."
+            >
+              <div className="flex gap-3">
+                <Link
+                  href="/demo"
+                  className="rounded-control bg-primary text-primary-foreground px-5 py-2.5 text-body font-medium min-h-[44px] inline-flex items-center"
+                >
+                  Take the Value Map
+                </Link>
+                <Link
+                  href="/transactions?value_category=unsure"
+                  className="rounded-control border border-border px-5 py-2.5 text-body font-medium min-h-[44px] inline-flex items-center text-foreground hover:bg-accent transition-colors"
+                >
+                  Classify now
+                </Link>
+              </div>
+            </DashboardEmptyState>
           ) : (
             <>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
