@@ -17,7 +17,7 @@ const VALUE_META: Record<string, { label: string; color: string; order: number }
   investment: { label: 'Investment', color: valueCategories.investment.color, order: 2 },
   leak: { label: 'Leak', color: valueCategories.leak.color, order: 3 },
   burden: { label: 'Burden', color: valueCategories.burden.color, order: 4 },
-  unsure: { label: 'Unclassified', color: '#6B7280', order: 5 },
+  unsure: { label: 'Unclassified', color: valueCategories.unsure.color, order: 5 },
 }
 
 export interface ValuesDashboardGap {
@@ -64,7 +64,7 @@ export function ValuesDashboard({
       )}
 
       {isLoading ? (
-        <div className="h-24 rounded-[10px] bg-bg-deep animate-pulse mb-4" />
+        <div className="h-24 rounded-control bg-bg-deep animate-pulse mb-4" />
       ) : (
         <ValueBreakdown summary={summary} currency={currency} />
       )}
@@ -141,17 +141,17 @@ function ArchetypeCard({
 
   return (
     <div
-      className="rounded-[12px] mb-4 px-[14px] py-[16px]"
+      className="rounded-card mb-4 px-[14px] py-[16px]"
       style={{
-        background: `linear-gradient(160deg, ${ACCENT}12 0%, var(--bg-card) 60%)`,
-        border: `0.5px solid ${ACCENT}40`,
+        background: `linear-gradient(160deg, color-mix(in oklab, ${ACCENT} 7%, transparent) 0%, var(--bg-card) 60%)`,
+        border: `0.5px solid color-mix(in oklab, ${ACCENT} 25%, transparent)`,
       }}
     >
       <div className="flex items-center gap-3 mb-3">
         <div
-          className="w-11 h-11 rounded-[10px] flex items-center justify-center text-[22px]"
+          className="w-11 h-11 rounded-control flex items-center justify-center text-[22px]"
           style={{
-            background: `${ACCENT}20`,
+            background: `color-mix(in oklab, ${ACCENT} 12%, transparent)`,
             border: `1px solid ${ACCENT}`,
             color: ACCENT,
             fontFamily: 'var(--font-cormorant), Georgia, serif',
@@ -174,10 +174,10 @@ function ArchetypeCard({
           </div>
         </div>
         <div
-          className="px-[10px] py-[4px] rounded-[12px] text-[10px] font-semibold shrink-0"
+          className="px-[10px] py-[4px] rounded-card text-[10px] font-semibold shrink-0"
           style={{
-            background: `${ACCENT}20`,
-            border: `0.5px solid ${ACCENT}40`,
+            background: `color-mix(in oklab, ${ACCENT} 12%, transparent)`,
+            border: `0.5px solid color-mix(in oklab, ${ACCENT} 25%, transparent)`,
             color: ACCENT,
           }}
         >
@@ -192,8 +192,8 @@ function ArchetypeCard({
               className="text-[11px] px-2 py-1 rounded-full border"
               style={{
                 color: 'var(--text-secondary)',
-                borderColor: 'rgba(255,255,255,0.06)',
-                background: 'rgba(255,255,255,0.02)',
+                borderColor: 'var(--border-medium)',
+                background: 'var(--bg-card)',
               }}
             >
               {t}
@@ -236,7 +236,7 @@ function ValueBreakdown({
             : 'this month'}
         </div>
       </div>
-      <div className="flex h-2 rounded-[4px] overflow-hidden mb-[10px]">
+      <div className="flex h-2 rounded-pill overflow-hidden mb-[10px]">
         {entries.map((e) => (
           <div key={e.key} style={{ width: `${e.pct}%`, background: e.meta.color }} />
         ))}
@@ -275,7 +275,7 @@ function GapsList({ gaps }: { gaps: ValuesDashboardGap[] }) {
         {gaps.slice(0, 3).map((g, i) => (
           <div
             key={`${g.label}-${i}`}
-            className="rounded-[8px] px-3 py-[11px] bg-bg-card border border-[rgba(255,255,255,0.04)]"
+            className="rounded-control px-3 py-[11px] bg-bg-card border border-border-subtle"
           >
             <div className="text-[12px] font-semibold text-text-primary truncate">{g.label}</div>
             <div className="text-[10.5px] text-text-tertiary mt-1 leading-[1.4]">{g.narrative}</div>
