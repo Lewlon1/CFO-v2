@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { formatCurrency } from '@/lib/format/currency';
+import { colors } from '@/lib/tokens';
 
 function ComparisonCard({
   label,
@@ -39,7 +40,7 @@ function ComparisonCard({
         </div>
       </div>
       {delta !== 0 && (
-        <p className={`text-xs mt-1.5 ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+        <p className={`text-xs mt-1.5 ${isPositive ? 'text-positive' : 'text-negative'}`}>
           {delta > 0 ? '+' : ''}{formatCurrency(delta, currency)}/mo
         </p>
       )}
@@ -60,14 +61,18 @@ function MetricRow({ label, value, sub }: { label: string; value: string; sub?: 
 }
 
 function FeasibilityBadge({ rating }: { rating: string }) {
-  const colors: Record<string, string> = {
-    comfortable: 'bg-emerald-500/20 text-emerald-400',
-    tight: 'bg-amber-500/20 text-amber-400',
-    stretch: 'bg-orange-500/20 text-orange-400',
-    unrealistic: 'bg-red-500/20 text-red-400',
+  // Phase 3b flag: the 4-tier feasibility gradient (comfortable→unrealistic) has
+  // no distinct amber/orange "caution/warning" token, so it collapses onto the 3
+  // available semantic tokens — positive / accent-gold / negative. tight & stretch
+  // share gold (the text label keeps them distinct). No new token invented.
+  const ratingClasses: Record<string, string> = {
+    comfortable: 'bg-positive/15 text-positive',
+    tight: 'bg-accent-gold-bg text-accent-gold',
+    stretch: 'bg-accent-gold-bg text-accent-gold',
+    unrealistic: 'bg-negative/15 text-negative',
   };
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full ${colors[rating] || 'bg-muted text-muted-foreground'}`}>
+    <span className={`text-xs px-2 py-0.5 rounded-full ${ratingClasses[rating] || 'bg-muted text-muted-foreground'}`}>
       {rating}
     </span>
   );
@@ -202,20 +207,20 @@ function InvestmentGrowthResult({ data }: { data: any }) {
             <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
               <XAxis
                 dataKey="year"
-                tick={{ fontSize: 10, fill: '#8A8A96' }}
+                tick={{ fontSize: 10, fill: colors.textTertiary }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: '#8A8A96' }}
+                tick={{ fontSize: 10, fill: colors.textTertiary }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#1A1A1F',
-                  border: '1px solid #2A2A30',
+                  backgroundColor: colors.bgElevated,
+                  border: `1px solid ${colors.borderVisible}`,
                   borderRadius: '8px',
                   fontSize: '12px',
                 }}
@@ -225,16 +230,16 @@ function InvestmentGrowthResult({ data }: { data: any }) {
                 type="monotone"
                 dataKey="contributed"
                 stackId="1"
-                stroke="#6366F1"
-                fill="#6366F1"
+                stroke={colors.info}
+                fill={colors.info}
                 fillOpacity={0.3}
                 name="Contributed"
               />
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke="#E8A84C"
-                fill="#E8A84C"
+                stroke={colors.gold}
+                fill={colors.gold}
                 fillOpacity={0.15}
                 name="Total value"
               />
