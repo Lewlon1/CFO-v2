@@ -9,6 +9,164 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Consistency, Phase 3b (completion sweep) — 2026-05-31
+
+**Branch:** `claude/visual-consistency-phase3b-ZIQU2` (off the Phase-3 tip `29903de`, which
+already folds in the foundation + all of Phase 3 — so this branch *is* the integration line;
+the standalone `feature/visual-consistency` branch was never cut, same as Phase 3 noted). One
+surface = one commit, sequential. Pure front-end; Sweep C changes a route's response shape but
+no DB; no enforcement tooling (that's Phase 4).
+
+**Verification reality (Decision B).** Per-surface gate = `tsc --noEmit` + `next build` (real
+exit codes, no `| tail` masking) + grep (zero raw hex/rgba/colour-bracket; radius on the named
+scale) + theme-reactivity reasoning. This environment can't paint authed both-theme screens, so
+**Lewis runs the comprehensive both-theme eyeball as Dorcas at the end — that eyeball is the gate
+before Phase 4, not this session.** Every commit built green.
+
+**Re-measure (3b.0, repo-wide, this env) → after 3b:**
+- hex `112 → 44` · rgba `65 → 2` · colour-bracket `8 → 3` — **all 49 remaining are documented
+  exceptions (below), zero migratable colour drift.**
+- type/radius-bracket `325 → 284` (migrated the radius brackets across the sweep surfaces).
+- spacing-bracket `243 → 243` (deliberately untouched — see scope note).
+
+### Sweep B — chat result blocks (RESTYLE, Decision A) — 3 commits
+
+Bespoke palettes → canonical semantic tokens. Appearance changes by design.
+
+- **LabelTransactionsBlock** — dropped the bespoke walnut `PROTO` palette; surfaces/borders/text
+  → `var(--bg-elevated)/--border-medium/--text-*`, gold CTA → `--accent-gold` + `--primary-foreground`.
+  The 5 quadrant pill colours now come from `valueColors` (`var(--value-*)`) via the
+  `label_transactions` tool (`label-transactions.ts` + its test updated to expect tokens).
+- **ScenarioResult** — Recharts axis/tooltip/areas → `colors.*` var-strings (textTertiary/bgElevated/
+  borderVisible/info/gold); delta emerald/red → `text-positive/negative`.
+- **TripPlanResult** — budget-bar palette → nearest semantic tokens; suggested-cut emerald → positive.
+
+  **Sweep-B colour mappings + flagged no-clean-equivalents** (no token invented to keep a one-off shade):
+  | Bespoke | → token | Flag |
+  |---|---|---|
+  | foundation/investment/leak/burden/unsure pills | `var(--value-*)` | clean |
+  | Scenario contributed `#6366F1` / value `#E8A84C` | `--info` / `--accent-gold` | clean |
+  | Trip flights `#6366F1` / accommodation `#E8A84C` / food `#10B981` / misc `#6B7280` | `--info` / `--accent-gold` / `--positive` / `--value-unsure` | clean |
+  | Trip **activities `#F472B6` (pink)** | `--accent-cyan` | ⚑ no pink token |
+  | Trip **local_transport `#8B5CF6` (violet)** | `--value-burden` | ⚑ no violet token |
+  | FeasibilityBadge 4-tier (comfortable/tight/stretch/unrealistic) | positive / accent-gold / accent-gold / negative | ⚑ no amber/orange token — tight & stretch share gold |
+
+### Sweep A — heavy office bodies (FAITHFUL) — 9 commits
+
+Faithful migration; **same look after, except the white-alpha chrome which is *fixed* for light
+theme** (it was frozen white that didn't adapt). White/black-alpha chrome → theme-reactive token
+alphas (`bg-muted`/`bg-bg-inset`/`border-border-*`/`bg-tap-highlight`) or `color-mix(... var(--token))`.
+Surfaces: `OfficeMonthlyOverview`, `OfficeValuesBreakdown`, `DataComponents`, `GoalCard`,
+`ValuesDashboard`, `CashFlowDashboard`, `NetWorthDashboard`, `Briefing`, `DrillDownRow`,
+`MultiIntentGapCard` + the re-grep-surfaced chrome (`ChatSheet`, `ChatBar`, `SignOutButton`,
+`goals/page`, `NavigationBar`, `OfficeTransactionsClient`, `CategoryBreakdown`, `cash-flow/transactions/page`,
+`dashboard/summary` route fallbacks).
+
+- **Latent bug fixed (same class as Phase 3's 6 concat fixes):** `` `${ACCENT}08/12/20/30/40/50` ``
+  on `var(--folder-*)` strings = invalid CSS (`var(--folder-values)40`) that **rendered no tint/border**
+  — fixed → `color-mix` at the intended alphas in `ValuesDashboard` (5 sites) + `NetWorthDashboard` (4).
+  The archetype/trend accent tints now actually render.
+- **`unsure` colour aligned:** `OfficeValuesBreakdown` + `ValuesDashboard` dropped a bespoke amber/grey
+  `unsure` for the canonical `--value-unsure`.
+- **Radius:** `rounded-[6/7/8/10px]→control`, `[12px]→card`, thin-bar `[2.5/4px]`(= half of bar height)`→pill`.
+  **Kept (flagged):** `rounded-[2px]`/`rounded-[3px]` on the cash-flow / net-worth month bars — no faithful
+  named radius token exists below 8px, and snapping visibly distorts the bars.
+
+### Sweep C — balance-sheet route (BOUNDED REFACTOR) — DONE (not deferred) — 1 commit
+
+`api/balance-sheet/route.ts` stopped shipping presentation: removed raw-hex `color` from the asset/
+liability group + allocation-slice payloads (15 hex). New client resolver
+`lib/balance-sheet/type-colors.ts` maps type id → canonical token var() string; consumers
+(`AssetGroupCard`, `LiabilityGroupCard`, `AllocationDonut`, `NetWorthDashboard` Composition) resolve
+by id. Tints → `color-mix` (replacing the `${hex}20` alpha-concat). Also fixed the empty
+`1px solid ` tooltip-border in `AllocationDonut`.
+
+**Flagged collapses** (no categorical token palette; none invented): bonds→accent-purple,
+crypto→value-leak, student_loan/car_finance/bnpl→accent-gold; liabilities collapse onto
+negative/accent-gold/unsure (decorative debt-card accents, no donut). **Residual reached zero with
+this landing — Sweep C was *not* deferred.**
+
+### Sweep D — EmptyState 6→1 — COMPLETED — 1 commit
+
+**Session-32 confirmed not in flight** (no branch, no landed edits to the fenced files), so the
+fenced collapse was completed. **Decision (Lewis, AskUserQuestion): "complete, keep chat behavior."**
+All empty-state *containers* now route through the single survivor `DashboardEmptyState`:
+- `dashboard/EmptyState` (no_data/no_values variants) → **deleted**; `DashboardClient` uses the survivor
+  with explicit props + `children` (CTAs/footnote).
+- `office/sections/GoalsEmptyState` → **deleted**; `GoalsSection` + `goals/page` render the survivor directly.
+- `GoalsEmptyStateCTA` **retained** as a small client chat-trigger button leaf, passed via `children` (it
+  opens the chat sheet via `useChatContext` — a chat trigger, not an empty-state container; preserves the
+  goal-flow UX exactly). styleguide updated to show the single survivor in its CTA modes.
+
+### Final repo-wide residual — Phase-4 (P4.0) gate proof
+
+**Zero migratable colour drift.** All 44 hex + 2 rgba + 3 colour-bracket are principled exceptions:
+| Class | Sites | Why it stays |
+|---|---|---|
+| `(public)/v4/*` | (the documented exception) | already token-correct; the one intended colour island |
+| DB-coupled `CATEGORY_COLORS` | `constants/dashboard.ts` (9) + `${cat.color}` consumers | mirrors DB `categories.color`; a migration, not a styling change (audit out-of-scope) |
+| Brand identity | `CFOAvatar` SVG (7), `login` Google-logo (4) | theme-stable brand marks; Google's logo colours are brand-mandated |
+| Share/export cards | `demo-reveal` (4hex+1rgba+3bracket), `value-map-summary` (1) | rendered to html2canvas (tokens.ts excludes canvas literals); fixed-brand by design |
+| Drop shadow | `ChatSheet` (1 rgba `rgba(0,0,0,0.5)`) | theme-agnostic black shadow; no shadow token exists |
+| False positives | `#142` merchant codes in comments (×8), `&#9679;` entity (×1), test fixtures (×10) | not colours |
+
+**Phase-4 handoff:** Decision A means **no chat-block allowlist** in the lint rule — only `v4` is a
+*colour-island* exemption. The other residue above is structural (DB column, brand marks, canvas
+literals, shadows, false positives) — Phase 4's P4.0 ban should be scoped to raw hex/rgba in
+*style/className* positions and will pass cleanly once those classes are allowlisted/excluded.
+
+**Scope note — type/spacing brackets are NOT this session's gate.** The Phase-4 gate is *colour*
+("only `v4` remains"). Type-size + `tracking` + spacing brackets were left on the heavy bodies:
+(a) the `--text-*` tokens carry paired line-heights and there's irreducible intentional `tracking`
+(uppercase labels) with no token, so type-bracket near-zero isn't cleanly reachable; (b) spacing has
+no CSS-var scale (Tailwind's 4px default only), and blind off-grid snapping (3px/5px/etc.) shifts
+pixels on surfaces this env can't paint — the exact risk Phase 3 cited when deferring these bodies;
+(c) repo-wide near-zero for type/spacing isn't reachable from this session's file set anyway (most
+brackets live in non-sweep files: HoldingsPreview, StructuredInput, BillUploadModal, …). **Radius
+brackets were migrated** (the safe, documented nearest-step). The type/spacing-bracket tail is a
+follow-up, independent of the Phase-4 *colour* gate.
+
+### For Lewis — end-eyeball list (both themes, as Dorcas; the gate before Phase 4)
+
+**Priority (changed most):**
+1. **Sweep B chat blocks** — `LabelTransactionsBlock`, `ScenarioResult`, `TripPlanResult`. Judge
+   *"does the token treatment read well in chat?"* — not "is it unchanged." If one reads worse, that's
+   the signal to reconsider keeping it bespoke (a deliberate reversal). Note the FeasibilityBadge
+   tight/stretch share gold, and Trip activities/local_transport remapped (pink→cyan, violet→burden).
+2. **Sweep A heavy bodies** — esp. the light-theme chrome fix (was broken white) and the now-rendering
+   accent tints on `ValuesDashboard` archetype card + `NetWorthDashboard` trend/summary (the concat-bug fix
+   — these previously showed *no* tint/border).
+3. **Sweep C** — net-worth dashboards + balance-sheet cards/donut: the type→token colour collapses
+   (bonds/crypto/liability hues) read as a coherent palette?
+4. **Sweep D** — the collapsed empties (dashboard no_data/no_values; goals empty on `/office` home +
+   `/office/goals`) sit right in the survivor's centred layout; goal-flow chat CTA still opens the sheet.
+- Plus the cash-flow / net-worth month-bar `rounded-[2px]/[3px]` kept square (flagged).
+
+### Validation Register — Visual Consistency Phase 3b
+
+| Item | Status |
+|---|---|
+| 3b.0 re-measure → per-sweep manifest from the re-grep | ✅ done (counts above) |
+| Sweep B — LabelTransactionsBlock restyle (+tool+test) | ✅ TYPECHECK=0 / BUILD=0 · tool test green |
+| Sweep B — ScenarioResult restyle | ✅ TYPECHECK=0 / BUILD=0 |
+| Sweep B — TripPlanResult restyle | ✅ TYPECHECK=0 / BUILD=0 |
+| Sweep B — bespoke→token mappings + no-equivalents flagged | ✅ logged (table above) |
+| Sweep A — 10 named bodies + re-grep chrome onto tokens | ✅ all built green; colour zero per surface |
+| Sweep A — white-rgba chrome → theme-reactive token alphas | ✅ the light-theme fix landed |
+| Sweep A — `${ACCENT}NN` var-concat latent bug | ✅ fixed (9 sites → color-mix) |
+| Sweep C — route stops emitting colour; client resolves by id | ✅ DONE (not deferred); built green |
+| Sweep D — EmptyState 6→1 | ✅ COMPLETED (session-32 not in flight; keep-chat-behavior) |
+| Repo-wide colour after session | hex 112→44 · rgba 65→2 · colour-bracket 8→3 — **all residual = documented exceptions** |
+| **Phase-4 (P4.0) gate — zero migratable colour drift** | ✅ reached (exception table above) |
+| Type/spacing-bracket tail | ⏳ out-of-gate follow-up (radius done; type/spacing scoped out, reasoned) |
+| **Lewis comprehensive both-theme eyeball (as Dorcas)** | ⏳ OPEN — the gate before Phase 4 |
+
+**Closes these Phase-3 Register rows (were ⏳):** balance-sheet route (Sweep C ✅), EmptyState 6→1
+(Sweep D ✅), heavy office surfaces + bespoke chat palettes (Sweeps A + B ✅), Phase-4 gate /
+zero-residual (✅ reached, modulo the documented exceptions + Lewis's eyeball).
+
+---
+
 ## Session — Visual Consistency, Phase 3 (call-site migration, execution) — 2026-05-31
 
 **Branch:** `claude/visual-consistency-phase3-oTjGz` (off the merged foundation tip
