@@ -277,13 +277,14 @@ describe('createLabelTransactionsTool — execute happy path', () => {
     expect(result.context_hint).toBe('Friday eating-out · last 3 weeks');
     expect(result.transactions).toHaveLength(3);
 
-    // All 5 options in the canonical order with prototype colors.
+    // All 5 options in the canonical order with the canonical value-category
+    // tokens (theme-reactive var() strings from @/lib/tokens).
     expect(result.options).toEqual([
-      { id: 'foundation', label: 'Foundation', color: '#7A9E7E', desc: 'Essential' },
-      { id: 'investment', label: 'Investment', color: '#D4A24C', desc: 'Worth it' },
-      { id: 'leak', label: 'Leak', color: '#B8584F', desc: 'Drains me' },
-      { id: 'burden', label: 'Burden', color: '#8A7468', desc: 'Heavy, stuck' },
-      { id: 'unsure', label: 'Unsure', color: '#605749', desc: 'On autopilot' },
+      { id: 'foundation', label: 'Foundation', color: 'var(--value-foundation)', desc: 'Essential' },
+      { id: 'investment', label: 'Investment', color: 'var(--value-investment)', desc: 'Worth it' },
+      { id: 'leak', label: 'Leak', color: 'var(--value-leak)', desc: 'Drains me' },
+      { id: 'burden', label: 'Burden', color: 'var(--value-burden)', desc: 'Heavy, stuck' },
+      { id: 'unsure', label: 'Unsure', color: 'var(--value-unsure)', desc: 'On autopilot' },
     ]);
 
     // Shape of an individual hydrated transaction.
