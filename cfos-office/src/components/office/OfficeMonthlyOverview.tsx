@@ -3,6 +3,13 @@
 import { useState } from 'react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
+import { colors } from '@/lib/tokens'
+
+// Theme-reactive alpha helpers (Phase 3b) — replace the frozen white/colour
+// alpha chrome that didn't adapt to light theme. color-mix keeps the tint
+// reactive to the underlying token in both themes.
+const positiveSoft = 'color-mix(in oklab, var(--positive) 50%, transparent)'
+const negativeSoft = 'color-mix(in oklab, var(--negative) 50%, transparent)'
 
 const ICON_EMOJI: Record<string, string> = {
   'shopping-basket': '🛒',
@@ -36,7 +43,7 @@ function MonthSelector({ months, current, onChange }: {
     <div className="flex items-center justify-center gap-3.5 mb-3">
       <button
         onClick={() => canPrev && onChange(months[idx + 1])}
-        className="w-7 h-7 rounded-[6px] bg-[rgba(255,255,255,0.04)] flex items-center justify-center"
+        className="w-7 h-7 rounded-control bg-muted flex items-center justify-center"
         disabled={!canPrev}
         style={{ opacity: canPrev ? 1 : 0.3 }}
       >
@@ -47,7 +54,7 @@ function MonthSelector({ months, current, onChange }: {
       <span className="font-data text-[11px] text-text-secondary min-w-[70px] text-center">{label}</span>
       <button
         onClick={() => canNext && onChange(months[idx - 1])}
-        className="w-7 h-7 rounded-[6px] bg-[rgba(255,255,255,0.04)] flex items-center justify-center"
+        className="w-7 h-7 rounded-control bg-muted flex items-center justify-center"
         disabled={!canNext}
         style={{ opacity: canNext ? 1 : 0.3 }}
       >
@@ -68,7 +75,7 @@ export function OfficeMonthlyOverview() {
       <div className="px-3.5 pt-2 pb-24">
         <div className="grid grid-cols-2 gap-1.5 mb-3">
           {[0, 1, 2, 3].map(i => (
-            <div key={i} className="h-16 rounded-[8px] bg-[rgba(0,0,0,0.15)] animate-pulse" />
+            <div key={i} className="h-16 rounded-control bg-bg-inset animate-pulse" />
           ))}
         </div>
       </div>
@@ -95,7 +102,7 @@ export function OfficeMonthlyOverview() {
   const barRatios = [0.55, 0.85, 1, 0.42]
 
   const vsPct = vs_previous_month_pct != null ? vs_previous_month_pct : null
-  const vsPctColor = vsPct != null && vsPct < 0 ? 'rgba(34,197,94,0.5)' : vsPct != null && vsPct > 0 ? 'rgba(243,63,94,0.5)' : 'rgba(245,245,240,0.25)'
+  const vsPctColor = vsPct != null && vsPct < 0 ? positiveSoft : vsPct != null && vsPct > 0 ? negativeSoft : colors.textTertiary
   const vsPctText = vsPct != null ? `${vsPct > 0 ? '+' : ''}${Math.round(vsPct)}% vs prev` : ''
 
   return (
@@ -110,21 +117,21 @@ export function OfficeMonthlyOverview() {
 
       {/* Metric grid */}
       <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-        <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
+        <div className="rounded-control bg-bg-inset px-[10px] py-[10px]">
           <p className="text-[9px] text-text-tertiary mb-[3px]">Income</p>
-          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-[#22C55E]">{formatCurrencyRounded(total_income)}</p>
-          <p className="font-data text-[8px] mt-[2px]" style={{ color: 'rgba(34,197,94,0.5)' }}>+0% vs prev</p>
+          <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-positive">{formatCurrencyRounded(total_income)}</p>
+          <p className="font-data text-[8px] mt-[2px]" style={{ color: positiveSoft }}>+0% vs prev</p>
         </div>
-        <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
+        <div className="rounded-control bg-bg-inset px-[10px] py-[10px]">
           <p className="text-[9px] text-text-tertiary mb-[3px]">Spent</p>
           <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-text-primary">{formatCurrencyRounded(total_spending)}</p>
           {vsPct != null && <p className="font-data text-[8px] mt-[2px]" style={{ color: vsPctColor }}>{vsPctText}</p>}
         </div>
-        <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
+        <div className="rounded-control bg-bg-inset px-[10px] py-[10px]">
           <p className="text-[9px] text-text-tertiary mb-[3px]">{surplus_deficit >= 0 ? 'Surplus' : 'Deficit'}</p>
-          <p className={`font-data text-[16px] font-extrabold tracking-[-0.03em] ${surplus_deficit >= 0 ? 'text-[#22C55E]' : 'text-[#F43F5E]'}`}>{formatCurrencyRounded(surplus_deficit)}</p>
+          <p className={`font-data text-[16px] font-extrabold tracking-[-0.03em] ${surplus_deficit >= 0 ? 'text-positive' : 'text-negative'}`}>{formatCurrencyRounded(surplus_deficit)}</p>
         </div>
-        <div className="rounded-[8px] bg-[rgba(0,0,0,0.15)] px-[10px] py-[10px]">
+        <div className="rounded-control bg-bg-inset px-[10px] py-[10px]">
           <p className="text-[9px] text-text-tertiary mb-[3px]">Transactions</p>
           <p className="font-data text-[16px] font-extrabold tracking-[-0.03em] text-text-primary">{transaction_count}</p>
         </div>
@@ -146,7 +153,7 @@ export function OfficeMonthlyOverview() {
               className="flex-1 rounded-t-[3px]"
               style={{
                 height: `${r * 100}%`,
-                backgroundColor: '#22C55E',
+                backgroundColor: colors.positive,
                 opacity: 0.6 + r * 0.4,
               }}
             />
@@ -157,14 +164,14 @@ export function OfficeMonthlyOverview() {
           className="absolute left-0 right-0 z-[3]"
           style={{
             bottom: '49px',
-            borderTop: '1.5px dashed rgba(232,168,76,0.4)',
+            borderTop: `1.5px dashed ${colors.goldSoft}`,
           }}
         />
         <span
           className="absolute right-0 z-[4] font-data text-[8px]"
           style={{
             bottom: '51px',
-            color: 'rgba(232,168,76,0.5)',
+            color: colors.goldSoft,
           }}
         >
           avg {formatCurrencyRounded(weeklyAvg)}/wk
@@ -174,16 +181,16 @@ export function OfficeMonthlyOverview() {
       {/* Category breakdown */}
       <p className="text-[10px] font-bold text-text-muted tracking-[0.04em] uppercase mt-3.5 mb-1.5">By category</p>
       {categories.map(([slug, cat]) => (
-        <div key={slug} className="flex items-center gap-2 py-2 border-b border-[rgba(255,255,255,0.03)]">
+        <div key={slug} className="flex items-center gap-2 py-2 border-b border-border-subtle">
           <span className="text-[13px] w-4 text-center shrink-0">{iconToEmoji(cat.icon)}</span>
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-semibold text-text-primary">{cat.name}</p>
-            <div className="h-[5px] rounded-[2.5px] mt-[3px] bg-[rgba(255,255,255,0.04)] overflow-hidden">
+            <div className="h-[5px] rounded-pill mt-[3px] bg-muted overflow-hidden">
               <div
-                className="h-full rounded-[2.5px]"
+                className="h-full rounded-pill"
                 style={{
                   width: `${(cat.amount / maxCat) * 100}%`,
-                  backgroundColor: '#22C55E',
+                  backgroundColor: colors.positive,
                 }}
               />
             </div>
