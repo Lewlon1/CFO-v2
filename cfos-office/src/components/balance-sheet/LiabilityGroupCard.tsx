@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/constants/dashboard'
 import { GroupIcon } from './icons'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { liabilityTypeColor, typeColorTint } from '@/lib/balance-sheet/type-colors'
 import type { BalanceSheetLiabilityGroup } from '@/app/api/balance-sheet/route'
 
 type Props = {
@@ -26,17 +27,18 @@ function relativeTime(iso: string | null | undefined): string {
 
 export function LiabilityGroupCard({ group, currency }: Props) {
   const hasPriority = group.items.some((i) => i.is_priority)
+  const accent = liabilityTypeColor(group.type)
 
   return (
     <Card className="overflow-hidden">
       <div
         className="flex items-center justify-between px-4 py-3 border-b border-border"
-        style={{ borderLeft: `3px solid ${group.color}` }}
+        style={{ borderLeft: `3px solid ${accent}` }}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div
             className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: `${group.color}20`, color: group.color }}
+            style={{ backgroundColor: typeColorTint(accent), color: accent }}
           >
             <GroupIcon name={group.icon} className="w-4 h-4" />
           </div>

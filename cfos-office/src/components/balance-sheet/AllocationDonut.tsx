@@ -3,6 +3,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { formatCurrency } from '@/lib/constants/dashboard'
 import { colors } from '@/lib/tokens'
+import { assetTypeColor } from '@/lib/balance-sheet/type-colors'
 import type { AllocationSlice } from '@/app/api/balance-sheet/route'
 
 type Props = {
@@ -27,7 +28,7 @@ export function AllocationDonut({ allocation, totalAssets, currency = 'EUR' }: P
     name: s.label,
     value: s.value,
     pct: s.pct,
-    fill: s.color,
+    fill: assetTypeColor(s.type),
     type: s.type,
   }))
 
@@ -58,7 +59,7 @@ export function AllocationDonut({ allocation, totalAssets, currency = 'EUR' }: P
             <Tooltip
               contentStyle={{
                 backgroundColor: colors.bgElevated,
-                border: `1px solid `,
+                border: `1px solid ${colors.borderVisible}`,
                 borderRadius: 8,
                 color: colors.textPrimary,
                 fontSize: 13,

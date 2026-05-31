@@ -7,6 +7,7 @@ import { GroupIcon } from './icons'
 import { HoldingsDetail } from './HoldingsDetail'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { assetTypeColor, typeColorTint } from '@/lib/balance-sheet/type-colors'
 import type { BalanceSheetAssetGroup } from '@/app/api/balance-sheet/route'
 
 type Props = {
@@ -28,17 +29,18 @@ function relativeTime(iso: string | null | undefined): string {
 
 export function AssetGroupCard({ group, currency }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
+  const accent = assetTypeColor(group.type)
 
   return (
     <Card className="overflow-hidden">
       <div
         className="flex items-center justify-between px-4 py-3 border-b border-border"
-        style={{ borderLeft: `3px solid ${group.color}` }}
+        style={{ borderLeft: `3px solid ${accent}` }}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div
             className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: `${group.color}20`, color: group.color }}
+            style={{ backgroundColor: typeColorTint(accent), color: accent }}
           >
             <GroupIcon name={group.icon} className="w-4 h-4" />
           </div>

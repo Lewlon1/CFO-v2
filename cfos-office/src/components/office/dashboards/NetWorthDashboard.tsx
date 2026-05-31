@@ -10,6 +10,7 @@ import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
 import { folderColors } from '@/lib/tokens'
+import { assetTypeColor, liabilityTypeColor } from '@/lib/balance-sheet/type-colors'
 import type { BalanceSheetResponse } from '@/app/api/balance-sheet/route'
 
 const ACCENT = folderColors.networth
@@ -298,7 +299,7 @@ function Composition({
     label: g.label,
     amount: g.total,
     pct: data.total_assets > 0 ? (g.total / data.total_assets) * 100 : 0,
-    color: g.color,
+    color: assetTypeColor(g.type),
     isLiab: false,
   }))
   const liabs = data.liability_groups.map((g) => ({
@@ -306,7 +307,7 @@ function Composition({
     label: g.label,
     amount: g.total,
     pct: data.total_liabilities > 0 ? (g.total / data.total_liabilities) * 100 : 0,
-    color: g.color,
+    color: liabilityTypeColor(g.type),
     isLiab: true,
   }))
   const rows = [...assets, ...liabs]
