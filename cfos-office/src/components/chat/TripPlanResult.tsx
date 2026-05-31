@@ -1,14 +1,19 @@
 'use client';
 
 import { formatCurrency } from '@/lib/format/currency';
+import { colors, valueColors } from '@/lib/tokens';
 
+// Phase 3b restyle: the trip-budget bars have no dedicated token palette, so each
+// category maps to the nearest semantic token (theme-reactive var() strings).
+// Flagged no-clean-equivalents: `activities` was pink → accent-cyan; `local_transport`
+// was violet → burden warm-grey. No new token invented to preserve a one-off shade.
 const BUDGET_COLORS: Record<string, string> = {
-  flights: '#6366F1',
-  accommodation: '#E8A84C',
-  food: '#10B981',
-  activities: '#F472B6',
-  local_transport: '#8B5CF6',
-  misc: '#6B7280',
+  flights: colors.info,
+  accommodation: colors.gold,
+  food: colors.positive,
+  activities: colors.cyan,
+  local_transport: valueColors.burden,
+  misc: valueColors.unsure,
 };
 
 const BUDGET_LABELS: Record<string, string> = {
@@ -21,14 +26,17 @@ const BUDGET_LABELS: Record<string, string> = {
 };
 
 function FeasibilityBadge({ rating }: { rating: string }) {
-  const colors: Record<string, string> = {
-    comfortable: 'bg-emerald-500/20 text-emerald-400',
-    tight: 'bg-amber-500/20 text-amber-400',
-    stretch: 'bg-orange-500/20 text-orange-400',
-    unrealistic: 'bg-red-500/20 text-red-400',
+  // Phase 3b flag: 4-tier feasibility collapses onto the 3 available semantic
+  // tokens (positive / accent-gold / negative) — no amber/orange token exists;
+  // tight & stretch share gold (the label keeps them distinct). No new token.
+  const ratingClasses: Record<string, string> = {
+    comfortable: 'bg-positive/15 text-positive',
+    tight: 'bg-accent-gold-bg text-accent-gold',
+    stretch: 'bg-accent-gold-bg text-accent-gold',
+    unrealistic: 'bg-negative/15 text-negative',
   };
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full ${colors[rating] || 'bg-muted text-muted-foreground'}`}>
+    <span className={`text-xs px-2 py-0.5 rounded-full ${ratingClasses[rating] || 'bg-muted text-muted-foreground'}`}>
       {rating}
     </span>
   );
@@ -67,7 +75,7 @@ export function TripPlanResult({ result }: { result: any }) {
                   className="h-full rounded-full"
                   style={{
                     width: `${(val / maxAmount) * 100}%`,
-                    backgroundColor: BUDGET_COLORS[key] || '#6B7280',
+                    backgroundColor: BUDGET_COLORS[key] || valueColors.unsure,
                   }}
                 />
               </div>
@@ -121,7 +129,7 @@ export function TripPlanResult({ result }: { result: any }) {
             {funding.suggested_cuts.map((cut: { category: string; current_monthly: number; suggested_reduction: number }) => (
               <div key={cut.category} className="flex items-center justify-between py-0.5">
                 <span className="text-xs text-muted-foreground">{cut.category}</span>
-                <span className="text-xs text-emerald-400">+{formatCurrency(cut.suggested_reduction, result.currency)}/mo</span>
+                <span className="text-xs text-positive">+{formatCurrency(cut.suggested_reduction, result.currency)}/mo</span>
               </div>
             ))}
           </div>
