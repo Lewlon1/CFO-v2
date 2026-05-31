@@ -13,7 +13,7 @@ export function DrillDownRow({ title, subtitle, href, icon, accentColor }: Drill
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 min-h-[48px] px-[14px] py-3 rounded-[10px] border border-[rgba(255,255,255,0.04)] bg-bg-card transition-colors hover:bg-[rgba(255,255,255,0.03)] active:bg-bg-inset"
+      className="flex items-center gap-3 min-h-[48px] px-[14px] py-3 rounded-control border border-border-subtle bg-bg-card transition-colors hover:bg-tap-highlight active:bg-bg-inset"
     >
       {icon && (
         <span
