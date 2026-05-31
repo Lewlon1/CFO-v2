@@ -9,6 +9,49 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Dead-Code Audit, Phase 0 (Repo Hygiene) — 2026-05-29
+
+**Branch:** `claude/dead-code-audit` (off `claude/visual-consistency-audit`).
+**Scope:** Identification only — nothing deleted/moved/merged; no DB. Produced `audit/dead-code.md`: a reachability-accurate, triage-classified (KILL/ARCHIVE/MERGE/KEEP/VERIFY, +SPARE for Lewis) whole-app dead-code inventory via `knip` (primary) + `ts-prune` + `madge`, replacing the stale `audit/03-*` snapshot. **Revision 1:** added a full per-export enumeration, a rigorous per-route API caller check, resolution of the VERIFY items (pattern-detectors + insight-engine → KEEP, live via the `PATTERN_LIBRARY` registry / internal calls), and a card-cluster re-check (no merge candidate).
+
+### Headline counts (knip, current branch)
+
+- **18 unused files — but 0 in `src/`.** All are `scripts/`/`eval/`/`tests/` standalone CLIs/harness (incl. the CLAUDE.md-documented `reextract-portrait.ts`, `show-shape-and-posture.ts`); knip flags them only because it lacks an entry glob for those dirs. **True deletable source files: 0.**
+- **88 unused exports**, 79 unused type exports, 17 duplicate (named+redundant-`default`) exports, 3 circular deps, 1 unused devDep.
+- **0 superseded routes** (no `(app)` group — already removed), **0 unwired crons** (8/8 in `vercel.json`), **0 unwired API routes** (rigorous per-route caller check; down from old BUILD-STATUS's "3 crons / 4 API"). `portfolio-analyzer`/`tool-handlers` already gone.
+
+### The correction (why the old "63" was unsafe)
+
+Stale `03-summary.md`: 113 components / **63 orphans** / "true ~19" — from a different machine snapshot (`/home/user/CFO-v2`), pre-v2.5. It listed `ScenariosDashboard` (deleted in v2.5) and three charts (`TrendChart`, `ValuesDonut`, `NetWorthTrendChart`) as "ready for deletion" — **all three are live via `next/dynamic`**, which a grep audit can't see. knip correctly keeps them. Accurate dead code is **export-level** (the `data/` trio + `CategoryBar`/`FileRow` + `opusModel`), not 63 files. Even the "~19 true orphans" were mis-located: they map to unwired *scripts*, not components.
+
+### KILL / KEEP (Revision-1 precision)
+
+**Genuinely dead (~18 exports, `own=1`/0-ref):** `findAction`, `opusModel` (**not** `opusModelId` — used in-file), `estimateCostUSD`, `isRefundRow`, `getMerchantKey`, `detectColumnMapping`/`isMappingHighConfidence`, `templatesForPattern`, `NUDGE_ICONS`/`NUDGE_LABELS`/`PRIORITY_ORDER`, `STRUGGLE_LABELS`, `isStartUploadAction`/`isStartValueMapRealAction`, `isHoldingsMappingHighConfidence`, `predictValueCategory`, `personaIds`, `loadDotenvLocal` — plus the dead `data/` layer (`FolderCard`/`FolderMetric`, `CategoryBar`/`FileRow`, barrel entries). **KEEP (false positives recorded):** the 8 `pattern-detectors` (live via the exported `PATTERN_LIBRARY[]` array — the registry blind spot), the 4 `insight-engine` fns (called internally L149–158), `buildFirstInsightContext` V1 (still called at `context-builder.ts:1207`), the `monthly-snapshot` trio, the `next/dynamic` charts. **18 redundant `default` exports → cleanup.**
+
+### Hazards / preconditions (prominent)
+
+- **`session-32/staging-user-hygiene` (unmerged) edits `pattern-detectors.ts` + `dashboard/EmptyState.tsx` + `office/sections/GoalsEmptyState.tsx`** — overlapping the EmptyState MERGE cluster and the `pattern-detectors.ts` un-export hygiene (those 8 exports are now **KEEP** — live via `PATTERN_LIBRARY` — so no deletion conflict, but the MERGE + hygiene **must wait for that merge or fence around those files**). Other unmerged branches touch no target. O1/O2 already on `main` (stale hazard).
+- **`MetricTile`/`ValuePill` now have 1 consumer each — the dev-only `/styleguide`** on the parent `claude/visual-consistency-audit` branch. Sequence the `data/`-trio deletion with that branch. (`FolderCard`/`FolderMetric` have no consumer → clean.)
+- The EmptyState MERGE is now **6** files (added `bills/EmptyBillsState`), each with a "survivor must do:" stub for Lewis in §4.
+
+### Verification
+
+- `knip`/`ts-prune`/`madge` all ran; counts recorded. Nothing deleted/moved — `git status` shows only `audit/dead-code.md` (new) + this `SESSION-LOG.md` entry.
+- `git diff --stat` (tracked) = `SESSION-LOG.md` only; `audit/dead-code.md` untracked.
+
+### Tooling corrections for the next agent
+
+- **knip needs an entry config** (`scripts/**`, `eval/**`, `tests/onboarding/runner/cli.ts`) or it false-flags every standalone CLI; commit `knip.json` before trusting the file list, then graduate knip into a CI gate (third drift-proofing prong alongside the Visual Phase-4 ESLint ban + `/styleguide`).
+- **ts-prune is noisy** (218 src vs knip 88 — counts test-only consumers + unresolved `@/` re-exports); knip is authoritative.
+- **madge** needs `--ts-config tsconfig.json` to resolve `@/` aliases. zsh: `unsetopt nomatch` + quote `--include` globs (per the Visual Phase 0 appendix).
+
+### Files
+
+- NEW `audit/dead-code.md`
+- MODIFIED `SESSION-LOG.md` (this entry)
+
+---
+
 ## Session — Fixed-Cost Confidence (value-first onboarding) — 2026-05-29
 
 **Branch:** `claude/quirky-easley-78125c` (worktree off main `9221eed`; the plan's
