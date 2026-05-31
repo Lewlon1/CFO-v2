@@ -13,13 +13,13 @@ interface MonthSelectorProps {
 }
 
 export function MonthSelector({ label, onPrev, onNext }: MonthSelectorProps) {
-  const chevronBtn = 'w-7 h-7 rounded-[6px] flex items-center justify-center text-text-tertiary'
+  const chevronBtn = 'w-7 h-7 rounded-control flex items-center justify-center text-text-tertiary'
   return (
     <div className="flex items-center justify-center gap-3.5 mb-3">
       <button
         onClick={onPrev}
         className={chevronBtn}
-        style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
+        style={{ backgroundColor: 'var(--muted)' }}
       >
         <svg width={12} height={12} viewBox="0 0 24 24" fill="none">
           <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
@@ -31,7 +31,7 @@ export function MonthSelector({ label, onPrev, onNext }: MonthSelectorProps) {
       <button
         onClick={onNext}
         className={chevronBtn}
-        style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
+        style={{ backgroundColor: 'var(--muted)' }}
       >
         <svg width={12} height={12} viewBox="0 0 24 24" fill="none">
           <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
@@ -63,10 +63,10 @@ export function TransactionRow({
   return (
     <div
       className="flex items-center gap-2 py-2.5"
-      style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
     >
       <div
-        className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px] shrink-0"
+        className="w-7 h-7 rounded-control flex items-center justify-center text-[12px] shrink-0"
         style={{ backgroundColor: iconBg, color: iconColor }}
       >
         {icon}
@@ -103,10 +103,10 @@ export function FilterPills({ options, activeId, onChange }: FilterPillsProps) {
           onClick={() => onChange?.(opt.id)}
           className={`font-data text-[9px] py-[5px] px-[9px] rounded-xl whitespace-nowrap cursor-pointer transition-colors ${
             opt.id === activeId
-              ? 'bg-[rgba(255,255,255,0.06)] text-[#F5F5F0]'
+              ? 'bg-accent text-text-primary'
               : 'bg-transparent text-text-tertiary'
           }`}
-          style={{ border: `1px solid ${opt.id === activeId ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}` }}
+          style={{ border: `1px solid ${opt.id === activeId ? 'var(--border)' : 'var(--border-medium)'}` }}
         >
           {opt.label}
         </button>
@@ -140,19 +140,26 @@ interface GapCardProps {
   status: 'aligned' | 'gap' | 'eliminated' | 'partial'
 }
 
-const statusStyles = {
-  aligned:    { bg: 'rgba(34,197,94,0.12)', color: '#22C55E', cardBg: 'rgba(34,197,94,0.02)' },
-  gap:        { bg: 'rgba(243,63,94,0.12)', color: '#F43F5E', cardBg: 'rgba(243,63,94,0.02)' },
-  eliminated: { bg: 'rgba(34,197,94,0.12)', color: '#22C55E', cardBg: 'rgba(34,197,94,0.02)' },
-  partial:    { bg: 'rgba(232,168,76,0.12)', color: '#E8A84C', cardBg: 'rgba(232,168,76,0.02)' },
+// Phase 3b: status palette onto theme-reactive tokens. bg = 12% tint, cardBg =
+// 2% tint via color-mix; both reactive to the semantic token in either theme.
+const statusToken: Record<GapCardProps['status'], string> = {
+  aligned:    'var(--positive)',
+  gap:        'var(--negative)',
+  eliminated: 'var(--positive)',
+  partial:    'var(--accent-gold)',
 }
 
 export function GapCard({ belief, reality, status }: GapCardProps) {
-  const s = statusStyles[status]
+  const token = statusToken[status]
+  const s = {
+    bg: `color-mix(in oklab, ${token} 12%, transparent)`,
+    color: token,
+    cardBg: `color-mix(in oklab, ${token} 2%, transparent)`,
+  }
   return (
     <div
-      className="rounded-[10px] p-3 mb-2"
-      style={{ backgroundColor: s.cardBg, border: '1px solid rgba(255,255,255,0.04)' }}
+      className="rounded-control p-3 mb-2"
+      style={{ backgroundColor: s.cardBg, border: '1px solid var(--border-subtle)' }}
     >
       <div className="text-[11px] text-text-secondary mb-[5px] leading-[1.5]">
         {belief}
