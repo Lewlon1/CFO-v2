@@ -404,8 +404,12 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
                       : 'hover:bg-card/80',
                 )}
                 style={{
-                  borderColor: isSelected ? q.colour : q.colour + '40',
-                  backgroundColor: isSelected ? q.colour + '18' : q.colour + '08',
+                  borderColor: isSelected
+                    ? q.colour
+                    : `color-mix(in oklab, ${q.colour} 25%, transparent)`,
+                  backgroundColor: isSelected
+                    ? `color-mix(in oklab, ${q.colour} 9%, transparent)`
+                    : `color-mix(in oklab, ${q.colour} 3%, transparent)`,
                   ...(isSelected ? { '--tw-ring-color': q.colour } as React.CSSProperties : {}),
                 }}
               >

@@ -26,12 +26,7 @@ export function IncomeShapeBadge({ data }: { data: ShapeData | null }) {
 
   return (
     <div
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono"
-      style={{
-        background: 'rgba(232,168,76,0.06)',
-        color: 'rgba(232,168,76,0.8)',
-        border: '0.5px dashed rgba(232,168,76,0.3)',
-      }}
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-caption font-mono border-[0.5px] border-dashed border-accent-gold/30 bg-accent-gold-bg text-accent-gold/80"
     >
       <span>shape · {data.income_shape}</span>
       <span>·</span>
