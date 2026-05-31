@@ -9,6 +9,118 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Consistency, Phase 3 (call-site migration, execution) — 2026-05-31
+
+**Branch:** `claude/visual-consistency-phase3-oTjGz` (off the merged foundation tip
+`5b9482a`, PR #61). Integration target = this branch (the standalone
+`feature/visual-consistency` integration branch was never cut — the foundation merged
+straight to `main`, so this branch *is* the integration line). One surface = one commit,
+sequential. Pure front-end; no DB; no enforcement tooling.
+
+**Supersedes the prior P3.0 "sweep deferred" note (2026-05-30).** That deferral was
+environment-bound: a dev server wouldn't hold in the worktree. Here the dev server runs;
+pages render 200 once dummy Supabase env is supplied. Screenshots are still unavailable
+(the Playwright chromium download is blocked by the network policy, and the office/value
+surfaces need authed data) — so **per-surface verification was build + typecheck + grep +
+theme-reactivity reasoning, not eyeballing.** This is the honest gating limitation; the
+migrations are faithful-by-construction (tokens carry the same hexes, theme-reactive), and
+the colour work additionally *fixes* three latent bugs (below). Surfaces that genuinely need
+a live both-theme eyeball before the epoch merges are flagged.
+
+**Re-run drift (P3.0, this env):** 174 hex · 73 rgba · 37 colour-bracket · 293 type-bracket ·
+52 radius-bracket. After this session: **98 hex · 65 rgba · 8 colour-bracket** · 270 type ·
+52 radius — and **near-zero colour across every surface migrated** (the Phase-4 gate). The
+remaining colour is concentrated in out-of-scope / deferred / flagged buckets (below), not in
+migrated surfaces.
+
+**Latent bugs fixed by the colour migration (caught by reading, not visible to build/grep):**
+1. **Broken hex-alpha concatenation on `var(--value-*)` strings.** Phase 1 repointed
+   `QUADRANTS[q].colour` to `var(--value-…)`; the surviving `q.colour + '40'` /
+   `` `${q.colour}20` `` concatenations then produced invalid CSS (`var(--value-foundation)40`)
+   and **silently dropped every quadrant tint**. Fixed in 6 sites (value-map-card,
+   value-map-summary, cut-or-keep, demo-card) → `color-mix(in oklab, ${q.colour} N%, transparent)`,
+   the idiom `tokens.ts` itself uses.
+2. **Stale inverted value palette** hardcoded in `onboarding/beats/ArchetypeBeat` — the
+   allocation bar still used the pre-foundation hexes (foundation `#22C55E` green /
+   investment `#3B82F6` blue), the exact Foundation/Investment inversion Phase 1 corrected at
+   the token layer. Now reads `valueColors.*`.
+3. **Frozen-dark chart chrome + ValuesDonut "unsure" `#6B7280`** — never adapted to light
+   theme. Now on `colors.*` / `valueColors.unsure` var-strings.
+
+**Surfaces landed (each its own commit, build+typecheck green):**
+1. **Prove-the-loop — `value-map-summary`.** color-mix tint fix + `text-[10px]→text-caption`.
+2. **Value-map** (`cut-or-keep`, `one-thing`, `retake-impact`, `value-map-card`,
+   `value-map-flow`). CFO-gold CTAs → `bg-primary text-primary-foreground` (theme-reactive,
+   contrast-correct in light); pure gold fills → `bg/border/text-accent-gold`; leak red →
+   `value-leak`; concat bug fixed.
+3. **Onboarding** (`ArchetypeBeat` [+ inversion fix + `[var(--…)]`→utilities],
+   `missing-costs`, `struggle-question`, `archetype-orchestrator`, `first-read-orchestrator`).
+   Eyebrow `text-[10px]→text-caption`, single-line button labels `text-[15px]→text-h3`.
+4. **Charts (P3.3)** — `TrendChart`, `ValuesTrendChart`, `ValuesDonut`, `SpendingChart`,
+   `NetWorthTrendChart`, `AllocationDonut`. Chrome + series → `colors`/`valueColors`
+   var-string accessors, extending the pattern already shipped in `ValuesTrendChart`.
+5. **Office home sections** — `FolderSection` (stale white-rgba chrome → tokens; exact-grid
+   spacing/radius/type snaps), `NetWorth/CashFlow/Values/GoalsSection` (folder-identity hexes
+   → folder tokens).
+6. **Chat CTAs + demo + dev badge** — `ChatCTA`, `ValueMapActionButton` (gold CTAs),
+   `demo-card` (concat fix), `payoff-panel`, `IncomeShapeBadge` (drops `style={{}}` rgba).
+
+**Faithful-vs-restyle flags (residuals kept deliberately, not silently restyled):**
+- **Bespoke serif/editorial type** off the named scale (scale tops at 20px): `value-map-flow`
+  intro (`text-[28px]/[17px]/[13.5px]` + hand-tuned `leading-[…]`), `struggle-question` &
+  `first-read` prose/serif (`text-[30px]/[17px]/[14.5px]/[14px]`, the `text-[15px]
+  leading-[1.65]` Read narrative). Snapping would restyle hand-tuned reading experiences or
+  fight the named tokens' bundled line-heights. → a typed **editorial scale** decision.
+- **Mini-bar dims** `rounded-[3px]` / `gap-[3px]` / `h-[5px]` (UI-DIRECTION "Mini Bars" 5px/3px)
+  — no named-scale step; faithful keep.
+
+**P3.3 — balance-sheet route: DEFERRED (decided).** `api/balance-sheet/route.ts` emits
+folder/value **hexes** in its JSON; clients (`AssetGroupCard`/`LiabilityGroupCard` via
+`` `${group.color}20` `` — valid 8-digit hex, *not* broken; `AllocationDonut`, `NetWorthCards`)
+consume them as inline styles. The clean fix (stop emitting colour; resolve the token
+client-side by category id) is a multi-component data-flow refactor, not a styling swap — P3.3
+says scope that as its own sub-phase, do **not** smuggle it in. Deferred with this note.
+
+**P3.4 — EmptyState: still 6→1 PENDING (session-32 fence holds).** `dashboard/EmptyState`,
+`office/sections/GoalsEmptyState`, `office/goals/GoalsEmptyStateCTA` are still live with active
+consumers, show no landed session-32 edits (last touch v2.5 #49), and no
+`session-32/staging-user-hygiene` branch exists. Left untouched per P3.4's explicit fallback
+(reach 6→1 after session-32 lands) to avoid a conflict. Survivor collapse from Phase 2c stands
+(6→survivor+2 collapsed+3 fenced).
+
+**Out of scope (legitimately not migrated):** `CATEGORY_COLORS` (dashboard.ts — DB-coupled),
+brand SVG art (`CFOAvatar`, Google logo), html2canvas/share-card literals (`value-map-summary`
+`#0a0a0a`; `demo-reveal` is a fixed 540×540 always-dark exported share image — `accent-gold`
+would wrongly brass-shift in light), AI-tool data files (`label-transactions*`).
+
+**Deferred to the follow-up sweep (with a working preview):** the heavy office surfaces not
+yet migrated — `OfficeMonthlyOverview`, `OfficeValuesBreakdown`, `DataComponents`, `GoalCard`,
+the `dashboards/*` bodies, `the-gap/*`, and the bespoke chat result palettes
+(`LabelTransactionsBlock`'s "prototype's exact visual" frozen-dark theme, `ScenarioResult`,
+`TripPlanResult` accent palettes — these need a design decision, not a mechanical swap). These
+carry the bulk of the remaining type/spacing brackets + context-dependent white-rgba chrome
+and want a live both-theme eyeball. **Phase 4 must not run until these land and repo-wide
+residual is zero across migrated surfaces.**
+
+### Validation Register — Visual Consistency Phase 3
+
+| Item | Status |
+|---|---|
+| Prove-the-loop (value-map-summary) clean + builds | ✅ TYPECHECK_EXIT=0 / BUILD_EXIT=0 |
+| Value-map surface — colour zero (1 exempt canvas hex) | ✅ migrated; concat bug fixed |
+| Onboarding surface — colour zero | ✅ migrated; inversion bug fixed |
+| Charts (P3.3) — chrome+series on var-strings | ✅ migrated · ⏳ both-theme paint eyeball (no browser here) |
+| Office home sections — colour zero | ✅ migrated |
+| Chat CTAs / demo-card / payoff-panel / IncomeShapeBadge | ✅ migrated; demo-card concat bug fixed |
+| Broken `var()`+hex-alpha concatenations (6 sites) | ✅ all fixed → color-mix |
+| Balance-sheet route colour-in-payload (P3.3) | ⏳ Deferred (own sub-phase) — decided, noted |
+| EmptyState 6→1 | ⏳ Pending session-32 (fence holds; survivor+2+3 stands) |
+| Heavy office surfaces + bespoke chat palettes | ⏳ Deferred to follow-up sweep (needs preview) |
+| Repo-wide colour after session | hex 174→98 · rgba 73→65 · colour-bracket 37→8 (rest = out-of-scope/deferred/flagged) |
+| Phase 4 gate (zero residual across migrated surfaces) | ⏳ Not yet — follow-up sweep outstanding |
+
+---
+
 ## Session — Visual Foundation Close-Out (eyeball fixes) — 2026-05-31
 
 Four small, merge-blocking foundation deltas after the eyeball passed the main gate. Pure

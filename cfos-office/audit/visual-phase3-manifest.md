@@ -1,5 +1,25 @@
 # Visual Consistency — Phase 3 manifest (P3.0 reconciliation)
 
+**Status (updated 2026-05-31):** P3.0 done; **P3.1+ sweep EXECUTED for the critical-path
+surfaces** on `claude/visual-consistency-phase3-oTjGz` — prove-the-loop (value-map-summary),
+value-map, onboarding, charts (P3.3), office home sections, chat CTAs + demo-card + dev badge.
+Colour near-zero across every migrated surface; three latent bugs fixed (var()+hex-alpha
+concat ×6, ArchetypeBeat inverted palette, frozen-dark chart chrome). Balance-sheet route
+(P3.3) **deferred as its own sub-phase**; EmptyState 6→1 **still pending session-32**; the heavy
+office bodies (`OfficeMonthlyOverview`, `OfficeValuesBreakdown`, `DataComponents`, `GoalCard`,
+`dashboards/*`, `the-gap/*`) + bespoke chat result palettes deferred to a follow-up sweep
+needing a live both-theme preview. Full detail: SESSION-LOG "Visual Consistency, Phase 3
+(call-site migration, execution) — 2026-05-31".
+
+**The "dev server won't run" constraint below was environment-specific (the old worktree) and
+did NOT apply here** — the server ran; only browser screenshots were unavailable (network policy
+blocks the chromium download), so verification was build+typecheck+grep+theme-reactivity
+reasoning.
+
+---
+
+_Original P3.0 reconciliation (2026-05-30), retained below:_
+
 **Status:** P3.0 (reconciliation) done. P3.1+ (the surface-by-surface bracket sweep) **deferred** — see the constraint below. Built on Phase 1 + Phase 2 (committed).
 
 ## Drift battery — re-run post-Phase-1/2 (occurrences across `src`)
