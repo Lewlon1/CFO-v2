@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { formatCurrencyRounded } from '@/lib/utils/format-currency-rounded'
+import { colors, folderColors } from '@/lib/tokens'
 
 interface NetWorthSectionProps {
   totalAssets: number
@@ -20,7 +21,7 @@ export function NetWorthSection({ totalAssets, totalLiabilities, currency = 'EUR
         <p className="text-sm text-text-secondary">
           Track your assets and debts to see your net worth
         </p>
-        <span className="text-sm font-medium text-[#06B6D4]">Set up &rarr;</span>
+        <span className="text-sm font-medium text-folder-networth">Set up &rarr;</span>
       </Link>
     )
   }
@@ -31,16 +32,16 @@ export function NetWorthSection({ totalAssets, totalLiabilities, currency = 'EUR
   return (
     <div className="pt-1">
       <div className="flex items-baseline gap-1.5">
-        <span className={`font-data text-[18px] font-extrabold tracking-[-0.03em] tabular-nums ${netWorth >= 0 ? 'text-[#06B6D4]' : 'text-[#F43F5E]'}`}>
+        <span className={`font-data text-h1 font-extrabold tracking-[-0.03em] tabular-nums ${netWorth >= 0 ? 'text-folder-networth' : 'text-negative'}`}>
           {formatCurrencyRounded(netWorth, currency)}
         </span>
-        <span className="text-[11px] text-text-tertiary">net worth</span>
+        <span className="text-label text-text-tertiary">net worth</span>
       </div>
       {(totalAssets > 0 || totalLiabilities > 0) && (
         <div className="flex h-[5px] rounded-[3px] overflow-hidden mt-2">
-          <div style={{ flex: pctAssets, background: '#06B6D4' }} />
+          <div style={{ flex: pctAssets, background: folderColors.networth }} />
           {totalLiabilities > 0 && (
-            <div style={{ flex: 100 - pctAssets, background: '#F43F5E' }} />
+            <div style={{ flex: 100 - pctAssets, background: colors.negative }} />
           )}
         </div>
       )}

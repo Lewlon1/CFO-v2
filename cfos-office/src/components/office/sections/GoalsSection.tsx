@@ -19,7 +19,7 @@ export function GoalsSection({ goal, currency = 'EUR', upcomingEventsCount = 0 }
       {goal && <ActiveGoalSummary goal={goal} currency={currency} />}
       <Link
         href="/office/goals/travel-events"
-        className="flex items-center justify-between gap-2 py-1 text-[11px] text-text-secondary hover:text-text-primary transition-colors"
+        className="flex items-center justify-between gap-2 py-1 text-label text-text-secondary hover:text-text-primary transition-colors"
       >
         <span>Travel &amp; Events</span>
         <span className="tabular-nums text-text-tertiary">
@@ -42,16 +42,16 @@ function ActiveGoalSummary({ goal, currency }: { goal: PrimaryGoal; currency: st
   return (
     <div className="space-y-1">
       <div className="flex items-baseline gap-1.5">
-        <span className="font-data text-[18px] font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
+        <span className="font-data text-h1 font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
           {formatCurrencyRounded(current, currency)}
         </span>
         {hasTarget && (
           <>
-            <span className="text-[11px] text-text-tertiary">
+            <span className="text-label text-text-tertiary">
               of {formatCurrencyRounded(target, currency)}
             </span>
             {pct != null && (
-              <span className="text-[11px] ml-auto text-text-secondary tabular-nums">
+              <span className="text-label ml-auto text-text-secondary tabular-nums">
                 {pct}%
               </span>
             )}
@@ -59,7 +59,7 @@ function ActiveGoalSummary({ goal, currency }: { goal: PrimaryGoal; currency: st
         )}
       </div>
       {(onTrack != null || goal.monthly_required_saving) && (
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex items-center gap-2 text-label">
           {onTrack != null && (
             <span
               style={{

@@ -45,7 +45,7 @@ export function ValuesSection({ summary, isLoading, archetype, profileCompletene
       {/* Value split bar */}
       {segments.length > 0 ? (
         <div
-          className="flex h-[6px] rounded-[3px] overflow-hidden gap-[3px]"
+          className="flex h-1.5 rounded-[3px] overflow-hidden gap-[3px]"
           style={{ marginTop: 6 }}
         >
           {segments.map(seg => (
@@ -62,7 +62,7 @@ export function ValuesSection({ summary, isLoading, archetype, profileCompletene
       ) : !archetype?.archetype_name ? (
         <Link
           href="/office/values/archetype"
-          className="block text-[11px] text-text-secondary hover:text-text-primary transition-colors"
+          className="block text-label text-text-secondary hover:text-text-primary transition-colors"
         >
           Discover your financial personality &rarr;
         </Link>
