@@ -110,6 +110,7 @@ export function FirstReadOrchestrator({ entryStruggle, valueFirst = false }: Pro
 
     return () => {
       cancelled = true
+      requestedRef.current = false
     }
   }, [])
 
@@ -190,7 +191,11 @@ export function FirstReadOrchestrator({ entryStruggle, valueFirst = false }: Pro
                   entry_struggle: entryStruggle ?? null,
                   value_first: valueFirst,
                 })
-                router.push('/onboarding-v2/value-map')
+                router.push(
+                  valueFirst
+                    ? '/onboarding-v2/value-map?hook=1'
+                    : '/onboarding-v2/value-map',
+                )
               }}
               className="text-left text-[14px] text-foreground underline underline-offset-2 hover:opacity-80"
             >
