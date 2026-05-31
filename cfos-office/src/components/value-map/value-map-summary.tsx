@@ -189,7 +189,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
         <p className="text-sm text-muted-foreground max-w-xs mx-auto">
           {personalityResult.description}
         </p>
-        <p className="text-[10px] text-muted-foreground/50 pt-1">The CFO&apos;s Office</p>
+        <p className="text-caption text-muted-foreground/50 pt-1">The CFO&apos;s Office</p>
       </div>
 
       {/* Share button */}
@@ -237,8 +237,8 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
               key={qId}
               className="rounded-xl border-2 p-3 space-y-1.5"
               style={{
-                borderColor: q.colour + '30',
-                backgroundColor: q.colour + '08',
+                borderColor: `color-mix(in oklab, ${q.colour} 19%, transparent)`,
+                backgroundColor: `color-mix(in oklab, ${q.colour} 3%, transparent)`,
               }}
             >
               <div className="flex items-center gap-1.5">
