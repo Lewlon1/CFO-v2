@@ -4,6 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, CartesianGrid,
 } from 'recharts'
 import { formatCurrency, formatShortMonth } from '@/lib/constants/dashboard'
+import { colors } from '@/lib/tokens'
 import type { TrendMonth } from '@/app/api/dashboard/trends/route'
 
 type Props = {
@@ -35,15 +36,15 @@ export function TrendChart({ months }: Props) {
       <h3 className="text-sm font-medium text-muted-foreground mb-4">Spending Trend</h3>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2A2A30" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.borderVisible} />
           <XAxis
             dataKey="month"
-            tick={{ fill: '#8A8A96', fontSize: 12 }}
-            axisLine={{ stroke: '#2A2A30' }}
+            tick={{ fill: colors.textTertiary, fontSize: 12 }}
+            axisLine={{ stroke: colors.borderVisible }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: '#8A8A96', fontSize: 12 }}
+            tick={{ fill: colors.textTertiary, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => `${Math.round(v / 1000)}k`}
@@ -51,10 +52,10 @@ export function TrendChart({ months }: Props) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#16161A',
-              border: '1px solid #2A2A30',
+              backgroundColor: colors.bgElevated,
+              border: `1px solid ${colors.borderMedium}`,
               borderRadius: 8,
-              color: '#F2F2F3',
+              color: colors.textPrimary,
               fontSize: 13,
             }}
             formatter={(value, name) => [
@@ -66,26 +67,27 @@ export function TrendChart({ months }: Props) {
             <Area
               type="monotone"
               dataKey="income"
-              fill="#10B98120"
+              fill={colors.positive}
+              fillOpacity={0.12}
               stroke="none"
             />
           )}
           <Line
             type="monotone"
             dataKey="spending"
-            stroke="#E8A84C"
+            stroke={colors.gold}
             strokeWidth={2}
-            dot={{ fill: '#E8A84C', r: 4 }}
+            dot={{ fill: colors.gold, r: 4 }}
             activeDot={{ r: 6 }}
           />
           {hasIncome && (
             <Line
               type="monotone"
               dataKey="income"
-              stroke="#10B981"
+              stroke={colors.positive}
               strokeWidth={2}
               strokeDasharray="6 3"
-              dot={{ fill: '#10B981', r: 4 }}
+              dot={{ fill: colors.positive, r: 4 }}
               activeDot={{ r: 6 }}
             />
           )}
