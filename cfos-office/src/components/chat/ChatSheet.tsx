@@ -180,7 +180,7 @@ export function ChatSheet() {
               <MoreVertical size={18} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-bg-elevated border border-border-medium rounded-[10px] shadow-lg z-10 py-1">
+              <div className="absolute right-0 top-full mt-1 w-52 bg-bg-elevated border border-border-medium rounded-control shadow-lg z-10 py-1">
                 <button
                   onClick={handleNewConversation}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-primary hover:bg-tap-highlight min-h-[44px]"
@@ -291,7 +291,7 @@ function FolderEmptyState({
         {meta.subtitle}
       </div>
 
-      <div className="h-px bg-[rgba(255,255,255,0.06)] my-4" />
+      <div className="h-px bg-border-medium my-4" />
 
       <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-office-gold mb-2.5">
         Things you could ask
@@ -301,7 +301,7 @@ function FolderEmptyState({
           <button
             key={prompt}
             onClick={() => onFillInput(prompt)}
-            className="flex items-center gap-2 text-left px-3 py-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-[10px] hover:border-office-gold transition-colors min-h-[44px]"
+            className="flex items-center gap-2 text-left px-3 py-[10px] bg-tap-highlight border border-border-medium rounded-control hover:border-office-gold transition-colors min-h-[44px]"
           >
             <span className="text-[10px] text-text-muted font-medium shrink-0 tabular-nums">
               {String(i + 1).padStart(2, '0')}
