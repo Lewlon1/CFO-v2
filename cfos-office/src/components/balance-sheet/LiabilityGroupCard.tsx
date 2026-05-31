@@ -3,6 +3,8 @@
 import { AlertTriangle, Star } from 'lucide-react'
 import { formatCurrency } from '@/lib/constants/dashboard'
 import { GroupIcon } from './icons'
+import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import type { BalanceSheetLiabilityGroup } from '@/app/api/balance-sheet/route'
 
 type Props = {
@@ -26,7 +28,7 @@ export function LiabilityGroupCard({ group, currency }: Props) {
   const hasPriority = group.items.some((i) => i.is_priority)
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
+    <Card className="overflow-hidden">
       <div
         className="flex items-center justify-between px-4 py-3 border-b border-border"
         style={{ borderLeft: `3px solid ${group.color}` }}
@@ -42,10 +44,10 @@ export function LiabilityGroupCard({ group, currency }: Props) {
             <p className="text-sm font-medium text-foreground flex items-center gap-2">
               {group.label}
               {hasPriority && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
+                <Badge tone="negative">
                   <Star className="w-2.5 h-2.5 fill-current" />
                   Priority
-                </span>
+                </Badge>
               )}
             </p>
             <p className="text-[11px] text-muted-foreground">
@@ -115,6 +117,6 @@ export function LiabilityGroupCard({ group, currency }: Props) {
           )
         })}
       </ul>
-    </div>
+    </Card>
   )
 }

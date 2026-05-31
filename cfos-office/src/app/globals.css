@@ -55,6 +55,20 @@
   /* Values folder — royal purple (retoken v2.5; was amber #E8A84C). */
   --folder-values: #7C4D9E;
 
+  /* Folder accents — join --folder-values (Phase 1). Single-value: identity across themes. */
+  --folder-goals: #9C7B2C;
+  --folder-cashflow: #22C55E;
+  --folder-networth: #06B6D4;
+
+  /* Value categories (Phase 1) — their OWN vars, independent of semantic
+     positive/negative/info (that coupling caused the inversion). Resolves it:
+     Foundation = blue, Investment = green, aligned to the shipped value-map. */
+  --value-foundation: #4A90D9;
+  --value-investment: #48BB78;
+  --value-leak: #E53E3E;
+  --value-burden: #9C8B7A;
+  --value-unsure: #9CA3AF;
+
   /* Borders */
   --border-subtle: rgba(244, 237, 217, 0.04);
   --border-medium: rgba(244, 237, 217, 0.06);
@@ -138,6 +152,19 @@
      Dark-mode counterpart: #7C4D9E. */
   --folder-values: #5E3A7C;
 
+  /* Value categories — deepened for AA on cream (dark-mode hues in :root above).
+     Folder accents intentionally NOT re-themed here (single-value identity).
+     Contrast vs --bg-base #F6F0E1 (WCAG AA text ≥ 4.5:1): foundation 4.68 ·
+     investment 5.00 · leak 4.81 · burden 5.49 · unsure 4.96. investment/unsure
+     were deepened from #2F855A (3.99) / #6B7280 (4.25) — both failed AA — staying
+     recognisably green / neutral grey, ahead of Phase 3 baking text-value-* into
+     ~640 sites. */
+  --value-foundation: #2D6CB8;
+  --value-investment: #2A7449;
+  --value-leak: #C53030;
+  --value-burden: #6E5E4A;
+  --value-unsure: #606873;
+
   /* Borders */
   --border-subtle: rgba(26, 22, 16, 0.08);
   --border-medium: rgba(26, 22, 16, 0.12);
@@ -169,7 +196,9 @@
   --font-serif: var(--font-instrument-serif);
   --font-mono: var(--font-geist-mono);
 
-  /* Office fonts — resolve inside (office) layout, fall back to Geist elsewhere */
+  /* Office fonts — resolve to the office-only families inside (office)/layout.tsx
+     (JetBrains Mono / DM Sans, defined there via next/font), falling back to the
+     global Geist/Instrument elsewhere. Both are genuinely loaded — do NOT collapse. */
   --font-data: var(--font-jetbrains-mono, var(--font-mono));
   --font-ui: var(--font-dm-sans, var(--font-sans));
 
@@ -196,6 +225,18 @@
   --color-border-visible: var(--border-visible);
   --color-tap-highlight: var(--tap-highlight);
 
+  /* Value + folder colour utilities (Phase 1) — generate bg/text/border-value-*
+     and -folder-* (theme-reactive via the vars above). */
+  --color-value-foundation: var(--value-foundation);
+  --color-value-investment: var(--value-investment);
+  --color-value-leak: var(--value-leak);
+  --color-value-burden: var(--value-burden);
+  --color-value-unsure: var(--value-unsure);
+  --color-folder-goals: var(--folder-goals);
+  --color-folder-cashflow: var(--folder-cashflow);
+  --color-folder-networth: var(--folder-networth);
+  --color-folder-values: var(--folder-values);
+
   /* Office aliases (backwards-compatible) */
   --color-office-bg: var(--office-bg);
   --color-office-bg-secondary: var(--office-bg-secondary);
@@ -211,6 +252,50 @@
   --color-office-cyan: var(--office-cyan);
   --color-office-purple: var(--office-purple);
   --color-office-blue: var(--office-blue);
+
+  /* === Dimensional scales — Visual Phase 2a ===
+     Collision-free NAMED tokens. We deliberately do NOT redefine Tailwind's
+     default --radius-* and --text-* keys (rounded-md, text-sm, …): the globals.css
+     audit found text-sm 370x, text-xs 275x, rounded-lg 128x already in use, so
+     redefining a default key would silently shift every existing utility. New
+     names only. Values trace UI-DIRECTION.md. Phase 3 snaps freehand brackets
+     (the 10px + 2.5-7px radius noise, the ~30 ad-hoc text sizes) onto these.
+     Spacing intentionally uses Tailwind's default 4px scale — no parallel tokens. */
+
+  /* Radii — control(8) / card(14) / pill(full). 10px + noise → nearest step (Phase 3). */
+  --radius-control: 8px;
+  --radius-card: 14px;
+  --radius-pill: 9999px;
+
+  /* Type — 11 steps (UI-DIRECTION), each with a paired line-height; tracking where
+     specified. Tokens carry size + rhythm only; weight & font-family stay with the
+     consumer (serif headings are w500, numeric/label headings w800). */
+  --text-display: 20px;          /* page title             (UI-DIRECTION --text-xl)   */
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.03em;
+  --text-h1: 18px;               /* folder detail heading  (--text-lg)   */
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.02em;
+  --text-h2: 16px;               /* metric values / hero   (--text-hero, usually mono) */
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.03em;
+  --text-h3: 15px;               /* chat header name       (--text-md)   */
+  --text-h3--line-height: 1.3;
+  --text-body: 13px;             /* chat messages, labels  (--text-body) */
+  --text-body--line-height: 1.55;
+  --text-body-sm: 12px;          /* inbox preview, greeting (--text-sm)  */
+  --text-body-sm--line-height: 1.5;
+  --text-label: 11px;            /* suggestion pills, "Open" (--text-label) */
+  --text-label--line-height: 1.3;
+  --text-caption: 10px;          /* folder subtitle, file type (--text-xs) */
+  --text-caption--line-height: 1.3;
+  --text-tag: 9px;               /* provenance, timestamps (--text-tag, mono)   */
+  --text-tag--line-height: 1.3;
+  --text-micro: 8px;             /* category-bar labels    (--text-micro, mono) */
+  --text-micro--line-height: 1.2;
+  --text-nano: 7px;              /* gap status badges      (--text-nano, mono uppercase) */
+  --text-nano--line-height: 1.2;
+  --text-nano--letter-spacing: 0.06em;
 
   /* Custom animations for Demo card exercise */
   --animate-value-feedback: value-feedback 0.4s ease-out forwards;

@@ -9,6 +9,190 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Foundation Close-Out (eyeball fixes) — 2026-05-31
+
+Four small, merge-blocking foundation deltas after the eyeball passed the main gate. Pure
+front-end; no DB; no Phase-3 call-site sweep. Branch: visual-foundation (pre-split).
+
+**F1 — font decision: KEEP Cormorant.** Confirmed Cormorant Garamond is already fully loaded
+via `next/font` in `(office)/layout.tsx` (weights 500/600/700, `--font-cormorant`) and used in
+six places — Briefing (×2), ChatSheet, ValuesDashboard (×2), NetWorthDashboard, the first-read
+orchestrator, and the "CFO's Office" wordmark. It renders correctly on the real `/office` route;
+the Georgia fallback is a `/styleguide`-scope artifact only (styleguide sits outside `(office)/`).
+Decision (Lewis): **keep Cormorant as a deliberate office family** — it is the briefing serif AND
+the wordmark, restoring original design intent. Briefing's serif is intentionally *different* from
+the heading serif (Cormorant vs Instrument Serif). No code change was needed — the wiring was
+already correct. Docs reconciled: UI-DIRECTION Font Stack block now records the decision and the
+true **six** loaded families (Instrument Serif / Instrument Sans / Geist Mono root + DM Sans /
+JetBrains Mono / Cormorant office); the stale Phase-2a "Font story" paragraph (still claiming
+"never loaded / Georgia bug") was corrected to match. Office sans/mono consolidation (DM Sans /
+JetBrains Mono → root) remains a separate open question, out of scope. (Note: SESSION-LOG entries
+1b/1d already corrected the original Phase-0 "three families" claim to six — left as the record.)
+
+**3b — AA contrast (light theme only).** Two light-theme value tokens failed WCAG AA text
+contrast vs `--bg-base #F6F0E1` and were deepened *before* Phase 3 bakes `text-value-*` into
+~640 sites:
+- `--value-investment`: `#2F855A` (3.99, FAIL) → `#2A7449` (**5.00**) — stays emerald green.
+- `--value-unsure`: `#6B7280` (4.25, FAIL) → `#606873` (**4.96**) — stays neutral slate grey.
+
+Verified ratios with a WCAG luminance calc. The other three light values are **untouched** and
+still pass (foundation 4.68 · leak 4.81 · burden 5.49). **Dark-theme value vars unchanged.** The
+Foundation=blue / Investment=green inversion mapping is **not** re-touched — this only darkens the
+green/grey hues for contrast.
+
+**3c — stale styleguide caption.** The `/styleguide` source-conflict panel (Section 03) still
+described the three value-colour sources as inverted/"disagree". Post-Phase-1 all three
+(`tokens.ts valueCategories`, value-map `QUADRANTS`, dashboard `VALUE_COLORS`) route through the
+same `--value-*` tokens and **agree** (Foundation blue / Investment green). Section note + the
+row-caption rewritten to state agreement; no-hardcode contract intact (swatches still read the
+live token layer).
+
+**3d — balance-sheet chat CTA: confirmed wired (code-level).** `BalanceSheetClient.tsx` renders
+the surviving `DashboardEmptyState` with `actionLabel="Start a conversation"` +
+`onAction={handleStartConversation}` → `chatCtx.startConversation('balance_sheet_setup')` and a
+pre-filled input; `useChatContext()` is wrapped in try/catch so it no-ops outside a provider. The
+"start a conversation" path preserved from the deleted `balance-sheet/EmptyState` is intact. **No
+code change.** *Open for Lewis:* visual confirm on a seeded account (Dorcas, staging) — the agent
+can't reach the populated route.
+
+**Verify.** `npm run typecheck` and `npm run build` — real exit codes recorded (see Validation
+Register). `git diff --stat` limited to the §5 manifest (globals.css, StyleguideClient.tsx,
+UI-DIRECTION.md, SESSION-LOG.md) — no `layout.tsx` / `Briefing.tsx` change (F1 needed none), no
+dead-code, no feature call-site churn.
+
+### Validation Register — Visual Foundation Close-Out
+
+| Item | Status |
+|---|---|
+| AA contrast (light investment/unsure ≥ 4.5:1) | ✅ Passing — 5.00 / 4.96, ratios recorded |
+| Stale styleguide conflict caption | ✅ Fixed — now states sources agree |
+| Font (F1) | ✅ Decided KEEP Cormorant; loaded == documented (six families) |
+| Balance-sheet chat CTA wiring | ✅ Confirmed wired (code-level) |
+| Balance-sheet *visual* confirm on seeded account | ⏳ Open — Lewis, Dorcas/staging (pre- or post-merge) |
+| Inversion mapping (Foundation=blue / Investment=green) | ✅ Untouched |
+
+---
+
+## Session — Visual Consistency, Part A (branch split) — 2026-05-30
+
+Split the commingled `claude/dead-code-audit` branch into two clean PRs (Strategy 2 — fresh
+branches off `main`, non-destructive):
+
+- **`visual-consistency-foundation`** (this branch): Phase 0 + Phase 2 + Phase 1 + P3.0,
+  cherry-picked off `main` (commits `fd43332` → `74aaa88` → `a34e209` + this note).
+- **`audit/dead-code`**: the dead-code deliverable (`audit/dead-code.md` + its SESSION-LOG
+  entry, moved here).
+
+**A.0 reality vs the spec:** there were no clean "dead-code commits" — `audit/dead-code.md`
+was untracked and its log entry had ridden into the visual P1+P2 commit. The "~3 unrelated
+commits" the spec expected were actually unmerged **feature** work (fixed-cost confidence,
+benchmark fix, a merge), not dead-code. Per Lewis: those 3 were **dropped** (building off
+`main` excludes them; preserved on `backup/dead-code-audit-pre-split` + the original branch).
+
+**Verify:** no visual source file differs from the pre-split tip (only the dead-code files +
+the dropped feature-baggage files differ); `npm run typecheck` + `npm run build` green.
+Backups: tag `backup/pre-split-20260531-1537`, branch `backup/dead-code-audit-pre-split`,
+original `claude/dead-code-audit` (= old draft PR #59, now superseded). The partial GoalCard
+Phase-3 WIP is parked in `stash@{0}`, on neither branch.
+
+## Session — Visual Consistency, Phase 3 (P3.0 reconciliation) — 2026-05-30
+
+**Branch:** `claude/dead-code-audit`. P3.0 (the mandated, no-code reconciliation) done; **P3.1+ bracket sweep deferred** — full manifest in `audit/visual-phase3-manifest.md`.
+
+**Re-run drift (post-P1/P2):** 240 hex · 105 rgba · 53 colour-brackets · 313 type-brackets · 52 radius-brackets. **Already migrated by P1/P2:** every JS consumer of `colors`/`folderColors`/`valueCategories` now gets theme-aware `var()` strings (charts incl.), so P3.3's chart migration is effectively satisfied; `VALUE_COLORS`/`QUADRANTS` repointed; primitives + scales exist to migrate onto.
+
+**Why the sweep is deferred, not done:** Phase 3 §P3.4 mandates per-surface eyeballing in both themes, but a Next dev server won't run in this worktree under the harness tooling (same friction that blocked the P1/P2 visual checks). Migrating ~640 *visual* brackets blind risks regressions build+grep can't catch (paired line-heights on the `--text-*` tokens; light-mode colour-context flips; hover/active). Recommendation: run P3.1+ with a working preview (post-merge or local `npm run dev`), surface by surface per the manifest's order.
+
+**Special cases decided:** charts already on `var()` (P1); `api/balance-sheet/route.ts` colour-in-payload → own sub-phase/defer (implies client change); `CATEGORY_COLORS` → out of scope (DB-coupled).
+
+---
+
+## Session — Visual Consistency, Phase 1 (Colour & Font Source of Truth) — 2026-05-30
+
+**Branch:** `claude/dead-code-audit` (the arc's working line). **Done AFTER Phase 2 this session** (out of nominal order — Phase 1's precondition was discovered missing mid-Phase-3; ran it then). Pure front-end + docs; no DB; `CATEGORY_COLORS` untouched.
+
+**1a — Colour source of truth + inversion.** `globals.css` is now canonical. Added `--value-foundation/investment/leak/burden/unsure` (D1) in `:root` (dark) + AA-deepened `:root[data-theme="light"]`; added `--folder-goals/cashflow/networth` (single-value, joining the existing `--folder-values`); extended `@theme inline` with `--color-value-*` + `--color-folder-*` (generates `bg-value-foundation`, `text-value-investment`, `border-folder-networth`, …). **Demoted `tokens.ts`** to a var-string accessor: `colors`/`folderColors` now return `var(--…)`; added `valueColors`; `valueCategories` kept (shape + `ValueCategory` type, used in 21 files) but repointed to the vars with a `color-mix` 12% `bg`. **Deleted** the grey-gen neutral literals, `colors.purple` (zero consumers), and the `fonts` export. **Inversion resolved at the token layer:** `valueCategories` was Foundation=green/Investment=blue (inverted); now blue/green via the vars. `VALUE_COLORS` (dashboard) + `QUADRANTS` (value-map) repointed onto the canonical utilities/var-strings — both were already blue/green, so value-map + dashboard badges are **unchanged on screen**; the office Values surfaces that read `valueCategories` (ValuesDonut, ValuesTrendChart, ValuesDashboard, OfficeValuesBreakdown, ValuesSection) **visibly flip green→blue foundation** to finally agree — that's the inversion fix landing. No importer needed a var-string-vs-literal fix (all CSS contexts: className, inline style, Recharts fill/stroke).
+
+**1b — Fonts: AUDIT WAS WRONG, changes reverted.** The Phase-0/spec premise ("`--font-cormorant` never defined → Briefing silently Georgia"; "DM Sans / JetBrains Mono / Cormorant Garamond dead") is **false**: `app/(office)/layout.tsx` loads all three via `next/font` (`--font-jetbrains-mono`, `--font-dm-sans`, `--font-cormorant`) and applies them on its wrapper, so the office subtree deliberately uses **six** families (root Instrument Serif/Sans + Geist Mono; office DM Sans + JetBrains Mono + Cormorant). Briefing renders **Cormorant in /office** — the "Georgia bug" was only the styleguide (which sits outside `(office)/`). I initially repointed Briefing→Instrument-Serif and the `--font-data`/`--font-ui` chains→Geist/Instrument; **both were regressions and have been reverted.** Kept only the genuinely-dead `tokens.ts fonts` STRING export deletion. **Open design decision (NOT a bug):** whether to consolidate the office's three extra families onto the root trio — deferred to Lewis; affects Phase 3 font-bracket migration.
+
+**1c — Theme integrity.** ~19 `dark:text-{emerald|red|amber}-*` usages exist (bills/upload) but are **inert**: `layout.tsx` statically pins `class="dark"`, so they never respond to the `data-theme` toggle (app themes via `data-theme` + CSS vars). Documented in UI-DIRECTION (don't use `dark:`); no code change (toggling `.dark` would be a risky global behaviour shift). These palette usages are Phase-3 token-migration targets.
+
+**1d — Docs + rule correction.** UI-DIRECTION rewritten: source-of-truth rule (globals.css canonical, tokens.ts = var accessor, no third source), value table → `--value-*` with the inversion noted, font stack → the true six families + the audit-correction note, "dark theme only" → dual-theme. **Rule correction (§7):** the standing "tokens.ts wins" rule is retired — it was right when tokens.ts was curated; the v2.5 walnut retheme made it stale (the same drift the rule existed to prevent). New rule: one source (`globals.css`), tokens.ts is a typed `var()` accessor over it.
+
+**Verify.** P1a+1b built clean (`CHAIN_EXIT=0`, typecheck + build, `/styleguide` + all routes compiled). `tokens.ts` carries zero live hex/rgba (only a comment). Font reverts restore prior-known-good (lower-risk than the verified state); build re-verify queued. **Visual checks (inversion now blue across all Values surfaces; charts render via var-strings; Briefing=Cormorant) NOT yet eyeballed** — a dev server won't hold in this worktree under the preview tooling (same friction as Phase 2); `cd <worktree>/cfos-office && npm run dev` → /office + /styleguide to confirm.
+
+**Follow-ups.** Office-fonts consolidation decision (Lewis). Phase 3: migrate the ~640 brackets / 240 hex / 105 rgba onto these tokens + Phase-2 primitives; add Badge value-category tones (now unblocked by `--value-*`); the `dark:` palette usages → semantic tokens.
+
+---
+
+## Session — Visual Consistency, Phase 2 (Primitives + Scales + EmptyState + dead `data/`) — 2026-05-29
+
+**Branch:** `claude/dead-code-audit` (the visual + dead-code arc's working line — Phase 0 audits + dev-only `/styleguide` live here; not yet on `main`).
+**Scope:** Pure front-end. Built the canonical component layer + the dimensional scales it consumes; collapsed EmptyState; deleted the dead `data/` trio. No DB / `supabase/`. No Phase-3 bulk call-site sweep.
+
+**Precondition reconciliation.** The spec's hard precondition ("Visual Phase 1 merged") was **not met** — Phase 1 (token consolidation: one colour source + `--value-*` + Foundation/Investment inversion fix + font-story fix) was never run anywhere, and `--value-*` does not exist. Reconciled rather than blocked: the canonical **colour + font** source (`globals.css @theme`) already exists and is sound (the audit agrees); the radii/type **scales** are Phase 2a's own deliverable; the only genuinely Phase-1-dependent piece is **value-category Badge tones**, which the spec fences off anyway (`CATEGORY_COLORS` is DO-NOT-TOUCH). So Phase 2 proceeded here with that one variant deferred.
+
+**2a — scales (collision-free `@theme`).** Named tokens only — deliberately NOT redefining Tailwind v4 defaults (audit: `text-sm` 370×, `text-xs` 275×, `rounded-lg` 128× in use). Radii: `--radius-control` (8) / `--radius-card` (14) / `--radius-pill` (full); 10px + 2.5–7px noise → Phase-3 nearest-step. Type: 11 steps under `text-display/h1/h2/h3/body/body-sm/label/caption/tag/micro/nano` (paired line-heights + tracking), mapping UI-DIRECTION's `xl/lg/hero/md/sm/xs/…`. Spacing: Tailwind's 4px default (no parallel tokens). **Tailwind-v4/CSS gotcha:** a comment containing `--radius-*/--text-*` — the `*/` closed the comment early and broke the Turbopack CSS build. It was masked for several gates because `npm run build | tail` reports `tail`'s exit (0); caught only by reading build *output*. Fixed; all gates re-run capturing the true exit (`exit $ec`).
+
+**2b — primitives (≥3-consumer demand bar).** Counts: Card 58, Badge 20 (14 status + 6 value-cat), Input 16 → **built**. Dialog/Sheet (4 heterogeneous — modal vs side-sheet vs ChatSheet, no 3-of-a-kind) + Toast (2) → **deferred**. Type primitive → shipped as **utilities, not components** (cleaner adoption; 382-bracket migration is Phase 3). New: `ui/Card` (default/elevated/inset + interactive), `ui/Badge` (neutral/gold/positive/negative/info), `ui/Input`+`Textarea`, `ui/focus.ts` (one shared `focusRing` = `ring-2 ring-ring ring-offset-2`). `ui/button` upgraded: `loading` (dependency-free CSS spinner + `aria-busy`; avoided lucide `Loader2` on the unusual `lucide-react@^1.7.0`) + `active` bg-shift + shared ring; radius/size left for Phase 3. Faithful migrations (3 each): Card → AssetGroupCard, LiabilityGroupCard, BillsClient; Badge → AssetGroupCard, LiabilityGroupCard, BillCard; Input → login, signup, AccountDataManagement.
+
+**2c — EmptyState (6 → survivor + 2 collapsed + 3 fenced).** Survivor = extended `office/dashboards/DashboardEmptyState`. API: `{ icon?, title?, body, accent?, actionLabel?, actionHref?, onAction?, secondaryActionLabel?, onSecondaryAction?, children? }`; CTA modes (first match): `children` → `onAction` (Button) → `actionHref` (text-link). Collapsed `balance-sheet/EmptyState` (its chat-context action moved into `BalanceSheetClient`) + `bills/EmptyBillsState` (UploadZone via `children`, wrapped in `Card`). **Chose to FENCE, not merge, session-32:** `dashboard/EmptyState`, `office/sections/GoalsEmptyState`, and its dependency `GoalsEmptyStateCTA` are left untouched (session-32/staging-user-hygiene edits the first two; the third is transitively required by the fenced GoalsEmptyState). Post-session-32 follow-up finishes 6→1 (add `no_data`/`no_values` presets to the survivor then).
+
+**2d — dead `data/`.** Deleted `FolderCard`/`FolderMetric`, `MetricTile`, and the `CategoryBar`/`FileRow` functions; cleaned `data/index.ts`. **`ValuePill` KEPT — the dead-code audit's §2b "KILL" was wrong:** it is live inside `TransactionRow` (`DataComponents.tsx:121`), shipped via `OfficeTransactionsClient`; deleting it would have broken the build. The 6 live `DataComponents` exports retained.
+
+**2e — `/styleguide`.** Swapped off the deleted `MetricTile`/`ValuePill`/`balance-sheet EmptyState`; added encoded type + radii demos (literal utilities so Tailwind emits the full scale), Card/Badge/Input demos, Button loading/active, the survivor's button-CTA mode; trimmed the "missing primitives" panel to the deferred Dialog/Toast.
+
+**Verify.** `npm run typecheck` clean. `npm run build` clean — true `BUILD_EXIT=0`, `/styleguide` + all routes compiled. `git status`: only the primitive layer + the 9 counted consumers + 2 EmptyState call sites + scales + styleguide + docs — no Phase-3 churn.
+
+**Follow-ups.** *Phase 1:* one colour source + `--value-*` (D1 inversion) + value-category Badge tones + the `Briefing` `--font-cormorant`→Georgia fix. *Phase 3:* migrate the ~640 brackets / ~280 colour literals onto these primitives + scales; finish EmptyState 6→1 after session-32 merges.
+
+---
+
+## Session — Visual Consistency, Phase 0 (Audit + Styleguide) — 2026-05-29
+
+**Branch:** `claude/visual-consistency-audit`
+**Scope:** Identification only — no token, constant, or feature file touched; no DB/migrations. Two deliverables: a full visual-consistency audit (`audit/visual-consistency.md`) extending the v2.5 colour-only finding into colour + spacing + radii + typography + primitive/state coverage, and a dev-only `/styleguide` route (`src/app/styleguide/`) that renders the live token layer — drift included — as the seed of a future visual-regression surface.
+
+### Headline counts (src = 556 `.ts/.tsx`)
+
+- **197** raw hex sites + **82** raw rgba (excl. tokens.ts/globals.css); **37** arbitrary `…-[#]` colour brackets.
+- **260** arbitrary spacing/size brackets; **382** arbitrary type/radius brackets; **30** distinct `text-[Npx]` sizes (7→76px, incl. half-pixels); **11** distinct `rounded-[…]` radii.
+- **Token-delivery ratio — inline `style={{}}` : `var(--…)` bracket-read ≈ 224 : 42 ≈ 5.3 : 1.** Plus the (correct, uncounted) `@theme`-generated utility layer.
+
+### Confirmed conflicts
+
+1. **Two palette generations.** `tokens.ts` + `UI-DIRECTION.md` are the stale "grey gen" (bg `#0F0F0D`, text `#F5F5F0`, white-alpha); `globals.css` + `layout.tsx` are the shipped "walnut gen" (`#13110D` / `#F4EDD9` / vellum). `tokens.ts` — self-labelled "single source of truth" — disagrees with the shipped CSS on every neutral and is theme-blind (light mode lives only in globals.css).
+2. **Foundation/Investment inversion (the headline bug).** Token layer says Foundation green / Investment blue; the **shipped** value-map QUADRANTS (`#4A90D9` / `#48BB78`) and dashboard `VALUE_COLORS` (blue/green) say the opposite. **The user sees Foundation = blue.** Verified live in the styleguide conflict panel (computed chip colours). First logged v2.5 BACKLOG #8; still open.
+3. **Fonts.** Loaded = Instrument Serif / Instrument Sans / Geist Mono. `tokens.fonts` (DM Sans / JetBrains Mono / Cormorant Garamond) and `UI-DIRECTION` name fonts that never load. `Briefing.tsx` references `var(--font-cormorant)` (undefined) → silently renders Georgia — a real visible bug.
+4. **No encoded scales** for spacing, radii, or type — UI-DIRECTION documents them in prose only.
+5. **Primitives:** one real shared UI primitive (`ui/button`, no loading/active state); dead `data/` layer (`MetricTile`/`ValuePill`/`FolderCard`, 0 consumers); **5** competing EmptyStates (plan said 3).
+6. `UI-DIRECTION.md` still says "dark theme only — no light mode planned for v1", but a full WCAG-tuned light theme ships.
+
+### Decisions handed to Lewis (Phase 1)
+
+- **D1 — Inversion direction.** Foundation = blue / Investment = green (shipped) vs green / blue (declared). **Recommend align-to-shipped**; introduce `--value-*` vars and migrate all four files. Lewis picks the canonical hue pair.
+- **D2 — Token-delivery fork.** `@theme`-generated utilities (recommend, static) vs `var(--…)` reads (dynamic only); eliminate hardcoded `style={{}}` literals under either.
+
+### Verification
+
+- `npm run typecheck` clean · `npm run build` clean (`/styleguide` in manifest as `○`; `notFound()` in prod).
+- Styleguide is **hex/rgba/arbitrary-px free**: `grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(|-\[[0-9]" src/app/styleguide` → empty. Arbitrary sizes/radii are rendered via inline `style` from JS number arrays; resolved hex via `getComputedStyle`.
+- Browser-verified on the worktree dev server: 7 sections render; theme toggle flips the whole page (`--bg-base` walnut→vellum); conflict panel shows tokens green→blue vs the two shipped sources blue→green; three EmptyStates side by side at `lg`.
+- `git status` — only `audit/visual-consistency.md` + `src/app/styleguide/` added. No token/constant/feature file modified.
+
+### Notes for the next agent
+
+- **Audit battery correction:** the session plan's `grep … --include=*.tsx` aborts under zsh (`no matches found`) — **quote the globs** (`--include='*.tsx'`) and prepend `unsetopt nomatch`. Corrected commands are in the audit doc's appendix; reuse those.
+- **Local preview of a fresh worktree** needs `cfos-office/.env.local` (gitignored — copy from the main checkout) or the `proxy.ts` middleware 500s on every route; and `.claude/launch.json` is tracked and hardcodes the **main** repo path, so it must be temporarily repointed at the worktree to preview local changes (revert after — done this session).
+- Phase 1 = single token source (surface/radii/spacing/type scales) + resolve conflicts + repoint `dashboard.ts`/`value-map/constants.ts` + record decisions in `UI-DIRECTION.md`. Phase 2 = primitive layer to demand (≥3-consumer). Phase 3 = per-folder call-site migration. Phase 4 = ESLint ban on raw hex / arbitrary brackets.
+
+### Files
+
+- NEW `audit/visual-consistency.md`, `src/app/styleguide/page.tsx`, `src/app/styleguide/StyleguideClient.tsx`
+- MODIFIED `SESSION-LOG.md` (this entry)
+
+---
+
 ## Session — Fixed-Cost Confidence (value-first onboarding) — 2026-05-29
 
 **Branch:** `claude/quirky-easley-78125c` (worktree off main `9221eed`; the plan's

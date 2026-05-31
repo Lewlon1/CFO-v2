@@ -5,6 +5,8 @@ import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '@/lib/constants/dashboard'
 import { GroupIcon } from './icons'
 import { HoldingsDetail } from './HoldingsDetail'
+import { Card } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
 import type { BalanceSheetAssetGroup } from '@/app/api/balance-sheet/route'
 
 type Props = {
@@ -28,7 +30,7 @@ export function AssetGroupCard({ group, currency }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
+    <Card className="overflow-hidden">
       <div
         className="flex items-center justify-between px-4 py-3 border-b border-border"
         style={{ borderLeft: `3px solid ${group.color}` }}
@@ -71,9 +73,7 @@ export function AssetGroupCard({ group, currency }: Props) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
                       {canExpand && (
-                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                          {item.holdings_count} holdings
-                        </span>
+                        <Badge tone="neutral">{item.holdings_count} holdings</Badge>
                       )}
                       {item.is_stale && (
                         <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
@@ -123,6 +123,6 @@ export function AssetGroupCard({ group, currency }: Props) {
           )
         })}
       </ul>
-    </div>
+    </Card>
   )
 }

@@ -36,6 +36,18 @@
 
 ## Colour Tokens
 
+> **Source of truth (rule corrected, Phase 1).** Colour lives in `globals.css` — `:root`
+> (dark) + `:root[data-theme="light"]` + the `@theme inline` block that generates the
+> utilities (`bg-bg-base`, `text-value-foundation`, `border-folder-networth`, …). `tokens.ts`
+> is a typed `var()`-string accessor over it; **never introduce a third source.** The standing
+> "tokens.ts wins" rule was right when tokens.ts was the curated source — the v2.5 walnut
+> retheme made it stale, which is the same drift the rule existed to prevent.
+>
+> The app ships a full **dual theme** switched by the `data-theme` attribute (walnut dark /
+> vellum light). The exact per-theme hexes are in `globals.css`; the dark set below is
+> illustrative. **`dark:` utilities are inert** — `layout.tsx` pins `class="dark"` statically,
+> so they never respond to the toggle. Do not use `dark:`; theme via `data-theme` + the tokens.
+
 ```
 /* === Backgrounds === */
 --bg-base:        #0F0F0D       /* Primary surface */
@@ -88,13 +100,19 @@ Gold (`#E8A84C`) is reserved for the CFO voice — avatar, briefing border, send
 
 ### Value Category Colours
 
-| Category    | Colour    | Usage                        |
-|-------------|-----------|------------------------------|
-| Foundation  | `#22C55E` | Bar segments, badges, labels |
-| Investment  | `#3B82F6` | Bar segments, badges, labels |
-| Leak        | `#F43F5E` | Bar segments, badges, labels |
-| Burden      | `#9C8B7A` | Bar segments, badges, labels |
-| No Idea     | `#9CA3AF` | Bar segments, badges, labels |
+Value categories have their **own** vars (`--value-*`), independent of the semantic
+`positive/negative/info` set — that coupling is what produced the Foundation/Investment
+inversion (Phase 0). **Corrected (Phase 1):** Foundation = blue, Investment = green, aligned
+to the shipped value-map. (The token layer was previously inverted — Foundation green /
+Investment blue — while the value-map + dashboard badges already showed blue/green.)
+
+| Category    | Token · dark / light (AA)                  | Usage                        |
+|-------------|--------------------------------------------|------------------------------|
+| Foundation  | `--value-foundation` `#4A90D9` / `#2D6CB8` | Bar segments, badges, labels |
+| Investment  | `--value-investment` `#48BB78` / `#2F855A` | Bar segments, badges, labels |
+| Leak        | `--value-leak` `#E53E3E` / `#C53030`       | Bar segments, badges, labels |
+| Burden      | `--value-burden` `#9C8B7A` / `#6E5E4A`     | Bar segments, badges, labels |
+| No Idea     | `--value-unsure` `#9CA3AF` / `#6B7280`     | Bar segments, badges, labels |
 
 **Burden** — necessary but heavy. Warm grey honours the semantic better than the previous bright violet did; users described `#8B5CF6` as "too playful for what burdens are."
 
@@ -114,8 +132,25 @@ Two shifts moved together, and the rationale was the same: untangle four-way ove
 
 ```
 /* === Font Stack === */
---font-body:  'DM Sans', sans-serif      /* All prose, headings, UI labels */
---font-mono:  'JetBrains Mono', monospace /* Numbers, data labels, provenance, timestamps, tags */
+/* Root / global (app/layout.tsx): */
+--font-instrument-serif  /* Headings (h1–h3) site-wide */
+--font-instrument-sans   /* Body prose, UI labels (--font-sans) */
+--font-geist-mono        /* Numbers, eyebrows, tags (--font-mono) */
+/* Office subtree (app/(office)/layout.tsx) layers on THREE MORE, scoped to /office: */
+--font-dm-sans           /* Office body / UI (--font-ui) */
+--font-jetbrains-mono    /* Office data / numbers (--font-data) */
+--font-cormorant         /* Office briefings + "CFO's Office" wordmark (Cormorant Garamond) */
+/* CORRECTION (Phase 1): the Phase-0 audit wrongly called the office trio "never loaded" /
+   "Briefing renders Georgia" — they ARE loaded in (office)/layout. Only the dead `fonts`
+   STRING export in tokens.ts was removed.
+   DECIDED (F1, Visual Foundation close-out): KEEP Cormorant Garamond as a deliberate office
+   family — it is the briefing serif AND the "CFO's Office" wordmark, restoring original design
+   intent. Six families load and are used: Instrument Serif / Instrument Sans / Geist Mono (root)
+   + DM Sans / JetBrains Mono / Cormorant Garamond (office). Briefing's serif is intentionally
+   DIFFERENT from the heading serif (Cormorant vs Instrument Serif). Briefing falls back to
+   Georgia ONLY on /styleguide, which sits outside (office)/ — a scope artifact, not a bug.
+   Consolidating the office sans/mono (DM Sans / JetBrains Mono) down to the root families remains
+   a separate open question, out of scope here. */
 
 /* === Scale === */
 --text-xl:    20px / weight 800 / tracking -0.03em   /* Page title ("The CFO's Office") */
@@ -130,6 +165,19 @@ Two shifts moved together, and the rationale was the same: untangle four-way ove
 --text-micro: 8px / mono                              /* Category bar labels, footnotes */
 --text-nano:  7px / mono / uppercase / tracking 0.06em /* Gap status badges (ON TRACK / GAP) */
 ```
+
+> **Encoded (Visual Phase 2a).** This 11-step scale now ships as **named, collision-free**
+> `@theme` utilities — the documented `xl/lg/hero/md/sm/xs` names collide with Tailwind v4
+> default theme keys, so the *values* are encoded under safe names (with paired line-heights +
+> tracking): `text-display` (20) · `text-h1` (18) · `text-h2` (16, was "hero") · `text-h3` (15,
+> was "md") · `text-body` (13) · `text-body-sm` (12, was "sm") · `text-label` (11) ·
+> `text-caption` (10, was "xs") · `text-tag` (9) · `text-micro` (8) · `text-nano` (7). Weight +
+> font-family stay with the consumer. The ~30 ad-hoc `text-[Npx]` sizes migrate onto these in
+> Phase 3. **Font story (corrected — see Font Stack block above)** — the Phase-0 audit was wrong:
+> `DM Sans` / `JetBrains Mono` / `Cormorant Garamond` ARE loaded, scoped to `(office)/layout`, and
+> `Briefing` correctly renders Cormorant on the real `/office` route (the `→Georgia` fallback is a
+> `/styleguide`-scope artifact, not a bug). Phase 1 only removed the dead `fonts` STRING export from
+> tokens.ts. F1 (close-out) decided to KEEP Cormorant as a deliberate family.
 
 ### Typography Rules
 
@@ -168,6 +216,13 @@ Two shifts moved together, and the rationale was the same: untangle four-way ove
 --tap-comfortable: 48px          /* Preferred — file rows, inbox row */
 ```
 
+> **Encoded (Visual Phase 2a).** Radii now ship as **named, collision-free** `@theme` utilities:
+> `rounded-control` (8) · `rounded-card` (14) · `rounded-pill` (full). The documented `--radius-md`
+> (10) + the `2.5/3/5/6/7px` noise snap to the nearest named step in Phase 3 (10px → control or
+> card, per surface). **Spacing** intentionally uses Tailwind's default 4px scale (`p-4`, `gap-3`,
+> …) — no parallel token set was minted; the doc'd gap aliases are guidance only (`gap-section` ≈
+> `gap-6`, `gap-chat` ≈ `gap-2.5`).
+
 ### Safe Area
 
 Always account for iPhone notch/home indicator:
@@ -178,6 +233,30 @@ padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
 ---
 
 ## Component Conventions
+
+### Primitive layer (Visual Phase 2b)
+
+Canonical primitives live in `src/components/ui/`, built to a **≥3-existing-consumer demand bar**
+and reading only tokens + the Phase-2a scales (zero raw hex/px). One shared focus-visible
+convention (`ui/focus.ts → focusRing` = `ring-2 ring-ring ring-offset-2`) is applied to every
+tappable primitive — Phase 0 found none existed outside Button.
+
+| Primitive | Variants / API | Notes |
+|---|---|---|
+| `Button` | `default / outline / ghost / link` · `sm / default / lg / icon` · `loading` | Added `loading` (spinner + `aria-busy`) + `active` (bg shift). Radius/size tokens left for Phase 3 to avoid cross-app churn. |
+| `Card` | `default / elevated / inset` · `interactive` | Surface + `rounded-card` + token bg/border; `interactive` adds hover/active/focus. |
+| `Badge` | tone: `neutral / gold / positive / negative / info` | `rounded-pill` + `text-caption`. **Value-category tones deferred to Phase 1** (need `--value-*`). |
+| `Input` / `Textarea` | native props | `rounded-control`, `text-base` (avoids iOS zoom), `min-h-11`, `aria-invalid` error border. |
+
+**Deferred (under the ≥3 bar this session):** `Dialog`/`Sheet` (4 heterogeneous surfaces — modal vs side-sheet vs ChatSheet, no 3-of-a-kind), `Toast` (only 2). Revisit when demand clears 3.
+
+**State matrix — baked into each interactive primitive:**
+
+| | hover | focus-visible | disabled | active | loading | error |
+|---|---|---|---|---|---|---|
+| Button | per-variant bg | `ring-2 ring-ring` | `opacity-50` + no pointer | bg shift | spinner + `aria-busy` | n/a |
+| Input / Textarea | — | shared ring | `bg-muted` | n/a | n/a | `aria-invalid` → `border-destructive` |
+| Card (interactive) | `border-visible` | shared ring | — | `bg-tap-highlight` | — | — |
 
 ### Trust Atoms
 
@@ -374,5 +453,5 @@ These are deliberate design decisions, not accidents:
 3. **Chat as bottom sheet, not full page** — the office (dashboard) is primary, chat is the advisor sitting in it
 4. **Folder colour coding** — each folder's colour is its identity
 5. **Monospaced numbers, humanist prose** — the dual-font system is intentional
-6. **Dark theme only** — no light mode planned for v1
+6. **Dual theme** — walnut dark + vellum light, switched via the `data-theme` attribute (corrected Phase 1; the prior "dark only" note was stale). `dark:` utilities are inert (the `.dark` class is statically pinned in `layout.tsx`) — theme through `data-theme` + the CSS-var tokens, never `dark:`.
 7. **430px max-width** — this is a phone app that happens to work in a browser

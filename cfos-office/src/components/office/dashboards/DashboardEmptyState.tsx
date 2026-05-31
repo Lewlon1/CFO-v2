@@ -1,46 +1,81 @@
+'use client'
+
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 
 interface DashboardEmptyStateProps {
   icon?: ReactNode
+  /** Optional heading above the body copy. */
+  title?: string
   body: string
-  actionLabel: string
-  actionHref: string
-  accent: string
+  /** Accent colour for the text-link CTA (href mode only). */
+  accent?: string
+  actionLabel?: string
+  /** Link CTA — renders a text-link. */
+  actionHref?: string
+  /** Button CTA — renders the Button primitive. Use for chat-context / callback actions. */
+  onAction?: () => void
+  /** Optional secondary (outline) Button CTA, paired with onAction. */
+  secondaryActionLabel?: string
+  onSecondaryAction?: () => void
+  /** Escape hatch for custom action content (e.g. an embedded upload zone). */
+  children?: ReactNode
 }
 
 /**
- * Lightweight empty state for office dashboards.
+ * The single office empty-state primitive (Visual Phase 2c — the 6→1 collapse).
+ * Absorbs: balance-sheet/EmptyState (title + two Button CTAs), bills/EmptyBillsState
+ * (embedded UploadZone via `children`), and the office dashboards' inline empties.
  *
- * Used when a folder has no underlying data yet (no transactions uploaded,
- * no assets/liabilities recorded, etc.). Distinct from the heavier
- * dashboard/EmptyState and balance-sheet/EmptyState, which carry chat-context
- * hooks and multi-CTA variants.
+ * Fenced for a post-session-32 follow-up (session-32/staging-user-hygiene edits them):
+ * dashboard/EmptyState (no_data/no_values variants) + office/sections/GoalsEmptyState
+ * and its dependency GoalsEmptyStateCTA. Add the no_data/no_values presets here then.
  *
- * Refs: docs/audits/2026-05-01-component-consolidation.md §3 Extraction B
+ * CTA modes, first match wins: children → onAction (Button) → actionHref (text-link).
  */
 export function DashboardEmptyState({
   icon,
+  title,
   body,
+  accent,
   actionLabel,
   actionHref,
-  accent,
+  onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
+  children,
 }: DashboardEmptyStateProps) {
   return (
     <div className="flex flex-col items-center text-center gap-3 py-10">
       {icon && (
-        <div className="w-10 h-10 rounded-full bg-bg-deep flex items-center justify-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-pill bg-bg-deep">
           {icon}
         </div>
       )}
-      <p className="text-sm text-text-secondary max-w-[280px]">{body}</p>
-      <Link
-        href={actionHref}
-        className="text-[13px] font-medium"
-        style={{ color: accent }}
-      >
-        {actionLabel}
-      </Link>
+      {title && <h2 className="text-h1 font-semibold text-text-primary">{title}</h2>}
+      <p className="max-w-sm text-body text-text-secondary">{body}</p>
+
+      {children ? (
+        <div className="w-full pt-1">{children}</div>
+      ) : onAction ? (
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button onClick={onAction}>{actionLabel}</Button>
+          {secondaryActionLabel && onSecondaryAction && (
+            <Button variant="outline" onClick={onSecondaryAction}>
+              {secondaryActionLabel}
+            </Button>
+          )}
+        </div>
+      ) : actionHref && actionLabel ? (
+        <Link
+          href={actionHref}
+          className="text-body font-medium"
+          style={accent ? { color: accent } : undefined}
+        >
+          {actionLabel}
+        </Link>
+      ) : null}
     </div>
   )
 }
