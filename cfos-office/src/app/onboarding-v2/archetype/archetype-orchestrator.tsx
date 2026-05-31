@@ -144,7 +144,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
           onClick={handleContinue}
           disabled={loading || pending}
           className={
-            'w-full mt-6 transition-opacity min-h-12 rounded-xl font-sans text-[15px] font-medium ' +
+            'w-full mt-6 transition-opacity min-h-12 rounded-xl font-sans text-h3 font-medium ' +
             (loading || pending
               ? 'bg-muted text-muted-foreground cursor-not-allowed'
               : 'bg-foreground text-background cursor-pointer')

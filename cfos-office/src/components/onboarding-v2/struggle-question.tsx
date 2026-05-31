@@ -140,7 +140,7 @@ export function StruggleQuestion({ userId, layered = false }: Props) {
           onClick={handleContinue}
           disabled={!canContinue}
           className={
-            'w-full transition-opacity min-h-12 rounded-xl font-sans text-[15px] font-medium ' +
+            'w-full transition-opacity min-h-12 rounded-xl font-sans text-h3 font-medium ' +
             (canContinue
               ? 'bg-foreground text-background cursor-pointer'
               : 'bg-muted text-muted-foreground cursor-not-allowed')

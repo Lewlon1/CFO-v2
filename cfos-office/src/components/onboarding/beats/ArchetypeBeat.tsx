@@ -1,6 +1,7 @@
 'use client'
 
 import { PERSONALITIES } from '@/lib/value-map/constants'
+import { valueColors } from '@/lib/tokens'
 import { CfoThinking } from '@/components/brand/CfoThinking'
 import type { OnboardingData } from '@/lib/onboarding/types'
 import type { ArchetypeResult } from '@/lib/onboarding/archetype-prompt'
@@ -22,7 +23,7 @@ interface ArchetypeBeatProps {
 function ShimmerLine({ width, height = 'h-4' }: { width: string; height?: string }) {
   return (
     <div
-      className={`${height} ${width} rounded bg-[var(--bg-inset)] animate-pulse`}
+      className={`${height} ${width} rounded bg-bg-inset animate-pulse`}
     />
   )
 }
@@ -32,7 +33,7 @@ function ArchetypeSkeleton() {
     <div className="animate-fade-in space-y-2">
       <CfoThinking labels={ARCHETYPE_THINKING_LABELS} className="px-0 py-0" />
       <div className="px-4 py-2 ml-[40px]">
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-5 max-w-sm">
+        <div className="rounded-xl border border-border-subtle bg-bg-elevated p-5 max-w-sm">
           <ShimmerLine width="w-32" height="h-3" />
           <div className="mt-4">
             <ShimmerLine width="w-40" height="h-5" />
@@ -66,16 +67,16 @@ export function ArchetypeBeat({ data, archetypeData, loading }: ArchetypeBeatPro
   if (archetypeData) {
     return (
       <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.4s_ease-out]">
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-5 max-w-sm">
-          <p className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] mb-3">
+        <div className="rounded-xl border border-border-subtle bg-bg-elevated p-5 max-w-sm">
+          <p className="text-caption uppercase tracking-widest text-text-tertiary mb-3">
             Your Money Personality
           </p>
 
-          <h3 className="text-base font-semibold text-[var(--accent-gold)] mb-1.5">
+          <h3 className="text-base font-semibold text-accent-gold mb-1.5">
             {archetypeData.archetype_name}
           </h3>
 
-          <p className="text-sm italic text-[var(--text-secondary)] mb-4">
+          <p className="text-sm italic text-text-secondary mb-4">
             {archetypeData.archetype_subtitle}
           </p>
 
@@ -83,7 +84,7 @@ export function ArchetypeBeat({ data, archetypeData, loading }: ArchetypeBeatPro
             {archetypeData.traits.map((trait, i) => (
               <p
                 key={i}
-                className="text-xs text-[var(--text-secondary)] leading-relaxed pl-3 border-l-2 border-[var(--border-subtle)]"
+                className="text-xs text-text-secondary leading-relaxed pl-3 border-l-2 border-border-subtle"
               >
                 {trait}
               </p>
@@ -105,36 +106,36 @@ export function ArchetypeBeat({ data, archetypeData, loading }: ArchetypeBeatPro
 
   return (
     <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.4s_ease-out]">
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-5 max-w-sm">
-        <p className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] mb-3">
+      <div className="rounded-xl border border-border-subtle bg-bg-elevated p-5 max-w-sm">
+        <p className="text-caption uppercase tracking-widest text-text-tertiary mb-3">
           Your Money Personality
         </p>
 
         <div className="flex items-center gap-2.5 mb-2">
           <span className="text-2xl">{personality.emoji}</span>
-          <h3 className="text-base font-semibold text-[var(--accent-gold)]">
+          <h3 className="text-base font-semibold text-accent-gold">
             {personality.name}
           </h3>
         </div>
 
-        <p className="text-sm italic text-[var(--text-secondary)] mb-3">
+        <p className="text-sm italic text-text-secondary mb-3">
           {personality.headline}
         </p>
 
-        <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-4">
+        <p className="text-xs text-text-secondary leading-relaxed mb-4">
           {personality.description}
         </p>
 
         {breakdown && (
-          <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-[var(--bg-inset)]">
+          <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-bg-inset">
             {(['foundation', 'investment', 'burden', 'leak'] as const).map((q) => {
               const pct = breakdown[q]?.percentage ?? 0
               if (pct === 0) return null
               const colors: Record<string, string> = {
-                foundation: '#22C55E',
-                investment: '#3B82F6',
-                burden: '#8B5CF6',
-                leak: '#F43F5E',
+                foundation: valueColors.foundation,
+                investment: valueColors.investment,
+                burden: valueColors.burden,
+                leak: valueColors.leak,
               }
               return (
                 <div
