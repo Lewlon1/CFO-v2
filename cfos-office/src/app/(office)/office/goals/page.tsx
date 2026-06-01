@@ -47,6 +47,11 @@ export default async function GoalsPage() {
               ))}
             </>
           )}
+          {/* Add another goal — same CFO-chat CTA as the empty state, so the
+              option to create a goal is present whether or not goals exist. */}
+          <div className="flex justify-center pt-2">
+            <GoalsEmptyStateCTA />
+          </div>
         </div>
       )}
     </div>
