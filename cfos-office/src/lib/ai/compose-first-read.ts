@@ -30,6 +30,8 @@ import {
   selectHookCandidates,
   type HookCandidate,
 } from '@/lib/ai/compose-first-read-hooks';
+import { getSpendingBreakdown, type SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
+import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
 
 import {
   FIRST_READ_SYSTEM_PROMPT,
@@ -56,7 +58,7 @@ export async function composeFirstRead(params: {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts, benchmarkObservation] = await Promise.all([
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
     getTopMerchantKeys(supabase, params.userId),
     getActiveGoal(supabase, params.userId),
@@ -65,7 +67,24 @@ export async function composeFirstRead(params: {
     deriveLevers({ supabase, userId: params.userId }),
     getFinancialFacts(supabase, params.userId),
     getTopBenchmarkObservation(supabase, params.userId),
+    getEntryStruggle(supabase, params.userId),
   ]);
+
+  // The breakdown windows off dataWindowEnd (resolved above), not today —
+  // a user whose data ended weeks ago would window into an empty range.
+  const spendingBreakdown = await getSpendingBreakdown(
+    supabase,
+    params.userId,
+    WINDOW_DAYS,
+    dataWindowEnd,
+  );
+
+  // Goal-first precedence, mirroring resolveUserIntent() in insight-engine.ts.
+  const readRecipe = selectReadRecipe({
+    goal: goalRow,
+    entryStruggle: entry?.entry_struggle ?? null,
+    entryStruggleText: entry?.entry_struggle_text ?? null,
+  });
 
   // Fetched once, threaded into every cluster lookup. Without this every
   // cluster behaviour call re-queries the same MAX(date), and worse, the
@@ -126,6 +145,8 @@ export async function composeFirstRead(params: {
     financialFacts,
     hookCandidates: mode === 'value_first' ? hookCandidates : undefined,
     benchmarkObservation,
+    spendingBreakdown,
+    readRecipe,
   });
 
   const systemPrompt =
@@ -151,6 +172,8 @@ export async function composeFirstRead(params: {
     leverPackage,
     mode,
     hookCandidates,
+    readRecipe,
+    spendingBreakdown,
   });
 
   return { composedMessage, metadata };
@@ -251,6 +274,27 @@ async function getFinancialFacts(
   };
 }
 
+async function getEntryStruggle(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ entry_struggle: string | null; entry_struggle_text: string | null } | null> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('entry_struggle, entry_struggle_text')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) {
+    console.error('[compose-first-read] getEntryStruggle failed:', error);
+    return null;
+  }
+  return data
+    ? {
+        entry_struggle: (data.entry_struggle as string | null) ?? null,
+        entry_struggle_text: (data.entry_struggle_text as string | null) ?? null,
+      }
+    : null;
+}
+
 async function getActiveGoal(
   supabase: SupabaseClient,
   userId: string,
@@ -337,6 +381,8 @@ export function extractCompositionMetadata(args: {
   leverPackage?: LeverPackage;
   mode?: ComposeFirstReadMode;
   hookCandidates?: HookCandidate[];
+  readRecipe?: ReadRecipe;
+  spendingBreakdown?: SpendingBreakdown | null;
 }): FirstReadMetadata {
   const text = args.composedMessage.toLowerCase();
 
@@ -361,6 +407,8 @@ export function extractCompositionMetadata(args: {
       return probe.length > 2 && args.composedMessage.toLowerCase().includes(probe);
     });
 
+  const breakdown_cited = detectBreakdownCited(args.composedMessage, args.spendingBreakdown);
+
   return {
     layers_used,
     features_cited,
@@ -370,5 +418,36 @@ export function extractCompositionMetadata(args: {
     blocker_field: args.leverPackage?.blocker?.type === 'supply_input' ? args.leverPackage.blocker.field : null,
     mode: args.mode ?? 'default',
     hook_candidates: args.hookCandidates ?? null,
+    read_recipe: args.readRecipe ?? null,
+    breakdown_cited,
   };
+}
+
+/**
+ * Did the composed Read actually surface the breakdown? True when a top-category
+ * name or the biggest-merchant total (whole-number, formatting-agnostic) appears
+ * in the prose. A cheap regex probe — not a guarantee, a metadata signal for the
+ * judge/eval path, mirroring how clusters_referenced and features_cited work.
+ */
+function detectBreakdownCited(
+  message: string,
+  breakdown: SpendingBreakdown | null | undefined,
+): boolean {
+  if (!breakdown) return false;
+  const lower = message.toLowerCase();
+
+  for (const slice of breakdown.top_categories) {
+    // Match either the raw slug ("dining_out") or its spaced form ("dining out").
+    const slug = slice.category.toLowerCase();
+    const spaced = slug.replace(/_/g, ' ');
+    if (slug.length > 2 && (lower.includes(slug) || lower.includes(spaced))) return true;
+  }
+
+  const total = breakdown.biggest_merchant?.total;
+  if (total != null && message.includes(String(Math.round(total)))) return true;
+
+  const largest = breakdown.largest_transaction?.amount;
+  if (largest != null && message.includes(String(Math.round(largest)))) return true;
+
+  return false;
 }

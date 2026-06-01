@@ -151,4 +151,85 @@ describe('extractCompositionMetadata', () => {
     });
     expect(md.clusters_referenced.length).toBeGreaterThan(0);
   });
+
+  it('persists read_recipe when passed', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'Here is where your money goes.',
+      usableClusters: [],
+      goalSummary: null,
+      readRecipe: 'visibility',
+    });
+    expect(md.read_recipe).toBe('visibility');
+  });
+
+  it('defaults read_recipe to null and breakdown_cited to false', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'A plain read.',
+      usableClusters: [],
+      goalSummary: null,
+    });
+    expect(md.read_recipe).toBeNull();
+    expect(md.breakdown_cited).toBe(false);
+  });
+
+  it('flags breakdown_cited when a top-category slug surfaces in the prose', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'Most of your spend is groceries — £450 over the window.',
+      usableClusters: [],
+      goalSummary: null,
+      spendingBreakdown: {
+        total_spend: 600,
+        window_days: 90,
+        top_categories: [{ category: 'groceries', total: 450, pct: 75 }],
+        biggest_merchant: { name: 'ALDI', total: 200, txn_count: 8 },
+        largest_transaction: { merchant: 'ALDI', amount: 60, date: '2026-04-01' },
+        uncategorised_pct: 0,
+      },
+    });
+    expect(md.breakdown_cited).toBe(true);
+  });
+
+  it('flags breakdown_cited via the slug spaced form (dining out)', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'Your dining out is climbing.',
+      usableClusters: [],
+      goalSummary: null,
+      spendingBreakdown: {
+        total_spend: 600,
+        window_days: 90,
+        top_categories: [{ category: 'dining_out', total: 300, pct: 50 }],
+        biggest_merchant: null,
+        largest_transaction: null,
+        uncategorised_pct: 0,
+      },
+    });
+    expect(md.breakdown_cited).toBe(true);
+  });
+
+  it('flags breakdown_cited when the biggest-merchant total appears', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'You spent 200 at one place.',
+      usableClusters: [],
+      goalSummary: null,
+      spendingBreakdown: {
+        total_spend: 600,
+        window_days: 90,
+        top_categories: [{ category: 'misc', total: 600, pct: 100 }],
+        biggest_merchant: { name: 'ALDI', total: 200, txn_count: 8 },
+        largest_transaction: null,
+        uncategorised_pct: 0,
+      },
+    });
+    expect(md.breakdown_cited).toBe(true);
+  });
+
+  it('does not flag breakdown_cited when the breakdown is absent', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'You spent 200 somewhere.',
+      usableClusters: [],
+      goalSummary: null,
+      spendingBreakdown: null,
+    });
+    expect(md.breakdown_cited).toBe(false);
+  });
 });

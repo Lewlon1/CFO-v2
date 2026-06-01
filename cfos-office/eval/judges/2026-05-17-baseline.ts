@@ -45,6 +45,11 @@ const JudgeSchema = z.object({
     .min(0)
     .max(1)
     .describe('Is the insight anchored on the user\'s stated goal or struggle?'),
+  goal_service: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe('Does the Read actually SERVE what the user asked for? "Where does my money go" → a concrete breakdown (biggest category/merchant/transaction). A target goal → the gap (free cash flow vs required monthly vs what is reaching it). Mentioning the goal is not enough; answering it is. If no goal/struggle on file, score 0.5 (neutral).'),
   surprise: z
     .number()
     .min(0)
@@ -138,12 +143,13 @@ Score each dimension 0–1. Use the full range — 0.5 is neutral, not the defau
 
 - **recognition** — Does the prose name specific merchants from the known list? Cite real amounts that the tool calls would plausibly produce? Anchor on dates/days-of-week? Pure aggregates ("travel", "subscriptions") with no named merchant scores ≤ 0.3.
 - **goal_calibration** — Does the insight land *against* the user's brief? Not just mention the goal — tie the observation to it. If the brief is empty, score 0.5 (neutral).
+- **goal_service** — Does the Read deliver the *specific thing the user asked for*? If the brief is "I don't know where my money goes", a concrete breakdown (biggest category, biggest merchant, largest single transaction) scores high; a Read that admits it can't tell them and asks for a goal scores ≤ 0.2. If the brief is a savings/investment target, the gap math (free cash flow vs the monthly contribution the target needs vs what's actually reaching it) scores high; merely naming the goal and then talking about groceries scores ≤ 0.3. If the brief is empty, score 0.5 (neutral).
 - **surprise** — Could the user have said this themselves? Restating the obvious ("you spent €X on category Y") scores low; a non-obvious pattern (concentration in a time window, hidden cluster) scores high.
 - **trust** — Calibrated uncertainty. Hedges when the signal is thin (e.g. "based on 4 months"), doesn't overreach with projections. Over-hedging on clear data also hurts.
 - **tangibility** — Comparisons anchored in this user's life ("a weekend in Lisbon every month" only if Lisbon is in their data). Generic comparisons ("a Netflix subscription") score ≤ 0.3.
 - **voice** — Peer-tone, sharp, no banned phrases/words, signoff present, body length roughly 100–180 words.
 
-Then **wow_score**: your overall judgment, expressing whether this response would make the user feel seen enough to come back. Use a weighted blend of the above but apply your judgment — a response with great specificity but condescending voice is not wow; a response with average voice but a genuinely surprising observation can still be wow. Anchor: 0.4 = passable; 0.6 = solid; 0.8 = genuine wow moment.
+Then **wow_score**: your overall judgment, expressing whether this response would make the user feel seen enough to come back. Use a weighted blend of the above but apply your judgment — a response with great specificity but condescending voice is not wow; a response with average voice but a genuinely surprising observation can still be wow. Weight **goal_service** heavily: a Read that does not answer the specific thing the user asked for (the breakdown for "where does my money go", the gap for a target) cannot score above 0.5 no matter how polished, because it failed the user's actual question. Anchor: 0.4 = passable; 0.6 = solid; 0.8 = genuine wow moment.
 
 **reasoning**: 1–2 sentences. Name the 1–2 sub-scores that drove the headline. Be concrete (cite the specific noun or pattern). Avoid hedge-words like "could be improved" — say what's missing.
 
@@ -169,6 +175,7 @@ export async function score(input: JudgeInput): Promise<JudgeScore> {
     diagnostic: {
       recognition: object.recognition,
       goal_calibration: object.goal_calibration,
+      goal_service: object.goal_service,
       surprise: object.surprise,
       trust: object.trust,
       tangibility: object.tangibility,

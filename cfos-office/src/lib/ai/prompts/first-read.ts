@@ -18,6 +18,8 @@ import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
 import type { FinancialFacts } from '@/lib/ai/compose-first-read';
+import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
+import type { ReadRecipe } from '@/lib/ai/first-read-recipe';
 
 export type FirstReadComposeInput = {
   userId: string;
@@ -46,6 +48,14 @@ export type FirstReadComposeInput = {
    * when present — never invents or recomputes it.
    */
   benchmarkObservation?: string | null;
+  /**
+   * Layer 1 — deterministic, server-computed spending breakdown (top categories,
+   * biggest merchant, largest transaction, uncategorised share). Always rendered
+   * when present, in both modes. Cited verbatim, never recomputed.
+   */
+  spendingBreakdown?: SpendingBreakdown | null;
+  /** Goal-conditioned LEAD emphasis. Sets which finding the Read opens on; all layers still compose. */
+  readRecipe?: ReadRecipe;
 };
 
 export type FirstReadMetadata = {
@@ -61,6 +71,10 @@ export type FirstReadMetadata = {
   mode?: 'default' | 'value_first';
   /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
   hook_candidates?: HookCandidate[] | null;
+  /** Which LEAD recipe drove this Read (visibility | target | control | open), or null pre-change. */
+  read_recipe?: ReadRecipe | null;
+  /** Whether the composed prose actually surfaced a breakdown category or headline number. */
+  breakdown_cited?: boolean;
 };
 
 export type FirstReadComposeOutput = {
@@ -192,21 +206,27 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):`,
     formatFinancialFacts(input.financialFacts),
     ``,
+    `SPENDING BREAKDOWN (Layer 1 — server-computed; cite verbatim, never recompute a % or a sum):`,
+    formatSpendingBreakdown(input.spendingBreakdown),
+    ``,
   ];
+
+  // BLOCKER + LEVERS are rendered in BOTH modes. The value-first close stays the
+  // HOOK, but the goal math (blocker "set a target", sized cut levers) must be
+  // available for the LEAD — the target recipe leans on it.
+  sections.push(
+    `BLOCKER (a required input for the goal math is missing — when present this IS the lead under the target recipe, not a footnote):`,
+    formatBlocker(input.blocker, isValueFirst),
+    ``,
+    `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
+    formatLevers(input.levers),
+    ``,
+  );
 
   if (isValueFirst) {
     sections.push(
       `HOOK CANDIDATES (the 2-3 specific clusters you can see but cannot read alone — these are the CLOSE):`,
       formatHookCandidates(input.hookCandidates ?? []),
-      ``,
-    );
-  } else {
-    sections.push(
-      `BLOCKER (a required input for the goal math is missing — when present this IS the lead, not a footnote):`,
-      formatBlocker(input.blocker),
-      ``,
-      `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
-      formatLevers(input.levers),
       ``,
     );
   }
@@ -226,14 +246,17 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     );
   }
   sections.push(
+    `READ FOCUS — ${input.readRecipe ?? 'open'} (this sets the LEAD only; all layers still compose):`,
+    formatReadFocus(input.readRecipe ?? 'open', input.goalSummary),
+    ``,
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0
       ? '(no clusters with sufficient data — fall back to the transaction count and acknowledge the thin data)'
       : input.topClusterBehaviours.map(formatClusterForPrompt).join('\n\n'),
     ``,
     isValueFirst
-      ? `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead with the Layer 1 picture (income / fixed costs / free cash flow / goal sitting), ≤2 BEHAVIOURAL CLUSTERS body observations, CLOSE with the HOOK (2-3 items from HOOK CANDIDATES as statements of curiosity) and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
-      : `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead, ≤2 body observations, close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
+      ? `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 BEHAVIOURAL CLUSTERS body observations, then CLOSE with the HOOK (2-3 items from HOOK CANDIDATES as statements of curiosity) and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
+      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   );
 
   return sections.join('\n');
@@ -251,6 +274,69 @@ function formatFinancialFacts(facts: FinancialFacts | null | undefined): string 
   return lines.join('\n');
 }
 
+function formatSpendingBreakdown(breakdown: SpendingBreakdown | null | undefined): string {
+  if (!breakdown || breakdown.top_categories.length === 0) {
+    return '(breakdown unavailable — too few transactions)';
+  }
+  const lines: string[] = [];
+  lines.push(`- Total tracked spend (window): ${breakdown.total_spend}`);
+  lines.push(
+    `- Top categories: ` +
+      breakdown.top_categories
+        .map((c) => `${c.category} ${c.total} (${c.pct}%)`)
+        .join(', '),
+  );
+  if (breakdown.biggest_merchant) {
+    lines.push(
+      `- Biggest single merchant by spend: ${breakdown.biggest_merchant.name} — ${breakdown.biggest_merchant.total} across ${breakdown.biggest_merchant.txn_count} txns`,
+    );
+  }
+  if (breakdown.largest_transaction) {
+    lines.push(
+      `- Largest single transaction: ${breakdown.largest_transaction.merchant} ${breakdown.largest_transaction.amount} on ${breakdown.largest_transaction.date}`,
+    );
+  }
+  lines.push(`- Uncategorised share: ${breakdown.uncategorised_pct}%`);
+  return lines.join('\n');
+}
+
+/**
+ * One block per recipe. The COMPOSE directive points here for the LEAD; the
+ * body rules, hook close, honesty guards, and CTA contract are unchanged. The
+ * recipe only sets which finding the Read opens on.
+ */
+function formatReadFocus(recipe: ReadRecipe, goalSummary: string | null | undefined): string {
+  const goal = goalSummary ?? 'their goal';
+  switch (recipe) {
+    case 'visibility':
+      return [
+        `The user said they don't know where their money goes. LEAD with the SPENDING BREAKDOWN made`,
+        `legible: the biggest category, the single biggest merchant by spend, the largest single`,
+        `transaction, and the one line most likely to surprise them — in the first three sentences.`,
+        `Then ≤2 body observations, then the close.`,
+      ].join('\n');
+    case 'target':
+      return [
+        `The user is working toward ${goal}. LEAD with where they stand against it: free cash flow vs`,
+        `the monthly contribution the goal needs vs what's currently reaching it. If the target amount`,
+        `or date is missing, the BLOCKER ("set a target") IS the lead. Body: the biggest drain pulling`,
+        `against the goal. Then the close.`,
+      ].join('\n');
+    case 'control':
+      return [
+        `LEAD with the trajectory and the single biggest recurring drain. Body: one more drain or a`,
+        `divergence. Then the close.`,
+      ].join('\n');
+    case 'open':
+    default:
+      return [
+        `No goal and no struggle on file. LEAD with free cash flow as the headline number and one`,
+        `specific observation, then invite them to name what they're building toward. (This is the only`,
+        `recipe where a "what are you building toward" framing in the body is correct.)`,
+      ].join('\n');
+  }
+}
+
 function formatHookCandidates(hooks: HookCandidate[]): string {
   if (hooks.length === 0) return '(no hook candidates — close on a qualitative observation)';
   return hooks
@@ -266,7 +352,7 @@ function formatHookCandidates(hooks: HookCandidate[]): string {
     .join('\n');
 }
 
-function formatBlocker(blocker: Lever | null | undefined): string {
+function formatBlocker(blocker: Lever | null | undefined, isValueFirst = false): string {
   if (!blocker || blocker.type !== 'supply_input') {
     return '(no blocker — every required pace input is populated)';
   }
@@ -276,13 +362,25 @@ function formatBlocker(blocker: Lever | null | undefined): string {
     : blocker.field === 'target_date'
       ? `[CTA:supply_input]Set a target date for ${blocker.goalName}[/CTA]`
       : `[CTA:supply_input]Set the target amount for ${blocker.goalName}[/CTA]`;
-  return [
+  const lines = [
     `- field: ${blocker.field}`,
     `- goal: ${blocker.goalName}`,
     `- unlocks: ${blocker.unlocks}`,
-    `- LEAD WITH THIS. Frame it as the one thing between the user and the goal math.`,
-    `- CLOSE WITH THIS CTA (verbatim, on its own line just before "— C."): ${ctaHint}`,
-  ].join('\n');
+    `- LEAD WITH THIS under the target recipe. Frame it as the one thing between the user and the goal math.`,
+  ];
+  if (isValueFirst) {
+    // Value-first close is the HOOK + start_value_map_real CTA (system prompt
+    // contract). The blocker informs the LEAD only here — do NOT emit the
+    // supply_input CTA, or it collides with the hook close.
+    lines.push(
+      `- This sets the LEAD only. The CLOSE remains the HOOK and its [CTA:start_value_map_real] line — do not emit a supply_input CTA.`,
+    );
+  } else {
+    lines.push(
+      `- CLOSE WITH THIS CTA (verbatim, on its own line just before "— C."): ${ctaHint}`,
+    );
+  }
+  return lines.join('\n');
 }
 
 function formatLevers(levers: Lever[] | undefined): string {

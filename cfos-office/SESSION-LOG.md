@@ -2631,3 +2631,38 @@ When Lewis runs the full eval, the personas to watch for failure modes:
 1. Set `CRON_SECRET` + `ADMIN_EMAILS` on Vercel preview env (see above).
 2. Apply `prod-backfill-065_wow_events.sql` + `prod-backfill-066_wow_assessments.sql` to production Supabase before merging to main.
 3. Run the manual end-to-end check from the plan's Phase 7.10 (single persona, full event flow, dashboard inspection).
+
+---
+
+## Session — First Read goal-anchoring & spending visibility — 2026-06-01
+
+**Branch:** `claude/youthful-fermi-3Xc54` (off `main` at `a5865e7`, v2.7 UI refactor #63 merged)
+**Headline:** Read now leads with what the user asked for. New deterministic spending breakdown + ReadRecipe selector keyed off entry_struggle/goal; levers/blocker re-included in value-first mode. Additive; rides isLayeredReadEnabled().
+
+### What shipped
+- `spending-breakdown.ts` (+ tests) — total spend, top categories, biggest merchant by spend, largest txn, uncategorised %; sourced from `transactions` directly, windowed off `dataWindowEnd` (not today). Reuses `isPlSpend`/`absExpense` so transfers/income/debt-repayments are excluded.
+- `first-read-recipe.ts` (+ tests) — `visibility | target | control | open`; goal-first precedence mirroring `resolveUserIntent`. Adds `dont_know → visibility` (resolveUserIntent treats dont_know as null; left unchanged). Free-text is keyword-only.
+- `compose-first-read.ts` — reads `entry_struggle`/`entry_struggle_text` via new `getEntryStruggle`, computes breakdown + recipe, threads `spendingBreakdown` + `readRecipe` into the prompt and metadata. Metadata now records `read_recipe` + `breakdown_cited`.
+- `first-read.ts` — SPENDING BREAKDOWN section (both modes), READ FOCUS lead directive (one block per recipe), BLOCKER + LEVERS now rendered in value-first (previously dropped). `formatBlocker` is mode-aware: in value-first it informs the LEAD only and does NOT emit a supply_input CTA (the hook close stays). COMPOSE directive now says "Follow READ FOCUS for the LEAD".
+- judge baseline (`eval/judges/2026-05-17-baseline.ts`) — added `goal_service` (0–1) dimension to the Zod schema, prompt scoring guidance, and wow_score weighting (a Read that doesn't answer the user's actual ask is capped at 0.5). Added to the `diagnostic` return.
+
+### Phase 0 ground truth
+- `transactions` cols: `amount`, `category_id` (string|null, traditional category), `date`, `deleted_at`, `description` (merchant/desc — no dedicated merchant col), `user_id`.
+- `monthly_snapshots.spending_by_category`: not used — breakdown sources `transactions` directly → no migration.
+- Spend-filter exports: `isPlSpend({amount, category_id})` + `absExpense(amount)` from `@/lib/analytics/pattern-detectors`; `normaliseMerchantDescription` from `@/lib/analytics/merchant-normalise`.
+- Mode routing: `composeFirstRead` mode is decided in `post-upload/route.ts` SOLELY by `onboarding_step === 'details_confirmed'` → `value_first`, **independent of entry_struggle**. So wealth/planning/debt/dont_know ALL hit value-first during onboarding. The fix applies to both modes; routing unchanged.
+- Judge dims pre-change: wow_score, recognition, goal_calibration, surprise, trust, tangibility, voice.
+
+### Migration
+- None. Breakdown sources `transactions` directly; `entry_struggle`/`entry_struggle_text` already exist. No DDL.
+
+### Verification
+- `tsc --noEmit` clean (excluding the auto-excluded `tests/onboarding/` Playwright tree).
+- Full `vitest run`: 84 files, 968 tests pass (incl. new spending-breakdown + first-read-recipe + extended compose-first-read metadata tests). ESLint clean on changed files. knip clean.
+- NOT runnable in this environment (no Bedrock/Supabase creds, e2e harness needs a running app): live Read comparisons via `scripts/compare-first-insight.ts` for Marcus/lewis.tester/Dorcas, and the judge `goal_service` delta run. These remain manual verification items for Lewis.
+
+### Lessons / follow-ups
+- `merchant-normalise` strips bank prefixes + 6+ digit trailing refs but does NOT brand-roll (`ALDI 123` ≠ `ALDI`); brand rollup is a query-layer concern. The breakdown's `biggest_merchant` inherits this — variants that differ past the prefix stay distinct. Acceptable for a first Read.
+- free_text recipe is keyword-only — Haiku fallback for ambiguous text deferred (kept the selector a pure, no-LLM function in the one-shot path).
+- **Persona coverage gap (target recipe):** every CSV-bearing persona uses `entryStruggle: 'dont_know'` (→ visibility). Visibility coverage already exists implicitly via existing `mustReferenceMerchantsFromCsv` assertions (the breakdown leads with the real biggest merchant). There is NO CSV-bearing `target`/`control` persona, so the "gap appears" assertion has nothing to attach to without authoring a new persona — which can't be validated without the e2e harness. Did NOT weaken existing tuned OR-pools. Authoring a CSV+concrete-goal target persona is a follow-up (relates to §10's open routing fork).
+- Confirmed (§10 fork): wealth/planning DO reach value-first compose post-UI-merge, because mode keys off onboarding_step not struggle.
