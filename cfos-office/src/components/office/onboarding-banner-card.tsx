@@ -16,6 +16,7 @@ export function OnboardingBannerCard({ variant }: { variant: Variant }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only sessionStorage hydration; reading in render would break SSR/hydration
       setDismissed(window.sessionStorage.getItem(SESSION_KEY) === '1')
     }
   }, [])

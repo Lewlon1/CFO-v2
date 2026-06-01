@@ -1,18 +1,19 @@
-// Quadrant colour + label tokens used across the three V2 Gap card shapes
-// and the ValueMapSummary header. These intentionally diverge from
-// `valueCategories` in @/lib/tokens — the Gap prototype uses softer, more
-// editorial hues that read better against the office dark surfaces and
-// against the italic serif type. Keeping them local to the Gap page keeps
-// the broader design system stable.
+// Quadrant colour + label tokens for the three Gap card shapes and the Gap
+// ValueMapSummary header. The colour values are CSS custom properties defined in
+// globals.css (--gap-quadrant-*) — an intentionally distinct, more editorial palette
+// than the value-category tokens (softer hues that read better against the office
+// dark surfaces + italic serif), but sourced from globals.css like everything else
+// (single colour source of truth — no inline hex). Consumed via inline `style`, so
+// the var() references resolve in the DOM.
 
 export type Quadrant = 'foundation' | 'investment' | 'leak' | 'burden' | 'unsure'
 
 export const QUADRANT_COLOURS: Record<Quadrant, string> = {
-  foundation: '#7A9E7E',
-  investment: '#D4A24C',
-  leak: '#B8584F',
-  burden: '#8A7468',
-  unsure: '#605749',
+  foundation: 'var(--gap-quadrant-foundation)',
+  investment: 'var(--gap-quadrant-investment)',
+  leak: 'var(--gap-quadrant-leak)',
+  burden: 'var(--gap-quadrant-burden)',
+  unsure: 'var(--gap-quadrant-unsure)',
 }
 
 export const QUADRANT_LABELS: Record<Quadrant, string> = {

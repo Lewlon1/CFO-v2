@@ -53,6 +53,7 @@ function makeTestPair(overrides: Partial<NewPairInput> = {}): GoldenPair {
 function cleanup() {
   // Best-effort cleanup of test-generated pair files
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require of node:fs in a test-only cleanup helper
     const { readdirSync, unlinkSync } = require('node:fs')
     const dir = pairsDir()
     if (!existsSync(dir)) return

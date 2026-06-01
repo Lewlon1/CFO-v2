@@ -5,6 +5,58 @@
 
 ---
 
+## Token enforcement — the lock (Visual Consistency Phase 4)
+
+> **CI-enforced. A raw colour or an arbitrary radius fails the build.**
+
+**The rule — every colour and radius reads from a token:**
+- Raw hex (`#aabbcc`), `rgb()/rgba()` literals, and arbitrary colour utilities
+  (`(bg|text|border|ring|fill|stroke|from|to|via)-[#…]`) are **banned** (ESLint error).
+- Arbitrary `rounded-[…]` of **4px and up** is banned — use `rounded-control` (8) /
+  `rounded-card` (14) / `rounded-pill` (full). `rounded-[≤3px]` is permitted (thin chart bars:
+  nothing named exists below 8px, and snapping a 5–6px bar to 8px distorts it).
+
+**Single source of truth.** `globals.css` (`:root` dark + `:root[data-theme="light"]` +
+`@theme inline`) defines every colour; `tokens.ts` is a typed `var()` accessor over it.
+**Never a third source.** `dark:` utilities are inert — theme switches via `data-theme` only.
+
+**Three drift-proofing prongs** — all run in `.github/workflows/ci.yml` (lint · knip ·
+typecheck · build):
+1. **ESLint** `cfo/visual-token-guards` (`eslint.config.mjs`) — the colour + radius bans,
+   scoped to `src/**`.
+2. **knip** (`knip.json`) — unused-file + unused-dependency drift fails CI. (Unused
+   `exports`/`types`/`duplicates` are relaxed — Audit-Zero-verified false positives; tightening
+   is a follow-up.)
+3. **`/styleguide`** (`src/app/styleguide/`, dev-only via `notFound()` in production) — the
+   canonical visual-regression surface: every primitive, every state, both themes. Snapshot
+   testing is an optional later follow-up.
+
+**Documented exceptions** — legitimate residuals, each carrying a site `eslint-disable` with a
+reason (not drift):
+
+| Bucket | Sites | Mechanism |
+|---|---|---|
+| Token source | `lib/tokens.ts` | file ignore (colour is *defined* here) |
+| Scoped landing | `(public)/v4/**` | dir ignore (intended colour island) |
+| Brand marks | `CFOAvatar` SVG · `login` Google-logo SVG | block disable |
+| Canvas export | `demo-reveal.tsx` · `value-map-summary.tsx` (html2canvas) | file / line disable (canvas needs literal colour) |
+| Drop shadow | `ChatSheet` `rgba(0,0,0,0.5)` | line disable (no `--shadow` token; single use) |
+| DB-coupled | `CATEGORY_COLORS` (`constants/dashboard.ts`) | block disable (mirrors `categories.color`; re-source = DB migration) |
+| False positives | `#142` merchant codes · `&#9679;` entities · test fixtures | AST rule ignores comments/JSX-text; test globs ignored |
+| Thin bar radii | `rounded-[2–3px]` in ValuesSection / NetWorthSection / NetWorth + CashFlow dashboards | permitted by the ≤3px threshold |
+
+**NOT enforced — type + spacing (wave two).** `text-[…]` type sizes and spacing brackets
+(`p-[…]`, `gap-[…]`, `w-[…]`, …) are **deliberately not banned**. Type tokens carry paired
+line-heights + intentional tracking; spacing has no var scale. Tokenising and enforcing them is
+a separate, tracked second wave — **do not assume they are enforced.**
+
+**Fonts of record (F1 close-out — Cormorant kept), 6 families** (confirmed against the layouts):
+- Root (`app/layout.tsx`): **Instrument Serif · Instrument Sans · Geist Mono**.
+- Office subtree (`app/(office)/layout.tsx`): **DM Sans · JetBrains Mono · Cormorant Garamond**
+  (the briefing serif + the "CFO's Office" wordmark).
+
+---
+
 ## Identity
 
 **Product:** The CFO's Office

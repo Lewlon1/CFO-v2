@@ -65,6 +65,7 @@ export default async function AdminWowIndexPage() {
   await assertAdmin();
   const svc = createServiceClient();
 
+  // eslint-disable-next-line react-hooks/purity -- async Server Component (force-dynamic); Date.now() runs once per request to build the 30-day window
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
   const { data: assessments, error } = await svc

@@ -119,6 +119,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
 
   useEffect(() => {
     // Reset gate
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- per-card reset keyed on currentIndex; entangled with timing refs + the gate timer below
     setCanTap(false)
     setSelectedQuadrant(null)
     setConfidence(3)
@@ -179,6 +180,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
 
   // ── Confirm selection (submit card) ────────────────────────────────────────
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- compiler can't preserve this useCallback; it mutates timing refs, schedules a feedback timer, and fires onComplete/onTransactionResult with closure-captured values — keep explicit memoization
   const handleConfirm = useCallback(() => {
     if (!selectedQuadrant || cardState !== 'visible') return
 

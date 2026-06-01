@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useChatContext } from '@/components/chat/ChatProvider';
+import { useOptionalChatContext } from '@/components/chat/ChatProvider';
 import { formatCurrency } from '@/lib/format/currency';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -44,13 +44,8 @@ export function TripsClient({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  // Use office ChatSheet when available
-  let chatCtx: ReturnType<typeof useChatContext> | null = null
-  try {
-    chatCtx = useChatContext()
-  } catch {
-    // Not inside ChatProvider
-  }
+  // Use office ChatSheet when available (component may render outside <ChatProvider>)
+  const chatCtx: ReturnType<typeof useOptionalChatContext> = useOptionalChatContext()
 
   function handlePlanEvent() {
     if (loading) return;

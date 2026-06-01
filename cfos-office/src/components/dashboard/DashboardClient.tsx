@@ -61,6 +61,7 @@ export function DashboardClient({ hasData }: Props) {
   useEffect(() => {
     const saved = localStorage.getItem('dashboard_view')
     if (saved === 'spending' || saved === 'values') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only localStorage hydration; reading in render would break SSR/hydration
       setActiveView(saved)
     }
   }, [])

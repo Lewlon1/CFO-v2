@@ -105,6 +105,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
     try {
       const html2canvas = (await import('html2canvas')).default
       const canvas = await html2canvas(shareCardRef.current, {
+        // eslint-disable-next-line no-restricted-syntax -- html2canvas export background; a literal colour is required for the rendered PNG
         backgroundColor: '#0a0a0a',
         scale: 2,
         useCORS: true,

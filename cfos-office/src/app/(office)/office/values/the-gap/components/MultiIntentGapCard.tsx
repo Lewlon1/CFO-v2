@@ -53,7 +53,7 @@ function IntentRow({ card, quadrant }: { card: string; quadrant: Quadrant }) {
   const colour = QUADRANT_COLOURS[quadrant]
   return (
     <div
-      className="flex items-center justify-between rounded-[5px]"
+      className="flex items-center justify-between rounded-control"
       style={{
         padding: '8px 10px',
         background: 'var(--office-bg-tertiary)',
@@ -290,7 +290,7 @@ function AfterLabellingState({
 
       <SectionLabel>The gap, now claimable</SectionLabel>
       <div
-        className="rounded-[4px] mb-3.5"
+        className="rounded-control mb-3.5"
         style={{
           padding: '14px',
           background: 'var(--office-bg-tertiary)',
@@ -444,7 +444,7 @@ export function MultiIntentGapCard({
             </div>
           ) : (
             <div
-              className="rounded-[4px] mb-4"
+              className="rounded-control mb-4"
               style={{
                 padding: '12px 14px',
                 background: 'var(--office-bg-tertiary)',
@@ -465,7 +465,7 @@ export function MultiIntentGapCard({
 
           {/* Honest framing block */}
           <div
-            className="rounded-[4px] mb-3.5"
+            className="rounded-control mb-3.5"
             style={{
               padding: '12px 14px',
               background: 'var(--office-bg-tertiary)',

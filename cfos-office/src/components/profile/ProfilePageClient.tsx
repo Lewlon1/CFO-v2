@@ -155,7 +155,7 @@ export function ProfilePageClient({
       <div>
         <h1 className="text-lg font-semibold text-foreground">What your CFO knows</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Everything the system knows about you. Edit anything, dismiss what's wrong.
+          Everything the system knows about you. Edit anything, dismiss what&apos;s wrong.
         </p>
       </div>
 

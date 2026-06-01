@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useChatContext } from '@/components/chat/ChatProvider'
+import { useOptionalChatContext } from '@/components/chat/ChatProvider'
 import type { ReviewStatus } from '@/app/api/dashboard/summary/route'
 
 type Props = {
@@ -23,12 +23,8 @@ export function ReviewBanner({ reviewStatus, month }: Props) {
   // ChatContext is optional — ReviewBanner may render outside the office layout.
   // When present, we open the persistent chat sheet rather than navigating to /chat/{id},
   // because that URL is 301-redirected to /office and the conversation ID would be dropped.
-  let chatCtx: ReturnType<typeof useChatContext> | null = null
-  try {
-    chatCtx = useChatContext()
-  } catch {
-    // Not inside ChatProvider — fall back to router.push('/office')
-  }
+  // Falls back to router.push('/office') when there is no provider.
+  const chatCtx: ReturnType<typeof useOptionalChatContext> = useOptionalChatContext()
 
   function openConversation(conversationId: string) {
     if (chatCtx) {

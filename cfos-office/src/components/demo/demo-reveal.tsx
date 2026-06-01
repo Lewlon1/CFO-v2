@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable no-restricted-syntax -- share card rendered to html2canvas: a fixed brand palette baked into the exported PNG, not theme tokens (canvas needs literal colour) */
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download } from 'lucide-react'

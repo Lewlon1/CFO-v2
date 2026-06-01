@@ -40,6 +40,7 @@ function useResolvedVar(cssVar: string, themeKey: string): string {
   const [val, setVal] = useState('')
   useEffect(() => {
     const v = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads getComputedStyle (browser-only, post-paint); must run in an effect, not during render
     setVal(v)
   }, [cssVar, themeKey])
   return val

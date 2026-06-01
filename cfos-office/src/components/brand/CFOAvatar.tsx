@@ -16,6 +16,7 @@ export function CFOAvatar({ size, withOnlineDot, className }: CFOAvatarProps) {
         aria-hidden="true"
         style={{ flexShrink: 0, borderRadius: Math.round(size * 0.07) }}
       >
+        {/* eslint-disable no-restricted-syntax -- CFO brand avatar: fixed SVG palette, not theme tokens */}
         <rect width="100" height="100" rx="22" fill="#E8A84C" />
         <circle cx="50" cy="38" r="20" fill="#F0E6D4" opacity="0.9" />
         {/* Left glasses lens */}
@@ -28,6 +29,7 @@ export function CFOAvatar({ size, withOnlineDot, className }: CFOAvatarProps) {
         <path d="M43 50 Q50 54 57 50" fill="none" stroke="#1A1A18" strokeWidth="1.5" strokeLinecap="round" opacity="0.22" />
         {/* Suit/body */}
         <path d="M14 66 Q14 56 50 56 Q86 56 86 66 L86 100 L14 100 Z" fill="#0F0F0D" opacity="0.6" />
+        {/* eslint-enable no-restricted-syntax */}
       </svg>
 
       {withOnlineDot && (

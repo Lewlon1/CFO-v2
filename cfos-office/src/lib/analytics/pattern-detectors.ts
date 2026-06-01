@@ -684,7 +684,7 @@ export const geographicSpendingModes: PatternDetector = {
     if (relativeDelta < 0.50) return null;
     if (absoluteDelta < 5) return null;
 
-    let score = 40;
+    const score = 40;
 
     const topGroups = sorted.slice(0, 3).map((g) => ({
       location: g.location,
