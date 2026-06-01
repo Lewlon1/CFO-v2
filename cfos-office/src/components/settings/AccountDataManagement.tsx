@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/Input'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/button'
 
 /**
  * Two sections:
@@ -78,44 +80,48 @@ export function AccountDataManagement() {
   return (
     <>
       {/* Export */}
-      <section className="mt-10">
-        <h2 className="text-sm font-medium text-foreground mb-2">Your data</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Download a full copy of everything we hold for you — profile, transactions,
-          conversations, Value Map, and consent history. The file is standard JSON.
-        </p>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting}
-          className="min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
-        >
-          {exporting ? 'Preparing download…' : 'Download my data'}
-        </button>
-        {exportError && (
-          <p className="mt-2 text-sm text-destructive">{exportError}</p>
-        )}
+      <section className="space-y-3">
+        <h2 className="text-h3 text-text-primary">Your data</h2>
+        <Card variant="elevated" className="p-4 space-y-3">
+          <p className="text-body text-text-secondary">
+            Download a full copy of everything we hold for you — profile, transactions,
+            conversations, Value Map, and consent history. The file is standard JSON.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            loading={exporting}
+            className="min-h-[44px]"
+          >
+            Download my data
+          </Button>
+          {exportError && <p className="text-body-sm text-destructive">{exportError}</p>}
+        </Card>
       </section>
 
       {/* Danger zone */}
-      <section className="mt-10 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-        <h2 className="text-sm font-medium text-destructive mb-2">Danger zone</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Permanently delete your account and every piece of data associated with it —
-          transactions, conversations, financial portrait, Value Map results. This action
-          cannot be undone.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setShowDeleteModal(true)
-            setConfirmationText('')
-            setDeleteError(null)
-          }}
-          className="min-h-[44px] rounded-lg border border-destructive/40 bg-background px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10"
-        >
-          Delete my account
-        </button>
+      <section className="space-y-3">
+        <h2 className="text-h3 text-destructive">Danger zone</h2>
+        <div className="rounded-card border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+          <p className="text-body text-text-secondary">
+            Permanently delete your account and every piece of data associated with it —
+            transactions, conversations, financial portrait, Value Map results. This action
+            cannot be undone.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setShowDeleteModal(true)
+              setConfirmationText('')
+              setDeleteError(null)
+            }}
+            className="min-h-[44px] border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            Delete my account
+          </Button>
+        </div>
       </section>
 
       {/* Confirmation modal */}
@@ -124,21 +130,19 @@ export function AccountDataManagement() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => !deleting && setShowDeleteModal(false)}
         >
-          <div
-            className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-xl"
+          <Card
+            variant="elevated"
+            className="w-full max-w-md p-6 space-y-4"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-foreground mb-2">
-              Delete your account?
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
+            <h3 className="text-h2 text-text-primary">Delete your account?</h3>
+            <p className="text-body text-text-secondary">
               This will permanently delete all your data including transactions,
               conversations, financial portrait, and Value Map results. This action
               cannot be undone.
             </p>
-            <p className="text-sm text-foreground mb-2">
-              Type <span className="font-mono font-semibold">DELETE MY ACCOUNT</span> to
-              confirm:
+            <p className="text-body text-text-primary">
+              Type <span className="font-data font-semibold">DELETE MY ACCOUNT</span> to confirm:
             </p>
             <Input
               type="text"
@@ -148,28 +152,28 @@ export function AccountDataManagement() {
               placeholder="DELETE MY ACCOUNT"
               autoFocus
             />
-            {deleteError && (
-              <p className="mt-2 text-sm text-destructive">{deleteError}</p>
-            )}
-            <div className="mt-5 flex gap-2 justify-end">
-              <button
-                type="button"
+            {deleteError && <p className="text-body-sm text-destructive">{deleteError}</p>}
+            <div className="flex gap-2 justify-end pt-1">
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowDeleteModal(false)}
                 disabled={deleting}
-                className="min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+                className="min-h-[44px]"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                size="sm"
                 onClick={handleDelete}
                 disabled={!canDelete}
-                className="min-h-[44px] rounded-lg bg-destructive px-4 py-2.5 text-sm font-semibold text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                loading={deleting}
+                className="min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
               >
-                {deleting ? 'Deleting…' : 'Delete permanently'}
-              </button>
+                Delete permanently
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </>
