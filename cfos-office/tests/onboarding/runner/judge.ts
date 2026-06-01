@@ -1,5 +1,6 @@
 import { generateText } from 'ai'
 import { utilityModel, utilityModelId } from '@/lib/ai/provider'
+import { checkReadHardRules } from '@/lib/ai/read-judge'
 import type { Persona } from '../personas/types'
 import type { CsvSummary } from './csv-summariser'
 import type { JudgeOutput, HardRuleResult, LikertResult } from './types'
@@ -194,6 +195,18 @@ export async function judgeOutput(
     hardRules.push(checkMustMentionOneOf(text, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
     if (rules?.insight?.numbersMustMatchCsv) {
       hardRules.push(checkNumbersMatchCsv(text, csvSummary))
+    }
+    // Current-Read format/voice contract (250-word cap, single [CTA], no
+    // [OPTIONS] chips, no question-back close, "— C." signoff). Calibrated to
+    // the live composition prompt, not the retired first-insight format. The
+    // value-first close (start_value_map_real CTA) is detected from the text.
+    const isValueFirst = /\[CTA:start_value_map_real\]/i.test(text)
+    const knownMerchants = csvSummary?.topMerchants.map((m) => m.description.toLowerCase()) ?? []
+    for (const r of checkReadHardRules(text, {
+      mode: isValueFirst ? 'value_first' : 'default',
+      knownMerchants,
+    })) {
+      hardRules.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
     }
   }
 

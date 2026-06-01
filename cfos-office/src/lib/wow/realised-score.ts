@@ -1,5 +1,5 @@
 // Session 32 (C) — Compute realised_wow_score from a set of wow_events for a
-// single first_insight. Pure functions; the single source of truth for the
+// single first_read. Pure functions; the single source of truth for the
 // scoring formula.
 //
 // Formula:

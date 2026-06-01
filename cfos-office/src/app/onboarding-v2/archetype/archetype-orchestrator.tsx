@@ -17,7 +17,7 @@ type Props = {
  * Marcus archetype reveal. Mirrors the modal's archetype-generation
  * fetch (POST /api/onboarding/generate-archetype) and renders the same
  * <ArchetypeBeat> presentation, with a CTA that advances onboarding_step
- * to 'complete', creates (or reuses) a first_insight conversation, and
+ * to 'complete', creates (or reuses) a first_read conversation, and
  * lands the user in chat where the CFO opens with a goal-aware wow
  * moment grounded in their actual transaction data.
  */
@@ -86,7 +86,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
         })
         await advanceStep('complete')
 
-        // Materialise (or reuse) a first_insight conversation and land the
+        // Materialise (or reuse) a first_read conversation and land the
         // user in chat where the CFO opens with a goal-aware wow moment.
         // The endpoint is idempotent — safe to call even if a prior step
         // already created one.

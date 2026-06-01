@@ -26,7 +26,7 @@ import {
 // and `loadConversation` (existing conversation, e.g. one created server-side
 // by archetype-orchestrator + materialised via /api/insights/post-upload).
 const AUTO_TRIGGER_TYPES = [
-  'first_insight',
+  'first_read',
   'post_upload',
   'value_map_complete',
   'monthly_review',
@@ -57,8 +57,8 @@ interface ChatContextValue {
   conversationType: string | null
   /** Wow plumbing: MessageList calls this when it renders the first-insight
    *  delivery. Used by handleSend to detect substantive replies within 5 min. */
-  registerFirstInsightDelivery: (ctx: {
-    first_insight_message_id: string
+  registerFirstReadDelivery: (ctx: {
+    first_read_message_id: string
     conversation_id: string
   }) => void
   chatError: string | null
@@ -122,24 +122,24 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
 
   // Wow plumbing: holds the active first-Read delivery so handleSend can
   // detect substantive replies within 5 minutes of it being shown.
-  const firstInsightCtxRef = useRef<{
-    first_insight_message_id: string
+  const firstReadCtxRef = useRef<{
+    first_read_message_id: string
     conversation_id: string
     delivered_at: number
   } | null>(null)
 
-  const registerFirstInsightDelivery = useCallback(
-    (ctx: { first_insight_message_id: string; conversation_id: string }) => {
+  const registerFirstReadDelivery = useCallback(
+    (ctx: { first_read_message_id: string; conversation_id: string }) => {
       // Re-registering the same insight is a no-op (component re-mount,
       // re-render). Only the FIRST delivery captures the timestamp — that's
       // what the 5-minute window measures from.
       if (
-        firstInsightCtxRef.current?.first_insight_message_id ===
-        ctx.first_insight_message_id
+        firstReadCtxRef.current?.first_read_message_id ===
+        ctx.first_read_message_id
       ) {
         return
       }
-      firstInsightCtxRef.current = {
+      firstReadCtxRef.current = {
         ...ctx,
         delivered_at: Date.now(),
       }
@@ -328,7 +328,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       conversationTypeRef.current = type
       conversationMetadataRef.current = metadata
       setConversationType(type ?? null)
-      firstInsightCtxRef.current = null
+      firstReadCtxRef.current = null
       setChatError(null)
       setInput('')
 
@@ -349,7 +349,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       conversationTypeRef.current = undefined
       conversationMetadataRef.current = undefined
       setConversationType(null)
-      firstInsightCtxRef.current = null
+      firstReadCtxRef.current = null
       autoTriggeredRef.current = false
       setChatError(null)
       setInput('')
@@ -364,7 +364,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
           }
 
           // If this is a typed conversation with no messages yet (e.g. a
-          // first_insight conversation just created by the archetype
+          // first_read conversation just created by the archetype
           // orchestrator), queue the auto-trigger so the CFO opens it.
           // Skipping when there are already messages avoids re-triggering
           // on subsequent loads from the conversation list.
@@ -405,11 +405,11 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     // Wow plumbing: if the user is replying within 5 min of a first Read
     // delivery, log a substantive-reply event. The helper enforces the
     // length + window thresholds; this site just provides the context.
-    const ctx = firstInsightCtxRef.current
+    const ctx = firstReadCtxRef.current
     if (ctx) {
       detectSubstantiveReply(text, {
-        first_insight_message_id: ctx.first_insight_message_id,
-        first_insight_delivered_at: ctx.delivered_at,
+        first_read_message_id: ctx.first_read_message_id,
+        first_read_delivered_at: ctx.delivered_at,
         conversation_id: ctx.conversation_id,
       })
     }
@@ -488,7 +488,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     loadConversation,
     conversationId,
     conversationType,
-    registerFirstInsightDelivery,
+    registerFirstReadDelivery,
     chatError,
     dismissError,
     handleOptionSelect,

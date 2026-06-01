@@ -29,7 +29,7 @@ export function ChatSheet() {
     currentFolder,
     conversationId,
     conversationType,
-    registerFirstInsightDelivery,
+    registerFirstReadDelivery,
   } = useChatContext()
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -237,7 +237,7 @@ export function ChatSheet() {
                   userCurrency={userCurrency}
                   conversationId={conversationId}
                   conversationType={conversationType}
-                  registerFirstInsightDelivery={registerFirstInsightDelivery}
+                  registerFirstReadDelivery={registerFirstReadDelivery}
                 />
               )}
             </div>

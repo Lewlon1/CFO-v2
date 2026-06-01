@@ -38,7 +38,7 @@ async function assertAdmin(): Promise<{ email: string }> {
 type AssessmentRow = {
   id: string;
   user_id: string;
-  first_insight_message_id: string;
+  first_read_message_id: string;
   conversation_id: string;
   delivered_at: string;
   predicted_wow_score: number | null;
@@ -71,7 +71,7 @@ export default async function AdminWowIndexPage() {
   const { data: assessments, error } = await svc
     .from('wow_assessments')
     .select(
-      'id, user_id, first_insight_message_id, conversation_id, delivered_at, predicted_wow_score, realised_wow_score, in_session_score, overnight_score, gap_present, layers_used, features_cited, clusters_referenced, last_aggregated_at',
+      'id, user_id, first_read_message_id, conversation_id, delivered_at, predicted_wow_score, realised_wow_score, in_session_score, overnight_score, gap_present, layers_used, features_cited, clusters_referenced, last_aggregated_at',
     )
     .gte('delivered_at', since)
     .order('delivered_at', { ascending: false })
@@ -103,18 +103,18 @@ export default async function AdminWowIndexPage() {
 
   // Fetch the union of relevant wow_events so we can render per-row signal
   // icons without N+1 queries.
-  const insightIds = rows.map((r) => r.first_insight_message_id);
+  const insightIds = rows.map((r) => r.first_read_message_id);
   const eventsByInsight = new Map<string, EventCounts>();
   if (insightIds.length > 0) {
     const { data: events } = await svc
       .from('wow_events')
-      .select('first_insight_message_id, event_type')
-      .in('first_insight_message_id', insightIds);
+      .select('first_read_message_id, event_type')
+      .in('first_read_message_id', insightIds);
     for (const e of (events ?? []) as Array<{
-      first_insight_message_id: string;
+      first_read_message_id: string;
       event_type: keyof EventCounts;
     }>) {
-      const existing = eventsByInsight.get(e.first_insight_message_id) ?? {
+      const existing = eventsByInsight.get(e.first_read_message_id) ?? {
         replied_substantively: false,
         chip_tapped: false,
         scrolled_to_bottom: false,
@@ -123,7 +123,7 @@ export default async function AdminWowIndexPage() {
         resonance_tap_negative: false,
       };
       existing[e.event_type] = true;
-      eventsByInsight.set(e.first_insight_message_id, existing);
+      eventsByInsight.set(e.first_read_message_id, existing);
     }
   }
 
@@ -197,7 +197,7 @@ export default async function AdminWowIndexPage() {
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((r) => {
-              const events = eventsByInsight.get(r.first_insight_message_id);
+              const events = eventsByInsight.get(r.first_read_message_id);
               return (
                 <tr key={r.id} className="hover:bg-muted/30">
                   <Td>{fmtDateTime(r.delivered_at)}</Td>
@@ -214,7 +214,7 @@ export default async function AdminWowIndexPage() {
                   <Td>{r.gap_present ? '✓' : '—'}</Td>
                   <Td>
                     <Link
-                      href={`/admin/wow/${r.first_insight_message_id}`}
+                      href={`/admin/wow/${r.first_read_message_id}`}
                       className="text-primary hover:underline"
                     >
                       Open

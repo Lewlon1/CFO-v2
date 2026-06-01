@@ -9,6 +9,52 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-01 — Measurement layer: fix E2/E3/E4 (wow predicted score, Read judge, first_insight→first_read)
+
+**Branch:** `claude/v2.7-ui-tidy-up`
+
+Made the onboarding-Read judging mechanism trustworthy before staging verification.
+
+**E3 — Read judge recalibrated to the live contract.** New shared module
+`src/lib/ai/read-judge.ts` encodes the *current* Read contract (≤250 words, single
+`[CTA:type]label[/CTA]`, value-first → `start_value_map_real`, no `[OPTIONS]` chips,
+no question-back close, `— C.` signoff, ≥1 real merchant, no emoji, banned phrases via
+the prod `validateVoice` — single source of truth). Wired into the persona suite
+(`tests/onboarding/runner/judge.ts`, insight branch) and the retired-format LLM rubric
+(`judge-first-insight.ts`) recalibrated (H6 100-180→≤250, H7 inverted to "no question
+close", H8 `[OPTIONS]`→single `[CTA]`, L4 chip→CTA). 15 new unit tests.
+
+**E2 — predicted_wow_score wired + clobber stopped.** `wow-aggregate` cron now derives a
+deterministic predicted score from the same judge (`predictWowScore`: 60% format/voice
+compliance + 40% composition richness — no LLM in the batch job, fully reproducible),
+computes it once and preserves it. Removed the `predicted_wow_score: null` / `judge_id:
+null` upsert clobber. judge_id = `read-heuristic-v1`.
+
+**E4 — `first_insight` → `first_read` rename (concept #1 only).** Renamed the conversation
+type value, the `wow_assessments`/`wow_events.first_insight_message_id` column, the two
+`user_events` validation event_type strings, and the delivery bindings
+(`registerFirstReadDelivery`, `firstReadMsgDbId`, `firstReadCtxRef`, `FirstReadRow`,
+`pollFirstReadAssistantMessage`, `first_read_delivered_at`). Deliberately **did NOT** rename
+the distinct "computed insight payload" concept (`computeFirstInsight` /
+`FirstInsightPayload` / `conversations.metadata.first_insight_payload`) — it would collide
+with the existing `composeFirstRead` names and is a separate refactor. Migration `071`
+(staging) + `prod-backfill-071` (manual prod) do the type UPDATE, guarded column renames,
+and event_type UPDATEs.
+
+**Verification:** typecheck clean · lint 0 errors · 942 unit tests · `next build` ✓ · knip ✓.
+
+**Deploy ordering (read before shipping):** migration `071` MUST be applied to the target
+env (staging `qlbhvlssksnrhsleadzn`, then prod manually by Lewis) in lockstep with this
+code — the code reads/writes the new names exclusively. A deploy without the migration (or
+vice versa) breaks the wow pipeline + the Read conversation lookup until both are in place.
+
+**Not addressed (related, out of scope):** the chat-route V2 inline validators
+(`validateLength` DEFAULT_BODY_WORD_CAP=180, `validateChips`/`[OPTIONS]`) still encode the
+retired chip format; they run on *ongoing* chat in Read conversations, not the composed
+Read, and are gated by the chat-intelligence-v2 flag. Tracked for a follow-up.
+
+---
+
 ## 2026-06-01 — Onboarding isolation: verify base + branch + map + baseline
 
 **Branch:** `claude/onboarding-isolation-verify-yhP1t` (off visual-3b base `5fa91fd`,

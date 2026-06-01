@@ -895,7 +895,7 @@ export async function POST(req: Request) {
         // ── end hallucination guard ──────────────────────────────────────
 
         // ── V2 chat-intelligence validators (Phase 6) ────────────────────
-        // For wave-1/wave-1.5 cohort users on first_insight conversations,
+        // For wave-1/wave-1.5 cohort users on first_read conversations,
         // run four deterministic guards on the LLM output:
         //   - citation grounding (numbers + merchants → tool result/brief)
         //   - projection grounding (any /year, /month, "saved" framing →
@@ -909,7 +909,7 @@ export async function POST(req: Request) {
         const v2Enabled = isChatIntelligenceV2Enabled(profileForChat);
         if (
           v2Enabled &&
-          conversationType === 'first_insight' &&
+          conversationType === 'first_read' &&
           textContent
         ) {
           // Build the ToolResultLike[] from the audit trail. insightsGenerated
@@ -960,7 +960,7 @@ export async function POST(req: Request) {
             void supabase.from('user_events').insert({
               profile_id: user.id,
               session_id: activeConversationId,
-              event_type: 'first_insight_validator_fired',
+              event_type: 'first_read_validator_fired',
               event_category: 'validation',
               payload: {
                 message_id: assistantMessageDbId,
@@ -986,7 +986,7 @@ export async function POST(req: Request) {
                 void supabase.from('user_events').insert({
                   profile_id: user.id,
                   session_id: activeConversationId,
-                  event_type: 'first_insight_chips_stripped',
+                  event_type: 'first_read_chips_stripped',
                   event_category: 'validation',
                   payload: {
                     message_id: assistantMessageDbId,

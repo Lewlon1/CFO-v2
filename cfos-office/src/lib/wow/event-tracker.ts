@@ -10,13 +10,13 @@ const inflight = new Set<string>();
 
 export type TrackParams = {
   event_type: WowEventType;
-  first_insight_message_id: string;
+  first_read_message_id: string;
   conversation_id: string;
   metadata?: Record<string, unknown>;
 };
 
 export async function trackWowEvent(params: TrackParams): Promise<void> {
-  const key = `${params.first_insight_message_id}:${params.event_type}`;
+  const key = `${params.first_read_message_id}:${params.event_type}`;
   if (inflight.has(key)) return;
   inflight.add(key);
 
@@ -37,18 +37,18 @@ export async function trackWowEvent(params: TrackParams): Promise<void> {
 export function detectSubstantiveReply(
   replyText: string,
   context: {
-    first_insight_message_id: string;
-    first_insight_delivered_at: number; // epoch ms
+    first_read_message_id: string;
+    first_read_delivered_at: number; // epoch ms
     conversation_id: string;
   },
 ): void {
   if (replyText.trim().length < 10) return;
-  const minutesSince = (Date.now() - context.first_insight_delivered_at) / 60_000;
+  const minutesSince = (Date.now() - context.first_read_delivered_at) / 60_000;
   if (minutesSince > 5) return;
 
   void trackWowEvent({
     event_type: 'replied_substantively',
-    first_insight_message_id: context.first_insight_message_id,
+    first_read_message_id: context.first_read_message_id,
     conversation_id: context.conversation_id,
     metadata: {
       reply_length: replyText.length,

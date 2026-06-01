@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
 import { computeRealisedScore } from '@/lib/wow/realised-score';
+import { predictWowScore } from '@/lib/ai/read-judge';
 import type { WowEvent } from '@/lib/wow/event-types';
 
 export const runtime = 'nodejs';
@@ -9,20 +10,21 @@ export const maxDuration = 60;
 
 const LOOKBACK_HOURS = 48;
 
-type FirstInsightRow = {
+type FirstReadRow = {
   message_id: string;
   message_created_at: string;
   user_id: string;
   conversation_id: string;
   conversation_metadata: Record<string, unknown> | null;
+  content: string | null;
 };
 
 // Daily aggregation that pairs realised behaviour signals with each first
 // Read delivery. Identifies first-insight messages by joining messages →
-// conversations where type = 'first_insight' AND metadata->>layered_read =
+// conversations where type = 'first_read' AND metadata->>layered_read =
 // 'true' (Session B layered path only — V1/V2 narrate-via-trigger
 // conversations are excluded). Idempotent via the unique constraint on
-// wow_assessments.first_insight_message_id.
+// wow_assessments.first_read_message_id.
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
       `
       id,
       created_at,
+      content,
       user_id,
       conversation_id,
       conversations!inner(id, type, status, metadata)
@@ -48,7 +51,7 @@ export async function GET(req: NextRequest) {
     .eq('role', 'assistant')
     .is('deleted_at', null)
     .gt('created_at', cutoff)
-    .eq('conversations.type', 'first_insight')
+    .eq('conversations.type', 'first_read')
     .order('created_at', { ascending: true });
 
   if (queryErr) {
@@ -67,10 +70,11 @@ export async function GET(req: NextRequest) {
   // flagged as layered (metadata.layered_read === true). Pre-layered first-insight
   // conversations narrate via [System: ...] trigger — they have no pre-written
   // assistant message we can score against and predate this measurement layer.
-  const firstPerConv = new Map<string, FirstInsightRow>();
+  const firstPerConv = new Map<string, FirstReadRow>();
   for (const row of candidates as Array<{
     id: string;
     created_at: string;
+    content: string | null;
     user_id: string | null;
     conversation_id: string;
     conversations:
@@ -89,6 +93,7 @@ export async function GET(req: NextRequest) {
       user_id: row.user_id,
       conversation_id: row.conversation_id,
       conversation_metadata: meta,
+      content: row.content,
     });
   }
 
@@ -119,7 +124,7 @@ export async function GET(req: NextRequest) {
       if (activity && activity.length > 0) {
         const { error: d2Err } = await supabase.from('wow_events').insert({
           user_id: insight.user_id,
-          first_insight_message_id: insight.message_id,
+          first_read_message_id: insight.message_id,
           conversation_id: insight.conversation_id,
           event_type: 'returned_d2',
           metadata: { aggregator_source: 'wow-aggregate-cron' },
@@ -141,8 +146,8 @@ export async function GET(req: NextRequest) {
     // 2. Fetch all events for this insight and compute realised score.
     const { data: events } = await supabase
       .from('wow_events')
-      .select('id, user_id, first_insight_message_id, conversation_id, event_type, metadata, created_at')
-      .eq('first_insight_message_id', insight.message_id);
+      .select('id, user_id, first_read_message_id, conversation_id, event_type, metadata, created_at')
+      .eq('first_read_message_id', insight.message_id);
 
     const score = computeRealisedScore((events ?? []) as WowEvent[]);
 
@@ -152,6 +157,7 @@ export async function GET(req: NextRequest) {
       features_cited?: unknown;
       gap_present?: unknown;
       clusters_referenced?: unknown;
+      mode?: unknown;
     };
     const layersUsed = Array.isArray(firstRead.layers_used) ? firstRead.layers_used : [];
     const featuresCited = Array.isArray(firstRead.features_cited) ? firstRead.features_cited : [];
@@ -159,6 +165,34 @@ export async function GET(req: NextRequest) {
       ? firstRead.clusters_referenced
       : [];
     const gapPresent = firstRead.gap_present === true;
+    const firstReadMode = firstRead.mode === 'value_first' ? 'value_first' : 'default';
+
+    // 2b. Predicted-wow score. Judge the composed Read deterministically (no LLM
+    //     — keeps this batch job fast + reproducible). Compute ONCE and preserve:
+    //     the Read text never changes, and re-deriving it nightly used to clobber
+    //     the column to null (the historical defect). Only fill it when it's
+    //     absent and we have the message text.
+    let predictedWowScore: number | null = null;
+    let judgeId: string | null = null;
+    const { data: existingAssessment } = await supabase
+      .from('wow_assessments')
+      .select('predicted_wow_score, judge_id')
+      .eq('first_read_message_id', insight.message_id)
+      .maybeSingle();
+    if (existingAssessment?.predicted_wow_score != null) {
+      predictedWowScore = existingAssessment.predicted_wow_score;
+      judgeId = existingAssessment.judge_id;
+    } else if (insight.content && insight.content.trim()) {
+      const verdict = predictWowScore(insight.content, {
+        layersUsed: layersUsed as string[],
+        featuresCited: featuresCited as string[],
+        gapPresent,
+        clustersReferenced: clustersReferenced as string[],
+        mode: firstReadMode,
+      });
+      predictedWowScore = verdict.score;
+      judgeId = verdict.judgeId;
+    }
 
     const nowIso = new Date().toISOString();
     const { error: upsertErr } = await supabase
@@ -166,11 +200,11 @@ export async function GET(req: NextRequest) {
       .upsert(
         {
           user_id: insight.user_id,
-          first_insight_message_id: insight.message_id,
+          first_read_message_id: insight.message_id,
           conversation_id: insight.conversation_id,
           delivered_at: insight.message_created_at,
-          predicted_wow_score: null,
-          judge_id: null,
+          predicted_wow_score: predictedWowScore,
+          judge_id: judgeId,
           realised_wow_score: score.realised_wow_score,
           in_session_score: score.in_session_score,
           overnight_score: score.overnight_score,
@@ -181,7 +215,7 @@ export async function GET(req: NextRequest) {
           clusters_referenced: clustersReferenced,
           updated_at: nowIso,
         },
-        { onConflict: 'first_insight_message_id' },
+        { onConflict: 'first_read_message_id' },
       );
 
     if (upsertErr) {

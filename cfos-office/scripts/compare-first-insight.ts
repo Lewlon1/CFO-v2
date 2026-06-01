@@ -135,10 +135,10 @@ const { chatModel } = require('../src/lib/ai/provider');
 const { createToolbox } = require('../src/lib/ai/tools');
 const { generateText, stepCountIs } = require('ai');
 
-// The trigger message the chat surface auto-sends for first_insight.
+// The trigger message the chat surface auto-sends for first_read.
 // Source: cfos-office/src/components/chat/ChatProvider.tsx (default branch
 // at the bottom of the auto-trigger useEffect — the value-map path and
-// other typed openings have their own trigger strings, but first_insight
+// other typed openings have their own trigger strings, but first_read
 // uses the generic "Post-upload analysis triggered" prompt).
 const FIRST_INSIGHT_TRIGGER =
   '[System: Post-upload analysis triggered. Deliver your first insight.]';
@@ -181,7 +181,7 @@ async function runVariant(
 
   const prompt: string = await buildSystemPrompt(
     userId,
-    'first_insight',
+    'first_read',
     conversationMetadata,
     conversationId,
   );

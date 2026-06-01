@@ -1082,7 +1082,7 @@ export async function buildSystemPrompt(
   // its hypothesis from the brief and pulls numbers via the 10 tools.
   const firstInsightPayload = conversationMetadata?.first_insight_payload as InsightPayload | undefined;
   const conversationIsFirstInsight =
-    conversationType === 'first_insight' || conversationType === 'post_upload';
+    conversationType === 'first_read' || conversationType === 'post_upload';
   const v2Enabled = isChatIntelligenceV2Enabled(profile);
 
   if (conversationIsFirstInsight && v2Enabled) {
@@ -1239,7 +1239,7 @@ export async function buildSystemPrompt(
     getPredictionQualityContext(userId, supabase),
     buildProfilingContext(userId, supabase),
     // Open-items resumption context — only for `general` conversations.
-    // Other branches (first_insight, onboarding, monthly_review, etc.) have
+    // Other branches (first_read, onboarding, monthly_review, etc.) have
     // their own dedicated scaffolds and shouldn't be diluted.
     conversationType === 'general' || !conversationType
       ? getOpenItems(supabase, userId).then(renderOpenItemsBlock).catch((err) => {
@@ -2478,7 +2478,7 @@ Available scenario types:
 
 Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. Always mention the impact on their active goals if any exist.`;
 
-    case 'first_insight':
+    case 'first_read':
     case 'post_upload': {
       const payload = metadata?.first_insight_payload as InsightPayload | undefined;
       if (!payload) {

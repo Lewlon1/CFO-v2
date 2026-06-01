@@ -6,7 +6,7 @@ function ev(event_type: WowEventType, idx = 0): WowEvent {
   return {
     id: `evt-${event_type}-${idx}`,
     user_id: 'user-1',
-    first_insight_message_id: 'msg-1',
+    first_read_message_id: 'msg-1',
     conversation_id: 'conv-1',
     event_type,
     metadata: {},

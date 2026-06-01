@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     return handleLayeredFirstRead({ supabase, userId: user.id, importBatchId, mode })
   }
 
-  // Idempotency: if a FRESH first_insight conversation already exists (zero
+  // Idempotency: if a FRESH first_read conversation already exists (zero
   // messages, so the auto-trigger has not fired yet), return it. A stale one
   // with messages from a prior session would suppress the wow-moment trigger
   // (ChatProvider only auto-triggers on empty conversations), leaving the
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     .from('conversations')
     .select('id, status')
     .eq('user_id', user.id)
-    .eq('type', 'first_insight')
+    .eq('type', 'first_read')
     .neq('status', 'completed')
     .order('created_at', { ascending: false })
 
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     .from('conversations')
     .insert({
       user_id: user.id,
-      type: 'first_insight',
+      type: 'first_read',
       title: 'Your first look',
       metadata,
     })
@@ -143,7 +143,7 @@ type LayeredHandlerArgs = {
 }
 
 async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }: LayeredHandlerArgs) {
-  // Idempotency: if a layered first_insight conversation already exists for
+  // Idempotency: if a layered first_read conversation already exists for
   // this user, return it. (Identified by metadata.layered_read = true, which
   // every layered run stamps.) Avoids double-composing if the upload
   // orchestrator calls /api/insights/post-upload twice.
@@ -151,7 +151,7 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     .from('conversations')
     .select('id')
     .eq('user_id', userId)
-    .eq('type', 'first_insight')
+    .eq('type', 'first_read')
     .eq('metadata->>layered_read', 'true')
     .neq('status', 'completed')
     .order('created_at', { ascending: false })
@@ -168,7 +168,7 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     .from('conversations')
     .update({ status: 'completed', updated_at: new Date().toISOString() })
     .eq('user_id', userId)
-    .eq('type', 'first_insight')
+    .eq('type', 'first_read')
     .neq('status', 'completed')
 
   // Refresh merchant_aggregates so the behavioural engine sees the user's
@@ -201,7 +201,7 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     .from('conversations')
     .insert({
       user_id: userId,
-      type: 'first_insight',
+      type: 'first_read',
       title: 'Your first read',
       metadata: conversationMetadata,
     })

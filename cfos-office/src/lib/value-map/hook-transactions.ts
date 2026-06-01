@@ -21,7 +21,7 @@ type ConversationMetadata = {
 
 /**
  * Read the hook candidates persisted on the most recent layered
- * first_insight conversation for the user. Returns null when there's
+ * first_read conversation for the user. Returns null when there's
  * no conversation or no hook list — callers fall back to samples.
  */
 export async function getHookCandidatesForUser(
@@ -32,7 +32,7 @@ export async function getHookCandidatesForUser(
     .from('conversations')
     .select('metadata')
     .eq('user_id', userId)
-    .eq('type', 'first_insight')
+    .eq('type', 'first_read')
     .eq('metadata->>layered_read', 'true')
     .order('created_at', { ascending: false })
     .limit(1)
