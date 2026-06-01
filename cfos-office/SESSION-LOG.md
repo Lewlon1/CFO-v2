@@ -9,6 +9,76 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-01 — Onboarding isolation: verify base + branch + map + baseline
+
+**Branch:** `claude/onboarding-isolation-verify-yhP1t` (off visual-3b base `5fa91fd`,
+with `claude/bank-statement-upload-myqNB` `e0601b4` merged in)
+
+**Base verification (Phase 0 — both gates initially FAILED)**
+- Base ref: `origin/claude/visual-consistency-phase3b-ZIQU2` (most-recent visual branch).
+- Most-recent: Y | Phase-4 commits present: **N** (base's "Phase 3b" = the Visual
+  Consistency track 1→2→3→3b, not onboarding "phase 4"; no `phase 4` commit exists).
+- Upload contained: **N** — `bank-statement-upload-myqNB` is *not* an ancestor of base.
+  Both forked from `9221eed` (v2.6 Audit Zero) and diverged: base → 28 visual commits,
+  upload → 5 onboarding commits (fixed-cost confidence `7ec58c0`, goal-decliner routing
+  `403f511`, first-read hook income-exclusion `e0601b4`, benchmark `a390550`). No
+  unified branch existed.
+- vs main: base ahead +26 (0 behind).
+- **Resolution (Lewis):** merge upload into the visual-3b base, then map. Merge had 2
+  conflicts — `SESSION-LOG.md` (kept both entries) and `missing-costs.tsx` (kept the
+  `text-caption` token over raw `text-[10px]`, honouring the visual-consistency rule).
+  Post-merge: `tsc --noEmit` clean, 927/927 unit tests green, pushed.
+
+**Onboarding map** → new `ONBOARDING-MAP.md` (repo root)
+- Full flow narrative A0–A9 (demo VM → link → goal beat → upload/parse/dual-categorise →
+  processing → confirm/reconcile → First Read [completion gate] → real-data VM → archetype
+  → first-meeting + profiling), file inventory, DB surface, shared-module flags, defect
+  register, open questions.
+- Shared modules that define the isolation boundary: `context-builder`, `compose-first-read`,
+  `parsers/*`, `categorisation/* + upload/pipeline`, `analytics/{monthly-snapshot,
+  recurring-detector,reconcile-fixed-costs,gap-analyser}`, `value-map/value-profile`,
+  `profiling/{engine,question-registry}`, `onboarding/markComplete`, `api/upload` +
+  `api/insights/post-upload`. Genuinely onboarding-only: `app/onboarding-v2/*`,
+  `components/onboarding-v2/*`, demo surface, `link-session`, `recompose-first-read`,
+  `value-map-complete`, `analytics/{recurring-candidates,category-coverage,fixed-cost-classify}`.
+
+**Judge baseline (staging) — BLOCKED**
+- Persona suite could not run: no staging/Bedrock secrets or `.env.local` in this remote
+  env; preflight hard-requires them + staging guard (`qlbhvlssksnrhsleadzn`) + live dev
+  server. Harness unit tests ran: **28/28 green**.
+- Asserting against: **generic `judge.ts` rubric** on a `'first_insight'`-typed capture —
+  NOT the current-Read rubric, and NOT the dedicated `judge-first-insight.ts` (which is
+  orphaned to `scripts/compare-first-insight.ts` and still calibrated to the retired
+  100-180-word/"— C."/[OPTIONS] format).
+- Caveat: a green persona run would be a baseline, not a sign-off on Read quality.
+
+**Defect register (confirmed on this branch)**
+- E1 "5 write-only profile cols → context-builder gap": **partially stale**. 3 of 5
+  (`values_ranking`, `spending_triggers`, `financial_awareness`) are now injected via the
+  Psychological-lens block (`context-builder.ts:1413-1445`, Session 32 `8d309ee`).
+  Remaining 2 are *orphaned schema*: `capability_preferences` (zero readers/writers),
+  `savings_rate_target` (read only by nudges, never written).
+- E2 `predicted_wow_score` clobber: **confirmed** — never written non-null;
+  `cron/wow-aggregate/route.ts:172` upserts it `null`.
+- E3 judge calibration mismatch: **confirmed** — dedicated first-insight judge is
+  retired-format + orphaned; suite uses generic judge.
+- E4 naming drift: **confirmed** — Marcus (comment-only) / James (absent) personas don't
+  exist (only Sofia); current Read stored under legacy `'first_insight'` conversation type.
+
+**Lessons / decisions**
+- Phase-0 gates earned their keep: the brief's premise ("visual-3b contains the phase-4
+  work") was false; mapping off the unmerged base would have reviewed a stale onboarding.
+- "Phase 3b" is overloaded — Visual Consistency phase vs onboarding phase. Disambiguate in
+  future briefs.
+
+**Next session (hardening — separate)**
+- Decide branch alias + integration base (open Qs 1-2). Recalibrate judge to current Read
+  + rename `'first_insight'`→`'first_read'` type (E3/E4). Drop/​wire the 2 orphaned profile
+  columns (E1). Resolve `predicted_wow_score` (E2). Author or retire Marcus/James personas
+  (E4). Run the persona suite on staging with secrets in place.
+
+---
+
 ## Session — Visual Consistency, Phase 3b (completion sweep) — 2026-05-31
 
 **Branch:** `claude/visual-consistency-phase3b-ZIQU2` (off the Phase-3 tip `29903de`, which
