@@ -132,6 +132,7 @@ export function MissingCosts({ coverage, state, onChange, currency }: Props) {
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-4 space-y-3">
           <div className="space-y-1.5">
             <span className="inline-block text-caption font-medium uppercase tracking-wide text-text-muted">
+
               C. noticed
             </span>
             <p className="text-sm font-medium text-text-primary leading-snug">
