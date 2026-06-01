@@ -5,6 +5,7 @@ import { X, MoreVertical, Plus, MessageSquare, ArrowRight } from 'lucide-react'
 import { useChatContext } from './ChatProvider'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
+import { CfoThinking } from '@/components/brand/CfoThinking'
 import useSWR from 'swr'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { CHAT_SUBJECTS, getFolderChatMeta, type FolderKey } from '@/lib/chat/folder-prompts'
@@ -25,6 +26,7 @@ export function ChatSheet() {
     handleLabelTransactionsSubmit,
     chatError,
     dismissError,
+    isLoadingConversation,
     userCurrency,
     currentFolder,
     conversationId,
@@ -226,7 +228,17 @@ export function ChatSheet() {
           <>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {messages.length === 0 ? (
-                <FolderEmptyState folder={currentFolder} onFillInput={setInput} />
+                // A conversation is loading or its opener is composing — show
+                // the working state, not the generic folder prompts. Without
+                // this the prompts flash before an auto-opened conversation
+                // (e.g. the goal beat) arrives.
+                isLoadingConversation ||
+                status === 'submitted' ||
+                status === 'streaming' ? (
+                  <CfoThinking variant="block" className="pt-10" />
+                ) : (
+                  <FolderEmptyState folder={currentFolder} onFillInput={setInput} />
+                )
               ) : (
                 <MessageList
                   messages={messages}

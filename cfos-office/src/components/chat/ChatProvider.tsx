@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, type UIMessage } from 'ai'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
@@ -63,6 +63,11 @@ interface ChatContextValue {
   }) => void
   chatError: string | null
   dismissError: () => void
+  /** True while a specific conversation is expected to materialise — the
+   *  goal-beat auto-open, or an in-flight loadConversation fetch. Lets the
+   *  sheet show a "working on this" state instead of the generic folder
+   *  prompts during that window. */
+  isLoadingConversation: boolean
   handleOptionSelect: (text: string) => void
   handleStructuredSubmit: (
     field: string,
@@ -99,16 +104,42 @@ export function useOptionalChatContext() {
 interface ChatProviderProps {
   children: ReactNode
   userCurrency?: string
+  /** Render the sheet open on the first paint. Set by the office layout when
+   *  the user lands mid-goal-beat, so the office home never flashes behind the
+   *  sheet while a post-paint effect opens it. */
+  initialSheetOpen?: boolean
 }
 
-export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const trackEvent = useTrackEvent()
   const currentFolder = folderKeyFromPath(pathname)
 
-  // Sheet visibility
-  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  // Should the sheet be open on the very first paint? Two signals, both
+  // resolved before paint so the office home never flashes behind the sheet:
+  //   • initialSheetOpen — server-derived from onboarding_step, covers the
+  //     goal-beat *refresh* (URL is bare /office; ?chat=open was stripped).
+  //   • ?chat=open — covers every flow that redirects into the chat: the
+  //     goal-beat first arrival and the value-map / archetype / first-read
+  //     hand-offs. usePathname's sibling useSearchParams reads it consistently
+  //     on server (the office layout is force-dynamic) and client, so there's
+  //     no hydration mismatch.
+  const wantsChatOpen =
+    (initialSheetOpen ?? false) || searchParams.get('chat') === 'open'
+
+  // Sheet visibility — seeded open when a chat-landing flow brought us here.
+  const [isSheetOpen, setIsSheetOpen] = useState(wantsChatOpen)
+
+  // Whether we expect a conversation to arrive imminently. Seeded true on a
+  // chat landing so the first paint shows the loading state, not the folder
+  // prompts; loadConversation toggles it around its fetch, and the recent-load
+  // effect below clears the seed if nothing else claims it.
+  const [isLoadingConversation, setIsLoadingConversation] = useState(wantsChatOpen)
+  // Tracks an in-flight explicit loadConversation so the recent-load fallback
+  // doesn't clear the loading state out from under it.
+  const loadInFlightRef = useRef(false)
 
   // Conversation state
   const [conversationId, setConversationId] = useState<string | null>(null)
@@ -240,6 +271,13 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
         // network/parse failures, which are real problems — log them.
         console.error('[ChatProvider] failed to load recent conversation', err)
       })
+      .finally(() => {
+        // Universal fallback: once the recent-conversation load settles, drop
+        // the first-paint loading seed — unless an explicit loadConversation
+        // is mid-flight (it clears the flag itself). Stops a ?chat=open landing
+        // with no conversation to load from sitting on the loading state.
+        if (!loadInFlightRef.current) setIsLoadingConversation(false)
+      })
   }, [setMessages])
 
   // ── Auto-trigger for typed conversations ──────────────────────────────────
@@ -332,10 +370,15 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       setChatError(null)
       setInput('')
 
-      // If this is a typed conversation that needs auto-trigger, queue it
-      if (type && (AUTO_TRIGGER_TYPES as readonly string[]).includes(type)) {
+      // If this is a typed conversation that needs auto-trigger, queue it.
+      // Such conversations open an opener immediately, so keep the loading
+      // state up until it streams; a plain manual chat shows the prompts.
+      const willAutoTrigger =
+        !!type && (AUTO_TRIGGER_TYPES as readonly string[]).includes(type)
+      if (willAutoTrigger) {
         pendingTriggerRef.current = { type, metadata }
       }
+      setIsLoadingConversation(willAutoTrigger)
 
       setIsSheetOpen(true)
     },
@@ -353,6 +396,8 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       autoTriggeredRef.current = false
       setChatError(null)
       setInput('')
+      loadInFlightRef.current = true
+      setIsLoadingConversation(true)
 
       // Fetch messages for this conversation
       fetch(`/api/conversations/recent?id=${id}`)
@@ -391,6 +436,10 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
           // conversation. Log so a flaky API is at least visible in the
           // console during development.
           console.error('[ChatProvider] failed to load conversation messages', err)
+        })
+        .finally(() => {
+          loadInFlightRef.current = false
+          setIsLoadingConversation(false)
         })
     },
     [setMessages],
@@ -491,6 +540,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     registerFirstReadDelivery,
     chatError,
     dismissError,
+    isLoadingConversation,
     handleOptionSelect,
     handleStructuredSubmit,
     handleLabelTransactionsSubmit,
