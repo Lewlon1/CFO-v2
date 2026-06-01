@@ -409,6 +409,18 @@ h1, h2, h3 {
 }
 
 /*
+ * Office subtree uses Cormorant Garamond — the office's briefing serif of
+ * record — for its headings, not the root layout's Instrument Serif. Without
+ * this, semantic headings fall through to the rule above and leak a root font
+ * into the office (a 4th family on every office page). Scoped to .font-ui,
+ * which is applied only on the office layout root; --font-cormorant is defined
+ * on that same element, so this resolves to Cormorant only inside the office.
+ */
+.font-ui :is(h1, h2, h3) {
+  font-family: var(--font-cormorant), Georgia, "Times New Roman", serif;
+}
+
+/*
  * .eyebrow — small mono brass label, used for "01 — Section name" rhythm.
  * Mirrors v4's .v4-eyebrow but available globally.
  */
