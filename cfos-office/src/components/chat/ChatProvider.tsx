@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, type UIMessage } from 'ai'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
@@ -26,7 +26,7 @@ import {
 // and `loadConversation` (existing conversation, e.g. one created server-side
 // by archetype-orchestrator + materialised via /api/insights/post-upload).
 const AUTO_TRIGGER_TYPES = [
-  'first_insight',
+  'first_read',
   'post_upload',
   'value_map_complete',
   'monthly_review',
@@ -57,12 +57,17 @@ interface ChatContextValue {
   conversationType: string | null
   /** Wow plumbing: MessageList calls this when it renders the first-insight
    *  delivery. Used by handleSend to detect substantive replies within 5 min. */
-  registerFirstInsightDelivery: (ctx: {
-    first_insight_message_id: string
+  registerFirstReadDelivery: (ctx: {
+    first_read_message_id: string
     conversation_id: string
   }) => void
   chatError: string | null
   dismissError: () => void
+  /** True while a specific conversation is expected to materialise — the
+   *  goal-beat auto-open, or an in-flight loadConversation fetch. Lets the
+   *  sheet show a "working on this" state instead of the generic folder
+   *  prompts during that window. */
+  isLoadingConversation: boolean
   handleOptionSelect: (text: string) => void
   handleStructuredSubmit: (
     field: string,
@@ -85,25 +90,61 @@ export function useChatContext() {
   return ctx
 }
 
+/**
+ * Non-throwing variant for components that may render outside <ChatProvider>
+ * (e.g. dashboard banners, trips, balance-sheet on non-office routes).
+ * Returns null when there is no provider — call it unconditionally.
+ */
+export function useOptionalChatContext() {
+  return useContext(ChatContext)
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 interface ChatProviderProps {
   children: ReactNode
   userCurrency?: string
+  /** Render the sheet open on the first paint. Set by the office layout when
+   *  the user lands mid-goal-beat, so the office home never flashes behind the
+   *  sheet while a post-paint effect opens it. */
+  initialSheetOpen?: boolean
 }
 
-export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const trackEvent = useTrackEvent()
   const currentFolder = folderKeyFromPath(pathname)
 
-  // Sheet visibility
-  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  // Should the sheet be open on the very first paint? Two signals, both
+  // resolved before paint so the office home never flashes behind the sheet:
+  //   • initialSheetOpen — server-derived from onboarding_step, covers the
+  //     goal-beat *refresh* (URL is bare /office; ?chat=open was stripped).
+  //   • ?chat=open — covers every flow that redirects into the chat: the
+  //     goal-beat first arrival and the value-map / archetype / first-read
+  //     hand-offs. usePathname's sibling useSearchParams reads it consistently
+  //     on server (the office layout is force-dynamic) and client, so there's
+  //     no hydration mismatch.
+  const wantsChatOpen =
+    (initialSheetOpen ?? false) || searchParams.get('chat') === 'open'
+
+  // Sheet visibility — seeded open when a chat-landing flow brought us here.
+  const [isSheetOpen, setIsSheetOpen] = useState(wantsChatOpen)
+
+  // Whether we expect a conversation to arrive imminently. Seeded true on a
+  // chat landing so the first paint shows the loading state, not the folder
+  // prompts; loadConversation toggles it around its fetch, and the recent-load
+  // effect below clears the seed if nothing else claims it.
+  const [isLoadingConversation, setIsLoadingConversation] = useState(wantsChatOpen)
+  // Tracks an in-flight explicit loadConversation so the recent-load fallback
+  // doesn't clear the loading state out from under it.
+  const loadInFlightRef = useRef(false)
 
   // Conversation state
   const [conversationId, setConversationId] = useState<string | null>(null)
   const conversationIdRef = useRef(conversationId)
+  // eslint-disable-next-line react-hooks/refs -- ref intentionally mirrors the latest conversationId so the request-time body() callback reads it; imperative writes in start/loadConversation cover the synchronous send-race
   conversationIdRef.current = conversationId
   const [conversationType, setConversationType] = useState<string | null>(null)
 
@@ -112,24 +153,24 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
 
   // Wow plumbing: holds the active first-Read delivery so handleSend can
   // detect substantive replies within 5 minutes of it being shown.
-  const firstInsightCtxRef = useRef<{
-    first_insight_message_id: string
+  const firstReadCtxRef = useRef<{
+    first_read_message_id: string
     conversation_id: string
     delivered_at: number
   } | null>(null)
 
-  const registerFirstInsightDelivery = useCallback(
-    (ctx: { first_insight_message_id: string; conversation_id: string }) => {
+  const registerFirstReadDelivery = useCallback(
+    (ctx: { first_read_message_id: string; conversation_id: string }) => {
       // Re-registering the same insight is a no-op (component re-mount,
       // re-render). Only the FIRST delivery captures the timestamp — that's
       // what the 5-minute window measures from.
       if (
-        firstInsightCtxRef.current?.first_insight_message_id ===
-        ctx.first_insight_message_id
+        firstReadCtxRef.current?.first_read_message_id ===
+        ctx.first_read_message_id
       ) {
         return
       }
-      firstInsightCtxRef.current = {
+      firstReadCtxRef.current = {
         ...ctx,
         delivered_at: Date.now(),
       }
@@ -148,6 +189,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
   // ── useChat hook ──────────────────────────────────────────────────────────
 
   const { messages, sendMessage, status, setMessages } = useChat({
+    // eslint-disable-next-line react-hooks/refs -- body() below is a deferred request-time callback (the AI SDK builds each HTTP request later, like an event handler), so reading the latest ref values there is safe and intentional
     transport: new DefaultChatTransport({
       api: '/api/chat',
       body: () => ({
@@ -228,6 +270,13 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
         // we just don't load a conversation). This catch only fires on
         // network/parse failures, which are real problems — log them.
         console.error('[ChatProvider] failed to load recent conversation', err)
+      })
+      .finally(() => {
+        // Universal fallback: once the recent-conversation load settles, drop
+        // the first-paint loading seed — unless an explicit loadConversation
+        // is mid-flight (it clears the flag itself). Stops a ?chat=open landing
+        // with no conversation to load from sitting on the loading state.
+        if (!loadInFlightRef.current) setIsLoadingConversation(false)
       })
   }, [setMessages])
 
@@ -317,14 +366,19 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       conversationTypeRef.current = type
       conversationMetadataRef.current = metadata
       setConversationType(type ?? null)
-      firstInsightCtxRef.current = null
+      firstReadCtxRef.current = null
       setChatError(null)
       setInput('')
 
-      // If this is a typed conversation that needs auto-trigger, queue it
-      if (type && (AUTO_TRIGGER_TYPES as readonly string[]).includes(type)) {
+      // If this is a typed conversation that needs auto-trigger, queue it.
+      // Such conversations open an opener immediately, so keep the loading
+      // state up until it streams; a plain manual chat shows the prompts.
+      const willAutoTrigger =
+        !!type && (AUTO_TRIGGER_TYPES as readonly string[]).includes(type)
+      if (willAutoTrigger) {
         pendingTriggerRef.current = { type, metadata }
       }
+      setIsLoadingConversation(willAutoTrigger)
 
       setIsSheetOpen(true)
     },
@@ -338,10 +392,12 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
       conversationTypeRef.current = undefined
       conversationMetadataRef.current = undefined
       setConversationType(null)
-      firstInsightCtxRef.current = null
+      firstReadCtxRef.current = null
       autoTriggeredRef.current = false
       setChatError(null)
       setInput('')
+      loadInFlightRef.current = true
+      setIsLoadingConversation(true)
 
       // Fetch messages for this conversation
       fetch(`/api/conversations/recent?id=${id}`)
@@ -353,7 +409,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
           }
 
           // If this is a typed conversation with no messages yet (e.g. a
-          // first_insight conversation just created by the archetype
+          // first_read conversation just created by the archetype
           // orchestrator), queue the auto-trigger so the CFO opens it.
           // Skipping when there are already messages avoids re-triggering
           // on subsequent loads from the conversation list.
@@ -381,6 +437,10 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
           // console during development.
           console.error('[ChatProvider] failed to load conversation messages', err)
         })
+        .finally(() => {
+          loadInFlightRef.current = false
+          setIsLoadingConversation(false)
+        })
     },
     [setMessages],
   )
@@ -394,11 +454,11 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     // Wow plumbing: if the user is replying within 5 min of a first Read
     // delivery, log a substantive-reply event. The helper enforces the
     // length + window thresholds; this site just provides the context.
-    const ctx = firstInsightCtxRef.current
+    const ctx = firstReadCtxRef.current
     if (ctx) {
       detectSubstantiveReply(text, {
-        first_insight_message_id: ctx.first_insight_message_id,
-        first_insight_delivered_at: ctx.delivered_at,
+        first_read_message_id: ctx.first_read_message_id,
+        first_read_delivered_at: ctx.delivered_at,
         conversation_id: ctx.conversation_id,
       })
     }
@@ -477,9 +537,10 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
     loadConversation,
     conversationId,
     conversationType,
-    registerFirstInsightDelivery,
+    registerFirstReadDelivery,
     chatError,
     dismissError,
+    isLoadingConversation,
     handleOptionSelect,
     handleStructuredSubmit,
     handleLabelTransactionsSubmit,

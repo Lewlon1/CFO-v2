@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { normaliseToMonthly, frequencyLabel } from '@/lib/bills/normalise'
 import { billTypeIcon, matchProvider } from '@/lib/bills/provider-registry'
 import { Badge } from '@/components/ui/Badge'
@@ -23,10 +24,13 @@ export function BillCard({ bill, onClick, onPromote, onDismiss }: Props) {
   const icon = billType ? billTypeIcon(billType) : getIconFromProvider(bill)
   const saving = bill.potential_saving_monthly ? Number(bill.potential_saving_monthly) : 0
 
-  // Contract end warning
+  // Contract end warning. Capture "now" once per mount via lazy state so the render
+  // stays pure (no Date.now() in the render body); stable for the card's lifetime,
+  // matching the original single-read behaviour.
+  const [now] = useState(() => Date.now())
   const contractEnd = bill.contract_end_date ? new Date(bill.contract_end_date) : null
   const daysUntilEnd = contractEnd
-    ? Math.ceil((contractEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    ? Math.ceil((contractEnd.getTime() - now) / (1000 * 60 * 60 * 24))
     : null
 
   return (

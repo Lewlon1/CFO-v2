@@ -37,7 +37,7 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFl
         <p className="text-sm text-text-secondary">
           Upload your first CSV to see your cash flow
         </p>
-        <span className="text-sm font-medium text-[#22C55E]">Upload &rarr;</span>
+        <span className="text-sm font-medium text-folder-cashflow">Upload &rarr;</span>
       </Link>
     )
   }
@@ -48,13 +48,13 @@ export function CashFlowSection({ summary, isLoading, currency = 'EUR' }: CashFl
   return (
     <div className="space-y-1 pt-1">
       <div className="flex items-baseline gap-1.5">
-        <span className="font-data text-[18px] font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
+        <span className="font-data text-h1 font-extrabold tracking-[-0.03em] text-text-primary tabular-nums">
           {formatCurrencyRounded(total_spending, currency)}
         </span>
-        <span className="text-[11px] text-text-tertiary">spent</span>
+        <span className="text-label text-text-tertiary">spent</span>
         {delta != null && Math.abs(delta) >= 1 && (
           <span
-            className="text-[11px] ml-auto"
+            className="text-label ml-auto"
             style={{
               color: delta > 0 ? 'var(--negative)' : 'var(--positive)',
             }}

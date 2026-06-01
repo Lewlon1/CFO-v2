@@ -10,6 +10,7 @@ import { DrillDownRow } from './DrillDownRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { formatCurrencyRounded, formatMonthShort } from '@/lib/utils/format-currency-rounded'
 import { folderColors } from '@/lib/tokens'
+import { assetTypeColor, liabilityTypeColor } from '@/lib/balance-sheet/type-colors'
 import type { BalanceSheetResponse } from '@/app/api/balance-sheet/route'
 
 const ACCENT = folderColors.networth
@@ -41,8 +42,8 @@ export function NetWorthDashboard({ currency }: NetWorthDashboardProps) {
 
       {isLoading ? (
         <div className="space-y-3">
-          <div className="h-32 rounded-[10px] bg-bg-deep animate-pulse" />
-          <div className="h-20 rounded-[10px] bg-bg-deep animate-pulse" />
+          <div className="h-32 rounded-control bg-bg-deep animate-pulse" />
+          <div className="h-20 rounded-control bg-bg-deep animate-pulse" />
         </div>
       ) : !data || !data.has_data ? (
         <DashboardEmptyState
@@ -97,10 +98,10 @@ export function NetWorthDashboard({ currency }: NetWorthDashboardProps) {
           </div>
 
           <div
-            className="rounded-[10px] px-[14px] py-3"
+            className="rounded-control px-[14px] py-3"
             style={{
-              background: `${ACCENT}08`,
-              border: `0.5px solid ${ACCENT}30`,
+              background: `color-mix(in oklab, ${ACCENT} 3%, transparent)`,
+              border: `0.5px solid color-mix(in oklab, ${ACCENT} 19%, transparent)`,
             }}
           >
             <p
@@ -151,10 +152,10 @@ function HeroTrend({
 
   return (
     <div
-      className="rounded-[12px] mb-4 px-[14px] py-4"
+      className="rounded-card mb-4 px-[14px] py-4"
       style={{
         background: 'var(--bg-card)',
-        border: `0.5px solid ${ACCENT}30`,
+        border: `0.5px solid color-mix(in oklab, ${ACCENT} 19%, transparent)`,
       }}
     >
       <div className="flex items-baseline gap-2.5 mb-1">
@@ -202,7 +203,7 @@ function HeroTrend({
                     className="w-full rounded-[3px]"
                     style={{
                       height: `${Math.max(h, 15)}%`,
-                      background: isNow ? ACCENT : `${ACCENT}50`,
+                      background: isNow ? ACCENT : `color-mix(in oklab, ${ACCENT} 31%, transparent)`,
                     }}
                   />
                 </div>
@@ -246,7 +247,7 @@ function AssetsLiabilitiesRow({
 
   return (
     <div className="flex gap-2 mb-4">
-      <div className="flex-1 rounded-[8px] px-3 py-3 bg-bg-card border border-[rgba(255,255,255,0.04)]">
+      <div className="flex-1 rounded-control px-3 py-3 bg-bg-card border border-border-subtle">
         <div className="flex items-center gap-1.5">
           <ArrowUp size={11} className="text-[color:var(--positive)]" strokeWidth={2.5} />
           <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
@@ -263,7 +264,7 @@ function AssetsLiabilitiesRow({
           {assetCount} item{assetCount === 1 ? '' : 's'}
         </div>
       </div>
-      <div className="flex-1 rounded-[8px] px-3 py-3 bg-bg-card border border-[rgba(255,255,255,0.04)]">
+      <div className="flex-1 rounded-control px-3 py-3 bg-bg-card border border-border-subtle">
         <div className="flex items-center gap-1.5">
           <ArrowDown size={11} className="text-[color:var(--negative)]" strokeWidth={2.5} />
           <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
@@ -298,7 +299,7 @@ function Composition({
     label: g.label,
     amount: g.total,
     pct: data.total_assets > 0 ? (g.total / data.total_assets) * 100 : 0,
-    color: g.color,
+    color: assetTypeColor(g.type),
     isLiab: false,
   }))
   const liabs = data.liability_groups.map((g) => ({
@@ -306,7 +307,7 @@ function Composition({
     label: g.label,
     amount: g.total,
     pct: data.total_liabilities > 0 ? (g.total / data.total_liabilities) * 100 : 0,
-    color: g.color,
+    color: liabilityTypeColor(g.type),
     isLiab: true,
   }))
   const rows = [...assets, ...liabs]
@@ -320,7 +321,7 @@ function Composition({
           <div key={r.key} className="flex items-center gap-2.5">
             <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.color }} />
             <div className="text-[12px] text-text-primary w-[108px] shrink-0 truncate">{r.label}</div>
-            <div className="flex-1 h-1 bg-bg-inset rounded-[2px] overflow-hidden">
+            <div className="flex-1 h-1 bg-bg-inset rounded-pill overflow-hidden">
               <div
                 className="h-full"
                 style={{

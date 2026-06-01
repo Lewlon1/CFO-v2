@@ -1,11 +1,13 @@
 /**
- * Phase 7 — Session v2.2 Chat Intelligence eval harness.
+ * LLM-as-judge for the current first Read (dev comparison harness; used by
+ * scripts/compare-first-insight.ts). Uses the project's utility model (Haiku) —
+ * the judge is rubric-driven, not nuanced, so Haiku is the right cost/quality
+ * trade-off.
  *
- * LLM-as-judge for v1 vs v2 first-insight responses. Uses the project's
- * utility model (Haiku) — the judge is rubric-driven, not nuanced, so
- * Haiku is the right cost/quality trade-off.
- *
- * The rubric is fixed:
+ * Recalibrated to the LIVE composition contract (src/lib/ai/prompts/first-read.ts).
+ * The deterministic hard-rule checks shared with the persona suite + the
+ * wow-aggregate cron live in src/lib/ai/read-judge.ts; this file is the LLM
+ * Likert + qualitative pass for the dev comparison script.
  *
  *   Hard rules (all must pass):
  *     H1  >=1 specific merchant name from the user's transactions
@@ -14,15 +16,15 @@
  *         in prose that isn't in tool output)
  *     H4  voice compliance (no banned phrases)
  *     H5  signoff "— C." present
- *     H6  body length 100-180 words (excluding signoff and [OPTIONS] block)
- *     H7  ends with a question, action, or labelling invitation
- *     H8  chips reference specific nouns from narrative
+ *     H6  body length <= 250 words (excluding signoff and [CTA] markup)
+ *     H7  does NOT end on a question back to the user
+ *     H8  closes on exactly one [CTA:type]label[/CTA] line; no [OPTIONS] block
  *
  *   Likert 1-5 (mean >=4 required + L6 specifically >=4):
  *     L1  specificity (real vs aggregate)
  *     L2  angle relevance (chosen angle fits user's brief)
  *     L3  voice fidelity (C., not analyst)
- *     L4  chip quality
+ *     L4  CTA quality
  *     L5  uncertainty calibration
  *     L6  would this convert me to keep using the product?
  *
@@ -148,16 +150,16 @@ HARD RULES — each is a strict boolean. If false, give a one-line reason in har
   H4: Voice compliance — none of these banned phrases appear (case-insensitive):
 ${bannedList}
   H5: The response ends with the signoff "— C." (em dash + space + C + period) on its own line or directly after the body.
-  H6: Body length is 100-180 words. Exclude the signoff line and any [OPTIONS] block (the bulleted chip list at the bottom) from the count.
-  H7: The response ends with a question, an action invitation, or a labelling invitation (e.g. "want to label these as a Leak?"). A pure recap or summary fails.
-  H8: Any chips in the [OPTIONS] block reference specific nouns mentioned in the narrative above them. Generic chips ("Show me more", "Tell me about my spending") fail H8. If there are no chips, mark H8 true.
+  H6: Body length is at most 250 words. Exclude the signoff line and the [CTA:…]…[/CTA] markup from the count.
+  H7: The response does NOT end on a question back to the user. The current Read closes on a statement (an observation, a sized lever, or — value-first — a statement of curiosity about specific clusters), never "what do you think?" / "does that sound right?". A close whose final prose sentence is a question fails H7.
+  H8: The response closes on exactly ONE call to action emitted as [CTA:type]label[/CTA] on its own line just before the signoff. The retired [OPTIONS] chip block must NOT appear. Value-first Reads must use [CTA:start_value_map_real]. If there is no [CTA] line, or more than one, or an [OPTIONS] block is present, H8 fails.
 
 LIKERT 1-5 — each is an integer 1 (worst) to 5 (best). For any score below 4, give a one-line reason in likert_reasons keyed by L1..L6.
 
   L1: Specificity. Does the response cite real merchants/amounts vs talk in averages and aggregates?
   L2: Angle relevance. Does the chosen angle (what the response chose to highlight) actually fit the user's brief?
   L3: Voice fidelity. Reads like "C." — a sharp, warm, peer-tone CFO. Not analyst, not coach, not therapist.
-  L4: Chip quality. Are the chips concrete, narrative-derived, actionable? (Score 5 if there are no chips and chips aren't needed.)
+  L4: CTA quality. Is the closing [CTA:…] concrete, narrative-derived, and actionable (a real next move on the user's own money / a specific labelling ask), not a generic "tell me more"?
   L5: Uncertainty calibration. Hedges where the signal is genuinely thin; doesn't over-caveat where the data is clear.
   L6: Would this convert me to keep using the product? Honest gut-check — is the first thing the user sees from the CFO good enough to make them come back?
 

@@ -30,7 +30,7 @@ export function OneThing({ onSubmit, onSkip }: OneThingProps) {
     <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center animate-value-feedback">
       <CFOAvatar size={24} />
 
-      <div className="rounded-xl border border-[#E8A84C]/30 bg-[#E8A84C]/5 p-4 max-w-sm">
+      <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm">
         <p className="text-sm text-foreground leading-relaxed">
           If I could change one thing about your finances, what would it be?
         </p>
@@ -49,7 +49,7 @@ export function OneThing({ onSubmit, onSkip }: OneThingProps) {
           }}
           placeholder="e.g. Stop wasting money on takeaways"
           rows={3}
-          className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#E8A84C] focus:outline-none resize-none"
+          className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent-gold focus:outline-none resize-none"
         />
         <p className="text-xs text-muted-foreground text-right">
           {value.length}/{MAX_LENGTH}
@@ -60,7 +60,7 @@ export function OneThing({ onSubmit, onSkip }: OneThingProps) {
         <Button
           onClick={handleSubmit}
           disabled={!value.trim()}
-          className="w-full bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base disabled:opacity-40"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5 text-base disabled:opacity-40"
         >
           Continue
           <ArrowRight className="ml-2 h-4 w-4" />

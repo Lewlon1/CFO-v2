@@ -9,6 +9,518 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-01 — Measurement layer: fix E2/E3/E4 (wow predicted score, Read judge, first_insight→first_read)
+
+**Branch:** `claude/v2.7-ui-tidy-up`
+
+Made the onboarding-Read judging mechanism trustworthy before staging verification.
+
+**E3 — Read judge recalibrated to the live contract.** New shared module
+`src/lib/ai/read-judge.ts` encodes the *current* Read contract (≤250 words, single
+`[CTA:type]label[/CTA]`, value-first → `start_value_map_real`, no `[OPTIONS]` chips,
+no question-back close, `— C.` signoff, ≥1 real merchant, no emoji, banned phrases via
+the prod `validateVoice` — single source of truth). Wired into the persona suite
+(`tests/onboarding/runner/judge.ts`, insight branch) and the retired-format LLM rubric
+(`judge-first-insight.ts`) recalibrated (H6 100-180→≤250, H7 inverted to "no question
+close", H8 `[OPTIONS]`→single `[CTA]`, L4 chip→CTA). 15 new unit tests.
+
+**E2 — predicted_wow_score wired + clobber stopped.** `wow-aggregate` cron now derives a
+deterministic predicted score from the same judge (`predictWowScore`: 60% format/voice
+compliance + 40% composition richness — no LLM in the batch job, fully reproducible),
+computes it once and preserves it. Removed the `predicted_wow_score: null` / `judge_id:
+null` upsert clobber. judge_id = `read-heuristic-v1`.
+
+**E4 — `first_insight` → `first_read` rename (concept #1 only).** Renamed the conversation
+type value, the `wow_assessments`/`wow_events.first_insight_message_id` column, the two
+`user_events` validation event_type strings, and the delivery bindings
+(`registerFirstReadDelivery`, `firstReadMsgDbId`, `firstReadCtxRef`, `FirstReadRow`,
+`pollFirstReadAssistantMessage`, `first_read_delivered_at`). Deliberately **did NOT** rename
+the distinct "computed insight payload" concept (`computeFirstInsight` /
+`FirstInsightPayload` / `conversations.metadata.first_insight_payload`) — it would collide
+with the existing `composeFirstRead` names and is a separate refactor. Migration `071`
+(staging) + `prod-backfill-071` (manual prod) do the type UPDATE, guarded column renames,
+and event_type UPDATEs.
+
+**Verification:** typecheck clean · lint 0 errors · 942 unit tests · `next build` ✓ · knip ✓.
+
+**Deploy ordering (read before shipping):** migration `071` MUST be applied to the target
+env (staging `qlbhvlssksnrhsleadzn`, then prod manually by Lewis) in lockstep with this
+code — the code reads/writes the new names exclusively. A deploy without the migration (or
+vice versa) breaks the wow pipeline + the Read conversation lookup until both are in place.
+
+**Not addressed (related, out of scope):** the chat-route V2 inline validators
+(`validateLength` DEFAULT_BODY_WORD_CAP=180, `validateChips`/`[OPTIONS]`) still encode the
+retired chip format; they run on *ongoing* chat in Read conversations, not the composed
+Read, and are gated by the chat-intelligence-v2 flag. Tracked for a follow-up.
+
+---
+
+## 2026-06-01 — Onboarding isolation: verify base + branch + map + baseline
+
+**Branch:** `claude/onboarding-isolation-verify-yhP1t` (off visual-3b base `5fa91fd`,
+with `claude/bank-statement-upload-myqNB` `e0601b4` merged in)
+
+**Base verification (Phase 0 — both gates initially FAILED)**
+- Base ref: `origin/claude/visual-consistency-phase3b-ZIQU2` (most-recent visual branch).
+- Most-recent: Y | Phase-4 commits present: **N** (base's "Phase 3b" = the Visual
+  Consistency track 1→2→3→3b, not onboarding "phase 4"; no `phase 4` commit exists).
+- Upload contained: **N** — `bank-statement-upload-myqNB` is *not* an ancestor of base.
+  Both forked from `9221eed` (v2.6 Audit Zero) and diverged: base → 28 visual commits,
+  upload → 5 onboarding commits (fixed-cost confidence `7ec58c0`, goal-decliner routing
+  `403f511`, first-read hook income-exclusion `e0601b4`, benchmark `a390550`). No
+  unified branch existed.
+- vs main: base ahead +26 (0 behind).
+- **Resolution (Lewis):** merge upload into the visual-3b base, then map. Merge had 2
+  conflicts — `SESSION-LOG.md` (kept both entries) and `missing-costs.tsx` (kept the
+  `text-caption` token over raw `text-[10px]`, honouring the visual-consistency rule).
+  Post-merge: `tsc --noEmit` clean, 927/927 unit tests green, pushed.
+
+**Onboarding map** → new `ONBOARDING-MAP.md` (repo root)
+- Full flow narrative A0–A9 (demo VM → link → goal beat → upload/parse/dual-categorise →
+  processing → confirm/reconcile → First Read [completion gate] → real-data VM → archetype
+  → first-meeting + profiling), file inventory, DB surface, shared-module flags, defect
+  register, open questions.
+- Shared modules that define the isolation boundary: `context-builder`, `compose-first-read`,
+  `parsers/*`, `categorisation/* + upload/pipeline`, `analytics/{monthly-snapshot,
+  recurring-detector,reconcile-fixed-costs,gap-analyser}`, `value-map/value-profile`,
+  `profiling/{engine,question-registry}`, `onboarding/markComplete`, `api/upload` +
+  `api/insights/post-upload`. Genuinely onboarding-only: `app/onboarding-v2/*`,
+  `components/onboarding-v2/*`, demo surface, `link-session`, `recompose-first-read`,
+  `value-map-complete`, `analytics/{recurring-candidates,category-coverage,fixed-cost-classify}`.
+
+**Judge baseline (staging) — BLOCKED**
+- Persona suite could not run: no staging/Bedrock secrets or `.env.local` in this remote
+  env; preflight hard-requires them + staging guard (`qlbhvlssksnrhsleadzn`) + live dev
+  server. Harness unit tests ran: **28/28 green**.
+- Asserting against: **generic `judge.ts` rubric** on a `'first_insight'`-typed capture —
+  NOT the current-Read rubric, and NOT the dedicated `judge-first-insight.ts` (which is
+  orphaned to `scripts/compare-first-insight.ts` and still calibrated to the retired
+  100-180-word/"— C."/[OPTIONS] format).
+- Caveat: a green persona run would be a baseline, not a sign-off on Read quality.
+
+**Defect register (confirmed on this branch)**
+- E1 "5 write-only profile cols → context-builder gap": **partially stale**. 3 of 5
+  (`values_ranking`, `spending_triggers`, `financial_awareness`) are now injected via the
+  Psychological-lens block (`context-builder.ts:1413-1445`, Session 32 `8d309ee`).
+  Remaining 2 are *orphaned schema*: `capability_preferences` (zero readers/writers),
+  `savings_rate_target` (read only by nudges, never written).
+- E2 `predicted_wow_score` clobber: **confirmed** — never written non-null;
+  `cron/wow-aggregate/route.ts:172` upserts it `null`.
+- E3 judge calibration mismatch: **confirmed** — dedicated first-insight judge is
+  retired-format + orphaned; suite uses generic judge.
+- E4 naming drift: **confirmed** — Marcus (comment-only) / James (absent) personas don't
+  exist (only Sofia); current Read stored under legacy `'first_insight'` conversation type.
+
+**Lessons / decisions**
+- Phase-0 gates earned their keep: the brief's premise ("visual-3b contains the phase-4
+  work") was false; mapping off the unmerged base would have reviewed a stale onboarding.
+- "Phase 3b" is overloaded — Visual Consistency phase vs onboarding phase. Disambiguate in
+  future briefs.
+
+**Next session (hardening — separate)**
+- Decide branch alias + integration base (open Qs 1-2). Recalibrate judge to current Read
+  + rename `'first_insight'`→`'first_read'` type (E3/E4). Drop/​wire the 2 orphaned profile
+  columns (E1). Resolve `predicted_wow_score` (E2). Author or retire Marcus/James personas
+  (E4). Run the persona suite on staging with secrets in place.
+
+---
+
+## Session — Visual Consistency, Phase 4 (Enforcement — the lock) — 2026-06-01
+
+**Branch:** `claude/visual-consistency-phase4` off `claude/visual-consistency-phase3b-ZIQU2`
+(the de-facto integration line — `feature/visual-consistency` was never cut; confirmed 3b fully
+contains main's foundation #61 + Phase 3 + the 3b sweeps). **Base + merge-target = the 3b branch**
+(Lewis's call). Tooling + config + docs — but scope **expanded** mid-session by four explicit
+decisions (below); the only feature-code touched is small, behaviour-preserving, and flagged for
+the eyeball.
+
+**P4.0 cleanliness gate (re-run, this env).** Colour: hex 44 / rgba 2 / colour-bracket 3 — all
+documented exceptions, **zero migratable colour drift** → gate reached. Two findings the prior
+grep battery had hidden:
+- The battery's `grep -vE "tokens\.ts"` exclusion is a **substring match** that also swallowed
+  `the-gap/.../quadrant-tokens.ts` (5 hex). True hex (excl. only `src/lib/tokens.ts`) = 49. The
+  AST ESLint rule (which ignores only `src/lib/tokens.ts`) surfaced them correctly.
+- Radius: `rounded-[…]` = **10, not 0**. 5 are documented thin-bar exceptions (`rounded-[2-3px]`
+  on 5–6px bars); 5 were **migratable stragglers** 3b left unswept (`InboxRow rounded-[10px]`;
+  `MultiIntentGapCard` chip `[5px]` + 3 callout `[4px]`).
+
+**Four in-session decisions (Lewis):**
+1. **Radius — migrate the 5 stragglers** (accepting a small rendered radius change) → all →
+   `rounded-control` (8px); then ship the radius guard as **error**.
+2. **knip scope — files + dependencies gate**; relax `exports`/`types`/`duplicates`
+   (Audit-Zero-verified false positives — named+default pairs, registry dispatch, generated
+   `supabase/types.ts`).
+3. **Full green now** — fix the ~33 pre-existing lint errors (not reclassify), so `npm run lint`
+   exits 0 and the lock is CI-enforceable.
+4. **quadrant-tokens → globals.css vars** (uphold "never a third source") rather than exempt it.
+
+**P4.1 — ESLint guards** (`eslint.config.mjs` → `cfo/visual-token-guards`, scoped `src/**`,
+AST-based `no-restricted-syntax` on string + template literals — so comments / JSX-text aren't
+matched, killing the `#142` / `&#9679;` false positives at source):
+- ban raw hex `#[0-9a-fA-F]{3,8}`, `rgb()/rgba()`, arbitrary colour utilities
+  `(bg|text|border|ring|fill|stroke|from|to|via)-[#…]`.
+- ban arbitrary radius `rounded-[≥4px]`; **`rounded-[≤3px]` permitted** (thin-bar class — nothing
+  named below `rounded-control` 8px; the 5 bars pass with no disable). Probe confirmed:
+  `rounded-[7px]` errors, `text-[13px]` does not.
+- ignores: `src/lib/tokens.ts`, `(public)/v4/**`, test globs.
+
+**Documented colour exceptions** (each a site `eslint-disable` + reason; not drift):
+| Bucket | Sites | Mechanism |
+|---|---|---|
+| Brand marks | CFOAvatar SVG · login Google-logo SVG | JSX block disable |
+| Canvas export | demo-reveal.tsx (file) · value-map-summary.tsx (line) | html2canvas needs literal colour |
+| Drop shadow | ChatSheet `rgba(0,0,0,0.5)` | line disable (no `--shadow` token; 1 use) |
+| DB-coupled | CATEGORY_COLORS (constants/dashboard.ts) | block disable (mirrors `categories.color`) |
+| False positives (src) | `#142` in context-builder + get-cluster prose | line disable |
+| (tests / comments) | `#142` fixtures, `&#9679;` entity | not matched by the AST rule |
+
+**quadrant-tokens migration.** Added `--gap-quadrant-{foundation,investment,leak,burden,unsure}`
+to `globals.css :root` (the editorial Gap palette, distinct from `--value-*`); `quadrant-tokens.ts`
+QUADRANT_COLOURS now returns `var(--gap-quadrant-*)`; test updated (hex-format → var-format).
+**Theme-agnostic** (same in dark + light = byte-identical to the prior hardcoded-hex behaviour).
+Consumers are DOM inline styles (Single/MultiIntentGapCard, the-gap ValueMapSummary) — the
+html2canvas share-card uses a *different* palette (`QUADRANTS`), so `var()` is render-safe.
+⚑ **Follow-up:** AA-deepened light-theme variants (a design input, like the `--value-*` light
+pairs) — not invented here.
+
+**P4.1b — "full green" (the ~33 pre-existing errors), all behaviour-preserving:**
+- **react-hooks / React-Compiler (eslint-config-next 16.2.2 turned these into errors):** mostly
+  per-site `// eslint-disable-next-line react-hooks/<rule> -- <reason>` where the rule over-fires
+  on intentional patterns — `set-state-in-effect` ×7 (browser-API mount reads / timer-driven),
+  `purity` ×4 (server-component `Date.now`; one BillCard client `Date.now` got a real
+  lazy-`useState` fix), `refs` (ChatProvider mirror + deferred `body()` callback; ArchetypePageClient
+  write-once snapshots), `preserve-manual-memoization` ×1.
+- **rules-of-hooks ×3** (conditional `useChatContext` try/catch): added a non-throwing
+  `useOptionalChatContext()` to ChatProvider; BalanceSheetClient / ReviewBanner / TripsClient now
+  call it unconditionally (null handling preserved).
+- **immutability ×1** (OfficeValuesBreakdown): donut offset mutation → pure `reduce` (pixel-identical).
+- **Trivial:** `prefer-const` ×3, `no-unescaped-entities` ×1, `no-explicit-any` ×1 (+ removed a
+  stale unused disable), `no-require-imports` ×4 (lazy/dynamic requires in dev CLIs → scoped disable).
+⚑ These touch feature code and could **not be runtime-verified here** (authed screens, no preview)
+— **flagged for Lewis's eyeball.** Behaviour-preserving by construction; typecheck green.
+
+**P4.2 — knip + CI.** `knip.json`: entry globs `scripts/**` · `eval/**` · `tests/onboarding/**`
+(the dead-code.md correction — clears the 18 CLI orphan false positives), `ignoreDependencies:
+[@types/pdf-parse]`, exports/types/duplicates relaxed. knip added to devDeps + `knip` script;
+`npx knip` exits 0. **No CI existed** (no `.github/workflows`, no husky, no Vercel build override)
+→ created `.github/workflows/ci.yml` (lint · knip · typecheck · build; build carries placeholder
+public env — dynamic routes fetch at runtime).
+
+**P4.3 — docs.** The non-negotiable rule + the full exception table written into `CLAUDE.md` and
+`cfos-office/UI-DIRECTION.md`: colour+radius read from tokens (CI failure otherwise); globals.css
+single source / tokens.ts var() accessor / never a third source; `dark:` inert (data-theme only);
+`/styleguide` (dev-only) as the canonical visual-regression surface; **fonts of record confirmed
+against both layouts** — 6 families, Cormorant kept (root: Instrument Serif/Sans + Geist Mono;
+office subtree: DM Sans / JetBrains Mono / Cormorant Garamond). Both docs state the **type +
+spacing wave-two is NOT yet enforced.**
+
+**Verification.** `npm run lint` exit 0 (0 errors / 41 pre-existing warnings) · `npm run typecheck`
+exit 0 · `npx knip` exit 0 · guard probe ✓. **`npm run build` could not complete locally** — the
+env is memory-starved (~60 MB free; first run OOM-killed, second wedged 5.5 min) → **delegated to
+CI + Vercel** (authoritative `next build`). Change types are build-safe beyond typecheck's coverage.
+
+### Validation Register — Visual Consistency Phase 4
+
+| Item | Status |
+|---|---|
+| P4.0 cleanliness gate — colour zero-migratable-drift | ✅ confirmed (44/2/3 documented exceptions) |
+| P4.0 — quadrant-tokens hidden by battery substring bug | ✅ surfaced by the AST rule; migrated to vars |
+| P4.0 — radius: 5 bar exceptions + 5 migratable stragglers | ✅ stragglers → rounded-control; bars permitted (≤3px) |
+| P4.1 — ESLint colour + radius guards (error, src/**) | ✅ probe proves fire; `text-[` not enforced |
+| P4.1 — documented colour exceptions (per-site disables) | ✅ all buckets covered (table above) |
+| P4.1b — ~33 pre-existing errors → green (Decision 3) | ✅ lint exit 0; behaviour-preserving |
+| P4.2 — knip.json (files+deps gate) + devDep + script | ✅ `npx knip` exit 0 |
+| P4.2 — CI workflow created (none existed) | ✅ `.github/workflows/ci.yml` |
+| P4.3 — rule + exceptions in CLAUDE.md + UI-DIRECTION.md | ✅ done; fonts confirmed vs layouts |
+| `npm run typecheck` / `npm run lint` / `npx knip` | ✅ all exit 0 |
+| `npm run build` | ⏳ CI-delegated (local OOM; env memory) — confirm on first CI run |
+| **type + spacing tokenisation + enforcement (wave two)** | ⏳ deferred (reasoned; explicitly NOT enforced) |
+| Gap light-theme `--gap-quadrant-*` variants | ⏳ follow-up (design input; theme-agnostic for now) |
+| knip exports/types/duplicates tightening | ⏳ follow-up (needs feature-code cleanup) |
+| 41 pre-existing lint warnings (unused-vars etc.) | ⏳ follow-up (out of scope; lint still exits 0) |
+| **Lewis comprehensive both-theme eyeball (as Dorcas)** | ⏳ OPEN — the gate before merge to `main` |
+
+**Closes the colour-epoch Register rows:** the Phase-3b "Phase-4 (P4.0) gate" row is now ✅ locked
+(ESLint + knip + docs enforce it). **Branch is ready for Lewis's one comprehensive both-theme
+eyeball (as Dorcas — deep on the heavy bodies + the three restyled chat blocks + the migrated
+radius/quadrant surfaces), then a single tested merge of the epoch to `main` + a git-tag version**
+(MAJOR.MINOR at the epoch, per the versioning model).
+
+**Wave two (separate, later):** type + spacing tokenisation and *its* enforcement — flagged so it
+isn't assumed already done.
+
+---
+
+## Session — Visual Consistency, Phase 3b (completion sweep) — 2026-05-31
+
+**Branch:** `claude/visual-consistency-phase3b-ZIQU2` (off the Phase-3 tip `29903de`, which
+already folds in the foundation + all of Phase 3 — so this branch *is* the integration line;
+the standalone `feature/visual-consistency` branch was never cut, same as Phase 3 noted). One
+surface = one commit, sequential. Pure front-end; Sweep C changes a route's response shape but
+no DB; no enforcement tooling (that's Phase 4).
+
+**Verification reality (Decision B).** Per-surface gate = `tsc --noEmit` + `next build` (real
+exit codes, no `| tail` masking) + grep (zero raw hex/rgba/colour-bracket; radius on the named
+scale) + theme-reactivity reasoning. This environment can't paint authed both-theme screens, so
+**Lewis runs the comprehensive both-theme eyeball as Dorcas at the end — that eyeball is the gate
+before Phase 4, not this session.** Every commit built green.
+
+**Re-measure (3b.0, repo-wide, this env) → after 3b:**
+- hex `112 → 44` · rgba `65 → 2` · colour-bracket `8 → 3` — **all 49 remaining are documented
+  exceptions (below), zero migratable colour drift.**
+- type/radius-bracket `325 → 284` (migrated the radius brackets across the sweep surfaces).
+- spacing-bracket `243 → 243` (deliberately untouched — see scope note).
+
+### Sweep B — chat result blocks (RESTYLE, Decision A) — 3 commits
+
+Bespoke palettes → canonical semantic tokens. Appearance changes by design.
+
+- **LabelTransactionsBlock** — dropped the bespoke walnut `PROTO` palette; surfaces/borders/text
+  → `var(--bg-elevated)/--border-medium/--text-*`, gold CTA → `--accent-gold` + `--primary-foreground`.
+  The 5 quadrant pill colours now come from `valueColors` (`var(--value-*)`) via the
+  `label_transactions` tool (`label-transactions.ts` + its test updated to expect tokens).
+- **ScenarioResult** — Recharts axis/tooltip/areas → `colors.*` var-strings (textTertiary/bgElevated/
+  borderVisible/info/gold); delta emerald/red → `text-positive/negative`.
+- **TripPlanResult** — budget-bar palette → nearest semantic tokens; suggested-cut emerald → positive.
+
+  **Sweep-B colour mappings + flagged no-clean-equivalents** (no token invented to keep a one-off shade):
+  | Bespoke | → token | Flag |
+  |---|---|---|
+  | foundation/investment/leak/burden/unsure pills | `var(--value-*)` | clean |
+  | Scenario contributed `#6366F1` / value `#E8A84C` | `--info` / `--accent-gold` | clean |
+  | Trip flights `#6366F1` / accommodation `#E8A84C` / food `#10B981` / misc `#6B7280` | `--info` / `--accent-gold` / `--positive` / `--value-unsure` | clean |
+  | Trip **activities `#F472B6` (pink)** | `--accent-cyan` | ⚑ no pink token |
+  | Trip **local_transport `#8B5CF6` (violet)** | `--value-burden` | ⚑ no violet token |
+  | FeasibilityBadge 4-tier (comfortable/tight/stretch/unrealistic) | positive / accent-gold / accent-gold / negative | ⚑ no amber/orange token — tight & stretch share gold |
+
+### Sweep A — heavy office bodies (FAITHFUL) — 9 commits
+
+Faithful migration; **same look after, except the white-alpha chrome which is *fixed* for light
+theme** (it was frozen white that didn't adapt). White/black-alpha chrome → theme-reactive token
+alphas (`bg-muted`/`bg-bg-inset`/`border-border-*`/`bg-tap-highlight`) or `color-mix(... var(--token))`.
+Surfaces: `OfficeMonthlyOverview`, `OfficeValuesBreakdown`, `DataComponents`, `GoalCard`,
+`ValuesDashboard`, `CashFlowDashboard`, `NetWorthDashboard`, `Briefing`, `DrillDownRow`,
+`MultiIntentGapCard` + the re-grep-surfaced chrome (`ChatSheet`, `ChatBar`, `SignOutButton`,
+`goals/page`, `NavigationBar`, `OfficeTransactionsClient`, `CategoryBreakdown`, `cash-flow/transactions/page`,
+`dashboard/summary` route fallbacks).
+
+- **Latent bug fixed (same class as Phase 3's 6 concat fixes):** `` `${ACCENT}08/12/20/30/40/50` ``
+  on `var(--folder-*)` strings = invalid CSS (`var(--folder-values)40`) that **rendered no tint/border**
+  — fixed → `color-mix` at the intended alphas in `ValuesDashboard` (5 sites) + `NetWorthDashboard` (4).
+  The archetype/trend accent tints now actually render.
+- **`unsure` colour aligned:** `OfficeValuesBreakdown` + `ValuesDashboard` dropped a bespoke amber/grey
+  `unsure` for the canonical `--value-unsure`.
+- **Radius:** `rounded-[6/7/8/10px]→control`, `[12px]→card`, thin-bar `[2.5/4px]`(= half of bar height)`→pill`.
+  **Kept (flagged):** `rounded-[2px]`/`rounded-[3px]` on the cash-flow / net-worth month bars — no faithful
+  named radius token exists below 8px, and snapping visibly distorts the bars.
+
+### Sweep C — balance-sheet route (BOUNDED REFACTOR) — DONE (not deferred) — 1 commit
+
+`api/balance-sheet/route.ts` stopped shipping presentation: removed raw-hex `color` from the asset/
+liability group + allocation-slice payloads (15 hex). New client resolver
+`lib/balance-sheet/type-colors.ts` maps type id → canonical token var() string; consumers
+(`AssetGroupCard`, `LiabilityGroupCard`, `AllocationDonut`, `NetWorthDashboard` Composition) resolve
+by id. Tints → `color-mix` (replacing the `${hex}20` alpha-concat). Also fixed the empty
+`1px solid ` tooltip-border in `AllocationDonut`.
+
+**Flagged collapses** (no categorical token palette; none invented): bonds→accent-purple,
+crypto→value-leak, student_loan/car_finance/bnpl→accent-gold; liabilities collapse onto
+negative/accent-gold/unsure (decorative debt-card accents, no donut). **Residual reached zero with
+this landing — Sweep C was *not* deferred.**
+
+### Sweep D — EmptyState 6→1 — COMPLETED — 1 commit
+
+**Session-32 confirmed not in flight** (no branch, no landed edits to the fenced files), so the
+fenced collapse was completed. **Decision (Lewis, AskUserQuestion): "complete, keep chat behavior."**
+All empty-state *containers* now route through the single survivor `DashboardEmptyState`:
+- `dashboard/EmptyState` (no_data/no_values variants) → **deleted**; `DashboardClient` uses the survivor
+  with explicit props + `children` (CTAs/footnote).
+- `office/sections/GoalsEmptyState` → **deleted**; `GoalsSection` + `goals/page` render the survivor directly.
+- `GoalsEmptyStateCTA` **retained** as a small client chat-trigger button leaf, passed via `children` (it
+  opens the chat sheet via `useChatContext` — a chat trigger, not an empty-state container; preserves the
+  goal-flow UX exactly). styleguide updated to show the single survivor in its CTA modes.
+
+### Final repo-wide residual — Phase-4 (P4.0) gate proof
+
+**Zero migratable colour drift.** All 44 hex + 2 rgba + 3 colour-bracket are principled exceptions:
+| Class | Sites | Why it stays |
+|---|---|---|
+| `(public)/v4/*` | (the documented exception) | already token-correct; the one intended colour island |
+| DB-coupled `CATEGORY_COLORS` | `constants/dashboard.ts` (9) + `${cat.color}` consumers | mirrors DB `categories.color`; a migration, not a styling change (audit out-of-scope) |
+| Brand identity | `CFOAvatar` SVG (7), `login` Google-logo (4) | theme-stable brand marks; Google's logo colours are brand-mandated |
+| Share/export cards | `demo-reveal` (4hex+1rgba+3bracket), `value-map-summary` (1) | rendered to html2canvas (tokens.ts excludes canvas literals); fixed-brand by design |
+| Drop shadow | `ChatSheet` (1 rgba `rgba(0,0,0,0.5)`) | theme-agnostic black shadow; no shadow token exists |
+| False positives | `#142` merchant codes in comments (×8), `&#9679;` entity (×1), test fixtures (×10) | not colours |
+
+**Phase-4 handoff:** Decision A means **no chat-block allowlist** in the lint rule — only `v4` is a
+*colour-island* exemption. The other residue above is structural (DB column, brand marks, canvas
+literals, shadows, false positives) — Phase 4's P4.0 ban should be scoped to raw hex/rgba in
+*style/className* positions and will pass cleanly once those classes are allowlisted/excluded.
+
+**Scope note — type/spacing brackets are NOT this session's gate.** The Phase-4 gate is *colour*
+("only `v4` remains"). Type-size + `tracking` + spacing brackets were left on the heavy bodies:
+(a) the `--text-*` tokens carry paired line-heights and there's irreducible intentional `tracking`
+(uppercase labels) with no token, so type-bracket near-zero isn't cleanly reachable; (b) spacing has
+no CSS-var scale (Tailwind's 4px default only), and blind off-grid snapping (3px/5px/etc.) shifts
+pixels on surfaces this env can't paint — the exact risk Phase 3 cited when deferring these bodies;
+(c) repo-wide near-zero for type/spacing isn't reachable from this session's file set anyway (most
+brackets live in non-sweep files: HoldingsPreview, StructuredInput, BillUploadModal, …). **Radius
+brackets were migrated** (the safe, documented nearest-step). The type/spacing-bracket tail is a
+follow-up, independent of the Phase-4 *colour* gate.
+
+### For Lewis — end-eyeball list (both themes, as Dorcas; the gate before Phase 4)
+
+**Priority (changed most):**
+1. **Sweep B chat blocks** — `LabelTransactionsBlock`, `ScenarioResult`, `TripPlanResult`. Judge
+   *"does the token treatment read well in chat?"* — not "is it unchanged." If one reads worse, that's
+   the signal to reconsider keeping it bespoke (a deliberate reversal). Note the FeasibilityBadge
+   tight/stretch share gold, and Trip activities/local_transport remapped (pink→cyan, violet→burden).
+2. **Sweep A heavy bodies** — esp. the light-theme chrome fix (was broken white) and the now-rendering
+   accent tints on `ValuesDashboard` archetype card + `NetWorthDashboard` trend/summary (the concat-bug fix
+   — these previously showed *no* tint/border).
+3. **Sweep C** — net-worth dashboards + balance-sheet cards/donut: the type→token colour collapses
+   (bonds/crypto/liability hues) read as a coherent palette?
+4. **Sweep D** — the collapsed empties (dashboard no_data/no_values; goals empty on `/office` home +
+   `/office/goals`) sit right in the survivor's centred layout; goal-flow chat CTA still opens the sheet.
+- Plus the cash-flow / net-worth month-bar `rounded-[2px]/[3px]` kept square (flagged).
+
+### Validation Register — Visual Consistency Phase 3b
+
+| Item | Status |
+|---|---|
+| 3b.0 re-measure → per-sweep manifest from the re-grep | ✅ done (counts above) |
+| Sweep B — LabelTransactionsBlock restyle (+tool+test) | ✅ TYPECHECK=0 / BUILD=0 · tool test green |
+| Sweep B — ScenarioResult restyle | ✅ TYPECHECK=0 / BUILD=0 |
+| Sweep B — TripPlanResult restyle | ✅ TYPECHECK=0 / BUILD=0 |
+| Sweep B — bespoke→token mappings + no-equivalents flagged | ✅ logged (table above) |
+| Sweep A — 10 named bodies + re-grep chrome onto tokens | ✅ all built green; colour zero per surface |
+| Sweep A — white-rgba chrome → theme-reactive token alphas | ✅ the light-theme fix landed |
+| Sweep A — `${ACCENT}NN` var-concat latent bug | ✅ fixed (9 sites → color-mix) |
+| Sweep C — route stops emitting colour; client resolves by id | ✅ DONE (not deferred); built green |
+| Sweep D — EmptyState 6→1 | ✅ COMPLETED (session-32 not in flight; keep-chat-behavior) |
+| Repo-wide colour after session | hex 112→44 · rgba 65→2 · colour-bracket 8→3 — **all residual = documented exceptions** |
+| **Phase-4 (P4.0) gate — zero migratable colour drift** | ✅ reached (exception table above) |
+| Type/spacing-bracket tail | ⏳ out-of-gate follow-up (radius done; type/spacing scoped out, reasoned) |
+| **Lewis comprehensive both-theme eyeball (as Dorcas)** | ⏳ OPEN — the gate before Phase 4 |
+
+**Closes these Phase-3 Register rows (were ⏳):** balance-sheet route (Sweep C ✅), EmptyState 6→1
+(Sweep D ✅), heavy office surfaces + bespoke chat palettes (Sweeps A + B ✅), Phase-4 gate /
+zero-residual (✅ reached, modulo the documented exceptions + Lewis's eyeball).
+
+---
+
+## Session — Visual Consistency, Phase 3 (call-site migration, execution) — 2026-05-31
+
+**Branch:** `claude/visual-consistency-phase3-oTjGz` (off the merged foundation tip
+`5b9482a`, PR #61). Integration target = this branch (the standalone
+`feature/visual-consistency` integration branch was never cut — the foundation merged
+straight to `main`, so this branch *is* the integration line). One surface = one commit,
+sequential. Pure front-end; no DB; no enforcement tooling.
+
+**Supersedes the prior P3.0 "sweep deferred" note (2026-05-30).** That deferral was
+environment-bound: a dev server wouldn't hold in the worktree. Here the dev server runs;
+pages render 200 once dummy Supabase env is supplied. Screenshots are still unavailable
+(the Playwright chromium download is blocked by the network policy, and the office/value
+surfaces need authed data) — so **per-surface verification was build + typecheck + grep +
+theme-reactivity reasoning, not eyeballing.** This is the honest gating limitation; the
+migrations are faithful-by-construction (tokens carry the same hexes, theme-reactive), and
+the colour work additionally *fixes* three latent bugs (below). Surfaces that genuinely need
+a live both-theme eyeball before the epoch merges are flagged.
+
+**Re-run drift (P3.0, this env):** 174 hex · 73 rgba · 37 colour-bracket · 293 type-bracket ·
+52 radius-bracket. After this session: **98 hex · 65 rgba · 8 colour-bracket** · 270 type ·
+52 radius — and **near-zero colour across every surface migrated** (the Phase-4 gate). The
+remaining colour is concentrated in out-of-scope / deferred / flagged buckets (below), not in
+migrated surfaces.
+
+**Latent bugs fixed by the colour migration (caught by reading, not visible to build/grep):**
+1. **Broken hex-alpha concatenation on `var(--value-*)` strings.** Phase 1 repointed
+   `QUADRANTS[q].colour` to `var(--value-…)`; the surviving `q.colour + '40'` /
+   `` `${q.colour}20` `` concatenations then produced invalid CSS (`var(--value-foundation)40`)
+   and **silently dropped every quadrant tint**. Fixed in 6 sites (value-map-card,
+   value-map-summary, cut-or-keep, demo-card) → `color-mix(in oklab, ${q.colour} N%, transparent)`,
+   the idiom `tokens.ts` itself uses.
+2. **Stale inverted value palette** hardcoded in `onboarding/beats/ArchetypeBeat` — the
+   allocation bar still used the pre-foundation hexes (foundation `#22C55E` green /
+   investment `#3B82F6` blue), the exact Foundation/Investment inversion Phase 1 corrected at
+   the token layer. Now reads `valueColors.*`.
+3. **Frozen-dark chart chrome + ValuesDonut "unsure" `#6B7280`** — never adapted to light
+   theme. Now on `colors.*` / `valueColors.unsure` var-strings.
+
+**Surfaces landed (each its own commit, build+typecheck green):**
+1. **Prove-the-loop — `value-map-summary`.** color-mix tint fix + `text-[10px]→text-caption`.
+2. **Value-map** (`cut-or-keep`, `one-thing`, `retake-impact`, `value-map-card`,
+   `value-map-flow`). CFO-gold CTAs → `bg-primary text-primary-foreground` (theme-reactive,
+   contrast-correct in light); pure gold fills → `bg/border/text-accent-gold`; leak red →
+   `value-leak`; concat bug fixed.
+3. **Onboarding** (`ArchetypeBeat` [+ inversion fix + `[var(--…)]`→utilities],
+   `missing-costs`, `struggle-question`, `archetype-orchestrator`, `first-read-orchestrator`).
+   Eyebrow `text-[10px]→text-caption`, single-line button labels `text-[15px]→text-h3`.
+4. **Charts (P3.3)** — `TrendChart`, `ValuesTrendChart`, `ValuesDonut`, `SpendingChart`,
+   `NetWorthTrendChart`, `AllocationDonut`. Chrome + series → `colors`/`valueColors`
+   var-string accessors, extending the pattern already shipped in `ValuesTrendChart`.
+5. **Office home sections** — `FolderSection` (stale white-rgba chrome → tokens; exact-grid
+   spacing/radius/type snaps), `NetWorth/CashFlow/Values/GoalsSection` (folder-identity hexes
+   → folder tokens).
+6. **Chat CTAs + demo + dev badge** — `ChatCTA`, `ValueMapActionButton` (gold CTAs),
+   `demo-card` (concat fix), `payoff-panel`, `IncomeShapeBadge` (drops `style={{}}` rgba).
+
+**Faithful-vs-restyle flags (residuals kept deliberately, not silently restyled):**
+- **Bespoke serif/editorial type** off the named scale (scale tops at 20px): `value-map-flow`
+  intro (`text-[28px]/[17px]/[13.5px]` + hand-tuned `leading-[…]`), `struggle-question` &
+  `first-read` prose/serif (`text-[30px]/[17px]/[14.5px]/[14px]`, the `text-[15px]
+  leading-[1.65]` Read narrative). Snapping would restyle hand-tuned reading experiences or
+  fight the named tokens' bundled line-heights. → a typed **editorial scale** decision.
+- **Mini-bar dims** `rounded-[3px]` / `gap-[3px]` / `h-[5px]` (UI-DIRECTION "Mini Bars" 5px/3px)
+  — no named-scale step; faithful keep.
+
+**P3.3 — balance-sheet route: DEFERRED (decided).** `api/balance-sheet/route.ts` emits
+folder/value **hexes** in its JSON; clients (`AssetGroupCard`/`LiabilityGroupCard` via
+`` `${group.color}20` `` — valid 8-digit hex, *not* broken; `AllocationDonut`, `NetWorthCards`)
+consume them as inline styles. The clean fix (stop emitting colour; resolve the token
+client-side by category id) is a multi-component data-flow refactor, not a styling swap — P3.3
+says scope that as its own sub-phase, do **not** smuggle it in. Deferred with this note.
+
+**P3.4 — EmptyState: still 6→1 PENDING (session-32 fence holds).** `dashboard/EmptyState`,
+`office/sections/GoalsEmptyState`, `office/goals/GoalsEmptyStateCTA` are still live with active
+consumers, show no landed session-32 edits (last touch v2.5 #49), and no
+`session-32/staging-user-hygiene` branch exists. Left untouched per P3.4's explicit fallback
+(reach 6→1 after session-32 lands) to avoid a conflict. Survivor collapse from Phase 2c stands
+(6→survivor+2 collapsed+3 fenced).
+
+**Out of scope (legitimately not migrated):** `CATEGORY_COLORS` (dashboard.ts — DB-coupled),
+brand SVG art (`CFOAvatar`, Google logo), html2canvas/share-card literals (`value-map-summary`
+`#0a0a0a`; `demo-reveal` is a fixed 540×540 always-dark exported share image — `accent-gold`
+would wrongly brass-shift in light), AI-tool data files (`label-transactions*`).
+
+**Deferred to the follow-up sweep (with a working preview):** the heavy office surfaces not
+yet migrated — `OfficeMonthlyOverview`, `OfficeValuesBreakdown`, `DataComponents`, `GoalCard`,
+the `dashboards/*` bodies, `the-gap/*`, and the bespoke chat result palettes
+(`LabelTransactionsBlock`'s "prototype's exact visual" frozen-dark theme, `ScenarioResult`,
+`TripPlanResult` accent palettes — these need a design decision, not a mechanical swap). These
+carry the bulk of the remaining type/spacing brackets + context-dependent white-rgba chrome
+and want a live both-theme eyeball. **Phase 4 must not run until these land and repo-wide
+residual is zero across migrated surfaces.**
+
+### Validation Register — Visual Consistency Phase 3
+
+| Item | Status |
+|---|---|
+| Prove-the-loop (value-map-summary) clean + builds | ✅ TYPECHECK_EXIT=0 / BUILD_EXIT=0 |
+| Value-map surface — colour zero (1 exempt canvas hex) | ✅ migrated; concat bug fixed |
+| Onboarding surface — colour zero | ✅ migrated; inversion bug fixed |
+| Charts (P3.3) — chrome+series on var-strings | ✅ migrated · ⏳ both-theme paint eyeball (no browser here) |
+| Office home sections — colour zero | ✅ migrated |
+| Chat CTAs / demo-card / payoff-panel / IncomeShapeBadge | ✅ migrated; demo-card concat bug fixed |
+| Broken `var()`+hex-alpha concatenations (6 sites) | ✅ all fixed → color-mix |
+| Balance-sheet route colour-in-payload (P3.3) | ⏳ Deferred (own sub-phase) — decided, noted |
+| EmptyState 6→1 | ⏳ Pending session-32 (fence holds; survivor+2+3 stands) |
+| Heavy office surfaces + bespoke chat palettes | ⏳ Deferred to follow-up sweep (needs preview) |
+| Repo-wide colour after session | hex 174→98 · rgba 73→65 · colour-bracket 37→8 (rest = out-of-scope/deferred/flagged) |
+| Phase 4 gate (zero residual across migrated surfaces) | ⏳ Not yet — follow-up sweep outstanding |
+
+---
+
 ## Session — Visual Foundation Close-Out (eyeball fixes) — 2026-05-31
 
 Four small, merge-blocking foundation deltas after the eyeball passed the main gate. Pure

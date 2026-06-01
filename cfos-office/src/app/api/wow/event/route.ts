@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 
 const EventSchema = z.object({
   event_type: z.enum(WOW_EVENT_TYPES),
-  first_insight_message_id: z.string().uuid(),
+  first_read_message_id: z.string().uuid(),
   conversation_id: z.string().uuid(),
   metadata: z.record(z.string(), z.unknown()).optional().default({}),
 });
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const { data: insight, error: insightErr } = await supabase
     .from('messages')
     .select('id, user_id, conversation_id')
-    .eq('id', parsed.data.first_insight_message_id)
+    .eq('id', parsed.data.first_read_message_id)
     .maybeSingle();
 
   if (insightErr) {
@@ -57,13 +57,13 @@ export async function POST(req: NextRequest) {
 
   const { error: insertErr } = await supabase.from('wow_events').insert({
     user_id: user.id,
-    first_insight_message_id: parsed.data.first_insight_message_id,
+    first_read_message_id: parsed.data.first_read_message_id,
     conversation_id: parsed.data.conversation_id,
     event_type: parsed.data.event_type,
     metadata: parsed.data.metadata,
   });
 
-  // The partial unique index on (first_insight_message_id, event_type) makes
+  // The partial unique index on (first_read_message_id, event_type) makes
   // duplicate inserts for delivered/scrolled/returned_d2/resonance_tap_*
   // collide. Swallow that — it is the intended idempotency behaviour.
   if (insertErr) {

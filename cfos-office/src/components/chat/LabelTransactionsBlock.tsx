@@ -7,12 +7,13 @@
 // the learning engine via after()).
 //
 // Visual contract: docs/design/prototypes/label-transactions-prototype.jsx.
-// Colors for the 5 quadrants come from the tool output itself (the LLM does
-// not pick them) so the source of truth lives in
-// cfos-office/src/lib/ai/tools/label-transactions.ts. The hex values used here
-// for surfaces / borders / text mirror the prototype tokens — the project
-// design system doesn't expose all five surface levels the prototype calls for,
-// so a small number of hex values are inlined with comments pointing back.
+// Colours for the 5 quadrants come from the tool output itself (the LLM does
+// not pick them); the source of truth lives in
+// cfos-office/src/lib/ai/tools/label-transactions.ts and is now the canonical
+// value-category tokens. Surfaces / borders / text below resolve to the
+// canonical design tokens (theme-reactive var() strings) — Visual Phase 3b
+// restyle: the block dropped its bespoke walnut prototype palette so it reads
+// in both themes off the shared token layer.
 
 import { useState } from 'react'
 import { formatAmount, formatDate } from '@/lib/value-map/format'
@@ -38,7 +39,7 @@ export interface LabelTransactionsTransaction {
 export interface LabelTransactionsOption {
   id: LabelTransactionsQuadrantId
   label: string // user-facing copy (e.g. "Foundation")
-  color: string // hex (one of the prototype quadrant colours)
+  color: string // canonical value-category token var() string (e.g. var(--value-foundation))
   desc: string // sub-label e.g. 'Essential'
 }
 
@@ -60,24 +61,21 @@ export interface LabelTransactionsBlockProps {
   userCurrency?: string
 }
 
-// ── Prototype tokens ──────────────────────────────────────────────────────────
-// Hardcoded from docs/design/prototypes/label-transactions-prototype.jsx.
-// These five surface levels aren't all exposed by the global token system; the
-// chat lives inside the (office) layout where the global surfaces are similar
-// but not identical to the prototype's. Keeping them here preserves the
-// prototype's exact visual.
+// ── Surface tokens ──────────────────────────────────────────────────────────
+// Visual Phase 3b: the block's bespoke walnut prototype palette was retired in
+// favour of the canonical design tokens (var() strings, theme-reactive in both
+// light and dark). The block is inline-style-architected, so tokens are read as
+// var() strings rather than utility classes; the drift battery sees zero raw
+// hex/rgba here. `bgOnAccent` is the foreground used on the gold CTA fill.
 
-const PROTO = {
-  surface: '#221d17',
-  surfaceLifted: '#2c2620',
-  border: '#3a342c',
-  borderHover: '#4d4538',
-  textPrimary: '#f0e9dd',
-  textSecondary: '#b8ad99',
-  textMuted: '#7a7163',
-  textDim: '#574f44',
-  accent: '#E8A84C',
-  bgOnAccent: '#1a1612',
+const TOKENS = {
+  surface: 'var(--bg-elevated)',
+  border: 'var(--border-medium)',
+  textPrimary: 'var(--text-primary)',
+  textSecondary: 'var(--text-secondary)',
+  textMuted: 'var(--text-tertiary)',
+  accent: 'var(--accent-gold)',
+  bgOnAccent: 'var(--primary-foreground)',
 } as const
 
 // ── Helpers (exported for tests) ──────────────────────────────────────────────
@@ -278,8 +276,8 @@ export function LabelTransactionsBlock({
       <div
         // Block container — bordered card. Width naturally caps via parent bubble.
         style={{
-          background: PROTO.surface,
-          border: `1px solid ${PROTO.border}`,
+          background: TOKENS.surface,
+          border: `1px solid ${TOKENS.border}`,
           borderRadius: '12px',
           padding: '16px',
           opacity: phase === 'submitting' ? 0.5 : 1,
@@ -295,14 +293,14 @@ export function LabelTransactionsBlock({
             justifyContent: 'space-between',
             marginBottom: '14px',
             paddingBottom: '12px',
-            borderBottom: `1px solid ${PROTO.border}`,
+            borderBottom: `1px solid ${TOKENS.border}`,
             gap: '8px',
           }}
         >
           <span
             style={{
               fontSize: '11px',
-              color: PROTO.textMuted,
+              color: TOKENS.textMuted,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               flex: '1 1 auto',
@@ -317,7 +315,7 @@ export function LabelTransactionsBlock({
           <span
             style={{
               fontSize: '12px',
-              color: allLabelled ? PROTO.accent : PROTO.textMuted,
+              color: allLabelled ? TOKENS.accent : TOKENS.textMuted,
               fontWeight: 500,
               transition: 'color 200ms ease',
               flex: '0 0 auto',
@@ -352,9 +350,9 @@ export function LabelTransactionsBlock({
           style={{
             width: '100%',
             padding: '14px',
-            background: allLabelled ? PROTO.accent : PROTO.surface,
-            color: allLabelled ? PROTO.bgOnAccent : PROTO.textMuted,
-            border: `1px solid ${allLabelled ? PROTO.accent : PROTO.border}`,
+            background: allLabelled ? TOKENS.accent : TOKENS.surface,
+            color: allLabelled ? TOKENS.bgOnAccent : TOKENS.textMuted,
+            border: `1px solid ${allLabelled ? TOKENS.accent : TOKENS.border}`,
             borderRadius: '8px',
             fontSize: '14px',
             fontWeight: 500,
@@ -376,7 +374,7 @@ export function LabelTransactionsBlock({
           style={{
             textAlign: 'center',
             padding: '20px',
-            color: PROTO.textMuted,
+            color: TOKENS.textMuted,
             fontSize: '13px',
             letterSpacing: '0.05em',
           }}
@@ -414,7 +412,7 @@ function TransactionRow({
       style={{
         paddingBottom: isLast ? 0 : '14px',
         marginBottom: isLast ? 0 : '14px',
-        borderBottom: isLast ? 'none' : `1px solid ${PROTO.border}`,
+        borderBottom: isLast ? 'none' : `1px solid ${TOKENS.border}`,
       }}
     >
       <div
@@ -431,7 +429,7 @@ function TransactionRow({
             className="font-sans"
             style={{
               fontSize: '15px',
-              color: PROTO.textPrimary,
+              color: TOKENS.textPrimary,
               fontWeight: 500,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -444,7 +442,7 @@ function TransactionRow({
             className="font-mono"
             style={{
               fontSize: '11px',
-              color: PROTO.textMuted,
+              color: TOKENS.textMuted,
               marginTop: '2px',
               letterSpacing: '0.04em',
             }}
@@ -457,7 +455,7 @@ function TransactionRow({
           className="font-mono tabular-nums"
           style={{
             fontSize: '15px',
-            color: PROTO.textSecondary,
+            color: TOKENS.textSecondary,
             flex: '0 0 auto',
           }}
         >
@@ -509,15 +507,15 @@ function PillButton({ option, selected, disabled, onClick }: PillButtonProps) {
   const showAccent = selected || (hover && !disabled)
   const background = selected ? option.color : 'transparent'
   const color = selected
-    ? PROTO.bgOnAccent
+    ? TOKENS.bgOnAccent
     : showAccent
       ? option.color
-      : PROTO.textSecondary
+      : TOKENS.textSecondary
   const borderColor = selected
     ? option.color
     : showAccent
       ? option.color
-      : PROTO.border
+      : TOKENS.border
 
   return (
     <button

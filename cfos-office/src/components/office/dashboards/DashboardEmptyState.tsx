@@ -24,13 +24,14 @@ interface DashboardEmptyStateProps {
 }
 
 /**
- * The single office empty-state primitive (Visual Phase 2c — the 6→1 collapse).
- * Absorbs: balance-sheet/EmptyState (title + two Button CTAs), bills/EmptyBillsState
- * (embedded UploadZone via `children`), and the office dashboards' inline empties.
- *
- * Fenced for a post-session-32 follow-up (session-32/staging-user-hygiene edits them):
- * dashboard/EmptyState (no_data/no_values variants) + office/sections/GoalsEmptyState
- * and its dependency GoalsEmptyStateCTA. Add the no_data/no_values presets here then.
+ * The single office empty-state primitive — the 6→1 collapse (Phase 2c started it,
+ * Phase 3b finished it). Absorbs every empty-state container in the app:
+ * balance-sheet/EmptyState (title + two Button CTAs), bills/EmptyBillsState (embedded
+ * UploadZone via `children`), the office dashboards' inline empties, dashboard/EmptyState
+ * (the old no_data/no_values variants — now explicit props + children at the call site),
+ * and office/sections/GoalsEmptyState. The goal-flow chat trigger (GoalsEmptyStateCTA)
+ * is retained as a small client button leaf, passed via `children` — it is a chat
+ * trigger, not an empty-state container, so it sits outside this primitive.
  *
  * CTA modes, first match wins: children → onAction (Button) → actionHref (text-link).
  */

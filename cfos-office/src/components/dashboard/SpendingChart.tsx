@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { CATEGORY_COLORS, formatCurrency } from '@/lib/constants/dashboard'
+import { colors, valueColors } from '@/lib/tokens'
 import type { CategorySummary } from '@/app/api/dashboard/summary/route'
 
 type Props = {
@@ -18,7 +19,7 @@ export function SpendingChart({ categories, onCategoryClick }: Props) {
       name: cat.name,
       amount: cat.amount,
       pct: cat.pct,
-      color: CATEGORY_COLORS[cat.color] ?? '#6B7280',
+      color: CATEGORY_COLORS[cat.color] ?? valueColors.unsure,
     }))
 
   if (data.length === 0) return null
@@ -33,17 +34,17 @@ export function SpendingChart({ categories, onCategoryClick }: Props) {
             type="category"
             dataKey="name"
             width={110}
-            tick={{ fill: '#8A8A96', fontSize: 12 }}
+            tick={{ fill: colors.textTertiary, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
-            cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+            cursor={{ fill: colors.tapHighlight }}
             contentStyle={{
-              backgroundColor: '#16161A',
-              border: '1px solid #2A2A30',
+              backgroundColor: colors.bgElevated,
+              border: `1px solid `,
               borderRadius: 8,
-              color: '#F2F2F3',
+              color: colors.textPrimary,
               fontSize: 13,
             }}
             formatter={(value, _name, entry) => [

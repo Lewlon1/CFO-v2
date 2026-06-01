@@ -34,7 +34,7 @@ export function CategoryBreakdown({ categories, onCategoryClick }: Props) {
       <div className="divide-y divide-border">
         {sorted.map(([slug, cat]) => {
           const Icon = getIcon(cat.icon)
-          const color = CATEGORY_COLORS[cat.color] ?? '#6B7280'
+          const color = CATEGORY_COLORS[cat.color] ?? 'var(--value-unsure)'
 
           return (
             <button

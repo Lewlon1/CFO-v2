@@ -140,8 +140,8 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
                 <TransactionRow
                   key={tx.id}
                   icon={cat?.icon ?? '?'}
-                  iconBg={cat ? `${cat.color}1A` : 'rgba(245,245,240,0.04)'}
-                  iconColor={cat?.color ?? 'rgba(245,245,240,0.3)'}
+                  iconBg={cat ? `${cat.color}1A` : 'var(--muted)'}
+                  iconColor={cat?.color ?? 'var(--text-tertiary)'}
                   merchant={tx.description ?? '—'}
                   time={cat?.name ?? 'Uncategorised'}
                   category={cat?.name ?? ''}

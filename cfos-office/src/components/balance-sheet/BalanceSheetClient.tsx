@@ -10,7 +10,7 @@ import { AssetGroupCard } from './AssetGroupCard'
 import { LiabilityGroupCard } from './LiabilityGroupCard'
 import { DataGaps } from './DataGaps'
 import { Scale } from 'lucide-react'
-import { useChatContext } from '@/components/chat/ChatProvider'
+import { useOptionalChatContext } from '@/components/chat/ChatProvider'
 import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
 import type { Category } from '@/lib/parsers/types'
 
@@ -58,12 +58,8 @@ export function BalanceSheetClient({ categories, view = 'full' }: Props) {
   }
 
   // Chat-context action moved here from the (now-collapsed) balance-sheet EmptyState.
-  let chatCtx: ReturnType<typeof useChatContext> | null = null
-  try {
-    chatCtx = useChatContext()
-  } catch {
-    // Not inside ChatProvider — the conversation CTA simply no-ops.
-  }
+  // Optional: this view can render outside <ChatProvider>, in which case the CTA no-ops.
+  const chatCtx: ReturnType<typeof useOptionalChatContext> = useOptionalChatContext()
   function handleStartConversation() {
     if (!chatCtx) return
     chatCtx.startConversation('balance_sheet_setup')

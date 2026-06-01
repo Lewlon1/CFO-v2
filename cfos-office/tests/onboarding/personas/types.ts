@@ -15,7 +15,7 @@ export type OnboardingStage =
   | 'value_map_done'
   | 'upload_done'
   | 'archetype_shown'
-  | 'complete'      // Marcus: landed in /office?chat=open with first_insight conversation
+  | 'complete'      // Marcus: landed in /office?chat=open with first_read conversation
   | 'chat_opener'   // Non-Marcus: landed in chat directly from struggle screen
 
 // ── Scripted Value Map response ─────────────────────────────────────────────

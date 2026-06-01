@@ -51,7 +51,7 @@ export function InboxRow() {
   return (
     <button
       onClick={() => router.push('/office/inbox')}
-      className="w-full flex items-center gap-3 px-4 py-3 rounded-[10px] border border-border-subtle hover:bg-tap-highlight transition-colors min-h-[48px]"
+      className="w-full flex items-center gap-3 px-4 py-3 rounded-control border border-border-subtle hover:bg-tap-highlight transition-colors min-h-[48px]"
     >
       <div className="relative shrink-0">
         <CFOAvatar size={28} />

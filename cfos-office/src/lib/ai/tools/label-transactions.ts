@@ -14,10 +14,12 @@
 
 import { z } from 'zod';
 import type { ToolContext } from './types';
+import { valueColors } from '@/lib/tokens';
 
 // All 5 quadrants — required in input.options and emitted in the output
-// options array in this exact order. Colors mirror the prototype at
-// docs/design/prototypes/label-transactions-prototype.jsx.
+// options array in this exact order. Colours are canonical value-category
+// tokens (theme-reactive var() strings from @/lib/tokens) — the LLM does not
+// pick them and the block renders them straight into CSS.
 const QUADRANT_IDS = [
   'foundation',
   'investment',
@@ -35,11 +37,11 @@ interface QuadrantOption {
 }
 
 const OUTPUT_OPTIONS: QuadrantOption[] = [
-  { id: 'foundation', label: 'Foundation', color: '#7A9E7E', desc: 'Essential' },
-  { id: 'investment', label: 'Investment', color: '#D4A24C', desc: 'Worth it' },
-  { id: 'leak', label: 'Leak', color: '#B8584F', desc: 'Drains me' },
-  { id: 'burden', label: 'Burden', color: '#8A7468', desc: 'Heavy, stuck' },
-  { id: 'unsure', label: 'Unsure', color: '#605749', desc: 'On autopilot' },
+  { id: 'foundation', label: 'Foundation', color: valueColors.foundation, desc: 'Essential' },
+  { id: 'investment', label: 'Investment', color: valueColors.investment, desc: 'Worth it' },
+  { id: 'leak', label: 'Leak', color: valueColors.leak, desc: 'Drains me' },
+  { id: 'burden', label: 'Burden', color: valueColors.burden, desc: 'Heavy, stuck' },
+  { id: 'unsure', label: 'Unsure', color: valueColors.unsure, desc: 'On autopilot' },
 ];
 
 const inputSchema = z.object({

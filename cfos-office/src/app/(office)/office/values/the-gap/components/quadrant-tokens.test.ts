@@ -14,9 +14,9 @@ describe('QUADRANT_COLOURS', () => {
     expect(QUADRANT_COLOURS.unsure).toBeTypeOf('string')
   })
 
-  it('uses hex values', () => {
+  it('references the globals.css --gap-quadrant-* custom properties', () => {
     for (const value of Object.values(QUADRANT_COLOURS)) {
-      expect(value).toMatch(/^#[0-9A-Fa-f]{6}$/)
+      expect(value).toMatch(/^var\(--gap-quadrant-[a-z]+\)$/)
     }
   })
 })

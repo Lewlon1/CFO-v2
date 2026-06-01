@@ -5,6 +5,7 @@ import { X, MoreVertical, Plus, MessageSquare, ArrowRight } from 'lucide-react'
 import { useChatContext } from './ChatProvider'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
+import { CfoThinking } from '@/components/brand/CfoThinking'
 import useSWR from 'swr'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { CHAT_SUBJECTS, getFolderChatMeta, type FolderKey } from '@/lib/chat/folder-prompts'
@@ -25,11 +26,12 @@ export function ChatSheet() {
     handleLabelTransactionsSubmit,
     chatError,
     dismissError,
+    isLoadingConversation,
     userCurrency,
     currentFolder,
     conversationId,
     conversationType,
-    registerFirstInsightDelivery,
+    registerFirstReadDelivery,
   } = useChatContext()
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -158,11 +160,13 @@ export function ChatSheet() {
       <div className="absolute inset-0 bg-black/55" style={{ transition: 'opacity 200ms ease' }} />
 
       {/* Sheet — drops from top */}
+      {/* eslint-disable no-restricted-syntax -- theme-agnostic drop shadow; no --shadow token exists (single use) */}
       <div
         ref={sheetRef}
         className="chat-sheet-scope relative w-full bg-bg-elevated rounded-b-[20px] flex flex-col animate-sheet-down shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* eslint-enable no-restricted-syntax */}
         {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-1 shrink-0 bg-bg-base">
           <CFOAvatar size={44} withOnlineDot />
@@ -180,7 +184,7 @@ export function ChatSheet() {
               <MoreVertical size={18} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-bg-elevated border border-border-medium rounded-[10px] shadow-lg z-10 py-1">
+              <div className="absolute right-0 top-full mt-1 w-52 bg-bg-elevated border border-border-medium rounded-control shadow-lg z-10 py-1">
                 <button
                   onClick={handleNewConversation}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-primary hover:bg-tap-highlight min-h-[44px]"
@@ -224,7 +228,17 @@ export function ChatSheet() {
           <>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {messages.length === 0 ? (
-                <FolderEmptyState folder={currentFolder} onFillInput={setInput} />
+                // A conversation is loading or its opener is composing — show
+                // the working state, not the generic folder prompts. Without
+                // this the prompts flash before an auto-opened conversation
+                // (e.g. the goal beat) arrives.
+                isLoadingConversation ||
+                status === 'submitted' ||
+                status === 'streaming' ? (
+                  <CfoThinking variant="block" className="pt-10" />
+                ) : (
+                  <FolderEmptyState folder={currentFolder} onFillInput={setInput} />
+                )
               ) : (
                 <MessageList
                   messages={messages}
@@ -235,7 +249,7 @@ export function ChatSheet() {
                   userCurrency={userCurrency}
                   conversationId={conversationId}
                   conversationType={conversationType}
-                  registerFirstInsightDelivery={registerFirstInsightDelivery}
+                  registerFirstReadDelivery={registerFirstReadDelivery}
                 />
               )}
             </div>
@@ -291,7 +305,7 @@ function FolderEmptyState({
         {meta.subtitle}
       </div>
 
-      <div className="h-px bg-[rgba(255,255,255,0.06)] my-4" />
+      <div className="h-px bg-border-medium my-4" />
 
       <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-office-gold mb-2.5">
         Things you could ask
@@ -301,7 +315,7 @@ function FolderEmptyState({
           <button
             key={prompt}
             onClick={() => onFillInput(prompt)}
-            className="flex items-center gap-2 text-left px-3 py-[10px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-[10px] hover:border-office-gold transition-colors min-h-[44px]"
+            className="flex items-center gap-2 text-left px-3 py-[10px] bg-tap-highlight border border-border-medium rounded-control hover:border-office-gold transition-colors min-h-[44px]"
           >
             <span className="text-[10px] text-text-muted font-medium shrink-0 tabular-nums">
               {String(i + 1).padStart(2, '0')}

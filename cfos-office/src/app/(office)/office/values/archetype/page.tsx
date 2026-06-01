@@ -35,6 +35,7 @@ export default async function ArchetypePage() {
       !latestAny.archetype_name &&
       latestAny.type === 'personal' &&
       // only poll while the row is fresh — avoids perpetual polling on an orphan
+      // eslint-disable-next-line react-hooks/purity -- async Server Component (force-dynamic); Date.now() runs once per request, not during a client render
       Date.now() - new Date(latestAny.created_at).getTime() < 10 * 60 * 1000,
   )
 

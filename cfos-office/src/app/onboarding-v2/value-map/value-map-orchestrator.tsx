@@ -57,7 +57,7 @@ export function ValueMapOrchestrator({
 
     try {
       if (valueFirst) {
-        // Layer 2 just landed — recompose the Read in the same first_insight
+        // Layer 2 just landed — recompose the Read in the same first_read
         // conversation as a follow-up message and route the user back into
         // that thread. Stamp 'complete' so resume doesn't bounce them back
         // here.

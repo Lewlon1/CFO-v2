@@ -55,9 +55,13 @@ export function ArchetypePageClient({
 
   // When a fresh server payload arrives showing the archetype has advanced past
   // what we mounted with, stop the banner from flashing on subsequent refreshes.
+  // These refs are write-once mount snapshots (set from props at useRef init, never
+  // reassigned), so reading them during render is stable and intentional.
+  /* eslint-disable react-hooks/refs -- write-once mount-snapshot refs; never reassigned, value is stable across renders */
   const hasAdvanced =
     (data?.session_number ?? 0) > (mountedVersionRef.current ?? 0) ||
     (data?.updated_at && data.updated_at !== mountedUpdatedRef.current)
+  /* eslint-enable react-hooks/refs */
 
   if (!data || !data.archetype_name) {
     if (pendingRegen) {

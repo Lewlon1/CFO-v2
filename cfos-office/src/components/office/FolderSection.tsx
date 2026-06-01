@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { colors } from '@/lib/tokens'
 
 interface FolderSectionProps {
   icon: React.ReactNode
@@ -23,7 +24,7 @@ export function FolderSection({
     <div className="mb-6">
       {/* Folder tab — floats above card */}
       <div
-        className="inline-flex items-center gap-1.5 py-[5px] px-[12px] rounded-t-[8px] ml-3 relative z-[1] -mb-px text-[13px] font-bold"
+        className="inline-flex items-center gap-1.5 py-[5px] px-3 rounded-t-control ml-3 relative z-[1] -mb-px text-body font-bold"
         style={{
           color: accentColor,
           backgroundColor: `color-mix(in srgb, ${accentColor} 8%, transparent)`,
@@ -33,7 +34,7 @@ export function FolderSection({
         <span>{label}</span>
         {fileCount != null && (
           <span
-            className="font-data text-[10px] px-1.5 py-0.5 rounded-sm ml-0.5"
+            className="font-data text-caption px-1.5 py-0.5 rounded-sm ml-0.5"
             style={{
               color: accentColor,
               backgroundColor: `color-mix(in srgb, ${accentColor} 15%, transparent)`,
@@ -49,26 +50,26 @@ export function FolderSection({
         className="overflow-hidden"
         style={{
           borderRadius: '4px 14px 14px 14px',
-          border: `1px solid rgba(255,255,255,0.04)`,
+          border: `1px solid `,
           borderLeft: `2px solid color-mix(in srgb, ${accentColor} 20%, transparent)`,
-          backgroundColor: 'rgba(255,255,255,0.015)',
+          backgroundColor: colors.bgCard,
         }}
       >
         {/* Subtitle */}
-        <p className="px-[14px] pt-[14px] text-[10px] text-text-tertiary">{subtitle}</p>
+        <p className="px-3.5 pt-3.5 text-caption text-text-tertiary">{subtitle}</p>
 
         {/* Content */}
-        <div className="px-[14px] pb-[14px]">
+        <div className="px-3.5 pb-3.5">
           {children}
         </div>
 
         {/* Open link */}
         <Link
           href={openHref}
-          className="flex items-center justify-end gap-1 min-h-[44px] px-[14px] border-t text-[11px] font-semibold transition-colors hover:bg-[rgba(255,255,255,0.03)]"
+          className="flex items-center justify-end gap-1 min-h-11 px-3.5 border-t text-label font-semibold transition-colors hover:bg-tap-highlight"
           style={{
             color: accentColor,
-            borderColor: 'rgba(255,255,255,0.03)',
+            borderColor: colors.tapHighlight,
           }}
         >
           Open {label} <span style={{ opacity: 0.5 }}>&rsaquo;</span>

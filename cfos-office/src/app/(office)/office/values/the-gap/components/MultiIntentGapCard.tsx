@@ -53,7 +53,7 @@ function IntentRow({ card, quadrant }: { card: string; quadrant: Quadrant }) {
   const colour = QUADRANT_COLOURS[quadrant]
   return (
     <div
-      className="flex items-center justify-between rounded-[5px]"
+      className="flex items-center justify-between rounded-control"
       style={{
         padding: '8px 10px',
         background: 'var(--office-bg-tertiary)',
@@ -135,8 +135,9 @@ function SliceBar({
           className="h-full rounded-sm transition-[width] duration-[600ms] ease-out"
           style={{
             width: `${Math.max(0, Math.min(100, share))}%`,
+            // Phase 3b: gold progress fill onto the theme-reactive accent token.
             background:
-              'linear-gradient(90deg, rgba(232,168,76,0.67), #E8A84C)',
+              'linear-gradient(90deg, color-mix(in oklab, var(--accent-gold) 67%, transparent), var(--accent-gold))',
           }}
         />
       </div>
@@ -289,7 +290,7 @@ function AfterLabellingState({
 
       <SectionLabel>The gap, now claimable</SectionLabel>
       <div
-        className="rounded-[4px] mb-3.5"
+        className="rounded-control mb-3.5"
         style={{
           padding: '14px',
           background: 'var(--office-bg-tertiary)',
@@ -443,7 +444,7 @@ export function MultiIntentGapCard({
             </div>
           ) : (
             <div
-              className="rounded-[4px] mb-4"
+              className="rounded-control mb-4"
               style={{
                 padding: '12px 14px',
                 background: 'var(--office-bg-tertiary)',
@@ -464,7 +465,7 @@ export function MultiIntentGapCard({
 
           {/* Honest framing block */}
           <div
-            className="rounded-[4px] mb-3.5"
+            className="rounded-control mb-3.5"
             style={{
               padding: '12px 14px',
               background: 'var(--office-bg-tertiary)',

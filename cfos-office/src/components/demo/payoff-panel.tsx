@@ -51,7 +51,7 @@ function PayoffRow({
   return (
     <div className="space-y-2">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 shrink-0 text-[#E8A84C]">{icon}</span>
+        <span className="mt-0.5 shrink-0 text-accent-gold">{icon}</span>
         <div className="space-y-1">
           <p className="text-sm font-semibold text-foreground">{title}</p>
           <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>

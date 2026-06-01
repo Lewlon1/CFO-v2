@@ -3,7 +3,7 @@ import type { QuotableFact, ValidationResult } from '@/lib/analytics/insight-typ
 // ─────────────────────────────────────────────────────────────────────────────
 // V2 (Session v2.2 Chat Intelligence) validators
 //
-// These run AFTER the LLM produces a first_insight response, on top of the
+// These run AFTER the LLM produces a first_read response, on top of the
 // existing v1 validateNarrative. They enforce four guarantees:
 //  - validateCitations:   numbers/merchants in prose trace back to a tool result
 //  - validateProjections: any /year, /month, "saved", "annually" framing has a

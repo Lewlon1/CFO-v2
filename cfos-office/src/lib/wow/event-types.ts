@@ -16,7 +16,7 @@ export type WowEventType = (typeof WOW_EVENT_TYPES)[number];
 export type WowEvent = {
   id: string;
   user_id: string;
-  first_insight_message_id: string;
+  first_read_message_id: string;
   conversation_id: string;
   event_type: WowEventType;
   metadata: Record<string, unknown>;

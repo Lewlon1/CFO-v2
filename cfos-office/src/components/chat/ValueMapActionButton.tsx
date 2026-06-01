@@ -35,7 +35,7 @@ export function ValueMapActionButton() {
       type="button"
       onClick={handleClick}
       disabled={pending}
-      className="w-full mt-3 px-4 py-3 rounded-xl min-h-[44px] bg-[#E8A84C] text-black text-sm font-semibold hover:bg-[#dc9a3c] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+      className="w-full mt-3 px-4 py-3 rounded-xl min-h-11 bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
     >
       {pending ? 'Just a moment…' : 'Start the Value Map →'}
     </button>

@@ -45,9 +45,9 @@ export default async function AdminWowDetailPage({
   const { data: assessment, error: assessmentErr } = await svc
     .from('wow_assessments')
     .select(
-      'id, user_id, first_insight_message_id, conversation_id, delivered_at, predicted_wow_score, judge_id, realised_wow_score, in_session_score, overnight_score, last_aggregated_at, gap_present, layers_used, features_cited, clusters_referenced',
+      'id, user_id, first_read_message_id, conversation_id, delivered_at, predicted_wow_score, judge_id, realised_wow_score, in_session_score, overnight_score, last_aggregated_at, gap_present, layers_used, features_cited, clusters_referenced',
     )
-    .eq('first_insight_message_id', insightId)
+    .eq('first_read_message_id', insightId)
     .maybeSingle();
 
   if (assessmentErr) {
@@ -85,7 +85,7 @@ export default async function AdminWowDetailPage({
     svc
       .from('wow_events')
       .select('event_type, metadata, created_at')
-      .eq('first_insight_message_id', insightId)
+      .eq('first_read_message_id', insightId)
       .order('created_at', { ascending: true }),
     svc
       .from('conversations')
@@ -207,7 +207,7 @@ export default async function AdminWowDetailPage({
         {' · '}
         Conversation id: <code>{assessment.conversation_id.slice(0, 8)}</code>
         {' · '}
-        Insight id: <code>{assessment.first_insight_message_id.slice(0, 8)}</code>
+        Insight id: <code>{assessment.first_read_message_id.slice(0, 8)}</code>
       </footer>
     </div>
   );

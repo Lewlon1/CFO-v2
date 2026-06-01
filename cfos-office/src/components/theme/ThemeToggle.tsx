@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { Moon, Sun } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { focusRing } from '@/components/ui/focus'
 
 type Theme = 'light' | 'dark'
 
@@ -77,10 +79,13 @@ export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps
         aria-label={ariaLabel}
         className={
           className ??
-          'flex items-center justify-between w-full min-h-[44px] px-4 py-3 rounded-lg border border-border bg-card text-sm text-foreground hover:bg-accent transition-colors'
+          cn(
+            'flex items-center justify-between w-full min-h-[44px] px-4 py-3 rounded-card border border-border-medium bg-bg-elevated text-text-primary transition-colors hover:border-border-visible active:bg-tap-highlight',
+            focusRing,
+          )
         }
       >
-        <span className="flex items-center gap-3">
+        <span className="flex items-center gap-3 text-body">
           {mounted ? (
             <Icon size={16} aria-hidden="true" />
           ) : (
@@ -88,7 +93,7 @@ export function ThemeToggle({ variant = 'default', className }: ThemeToggleProps
           )}
           <span>{mounted ? (isLight ? 'Light mode' : 'Dark mode') : 'Theme'}</span>
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-body-sm text-text-secondary">
           {mounted ? (isLight ? 'Tap to switch to dark' : 'Tap to switch to light') : ''}
         </span>
       </button>

@@ -63,7 +63,7 @@ function ConfidenceDots({
               'h-11 w-11 rounded-full border-2 transition-all duration-150',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               n <= value
-                ? 'border-[#E8A84C] bg-[#E8A84C]'
+                ? 'border-accent-gold bg-accent-gold'
                 : 'border-border bg-transparent',
             )}
             aria-label={`Confidence ${n} of 5`}
@@ -119,6 +119,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
 
   useEffect(() => {
     // Reset gate
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- per-card reset keyed on currentIndex; entangled with timing refs + the gate timer below
     setCanTap(false)
     setSelectedQuadrant(null)
     setConfidence(3)
@@ -179,6 +180,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
 
   // ── Confirm selection (submit card) ────────────────────────────────────────
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- compiler can't preserve this useCallback; it mutates timing refs, schedules a feedback timer, and fires onComplete/onTransactionResult with closure-captured values — keep explicit memoization
   const handleConfirm = useCallback(() => {
     if (!selectedQuadrant || cardState !== 'visible') return
 
@@ -329,7 +331,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
         </div>
         <div className="h-1 w-full rounded-full bg-border overflow-hidden">
           <div
-            className="h-full rounded-full bg-[#E8A84C] transition-all duration-300 ease-out"
+            className="h-full rounded-full bg-accent-gold transition-all duration-300 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -387,7 +389,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
           >
             {/* Engagement gate progress bar */}
             {!canTap && cardState === 'visible' && (
-              <div className="absolute top-0 left-0 h-0.5 bg-[#E8A84C] animate-value-gate" />
+              <div className="absolute top-0 left-0 h-0.5 bg-accent-gold animate-value-gate" />
             )}
 
             <p className="text-lg font-semibold text-foreground">
@@ -455,8 +457,12 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
                       : 'hover:bg-card/80',
                 )}
                 style={{
-                  borderColor: isSelected ? q.colour : q.colour + '40',
-                  backgroundColor: isSelected ? q.colour + '18' : q.colour + '08',
+                  borderColor: isSelected
+                    ? q.colour
+                    : `color-mix(in oklab, ${q.colour} 25%, transparent)`,
+                  backgroundColor: isSelected
+                    ? `color-mix(in oklab, ${q.colour} 9%, transparent)`
+                    : `color-mix(in oklab, ${q.colour} 3%, transparent)`,
                   ...(isSelected ? { '--tw-ring-color': q.colour } as React.CSSProperties : {}),
                 }}
               >
@@ -479,7 +485,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
           <ConfidenceDots value={confidence} onChange={setConfidence} />
           <Button
             onClick={handleConfirm}
-            className="w-full max-w-xs bg-[#E8A84C] hover:bg-[#d4963f] text-black font-semibold py-5 text-base"
+            className="w-full max-w-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5 text-base"
           >
             Next
             <ArrowRight className="ml-1.5 h-4 w-4" />

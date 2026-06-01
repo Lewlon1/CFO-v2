@@ -72,6 +72,12 @@ export default async function OfficeLayout({ children }: { children: React.React
   const onboardingStep = (profile?.onboarding_step as string | null) ?? null
   const isMarcus = profile?.entry_struggle === 'dont_know'
   const layered = isLayeredReadEnabled()
+  // Mid-goal-beat: the user landed here to talk to the CFO, not to browse the
+  // office. Drive the sheet open on the first paint so the office home never
+  // flashes behind it while the GoalBeatWatcher/ChatOpenerTrigger effects run.
+  const goalBeatActive =
+    onboardingStep === 'goal_chat_started' ||
+    onboardingStep === 'goal_chat_tentative'
   const MID_MARCUS_STEPS = new Set([
     'goal_set',
     'goal_skipped',
@@ -104,7 +110,7 @@ export default async function OfficeLayout({ children }: { children: React.React
   // goal-chat conversation so the GoalBeatWatcher can open it in the chat
   // sheet.
   let goalChatConversationId: string | null = null
-  if (onboardingStep === 'goal_chat_started' || onboardingStep === 'goal_chat_tentative') {
+  if (goalBeatActive) {
     const { data: goalConv } = await supabase
       .from('conversations')
       .select('id')
@@ -172,7 +178,7 @@ export default async function OfficeLayout({ children }: { children: React.React
         <UserAvatarMenu initial={initial} />
       </header>
 
-      <ChatProvider userCurrency={currency}>
+      <ChatProvider userCurrency={currency} initialSheetOpen={goalBeatActive}>
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />
 

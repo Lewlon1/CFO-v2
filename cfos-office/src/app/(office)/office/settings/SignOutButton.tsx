@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/button'
 
 export function SignOutButton() {
   const router = useRouter()
@@ -14,20 +16,21 @@ export function SignOutButton() {
   }
 
   return (
-    <div className="rounded-[10px] border border-[rgba(255,255,255,0.04)] bg-bg-deep p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[13px] font-semibold text-text-primary">Sign out</p>
-          <p className="text-[11px] text-text-secondary mt-0.5">Sign out of your account on this device</p>
-        </div>
-        <button
-          type="button"
+    <section className="space-y-3">
+      <h2 className="text-h3 text-text-primary">Account</h2>
+      <Card variant="elevated" className="p-4 space-y-3">
+        <p className="text-body text-text-secondary">
+          Sign out of your account on this device.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={handleSignOut}
-          className="shrink-0 rounded-lg border border-[rgba(255,255,255,0.08)] px-3 py-1.5 text-[12px] font-semibold text-text-primary hover:bg-[rgba(255,255,255,0.04)] transition-colors"
+          className="min-h-[44px]"
         >
           Sign out
-        </button>
-      </div>
-    </div>
+        </Button>
+      </Card>
+    </section>
   )
 }

@@ -12,7 +12,11 @@ import { ValueMapOrchestrator } from './value-map-orchestrator'
 
 export const dynamic = 'force-dynamic'
 
-export default async function OnboardingV2ValueMapPage() {
+export default async function OnboardingV2ValueMapPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string>>
+}) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -38,7 +42,15 @@ export default async function OnboardingV2ValueMapPage() {
     step === 'archetype_shown' ||
     step === 'complete'
 
-  if (!postReadOptIn) {
+  // ?hook=1 is passed by the first-read CTA when valueFirst=true. The step
+  // advance (first_read_delivered) is fire-and-forget so it may not have
+  // committed by the time the server renders this page — treat the param as
+  // an authoritative signal so real transactions load even if the DB step
+  // is still catching up.
+  const params = await searchParams
+  const hookParam = params.hook === '1'
+
+  if (!postReadOptIn && !hookParam) {
     const expected = resumeRoute(step, profile?.entry_struggle ?? null)
     if (expected !== '/onboarding-v2/value-map') redirect(expected)
   }
@@ -51,7 +63,7 @@ export default async function OnboardingV2ValueMapPage() {
   // SAMPLE_TRANSACTIONS (legacy path / no-hooks-on-file resilience).
   let realTransactions: ValueMapTransaction[] = []
   const isValueFirstPath =
-    step === 'first_read_delivered' || step === 'value_map_offered'
+    hookParam || step === 'first_read_delivered' || step === 'value_map_offered'
   if (isValueFirstPath) {
     const hooks = await getHookCandidatesForUser(supabase, user.id)
     if (hooks && hooks.length > 0) {
@@ -64,9 +76,21 @@ export default async function OnboardingV2ValueMapPage() {
     }
     // Stamp value_map_offered so a refresh keeps the user here instead of
     // bouncing to /first-read.
-    if (step === 'first_read_delivered') {
+    //
+    // hookParam race: the first_read_delivered advance is fire-and-forget in
+    // the orchestrator, so the step might still be details_confirmed when this
+    // page renders. Stamp first_read_delivered first (so markComplete can
+    // fire), then value_map_offered. Both advanceStep calls are no-ops if the
+    // step is already at or past the target.
+    const terminalSteps = new Set(['value_map_offered', 'archetype_shown', 'complete'])
+    if (!terminalSteps.has(step ?? '')) {
+      if (step !== 'first_read_delivered') {
+        await advanceStep('first_read_delivered').catch((err) => {
+          console.error('[value-map.page] advanceStep(first_read_delivered) failed', err)
+        })
+      }
       await advanceStep('value_map_offered').catch((err) => {
-        console.error('[value-map.page] advanceStep failed', err)
+        console.error('[value-map.page] advanceStep(value_map_offered) failed', err)
       })
     }
   }

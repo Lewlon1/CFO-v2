@@ -358,6 +358,7 @@ async function main() {
     : '(Constitution file not found at repo root; meta-judge will rely on judgement.)'
 
   // Call meta-judge
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require avoids eagerly loading the AI provider in this dev CLI
   const { chatModel } = require('../../src/lib/ai/provider')
   const prompt = buildMetaPrompt({
     championSource: championFile,
@@ -414,6 +415,7 @@ async function main() {
 
 // re-export from judge-runner to keep the import shallow
 function readChampionFilename(): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require keeps the import shallow (re-export from judge-runner)
   const { readChampionFilename: r } = require('./_lib/judge-runner')
   return r()
 }

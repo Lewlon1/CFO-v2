@@ -27,8 +27,8 @@ export function ChatCTA({ type, label, onAction }: Props) {
         <Link
           href="/value-map?mode=checkin"
           className="inline-flex items-center gap-2 px-5 py-3 rounded-xl
-                     bg-[#E8A84C] text-black text-sm font-semibold
-                     hover:opacity-90 transition-opacity min-h-[44px]"
+                     bg-primary text-primary-foreground text-sm font-semibold
+                     hover:opacity-90 transition-opacity min-h-11"
         >
           <span>✓</span> {label}
         </Link>
@@ -45,8 +45,8 @@ export function ChatCTA({ type, label, onAction }: Props) {
           type="button"
           onClick={() => onAction(label)}
           className="inline-flex items-center gap-2 px-5 py-3 rounded-xl
-                     bg-[#E8A84C] text-black text-sm font-semibold
-                     hover:opacity-90 transition-opacity min-h-[44px]"
+                     bg-primary text-primary-foreground text-sm font-semibold
+                     hover:opacity-90 transition-opacity min-h-11"
         >
           {label}
         </button>

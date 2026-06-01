@@ -2,7 +2,7 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { VALUE_COLORS, formatCurrency } from '@/lib/constants/dashboard'
-import { valueCategories } from '@/lib/tokens'
+import { colors, valueCategories } from '@/lib/tokens'
 import type { ValueCategorySummary } from '@/app/api/dashboard/summary/route'
 
 const VC_FILL: Record<string, string> = {
@@ -10,7 +10,7 @@ const VC_FILL: Record<string, string> = {
   investment: valueCategories.investment.color,
   leak: valueCategories.leak.color,
   burden: valueCategories.burden.color,
-  unsure: '#6B7280',
+  unsure: valueCategories.unsure.color,
 }
 
 type Props = {
@@ -59,10 +59,10 @@ export function ValuesDonut({ breakdown, totalSpending, currency = 'EUR' }: Prop
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: '#16161A',
-                border: '1px solid #2A2A30',
+                backgroundColor: colors.bgElevated,
+                border: `1px solid `,
                 borderRadius: 8,
-                color: '#F2F2F3',
+                color: colors.textPrimary,
                 fontSize: 13,
               }}
               formatter={(value, name, entry) => [

@@ -440,7 +440,7 @@ async function runMarcusPath(
   await driveStage(page, 'complete', persona, opts, result, async () => {
     // First-insight generation can take 60-90s on Bedrock cold paths; allow
     // a generous window so we capture the wow moment text reliably.
-    const insight = await pollFirstInsightAssistantMessage(opts.admin, user.id, 150_000)
+    const insight = await pollFirstReadAssistantMessage(opts.admin, user.id, 150_000)
     if (insight) {
       result.capturedInsight = insight
     }
@@ -515,14 +515,14 @@ async function tapValueMapCard(page: Page, response: PersonaValueMapResponse): P
 
 /**
  * Poll the messages table for the first assistant message in the user's
- * first_insight conversation. Returns the message row or null on timeout.
+ * first_read conversation. Returns the message row or null on timeout.
  */
-async function pollFirstInsightAssistantMessage(
+async function pollFirstReadAssistantMessage(
   admin: SupabaseClient,
   userId: string,
   timeoutMs: number,
 ): Promise<unknown | null> {
-  return pollFirstAssistantMessage(admin, userId, timeoutMs, 'first_insight')
+  return pollFirstAssistantMessage(admin, userId, timeoutMs, 'first_read')
 }
 
 async function pollFirstAssistantMessage(

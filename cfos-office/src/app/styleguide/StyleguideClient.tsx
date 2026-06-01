@@ -15,7 +15,6 @@ import { Briefing } from '@/components/office/dashboards/Briefing'
 import { DetailHeader } from '@/components/office/dashboards/DetailHeader'
 import { DrillDownRow } from '@/components/office/dashboards/DrillDownRow'
 import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
-import { EmptyState as DashboardClientEmptyState } from '@/components/dashboard/EmptyState'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Input, Textarea } from '@/components/ui/Input'
@@ -41,6 +40,7 @@ function useResolvedVar(cssVar: string, themeKey: string): string {
   const [val, setVal] = useState('')
   useEffect(() => {
     const v = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads getComputedStyle (browser-only, post-paint); must run in an effect, not during render
     setVal(v)
   }, [cssVar, themeKey])
   return val
@@ -488,7 +488,7 @@ export function StyleguideClient() {
           </Card>
         </div>
 
-        <Sub>EmptyStates — three competing implementations, side by side</Sub>
+        <Sub>EmptyState — the single survivor (Phase 3b 6→1), shown in both CTA modes</Sub>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-md border border-border">
             <DashboardEmptyState
@@ -498,11 +498,16 @@ export function StyleguideClient() {
               actionHref="/styleguide"
               accent={folderColors.cashflow}
             />
-            <p className="border-t border-border p-2 font-mono text-xs text-muted-foreground">office/dashboards/DashboardEmptyState</p>
+            <p className="border-t border-border p-2 font-mono text-xs text-muted-foreground">link CTA (actionHref)</p>
           </div>
           <div className="rounded-md border border-border">
-            <DashboardClientEmptyState variant="no_data" />
-            <p className="border-t border-border p-2 font-mono text-xs text-muted-foreground">dashboard/EmptyState</p>
+            <DashboardEmptyState
+              title="Nothing here yet"
+              body="The survivor also renders custom CTA content via children — e.g. the goal-flow chat button."
+            >
+              <p className="text-caption text-text-tertiary">children escape hatch</p>
+            </DashboardEmptyState>
+            <p className="border-t border-border p-2 font-mono text-xs text-muted-foreground">children CTA</p>
           </div>
           <div className="rounded-md border border-border">
             <DashboardEmptyState
@@ -517,9 +522,10 @@ export function StyleguideClient() {
           </div>
         </div>
         <p className="font-mono text-xs text-muted-foreground">
-          balance-sheet/EmptyState + bills/EmptyBillsState were collapsed into the survivor (deleted).
-          dashboard/EmptyState, office/sections/GoalsEmptyState + its GoalsEmptyStateCTA stay fenced
-          (session-32/staging-user-hygiene edits them) — a post-merge follow-up finishes 6→1.
+          Phase 3b completed the 6→1 collapse: balance-sheet/EmptyState, bills/EmptyBillsState,
+          dashboard/EmptyState and office/sections/GoalsEmptyState all fold into this survivor.
+          The goal-flow chat CTA (GoalsEmptyStateCTA) is retained as a small client button leaf,
+          passed via children — it is a chat trigger, not an empty-state container.
         </p>
       </Section>
 

@@ -2,26 +2,29 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 // Display metadata for asset/liability types — kept server-side so the API
-// payload can be rendered without the client needing the full type registry.
-const ASSET_TYPE_META: Record<string, { label: string; icon: string; color: string; order: number }> = {
-  savings:  { label: 'Savings',     icon: 'piggy-bank',     color: '#10B981', order: 1 },
-  stocks:   { label: 'Stocks',      icon: 'trending-up',    color: '#6366F1', order: 2 },
-  bonds:    { label: 'Bonds',       icon: 'shield',         color: '#8B5CF6', order: 3 },
-  pension:  { label: 'Pensions',    icon: 'landmark',       color: '#F59E0B', order: 4 },
-  crypto:   { label: 'Crypto',      icon: 'bitcoin',        color: '#F97316', order: 5 },
-  property: { label: 'Property',    icon: 'home',           color: '#06B6D4', order: 6 },
-  other:    { label: 'Other',       icon: 'package',        color: '#6B7280', order: 7 },
+// payload carries label / icon / order. Colour is NOT emitted here: as of
+// Visual Phase 3b (Sweep C) the route stopped shipping presentation. The client
+// resolves the type id → canonical token var() string at render time via
+// lib/balance-sheet/type-colors.ts.
+const ASSET_TYPE_META: Record<string, { label: string; icon: string; order: number }> = {
+  savings:  { label: 'Savings',     icon: 'piggy-bank',     order: 1 },
+  stocks:   { label: 'Stocks',      icon: 'trending-up',    order: 2 },
+  bonds:    { label: 'Bonds',       icon: 'shield',         order: 3 },
+  pension:  { label: 'Pensions',    icon: 'landmark',       order: 4 },
+  crypto:   { label: 'Crypto',      icon: 'bitcoin',        order: 5 },
+  property: { label: 'Property',    icon: 'home',           order: 6 },
+  other:    { label: 'Other',       icon: 'package',        order: 7 },
 }
 
-const LIABILITY_TYPE_META: Record<string, { label: string; icon: string; color: string; order: number }> = {
-  mortgage:      { label: 'Mortgage',          icon: 'home',           color: '#EF4444', order: 1 },
-  student_loan:  { label: 'Student Loan',      icon: 'graduation-cap', color: '#F97316', order: 2 },
-  credit_card:   { label: 'Credit Cards',      icon: 'credit-card',    color: '#DC2626', order: 3 },
-  personal_loan: { label: 'Personal Loan',     icon: 'banknote',       color: '#E11D48', order: 4 },
-  car_finance:   { label: 'Car Finance',       icon: 'car',            color: '#D97706', order: 5 },
-  bnpl:          { label: 'Buy Now Pay Later', icon: 'shopping-bag',   color: '#EA580C', order: 6 },
-  overdraft:     { label: 'Overdraft',         icon: 'alert-circle',   color: '#B91C1C', order: 7 },
-  other:         { label: 'Other Debt',        icon: 'package',        color: '#6B7280', order: 8 },
+const LIABILITY_TYPE_META: Record<string, { label: string; icon: string; order: number }> = {
+  mortgage:      { label: 'Mortgage',          icon: 'home',           order: 1 },
+  student_loan:  { label: 'Student Loan',      icon: 'graduation-cap', order: 2 },
+  credit_card:   { label: 'Credit Cards',      icon: 'credit-card',    order: 3 },
+  personal_loan: { label: 'Personal Loan',     icon: 'banknote',       order: 4 },
+  car_finance:   { label: 'Car Finance',       icon: 'car',            order: 5 },
+  bnpl:          { label: 'Buy Now Pay Later', icon: 'shopping-bag',   order: 6 },
+  overdraft:     { label: 'Overdraft',         icon: 'alert-circle',   order: 7 },
+  other:         { label: 'Other Debt',        icon: 'package',        order: 8 },
 }
 
 const STALE_DAYS = 90
@@ -44,7 +47,6 @@ export type BalanceSheetAssetGroup = {
   type: string
   label: string
   icon: string
-  color: string
   total: number
   items: BalanceSheetAssetItem[]
 }
@@ -69,7 +71,6 @@ export type BalanceSheetLiabilityGroup = {
   type: string
   label: string
   icon: string
-  color: string
   total: number
   items: BalanceSheetLiabilityItem[]
 }
@@ -78,7 +79,6 @@ export type AllocationSlice = {
   type: string
   label: string
   value: number
-  color: string
   pct: number
 }
 
@@ -222,7 +222,6 @@ export async function GET() {
         type: a.asset_type,
         label: meta.label,
         icon: meta.icon,
-        color: meta.color,
         total: 0,
         items: [],
       }
@@ -265,7 +264,6 @@ export async function GET() {
         type: l.liability_type,
         label: meta.label,
         icon: meta.icon,
-        color: meta.color,
         total: 0,
         items: [],
       }
@@ -309,7 +307,6 @@ export async function GET() {
       type: g.type,
       label: g.label,
       value: g.total,
-      color: g.color,
       pct: totalAssets > 0 ? Math.round((g.total / totalAssets) * 1000) / 10 : 0,
     }))
 

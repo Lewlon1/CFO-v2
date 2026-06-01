@@ -40,7 +40,7 @@ function getLabel(segment: string): string {
 
 function getFolderColor(segments: string[]): string {
   const folderSegment = segments[1]
-  return FOLDER_COLOR_MAP[folderSegment] ?? 'rgba(245,245,240,0.55)'
+  return FOLDER_COLOR_MAP[folderSegment] ?? 'var(--text-secondary)'
 }
 
 export function NavigationBar() {

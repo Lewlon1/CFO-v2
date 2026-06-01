@@ -117,6 +117,7 @@ async function main() {
   writeFileSync(newPath, promotedSource, 'utf-8')
   // Remove the candidate file from candidates/ (or wherever it was)
   // Use rename to a junk path then unlink — simpler: just unlink.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require of node:fs in a dev CLI
   const { unlinkSync } = require('node:fs')
   unlinkSync(candidatePath)
   console.log(`Wrote:    eval/judges/${newFilename}`)

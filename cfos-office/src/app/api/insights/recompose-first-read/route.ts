@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server'
  * on the real flagged transactions named by the First Read's HOOK, Layer 2
  * (Stated Intent) is now populated. We recompose the Read with mode
  * 'value_first' and insert it as a FOLLOW-UP assistant message into the
- * same first_insight conversation, so the thread reads:
+ * same first_read conversation, so the thread reads:
  *
  *   original Read (hook close)  →  user's Value Map  →  deepened follow-up
  *
@@ -24,14 +24,14 @@ export async function POST() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Find the active layered first_insight conversation. (post-upload marked
+  // Find the active layered first_read conversation. (post-upload marked
   // anything stale as completed before composing, so the active one is the
   // most recent.)
   const { data: conversation } = await supabase
     .from('conversations')
     .select('id, metadata')
     .eq('user_id', user.id)
-    .eq('type', 'first_insight')
+    .eq('type', 'first_read')
     .eq('metadata->>layered_read', 'true')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -39,7 +39,7 @@ export async function POST() {
 
   if (!conversation) {
     return NextResponse.json(
-      { error: 'No first_insight conversation to recompose into' },
+      { error: 'No first_read conversation to recompose into' },
       { status: 404 },
     )
   }

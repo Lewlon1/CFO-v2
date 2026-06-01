@@ -17,7 +17,7 @@ type Props = {
  * Marcus archetype reveal. Mirrors the modal's archetype-generation
  * fetch (POST /api/onboarding/generate-archetype) and renders the same
  * <ArchetypeBeat> presentation, with a CTA that advances onboarding_step
- * to 'complete', creates (or reuses) a first_insight conversation, and
+ * to 'complete', creates (or reuses) a first_read conversation, and
  * lands the user in chat where the CFO opens with a goal-aware wow
  * moment grounded in their actual transaction data.
  */
@@ -38,6 +38,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
     if (!onboardingData.personalityType) {
       // No Value Map session available — fall through to the fallback view in
       // <ArchetypeBeat> by leaving archetypeData undefined and dropping loading.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time guarded mount init: drop loading when there is no Value Map session to fetch
       setLoading(false)
       return
     }
@@ -85,7 +86,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
         })
         await advanceStep('complete')
 
-        // Materialise (or reuse) a first_insight conversation and land the
+        // Materialise (or reuse) a first_read conversation and land the
         // user in chat where the CFO opens with a goal-aware wow moment.
         // The endpoint is idempotent — safe to call even if a prior step
         // already created one.
@@ -144,7 +145,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
           onClick={handleContinue}
           disabled={loading || pending}
           className={
-            'w-full mt-6 transition-opacity min-h-12 rounded-xl font-sans text-[15px] font-medium ' +
+            'w-full mt-6 transition-opacity min-h-12 rounded-xl font-sans text-h3 font-medium ' +
             (loading || pending
               ? 'bg-muted text-muted-foreground cursor-not-allowed'
               : 'bg-foreground text-background cursor-pointer')

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
+import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
 import { GoalsEmptyStateCTA } from './GoalsEmptyStateCTA'
 import { GoalCard } from './GoalCard'
 
@@ -24,14 +25,13 @@ export default async function GoalsPage() {
   return (
     <div className="px-3.5 pt-2 pb-24 space-y-4">
       {activeGoals.length === 0 && completedGoals.length === 0 ? (
-        <div className="rounded-[10px] border border-[rgba(255,255,255,0.04)] bg-bg-deep p-6 text-center space-y-3">
-          <div className="text-3xl" aria-hidden="true">◎</div>
-          <h2 className="text-[13px] font-semibold text-text-primary">No goals yet</h2>
-          <p className="text-[12px] text-text-secondary max-w-sm mx-auto">
-            Tell your CFO about a financial goal and it will track your progress here.
-          </p>
+        <DashboardEmptyState
+          icon={<span className="text-2xl" aria-hidden="true">◎</span>}
+          title="No goals yet"
+          body="Tell your CFO about a financial goal and it will track your progress here."
+        >
           <GoalsEmptyStateCTA />
-        </div>
+        </DashboardEmptyState>
       ) : (
         <div className="space-y-3">
           {activeGoals.map((goal: Goal) => (
@@ -47,6 +47,11 @@ export default async function GoalsPage() {
               ))}
             </>
           )}
+          {/* Add another goal — same CFO-chat CTA as the empty state, so the
+              option to create a goal is present whether or not goals exist. */}
+          <div className="flex justify-center pt-2">
+            <GoalsEmptyStateCTA />
+          </div>
         </div>
       )}
     </div>

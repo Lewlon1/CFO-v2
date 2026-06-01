@@ -10,6 +10,7 @@ import {
   Area,
   CartesianGrid,
 } from 'recharts'
+import { colors } from '@/lib/tokens'
 import { formatCurrency, formatShortMonth } from '@/lib/constants/dashboard'
 import type { TrendPoint } from '@/app/api/balance-sheet/route'
 
@@ -42,15 +43,15 @@ export function NetWorthTrendChart({ trend, currency = 'EUR' }: Props) {
       <h3 className="text-sm font-medium text-muted-foreground mb-4">Net Worth Trend</h3>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2A2A30" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.borderVisible} />
           <XAxis
             dataKey="month"
-            tick={{ fill: '#8A8A96', fontSize: 12 }}
-            axisLine={{ stroke: '#2A2A30' }}
+            tick={{ fill: colors.textTertiary, fontSize: 12 }}
+            axisLine={{ stroke: colors.borderVisible }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: '#8A8A96', fontSize: 12 }}
+            tick={{ fill: colors.textTertiary, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => `${Math.round(v / 1000)}k`}
@@ -58,10 +59,10 @@ export function NetWorthTrendChart({ trend, currency = 'EUR' }: Props) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#16161A',
-              border: '1px solid #2A2A30',
+              backgroundColor: colors.bgElevated,
+              border: `1px solid `,
               borderRadius: 8,
-              color: '#F2F2F3',
+              color: colors.textPrimary,
               fontSize: 13,
             }}
             formatter={(value, name) => [
@@ -73,19 +74,19 @@ export function NetWorthTrendChart({ trend, currency = 'EUR' }: Props) {
                   : 'Liabilities',
             ]}
           />
-          <Area type="monotone" dataKey="net_worth" fill="#3B82F620" stroke="none" />
+          <Area type="monotone" dataKey="net_worth" fill={colors.info} fillOpacity={0.12} stroke="none" />
           <Line
             type="monotone"
             dataKey="net_worth"
-            stroke="#3B82F6"
+            stroke={colors.info}
             strokeWidth={2.5}
-            dot={{ fill: '#3B82F6', r: 4 }}
+            dot={{ fill: colors.info, r: 4 }}
             activeDot={{ r: 6 }}
           />
           <Line
             type="monotone"
             dataKey="total_assets"
-            stroke="#10B981"
+            stroke={colors.positive}
             strokeWidth={1.5}
             strokeDasharray="6 3"
             dot={false}
@@ -93,7 +94,7 @@ export function NetWorthTrendChart({ trend, currency = 'EUR' }: Props) {
           <Line
             type="monotone"
             dataKey="total_liabilities"
-            stroke="#EF4444"
+            stroke={colors.negative}
             strokeWidth={1.5}
             strokeDasharray="6 3"
             dot={false}

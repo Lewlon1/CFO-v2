@@ -26,11 +26,11 @@ function baseCtx(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function tx(
   amount: number,
   category_id: string | null,
   date = '2026-03-15',
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test mock factory returns a loosely-typed transaction row
 ): any {
   return {
     id: `t-${Math.random()}`,

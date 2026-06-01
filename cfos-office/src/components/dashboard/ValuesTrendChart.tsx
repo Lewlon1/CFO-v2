@@ -4,7 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import { VALUE_COLORS, formatShortMonth } from '@/lib/constants/dashboard'
-import { valueCategories } from '@/lib/tokens'
+import { colors, valueCategories } from '@/lib/tokens'
 import type { TrendMonth } from '@/app/api/dashboard/trends/route'
 
 type Props = {
@@ -49,15 +49,15 @@ export function ValuesTrendChart({ months }: Props) {
       <h3 className="text-sm font-medium text-muted-foreground mb-4">Values Over Time</h3>
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 0 }} stackOffset="expand">
-          <CartesianGrid strokeDasharray="3 3" stroke="#2A2A30" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.borderVisible} />
           <XAxis
             dataKey="month"
-            tick={{ fill: '#8A8A96', fontSize: 12 }}
-            axisLine={{ stroke: '#2A2A30' }}
+            tick={{ fill: colors.textTertiary, fontSize: 12 }}
+            axisLine={{ stroke: colors.borderVisible }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: '#8A8A96', fontSize: 12 }}
+            tick={{ fill: colors.textTertiary, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => `${Math.round(v * 100)}%`}
@@ -65,10 +65,10 @@ export function ValuesTrendChart({ months }: Props) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#16161A',
-              border: '1px solid #2A2A30',
+              backgroundColor: colors.bgElevated,
+              border: `1px solid `,
               borderRadius: 8,
-              color: '#F2F2F3',
+              color: colors.textPrimary,
               fontSize: 13,
             }}
             formatter={(value, name) => [

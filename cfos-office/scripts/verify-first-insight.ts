@@ -138,7 +138,7 @@ async function main() {
     // row + a value_category_rules query. No payload pre-compute.
     console.log('(skipping computeFirstInsight — v2 prompt does not consume it)\n');
     console.log('\n=== Assembled system prompt (V2) ===\n');
-    const prompt: string = await buildSystemPrompt(userId, 'first_insight');
+    const prompt: string = await buildSystemPrompt(userId, 'first_read');
     console.log(prompt);
     console.log('\n--- end prompt ---\n');
 
@@ -175,7 +175,7 @@ async function main() {
   console.log(JSON.stringify(payload, null, 2));
 
   console.log('\n=== Assembled system prompt ===\n');
-  const prompt: string = await buildSystemPrompt(userId, 'first_insight', {
+  const prompt: string = await buildSystemPrompt(userId, 'first_read', {
     first_insight_payload: payload,
   });
   console.log(prompt);
@@ -188,7 +188,7 @@ async function main() {
   //   - "STRICT RULES" (buildFirstInsightContext)
   //   - "NOT AVAILABLE" (buildFirstInsightContext)
   //   - the "CRITICAL: Do not mention, reference, imply, or compute..." line
-  //     in the first_insight conversation-type section (single-line denial,
+  //     in the first_read conversation-type section (single-line denial,
   //     tracked via per-line regex below).
   const LINE_DENIAL_PATTERNS = [
     /^CRITICAL:\s+Do not mention/i,

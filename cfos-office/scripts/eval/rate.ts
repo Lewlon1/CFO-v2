@@ -165,7 +165,7 @@ async function main() {
   try {
     for (const pair of unrated.slice(0, LIMIT)) {
       const leftLabel = leftSideFor(pair)
-      let render = renderPair(pair, leftLabel)
+      const render = renderPair(pair, leftLabel)
       console.log(render)
 
       // Inner reshow loop — Lewis can hit ? to re-render.
