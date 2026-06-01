@@ -35,6 +35,7 @@ export function ProcessingProgress({ importComplete }: Props) {
 
   useEffect(() => {
     if (importComplete) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- jump to 'ready' on the import signal; the sibling branch schedules timed transitions, so stage is time-driven
       setStage('ready')
       return
     }

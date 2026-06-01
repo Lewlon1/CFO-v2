@@ -87,6 +87,7 @@ export function DemoCard({ transactions, onComplete, onFirstTap, onCardResult }:
   // Timing refs
   const cardShownAt = useRef<number>(0)
   const firstTapAt = useRef<number | null>(null)
+  // eslint-disable-next-line react-hooks/purity -- one-time mount timestamp for exercise-duration analytics; the useRef initialiser runs once, not on re-render
   const exerciseStartedAt = useRef<number>(Date.now())
 
   // Scroll ref for confirm area

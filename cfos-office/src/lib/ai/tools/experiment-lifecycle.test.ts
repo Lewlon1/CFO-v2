@@ -46,7 +46,7 @@ function makeStub(opts: StubOptions): SupabaseClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function build(table: string): any {
     let mode: 'select' | 'update' | 'insert' = 'select';
-    let filters: Array<{ col: string; val: unknown; op: 'eq' | 'in' | 'is' | 'not' }> = [];
+    const filters: Array<{ col: string; val: unknown; op: 'eq' | 'in' | 'is' | 'not' }> = [];
     let updatePayload: Partial<Row> = {};
     let limitN: number | null = null;
     let orderBy: { col: string; ascending: boolean } | null = null;

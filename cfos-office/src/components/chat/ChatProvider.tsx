@@ -85,6 +85,15 @@ export function useChatContext() {
   return ctx
 }
 
+/**
+ * Non-throwing variant for components that may render outside <ChatProvider>
+ * (e.g. dashboard banners, trips, balance-sheet on non-office routes).
+ * Returns null when there is no provider — call it unconditionally.
+ */
+export function useOptionalChatContext() {
+  return useContext(ChatContext)
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 interface ChatProviderProps {
@@ -104,6 +113,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
   // Conversation state
   const [conversationId, setConversationId] = useState<string | null>(null)
   const conversationIdRef = useRef(conversationId)
+  // eslint-disable-next-line react-hooks/refs -- ref intentionally mirrors the latest conversationId so the request-time body() callback reads it; imperative writes in start/loadConversation cover the synchronous send-race
   conversationIdRef.current = conversationId
   const [conversationType, setConversationType] = useState<string | null>(null)
 
@@ -148,6 +158,7 @@ export function ChatProvider({ children, userCurrency }: ChatProviderProps) {
   // ── useChat hook ──────────────────────────────────────────────────────────
 
   const { messages, sendMessage, status, setMessages } = useChat({
+    // eslint-disable-next-line react-hooks/refs -- body() below is a deferred request-time callback (the AI SDK builds each HTTP request later, like an event handler), so reading the latest ref values there is safe and intentional
     transport: new DefaultChatTransport({
       api: '/api/chat',
       body: () => ({

@@ -38,6 +38,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
     if (!onboardingData.personalityType) {
       // No Value Map session available — fall through to the fallback view in
       // <ArchetypeBeat> by leaving archetypeData undefined and dropping loading.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time guarded mount init: drop loading when there is no Value Map session to fetch
       setLoading(false)
       return
     }

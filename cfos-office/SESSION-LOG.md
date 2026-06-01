@@ -9,6 +9,132 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## Session — Visual Consistency, Phase 4 (Enforcement — the lock) — 2026-06-01
+
+**Branch:** `claude/visual-consistency-phase4` off `claude/visual-consistency-phase3b-ZIQU2`
+(the de-facto integration line — `feature/visual-consistency` was never cut; confirmed 3b fully
+contains main's foundation #61 + Phase 3 + the 3b sweeps). **Base + merge-target = the 3b branch**
+(Lewis's call). Tooling + config + docs — but scope **expanded** mid-session by four explicit
+decisions (below); the only feature-code touched is small, behaviour-preserving, and flagged for
+the eyeball.
+
+**P4.0 cleanliness gate (re-run, this env).** Colour: hex 44 / rgba 2 / colour-bracket 3 — all
+documented exceptions, **zero migratable colour drift** → gate reached. Two findings the prior
+grep battery had hidden:
+- The battery's `grep -vE "tokens\.ts"` exclusion is a **substring match** that also swallowed
+  `the-gap/.../quadrant-tokens.ts` (5 hex). True hex (excl. only `src/lib/tokens.ts`) = 49. The
+  AST ESLint rule (which ignores only `src/lib/tokens.ts`) surfaced them correctly.
+- Radius: `rounded-[…]` = **10, not 0**. 5 are documented thin-bar exceptions (`rounded-[2-3px]`
+  on 5–6px bars); 5 were **migratable stragglers** 3b left unswept (`InboxRow rounded-[10px]`;
+  `MultiIntentGapCard` chip `[5px]` + 3 callout `[4px]`).
+
+**Four in-session decisions (Lewis):**
+1. **Radius — migrate the 5 stragglers** (accepting a small rendered radius change) → all →
+   `rounded-control` (8px); then ship the radius guard as **error**.
+2. **knip scope — files + dependencies gate**; relax `exports`/`types`/`duplicates`
+   (Audit-Zero-verified false positives — named+default pairs, registry dispatch, generated
+   `supabase/types.ts`).
+3. **Full green now** — fix the ~33 pre-existing lint errors (not reclassify), so `npm run lint`
+   exits 0 and the lock is CI-enforceable.
+4. **quadrant-tokens → globals.css vars** (uphold "never a third source") rather than exempt it.
+
+**P4.1 — ESLint guards** (`eslint.config.mjs` → `cfo/visual-token-guards`, scoped `src/**`,
+AST-based `no-restricted-syntax` on string + template literals — so comments / JSX-text aren't
+matched, killing the `#142` / `&#9679;` false positives at source):
+- ban raw hex `#[0-9a-fA-F]{3,8}`, `rgb()/rgba()`, arbitrary colour utilities
+  `(bg|text|border|ring|fill|stroke|from|to|via)-[#…]`.
+- ban arbitrary radius `rounded-[≥4px]`; **`rounded-[≤3px]` permitted** (thin-bar class — nothing
+  named below `rounded-control` 8px; the 5 bars pass with no disable). Probe confirmed:
+  `rounded-[7px]` errors, `text-[13px]` does not.
+- ignores: `src/lib/tokens.ts`, `(public)/v4/**`, test globs.
+
+**Documented colour exceptions** (each a site `eslint-disable` + reason; not drift):
+| Bucket | Sites | Mechanism |
+|---|---|---|
+| Brand marks | CFOAvatar SVG · login Google-logo SVG | JSX block disable |
+| Canvas export | demo-reveal.tsx (file) · value-map-summary.tsx (line) | html2canvas needs literal colour |
+| Drop shadow | ChatSheet `rgba(0,0,0,0.5)` | line disable (no `--shadow` token; 1 use) |
+| DB-coupled | CATEGORY_COLORS (constants/dashboard.ts) | block disable (mirrors `categories.color`) |
+| False positives (src) | `#142` in context-builder + get-cluster prose | line disable |
+| (tests / comments) | `#142` fixtures, `&#9679;` entity | not matched by the AST rule |
+
+**quadrant-tokens migration.** Added `--gap-quadrant-{foundation,investment,leak,burden,unsure}`
+to `globals.css :root` (the editorial Gap palette, distinct from `--value-*`); `quadrant-tokens.ts`
+QUADRANT_COLOURS now returns `var(--gap-quadrant-*)`; test updated (hex-format → var-format).
+**Theme-agnostic** (same in dark + light = byte-identical to the prior hardcoded-hex behaviour).
+Consumers are DOM inline styles (Single/MultiIntentGapCard, the-gap ValueMapSummary) — the
+html2canvas share-card uses a *different* palette (`QUADRANTS`), so `var()` is render-safe.
+⚑ **Follow-up:** AA-deepened light-theme variants (a design input, like the `--value-*` light
+pairs) — not invented here.
+
+**P4.1b — "full green" (the ~33 pre-existing errors), all behaviour-preserving:**
+- **react-hooks / React-Compiler (eslint-config-next 16.2.2 turned these into errors):** mostly
+  per-site `// eslint-disable-next-line react-hooks/<rule> -- <reason>` where the rule over-fires
+  on intentional patterns — `set-state-in-effect` ×7 (browser-API mount reads / timer-driven),
+  `purity` ×4 (server-component `Date.now`; one BillCard client `Date.now` got a real
+  lazy-`useState` fix), `refs` (ChatProvider mirror + deferred `body()` callback; ArchetypePageClient
+  write-once snapshots), `preserve-manual-memoization` ×1.
+- **rules-of-hooks ×3** (conditional `useChatContext` try/catch): added a non-throwing
+  `useOptionalChatContext()` to ChatProvider; BalanceSheetClient / ReviewBanner / TripsClient now
+  call it unconditionally (null handling preserved).
+- **immutability ×1** (OfficeValuesBreakdown): donut offset mutation → pure `reduce` (pixel-identical).
+- **Trivial:** `prefer-const` ×3, `no-unescaped-entities` ×1, `no-explicit-any` ×1 (+ removed a
+  stale unused disable), `no-require-imports` ×4 (lazy/dynamic requires in dev CLIs → scoped disable).
+⚑ These touch feature code and could **not be runtime-verified here** (authed screens, no preview)
+— **flagged for Lewis's eyeball.** Behaviour-preserving by construction; typecheck green.
+
+**P4.2 — knip + CI.** `knip.json`: entry globs `scripts/**` · `eval/**` · `tests/onboarding/**`
+(the dead-code.md correction — clears the 18 CLI orphan false positives), `ignoreDependencies:
+[@types/pdf-parse]`, exports/types/duplicates relaxed. knip added to devDeps + `knip` script;
+`npx knip` exits 0. **No CI existed** (no `.github/workflows`, no husky, no Vercel build override)
+→ created `.github/workflows/ci.yml` (lint · knip · typecheck · build; build carries placeholder
+public env — dynamic routes fetch at runtime).
+
+**P4.3 — docs.** The non-negotiable rule + the full exception table written into `CLAUDE.md` and
+`cfos-office/UI-DIRECTION.md`: colour+radius read from tokens (CI failure otherwise); globals.css
+single source / tokens.ts var() accessor / never a third source; `dark:` inert (data-theme only);
+`/styleguide` (dev-only) as the canonical visual-regression surface; **fonts of record confirmed
+against both layouts** — 6 families, Cormorant kept (root: Instrument Serif/Sans + Geist Mono;
+office subtree: DM Sans / JetBrains Mono / Cormorant Garamond). Both docs state the **type +
+spacing wave-two is NOT yet enforced.**
+
+**Verification.** `npm run lint` exit 0 (0 errors / 41 pre-existing warnings) · `npm run typecheck`
+exit 0 · `npx knip` exit 0 · guard probe ✓. **`npm run build` could not complete locally** — the
+env is memory-starved (~60 MB free; first run OOM-killed, second wedged 5.5 min) → **delegated to
+CI + Vercel** (authoritative `next build`). Change types are build-safe beyond typecheck's coverage.
+
+### Validation Register — Visual Consistency Phase 4
+
+| Item | Status |
+|---|---|
+| P4.0 cleanliness gate — colour zero-migratable-drift | ✅ confirmed (44/2/3 documented exceptions) |
+| P4.0 — quadrant-tokens hidden by battery substring bug | ✅ surfaced by the AST rule; migrated to vars |
+| P4.0 — radius: 5 bar exceptions + 5 migratable stragglers | ✅ stragglers → rounded-control; bars permitted (≤3px) |
+| P4.1 — ESLint colour + radius guards (error, src/**) | ✅ probe proves fire; `text-[` not enforced |
+| P4.1 — documented colour exceptions (per-site disables) | ✅ all buckets covered (table above) |
+| P4.1b — ~33 pre-existing errors → green (Decision 3) | ✅ lint exit 0; behaviour-preserving |
+| P4.2 — knip.json (files+deps gate) + devDep + script | ✅ `npx knip` exit 0 |
+| P4.2 — CI workflow created (none existed) | ✅ `.github/workflows/ci.yml` |
+| P4.3 — rule + exceptions in CLAUDE.md + UI-DIRECTION.md | ✅ done; fonts confirmed vs layouts |
+| `npm run typecheck` / `npm run lint` / `npx knip` | ✅ all exit 0 |
+| `npm run build` | ⏳ CI-delegated (local OOM; env memory) — confirm on first CI run |
+| **type + spacing tokenisation + enforcement (wave two)** | ⏳ deferred (reasoned; explicitly NOT enforced) |
+| Gap light-theme `--gap-quadrant-*` variants | ⏳ follow-up (design input; theme-agnostic for now) |
+| knip exports/types/duplicates tightening | ⏳ follow-up (needs feature-code cleanup) |
+| 41 pre-existing lint warnings (unused-vars etc.) | ⏳ follow-up (out of scope; lint still exits 0) |
+| **Lewis comprehensive both-theme eyeball (as Dorcas)** | ⏳ OPEN — the gate before merge to `main` |
+
+**Closes the colour-epoch Register rows:** the Phase-3b "Phase-4 (P4.0) gate" row is now ✅ locked
+(ESLint + knip + docs enforce it). **Branch is ready for Lewis's one comprehensive both-theme
+eyeball (as Dorcas — deep on the heavy bodies + the three restyled chat blocks + the migrated
+radius/quadrant surfaces), then a single tested merge of the epoch to `main` + a git-tag version**
+(MAJOR.MINOR at the epoch, per the versioning model).
+
+**Wave two (separate, later):** type + spacing tokenisation and *its* enforcement — flagged so it
+isn't assumed already done.
+
+---
+
 ## Session — Visual Consistency, Phase 3b (completion sweep) — 2026-05-31
 
 **Branch:** `claude/visual-consistency-phase3b-ZIQU2` (off the Phase-3 tip `29903de`, which

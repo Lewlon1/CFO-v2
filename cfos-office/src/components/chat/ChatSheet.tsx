@@ -158,11 +158,13 @@ export function ChatSheet() {
       <div className="absolute inset-0 bg-black/55" style={{ transition: 'opacity 200ms ease' }} />
 
       {/* Sheet — drops from top */}
+      {/* eslint-disable no-restricted-syntax -- theme-agnostic drop shadow; no --shadow token exists (single use) */}
       <div
         ref={sheetRef}
         className="chat-sheet-scope relative w-full bg-bg-elevated rounded-b-[20px] flex flex-col animate-sheet-down shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* eslint-enable no-restricted-syntax */}
         {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-1 shrink-0 bg-bg-base">
           <CFOAvatar size={44} withOnlineDot />

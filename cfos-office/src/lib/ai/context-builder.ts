@@ -1303,6 +1303,7 @@ function buildLayeredReadInstructions(): string {
     '- A specific category (e.g. "how\'s my dining spending?", "am I overdoing it on transport?")',
     '- A pattern, trend, or change in spending behaviour ("is this getting worse?", "am I spending more lately?")',
     '',
+    // eslint-disable-next-line no-restricted-syntax -- "#142" is a merchant-code example in prose, not a colour
     'Pass the cluster_id as a brand name the user would say — `"Pollo Tropical"`, `"Pret"`, `"Starbucks"`. The tool resolves substring matches and rolls up brand variants (`#142`, ` DRIVE THRU`, location codes) into one cluster. Do NOT pass the raw description (`"POS PURCHASE POLLO TROPICAL #142"`) — pass the clean brand.',
     '',
     'AFTER the tool returns, you MUST cite at least two specific features in your reply. Examples of good citation:',

@@ -69,6 +69,19 @@
   --value-burden: #9C8B7A;
   --value-unsure: #9CA3AF;
 
+  /* The Gap card editorial palette — intentionally distinct from the value-category
+     tokens above (softer, more editorial hues that read better against the office
+     dark surfaces + italic serif). Consumed via var() in inline styles by the Gap
+     cards (Single/MultiIntentGapCard, the-gap ValueMapSummary). Currently
+     theme-agnostic (same in dark + light), preserving prior behaviour; AA-deepened
+     light-theme variants are a tracked follow-up (design input — cf. the --value-*
+     light pairs in :root[data-theme="light"]). */
+  --gap-quadrant-foundation: #7A9E7E;
+  --gap-quadrant-investment: #D4A24C;
+  --gap-quadrant-leak: #B8584F;
+  --gap-quadrant-burden: #8A7468;
+  --gap-quadrant-unsure: #605749;
+
   /* Borders */
   --border-subtle: rgba(244, 237, 217, 0.04);
   --border-medium: rgba(244, 237, 217, 0.06);

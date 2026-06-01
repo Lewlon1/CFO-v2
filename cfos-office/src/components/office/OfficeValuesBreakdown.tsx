@@ -25,7 +25,6 @@ function ValueDonut({ segments, total }: { segments: { key: VCKey; pct: number }
   // SVG donut chart — stroke-dasharray based
   const R = 15.9
   const C = 2 * Math.PI * R // ~100
-  let offset = 25 // starting offset
 
   return (
     <div className="text-center">
@@ -33,9 +32,13 @@ function ValueDonut({ segments, total }: { segments: { key: VCKey; pct: number }
         {/* Background ring */}
         <circle cx={21} cy={21} r={R} fill="none" stroke={colors.borderSubtle} strokeWidth={4} />
         {/* Segments */}
-        {segments.map(seg => {
+        {segments.map((seg, i) => {
           const dash = (seg.pct / 100) * C
-          const el = (
+          // Cumulative offset: starting offset (25) minus the sum of all prior
+          // segments' dash lengths. Pure per-index derivation — no outer mutation.
+          const segOffset =
+            25 - segments.slice(0, i).reduce((acc, s) => acc + (s.pct / 100) * C, 0)
+          return (
             <circle
               key={seg.key}
               cx={21}
@@ -45,12 +48,10 @@ function ValueDonut({ segments, total }: { segments: { key: VCKey; pct: number }
               stroke={VALUE_CONFIG[seg.key].color}
               strokeWidth={4}
               strokeDasharray={`${dash} ${C - dash}`}
-              strokeDashoffset={offset}
+              strokeDashoffset={segOffset}
               strokeLinecap="round"
             />
           )
-          offset -= dash
-          return el
         })}
         {/* Center text */}
         <text x={21} y={20} textAnchor="middle" fill={colors.textSecondary} fontFamily="JetBrains Mono" fontSize={4.5} fontWeight={500}>

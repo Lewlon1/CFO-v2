@@ -1,6 +1,7 @@
 import { formatMoney } from '@/lib/utils/money'
 
 // Category color field → hex mapping (matches categories.color in DB)
+/* eslint-disable no-restricted-syntax -- CATEGORY_COLORS mirrors the DB categories.color column; re-sourcing it is a DB migration, not a styling change (out of scope) */
 export const CATEGORY_COLORS: Record<string, string> = {
   primary: '#3B82F6',
   success: '#10B981',
@@ -12,6 +13,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   warning: '#EAB308',
   pink: '#EC4899',
 }
+/* eslint-enable no-restricted-syntax */
 
 export const VALUE_COLORS: Record<
   string,

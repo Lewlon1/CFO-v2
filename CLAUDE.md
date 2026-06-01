@@ -640,6 +640,48 @@ History: Goals' provisional accent (Session 11) was `#D4A24C`, too close to the 
 
 ---
 
+## Visual consistency enforcement — the lock (Visual Consistency Phase 4)
+
+The colour + radius consolidation is **CI-enforced**. The full spec (exhaustive exception
+list, token tables) lives in [`cfos-office/UI-DIRECTION.md`](cfos-office/UI-DIRECTION.md);
+the non-negotiable rule:
+
+- **Every colour and radius reads from a token.** A raw hex, an `rgb()/rgba()` literal, an
+  arbitrary Tailwind colour bracket (`(bg|text|border|ring|fill|stroke|from|to|via)-[#…]`),
+  or an arbitrary `rounded-[…]` of **4px+** is an **ESLint error → CI failure**.
+  `rounded-[≤3px]` is permitted for thin chart bars (no named token exists below
+  `rounded-control` 8px). Type sizes (`text-[…]`) and spacing brackets (`p-[…]`, `gap-[…]`)
+  are **NOT** enforced yet — that's a tracked **wave two** (type + spacing tokenisation); do
+  not assume they're locked.
+- **`globals.css` (`:root` + `:root[data-theme="light"]` + `@theme inline`) is the single
+  colour source of truth.** `src/lib/tokens.ts` is a typed `var()` accessor over it. **Never
+  introduce a third source** (this is why the Gap's `quadrant-tokens.ts` palette was moved
+  onto `--gap-quadrant-*` vars). Radius scale: `rounded-control` (8) · `rounded-card` (14) ·
+  `rounded-pill` (full).
+- **`dark:` utilities are inert** — the only theme switch is the `data-theme` attribute
+  (`.dark` is statically pinned in `app/layout.tsx`). Never use `dark:`.
+- **Fonts of record (F1 — Cormorant kept), 6 families:** root (`app/layout.tsx`) — Instrument
+  Serif · Instrument Sans · Geist Mono; office subtree (`app/(office)/layout.tsx`) — DM Sans ·
+  JetBrains Mono · Cormorant Garamond (briefing serif + "CFO's Office" wordmark).
+
+**Three drift-proofing prongs** (all run in [`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+1. **ESLint guards** — `cfo/visual-token-guards` in `cfos-office/eslint.config.mjs` (colour +
+   radius bans, scoped to `src/**`).
+2. **knip** — `cfos-office/knip.json` gates unused-file + unused-dependency drift. (Unused
+   `exports`/`types`/`duplicates` checks are relaxed: those findings are Audit-Zero-verified
+   false positives — registry dispatch, named+default pairs, generated `supabase/types.ts`.
+   Tightening them is a follow-up requiring feature-code cleanup.)
+3. **`/styleguide`** — `cfos-office/src/app/styleguide/` (dev-only via `notFound()` in
+   production) is the canonical visual-regression surface: every primitive, every state, both
+   themes. Snapshot testing is an optional later follow-up.
+
+Documented exceptions (brand marks, html2canvas share-cards, the ChatSheet shadow, DB-coupled
+`CATEGORY_COLORS`, merchant-code/entity/test false positives, thin bar radii) carry a
+site-level `eslint-disable` with a reason — see UI-DIRECTION.md for the full list.
+
+---
+
 ## Common Pitfalls (Learned from MVP)
 
 1. **Don't let Claude do maths.** It will get cash flow wrong. Every number comes from a query or Edge Function.

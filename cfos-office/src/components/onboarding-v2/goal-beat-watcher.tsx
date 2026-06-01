@@ -72,6 +72,7 @@ export function GoalBeatWatcher({
   useEffect(() => {
     if (!isActive) return
     if (onboardingStep === 'goal_chat_tentative') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to a step transition; the sibling branch is timer-driven, so this stays an effect
       setSkipVisible(true)
       return
     }
