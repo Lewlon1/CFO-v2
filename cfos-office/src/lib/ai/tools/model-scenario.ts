@@ -6,6 +6,7 @@ import {
   loadActiveGoals,
   loadSavingsBalance,
 } from './helpers';
+import { futureValueSeries } from '@/lib/finance/compound-growth';
 
 async function modelSalaryIncrease(ctx: ToolContext, params: Record<string, unknown>) {
   const budget = await loadCurrentBudget(ctx);
@@ -334,19 +335,15 @@ async function modelInvestmentGrowth(ctx: ToolContext, params: Record<string, un
     return { error: 'Please provide a monthly contribution amount (monthly_contribution).' };
   }
 
-  const monthlyRate = annualReturnPct / 100 / 12;
   const totalMonths = years * 12;
 
-  // Future value of a series (monthly contributions) + future value of lump sum
-  let futureValueContributions: number;
-  if (monthlyRate === 0) {
-    futureValueContributions = monthlyContribution * totalMonths;
-  } else {
-    futureValueContributions = monthlyContribution * ((Math.pow(1 + monthlyRate, totalMonths) - 1) / monthlyRate);
-  }
-
-  const futureValueInitial = initialAmount * Math.pow(1 + monthlyRate, totalMonths);
-  const totalFutureValue = futureValueContributions + futureValueInitial;
+  // Future value of lump sum + monthly contribution series (shared engine).
+  const totalFutureValue = futureValueSeries({
+    initialAmount,
+    monthlyContribution,
+    annualRatePct: annualReturnPct,
+    months: totalMonths,
+  });
   const totalContributed = (monthlyContribution * totalMonths) + initialAmount;
   const totalGrowth = totalFutureValue - totalContributed;
 
@@ -354,14 +351,12 @@ async function modelInvestmentGrowth(ctx: ToolContext, params: Record<string, un
   const yearlyBreakdown = [];
   for (let y = 1; y <= years; y++) {
     const m = y * 12;
-    let fvContrib: number;
-    if (monthlyRate === 0) {
-      fvContrib = monthlyContribution * m;
-    } else {
-      fvContrib = monthlyContribution * ((Math.pow(1 + monthlyRate, m) - 1) / monthlyRate);
-    }
-    const fvInitial = initialAmount * Math.pow(1 + monthlyRate, m);
-    const totalAtYear = fvContrib + fvInitial;
+    const totalAtYear = futureValueSeries({
+      initialAmount,
+      monthlyContribution,
+      annualRatePct: annualReturnPct,
+      months: m,
+    });
     const contributedAtYear = (monthlyContribution * m) + initialAmount;
     yearlyBreakdown.push({
       year: y,

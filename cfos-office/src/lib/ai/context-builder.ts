@@ -9,6 +9,7 @@ import type { InsightPayload, QuotableFact, PatternResult, ExperimentProposalLay
 import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
+import { currencySymbol, formatMoney } from '@/lib/format/money';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
@@ -27,25 +28,6 @@ const COHORT_LABEL: Record<string, string> = {
   wave_3: 'Wave 3',
   public: 'public launch',
 };
-
-function currencySymbol(currency: string): string {
-  switch (currency.toUpperCase()) {
-    case 'GBP': return '£';
-    case 'EUR': return '€';
-    case 'USD': return '$';
-    default: return currency + ' ';
-  }
-}
-
-function formatMoney(amount: number, currency: string): string {
-  const sym = currencySymbol(currency);
-  const rounded = Number.isInteger(amount) ? amount : Math.round(amount * 100) / 100;
-  const hasCents = !Number.isInteger(rounded);
-  return `${sym}${rounded.toLocaleString('en-GB', {
-    minimumFractionDigits: hasCents ? 2 : 0,
-    maximumFractionDigits: hasCents ? 2 : 0,
-  })}`;
-}
 
 /**
  * Keys whose string values are NOT merchant names — categories, day names,
@@ -356,8 +338,14 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   lines.push('');
   lines.push('#### NOT AVAILABLE — do not reference');
   const planningTransform = getTransformPosture(profile) === 'planning';
-  if (planningTransform) {
-    lines.push('- t3m_income_monthly is available — you may reference it as "trailing-3-month income" but never as "your monthly income" (the underlying flow is variable)');
+  // Surface the variable-income caveat whenever the income pattern was detected
+  // as variable — NOT only when posture resolved to 'planning'. Posture often
+  // comes back 'unknown' (low confidence / no runway) even though income is
+  // clearly variable, which previously suppressed the caveat and let the CFO
+  // treat irregular income as a flat monthly salary.
+  const incomeIsVariable = profile?.income_shape === 'variable';
+  if (planningTransform || incomeIsVariable) {
+    lines.push('- Income is VARIABLE — never call any figure "your monthly income". If t3m_income_monthly is available you may cite it as "trailing-3-month income" and note that income swings month to month.');
   } else {
     lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
   }
@@ -1099,9 +1087,14 @@ export async function buildSystemPrompt(
   const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
   const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
   // getPrimaryGoal returns PrimaryGoal | null directly (not { data, error }).
-  // Rejected promise → null → no-goal marker emitted by buildGoalsContext.
+  // A REJECTED promise (transient Postgres error) must NOT be reported to the
+  // CFO as "no active goal" — that made the CFO contradict itself mid-read
+  // ("On your goal…" then "No active goal recorded yet"). We distinguish
+  // unavailable from genuinely-none and let buildGoalsContext fall back to the
+  // multi-goal fetch (`goals`) when it succeeded.
   const primaryGoal: PrimaryGoal | null =
     primaryGoalResult.status === 'fulfilled' ? primaryGoalResult.value : null;
+  const primaryGoalUnavailable = primaryGoalResult.status === 'rejected';
 
   // Voice register (Constitution v1.1 §2). The underlying finding never changes
   // between registers — only the phrasing around it. Gentle is warmer phrasing,
@@ -1335,7 +1328,7 @@ export async function buildSystemPrompt(
     conversationInstructions,
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
-    buildGoalsContext(goals, actions, primaryGoal),
+    buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
     openItemsBlock,
     buildTripsContext(dedupedTrips, profile),
     experimentContext,
@@ -1985,8 +1978,25 @@ function buildGoalsContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   actions: any[] | null,
   primaryGoal: PrimaryGoal | null,
+  primaryGoalUnavailable = false,
 ): string {
   const parts: string[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderGoalLine = (goal: any): string => {
+    let line = `- ${goal.name}`;
+    if (goal.target_amount) line += `: target ${goal.target_amount}`;
+    if (goal.current_amount) line += `, current ${goal.current_amount}`;
+    if (goal.target_date) line += `, by ${goal.target_date}`;
+    if (goal.monthly_required_saving) {
+      // Investment-goal pace already accounts for compound growth — flag it so
+      // the CFO frames it as such, not as a flat saving requirement.
+      const basis = goal.type === 'investment' ? '/mo, growth-adjusted' : '/mo';
+      line += ` (need ${goal.monthly_required_saving}${basis})`;
+    }
+    if (goal.on_track != null) line += goal.on_track ? ' ✓ on track' : ' ✗ off track';
+    return line;
+  };
 
   // Always emit the heading. The explicit no-goal marker is the signal the
   // CFO is trained to act on — silence in this slot produces silence in the
@@ -1994,28 +2004,25 @@ function buildGoalsContext(
   parts.push('## Active goals');
 
   if (primaryGoal == null) {
-    parts.push('No active goal set.');
-  } else if (goals && goals.length > 0) {
-    for (const goal of goals) {
-      let line = `- ${goal.name}`;
-      if (goal.target_amount) line += `: target ${goal.target_amount}`;
-      if (goal.current_amount) line += `, current ${goal.current_amount}`;
-      if (goal.target_date) line += `, by ${goal.target_date}`;
-      if (goal.monthly_required_saving) line += ` (need ${goal.monthly_required_saving}/mo)`;
-      if (goal.on_track !== null) line += goal.on_track ? ' ✓ on track' : ' ✗ off track';
-      parts.push(line);
+    if (goals && goals.length > 0) {
+      // Primary-goal signal came back null/unavailable, but the multi-goal
+      // fetch succeeded and has rows — render those rather than (wrongly)
+      // telling the CFO there is no goal.
+      for (const goal of goals) parts.push(renderGoalLine(goal));
+    } else if (primaryGoalUnavailable) {
+      // The query errored — do NOT assert "no goal". Silence-with-reason so the
+      // CFO doesn't contradict a goal it referenced moments earlier.
+      parts.push('(Goal status temporarily unavailable — do not state that the user has no goal.)');
+    } else {
+      parts.push('No active goal set.');
     }
+  } else if (goals && goals.length > 0) {
+    for (const goal of goals) parts.push(renderGoalLine(goal));
   } else {
     // Defensive fallback: primaryGoal exists but the multi-goal fetch failed
     // or returned empty. Render the primary alone so the CFO is not blind to
     // the goal it has just been told exists.
-    let line = `- ${primaryGoal.name}`;
-    if (primaryGoal.target_amount) line += `: target ${primaryGoal.target_amount}`;
-    if (primaryGoal.current_amount) line += `, current ${primaryGoal.current_amount}`;
-    if (primaryGoal.target_date) line += `, by ${primaryGoal.target_date}`;
-    if (primaryGoal.monthly_required_saving) line += ` (need ${primaryGoal.monthly_required_saving}/mo)`;
-    if (primaryGoal.on_track !== null) line += primaryGoal.on_track ? ' ✓ on track' : ' ✗ off track';
-    parts.push(line);
+    parts.push(renderGoalLine(primaryGoal));
   }
 
   if (actions && actions.length > 0) {

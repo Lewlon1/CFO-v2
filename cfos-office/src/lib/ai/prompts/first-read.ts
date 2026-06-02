@@ -18,6 +18,9 @@ import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
 import type { FinancialFacts } from '@/lib/ai/compose-first-read';
+import { currencySymbol, formatMoney } from '@/lib/format/money';
+
+const DAYS_PER_MONTH = 30.44;
 import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
 import type { ReadRecipe } from '@/lib/ai/first-read-recipe';
 
@@ -265,7 +268,11 @@ LENGTH & FORMAT: hard cap 200 words (tighter than the first Read — it's a delt
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   const isRecompose = input.priorReadSummary != null;
   const isValueFirst = (input.hookCandidates?.length ?? 0) > 0;
+  const currency = input.financialFacts?.currency ?? 'EUR';
+  const symbol = currencySymbol(currency).trim() || currency;
   const sections: string[] = [
+    `CURRENCY: All amounts are in ${currency}. Always format money with "${symbol}" — never use any other currency symbol (e.g. never £ or $ unless that IS the symbol above).`,
+    ``,
     `DATA RECENCY:`,
     formatDataRecency(input),
     ``,
@@ -280,10 +287,10 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     input.goalSummary ?? '(none set yet)',
     ``,
     `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):`,
-    formatFinancialFacts(input.financialFacts),
+    formatFinancialFacts(input.financialFacts, currency),
     ``,
     `SPENDING BREAKDOWN (Layer 1 — server-computed; cite verbatim, never recompute a % or a sum):`,
-    formatSpendingBreakdown(input.spendingBreakdown),
+    formatSpendingBreakdown(input.spendingBreakdown, currency),
     ``,
   ];
 
@@ -315,7 +322,7 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   if (isValueFirst) {
     sections.push(
       `HOOK CANDIDATES (the 2-3 specific clusters you can see but cannot read alone — these are the CLOSE):`,
-      formatHookCandidates(input.hookCandidates ?? []),
+      formatHookCandidates(input.hookCandidates ?? [], currency),
       ``,
     );
   }
@@ -341,7 +348,7 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0
       ? '(no clusters with sufficient data — fall back to the transaction count and acknowledge the thin data)'
-      : input.topClusterBehaviours.map(formatClusterForPrompt).join('\n\n'),
+      : input.topClusterBehaviours.map((b) => formatClusterForPrompt(b, currency)).join('\n\n'),
     ``,
     isRecompose
       ? `COMPOSE THE RECOMPOSE NOW. Lead on what their sorting unlocked per READ FOCUS, ≤2 delta observations from the NEW Layer 2 (WHAT THE USER JUST SORTED), close on a directive + [CTA:open_chat]…[/CTA] that lands them in chat. Do not restate anything in ALREADY SAID. Do not open a new hook. Hard cap 200 words. Output the message text only — no markdown code fences, no preamble. Sign off with "— C." on its own line.`
@@ -353,38 +360,61 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   return sections.join('\n');
 }
 
-function formatFinancialFacts(facts: FinancialFacts | null | undefined): string {
+function formatFinancialFacts(
+  facts: FinancialFacts | null | undefined,
+  currency: string,
+): string {
   if (!facts) return '(no financial facts on file yet — fall back to qualitative framing)';
+  const m = (v: number | null | undefined) =>
+    v == null ? null : formatMoney(v, currency);
   const lines: string[] = [];
-  lines.push(`- Net monthly income: ${facts.net_monthly_income ?? '(not on file)'}`);
-  lines.push(`- Total fixed costs / month: ${facts.total_fixed_costs ?? '(not on file)'}`);
-  lines.push(`- Free cash flow / month: ${facts.free_cash_flow ?? '(not computable until both income and fixed costs are on file)'}`);
+
+  // Variable income: do NOT present a single flat monthly figure. The income
+  // pattern was detected as variable, so a "your monthly income is X" framing
+  // is misleading — lead with the trailing-3-month average and name the swing.
+  if (facts.income_shape === 'variable') {
+    const t3m = m(facts.t3m_income_monthly);
+    lines.push(
+      `- Income: VARIABLE (irregular deposits). Do NOT call any number "your monthly income".` +
+        (t3m
+          ? ` Trailing-3-month average ≈ ${t3m}/mo — cite it as a trailing average, and note income swings month to month.`
+          : ` Treat income as uncertain and avoid a precise monthly figure.`),
+    );
+  } else {
+    lines.push(`- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'}`);
+  }
+  lines.push(`- Total fixed costs / month: ${m(facts.total_fixed_costs) ?? '(not on file)'}`);
+  lines.push(`- Free cash flow / month: ${m(facts.free_cash_flow) ?? '(not computable until both income and fixed costs are on file)'}`);
   if (facts.monthly_rent != null) {
-    lines.push(`- (of which) Housing: ${facts.monthly_rent}`);
+    lines.push(`- (of which) Housing: ${m(facts.monthly_rent)}`);
   }
   return lines.join('\n');
 }
 
-function formatSpendingBreakdown(breakdown: SpendingBreakdown | null | undefined): string {
+function formatSpendingBreakdown(
+  breakdown: SpendingBreakdown | null | undefined,
+  currency: string,
+): string {
   if (!breakdown || breakdown.top_categories.length === 0) {
     return '(breakdown unavailable — too few transactions)';
   }
+  const m = (v: number) => formatMoney(v, currency);
   const lines: string[] = [];
-  lines.push(`- Total tracked spend (window): ${breakdown.total_spend}`);
+  lines.push(`- Total tracked spend (window): ${m(breakdown.total_spend)}`);
   lines.push(
     `- Top categories: ` +
       breakdown.top_categories
-        .map((c) => `${c.category} ${c.total} (${c.pct}%)`)
+        .map((c) => `${c.category} ${m(c.total)} (${c.pct}%)`)
         .join(', '),
   );
   if (breakdown.biggest_merchant) {
     lines.push(
-      `- Biggest single merchant by spend: ${breakdown.biggest_merchant.name} — ${breakdown.biggest_merchant.total} across ${breakdown.biggest_merchant.txn_count} txns`,
+      `- Biggest single merchant by spend: ${breakdown.biggest_merchant.name} — ${m(breakdown.biggest_merchant.total)} across ${breakdown.biggest_merchant.txn_count} txns`,
     );
   }
   if (breakdown.largest_transaction) {
     lines.push(
-      `- Largest single transaction: ${breakdown.largest_transaction.merchant} ${breakdown.largest_transaction.amount} on ${breakdown.largest_transaction.date}`,
+      `- Largest single transaction: ${breakdown.largest_transaction.merchant} ${m(breakdown.largest_transaction.amount)} on ${breakdown.largest_transaction.date}`,
     );
   }
   lines.push(`- Uncategorised share: ${breakdown.uncategorised_pct}%`);
@@ -409,9 +439,13 @@ function formatReadFocus(recipe: ReadRecipe, goalSummary: string | null | undefi
     case 'target':
       return [
         `The user is working toward ${goal}. LEAD with where they stand against it: free cash flow vs`,
-        `the monthly contribution the goal needs vs what's currently reaching it. If the target amount`,
-        `or date is missing, the BLOCKER ("set a target") IS the lead. Body: the biggest drain pulling`,
-        `against the goal. Then the close.`,
+        `the monthly contribution the goal needs vs what's currently reaching it. Use the monthly figure(s)`,
+        `GIVEN in the GOAL block verbatim — never recompute or invent one, and never ignore the amount`,
+        `already saved. If the GOAL block gives a compound-growth rate band, name compounding in plain`,
+        `language and show the range (e.g. "~Xat the low end, ~Y if returns are stronger") rather than a`,
+        `single scary number, then give a clear verdict on whether the target is realistic. If the target`,
+        `amount or date is missing, the BLOCKER ("set a target") IS the lead. Body: the biggest drain`,
+        `pulling against the goal. Then the close.`,
       ].join('\n');
     case 'control':
       return [
@@ -428,14 +462,14 @@ function formatReadFocus(recipe: ReadRecipe, goalSummary: string | null | undefi
   }
 }
 
-function formatHookCandidates(hooks: HookCandidate[]): string {
+function formatHookCandidates(hooks: HookCandidate[], currency: string): string {
   if (hooks.length === 0) return '(no hook candidates — close on a qualitative observation)';
   return hooks
     .map((h, idx) => {
       return [
         `${idx + 1}. **${h.label}**`,
         `   - cluster_id: ${h.cluster_id}`,
-        `   - recent amount (window): ${h.recent_amount}`,
+        `   - recent amount (window): ${formatMoney(h.recent_amount, currency)}`,
         `   - pattern hint: ${h.period_hint}`,
         `   - candidate quadrants: ${h.candidate_quadrants.join(' | ')}`,
       ].join('\n');
@@ -605,7 +639,7 @@ function formatValueProfile(profile: UserValueProfile): string {
   return lines.join('\n');
 }
 
-function formatClusterForPrompt(b: ClusterBehaviour): string {
+function formatClusterForPrompt(b: ClusterBehaviour, currency: string): string {
   const clean = b.cluster_type === 'merchant'
     ? normaliseMerchantDescription(b.cluster_id)
     : b.cluster_id;
@@ -643,8 +677,18 @@ function formatClusterForPrompt(b: ClusterBehaviour): string {
     `- amount: mean ${b.amount_profile.mean_amount.toFixed(2)}, range ${b.amount_profile.min_amount.toFixed(2)}–${b.amount_profile.max_amount.toFixed(2)}, consistency ${b.amount_profile.consistency_label}`,
   );
 
+  const total = Math.abs(b.total_amount);
+  // Per-month equivalent so recurring spend is legible as a rate, not a raw
+  // window total ("X over 90 days" forces the user to do the division). Cite
+  // the /mo figure for recurring patterns; keep the window total for context.
+  const perMonth = b.window_days > 0 ? total / (b.window_days / DAYS_PER_MONTH) : null;
+  const isRecurring =
+    b.recurrence.pattern_label === 'monthly' || b.recurrence.pattern_label === 'weekly';
   lines.push(
-    `- volume: ${b.transaction_count} txns totalling ${Math.abs(b.total_amount).toFixed(2)} over ${b.window_days}d`,
+    `- volume: ${b.transaction_count} txns totalling ${formatMoney(total, currency)} over ${b.window_days}d` +
+      (perMonth != null
+        ? ` (≈ ${formatMoney(perMonth, currency)}/mo${isRecurring ? ' — recurring, prefer the /mo figure' : ''})`
+        : ''),
   );
 
   lines.push(

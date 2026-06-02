@@ -1,10 +1,20 @@
 import type { ToolContext } from '@/lib/ai/tools/types';
 import { loadCurrentBudget, loadAverageDiscretionary } from '@/lib/ai/tools/helpers';
+import {
+  requiredMonthlyForTarget,
+  INVESTMENT_DEFAULT_RATE_PCT,
+} from '@/lib/finance/compound-growth';
 
 export interface PaceInput {
   current_amount: number;
   target_amount: number;
   target_date: string | null;
+  /**
+   * Goal type. Investment goals are paced with compound growth (a flat
+   * division wildly overstates the monthly needed over long horizons and makes
+   * achievable goals read as impossible). Savings/debt/general stay linear.
+   */
+  type?: string | null;
 }
 
 export interface PaceResult {
@@ -69,7 +79,20 @@ export async function computePaceAndOnTrack(
     const target = new Date(input.target_date);
     const monthsLeft = monthsBetween(now, target);
     if (monthsLeft > 0) {
-      monthly_required_saving = Math.round(remaining / monthsLeft);
+      if (input.type === 'investment') {
+        // Compound-growth aware: the seed and contributions earn returns, so
+        // the monthly needed is far lower than a flat division. Uses the
+        // moderate default rate; the Read surfaces the full rate band.
+        const grown = requiredMonthlyForTarget({
+          targetAmount: input.target_amount,
+          currentAmount: input.current_amount,
+          annualRatePct: INVESTMENT_DEFAULT_RATE_PCT,
+          months: monthsLeft,
+        });
+        monthly_required_saving = grown == null ? null : Math.round(grown);
+      } else {
+        monthly_required_saving = Math.round(remaining / monthsLeft);
+      }
     }
   }
 

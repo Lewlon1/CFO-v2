@@ -32,6 +32,9 @@ import {
 } from '@/lib/ai/compose-first-read-hooks';
 import { getSpendingBreakdown, type SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
 import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
+import { monthsBetween } from '@/lib/goals/pace';
+import { requiredMonthlyBand } from '@/lib/finance/compound-growth';
+import { formatMoney } from '@/lib/format/money';
 
 import {
   FIRST_READ_SYSTEM_PROMPT,
@@ -121,13 +124,7 @@ export async function composeFirstRead(params: {
   );
 
   const goalSummary = goalRow
-    ? [
-        goalRow.name,
-        goalRow.target_amount != null ? `target ${goalRow.target_amount}` : null,
-        goalRow.target_date ? `by ${goalRow.target_date}` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+    ? buildGoalSummary(goalRow, financialFacts.currency)
     : null;
 
   const dataAgeDays = dataWindowEnd
@@ -229,6 +226,10 @@ export type FinancialFacts = {
   monthly_rent: number | null;
   total_fixed_costs: number | null;
   free_cash_flow: number | null;
+  currency: string;
+  /** 'variable' means income swings — surface it instead of a flat monthly figure. */
+  income_shape: string | null;
+  t3m_income_monthly: number | null;
 };
 
 async function getFinancialFacts(
@@ -238,7 +239,7 @@ async function getFinancialFacts(
   const [profileRes, snapshotRes] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent')
+      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly')
       .eq('id', userId)
       .maybeSingle(),
     supabase
@@ -285,6 +286,16 @@ async function getFinancialFacts(
     monthly_rent: rent,
     total_fixed_costs: totalFixed,
     free_cash_flow: freeCashFlow,
+    currency:
+      typeof profileRes.data?.primary_currency === 'string' && profileRes.data.primary_currency
+        ? profileRes.data.primary_currency
+        : 'EUR',
+    income_shape:
+      typeof profileRes.data?.income_shape === 'string' ? profileRes.data.income_shape : null,
+    t3m_income_monthly:
+      typeof profileRes.data?.t3m_income_monthly === 'number'
+        ? profileRes.data.t3m_income_monthly
+        : null,
   };
 }
 
@@ -312,10 +323,17 @@ async function getEntryStruggle(
 async function getActiveGoal(
   supabase: SupabaseClient,
   userId: string,
-): Promise<{ name: string; target_amount: number | null; target_date: string | null } | null> {
+): Promise<{
+  name: string;
+  target_amount: number | null;
+  current_amount: number | null;
+  target_date: string | null;
+  type: string | null;
+  monthly_required_saving: number | null;
+} | null> {
   const { data } = await supabase
     .from('goals')
-    .select('name, target_amount, target_date')
+    .select('name, target_amount, current_amount, target_date, type, monthly_required_saving')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -325,9 +343,77 @@ async function getActiveGoal(
     ? {
         name: data.name as string,
         target_amount: data.target_amount as number | null,
+        current_amount: data.current_amount as number | null,
         target_date: data.target_date as string | null,
+        type: (data.type as string | null) ?? null,
+        monthly_required_saving: (data.monthly_required_saving as number | null) ?? null,
       }
     : null;
+}
+
+/**
+ * Renders the active goal into the GOAL prompt block, in the user's currency.
+ * For investment goals it supplies the compound-growth-aware monthly figure
+ * AND a rate band so the Read can teach the concept and show a range — rather
+ * than the model inventing a flat division (which made achievable long-horizon
+ * goals read as impossible) or dropping the already-saved amount.
+ */
+function buildGoalSummary(
+  goal: {
+    name: string;
+    target_amount: number | null;
+    current_amount: number | null;
+    target_date: string | null;
+    type: string | null;
+    monthly_required_saving: number | null;
+  },
+  currency: string,
+): string {
+  const lines: string[] = [];
+  const head = [
+    goal.name,
+    goal.target_amount != null ? `target ${formatMoney(goal.target_amount, currency)}` : null,
+    goal.current_amount != null
+      ? `already saved ${formatMoney(goal.current_amount, currency)}`
+      : null,
+    goal.target_date ? `by ${goal.target_date}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  lines.push(head);
+
+  const monthsLeft =
+    goal.target_date != null ? monthsBetween(new Date(), new Date(goal.target_date)) : null;
+
+  if (
+    goal.type === 'investment' &&
+    goal.target_amount != null &&
+    monthsLeft != null &&
+    monthsLeft > 0
+  ) {
+    const target = goal.target_amount;
+    const current = goal.current_amount ?? 0;
+    const band = requiredMonthlyBand({ targetAmount: target, currentAmount: current, months: monthsLeft });
+    const bandStr = band
+      .map((b) => `${formatMoney(b.monthly ?? 0, currency)}/mo at ${b.ratePct}%`)
+      .join(', ');
+    const linear = Math.max(0, (target - current) / monthsLeft);
+    lines.push(
+      `Monthly contribution needed, accounting for COMPOUND GROWTH (the pot earns returns, ` +
+        `so far less than a flat split): ${bandStr}. ` +
+        `A naive no-growth split would demand ${formatMoney(linear, currency)}/mo — cite the ` +
+        `growth-aware figures, not that. Explain in plain language that over this horizon ` +
+        `returns on the ${formatMoney(current, currency)} already saved do much of the work. ` +
+        `Give a clear verdict on whether the target is realistic given their free cash flow.`,
+    );
+  } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
+    lines.push(
+      `Monthly contribution needed: ${formatMoney(goal.monthly_required_saving, currency)}/mo ` +
+        `(straight-line, already nets off the ${formatMoney(goal.current_amount ?? 0, currency)} saved).`,
+    );
+  }
+
+  return lines.join('\n');
 }
 
 /**

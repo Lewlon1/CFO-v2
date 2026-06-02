@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { monthsBetween } from '@/lib/goals/pace';
+import { requiredMonthlyBand } from '@/lib/finance/compound-growth';
 
 // Returns the pre-computed pace for a goal (monthly required saving, months
 // remaining, on-track flag). The CFO calls this instead of dividing target by
@@ -27,7 +28,7 @@ export function createComputeGoalPaceTool(ctx: ToolContext) {
         const { data: goal, error } = await ctx.supabase
           .from('goals')
           .select(
-            'id, name, target_amount, current_amount, target_date, monthly_required_saving, on_track, currency, status',
+            'id, name, type, target_amount, current_amount, target_date, monthly_required_saving, on_track, currency, status',
           )
           .eq('id', goal_id)
           .eq('user_id', ctx.userId)
@@ -51,6 +52,21 @@ export function createComputeGoalPaceTool(ctx: ToolContext) {
           months_remaining = diffMonths > 0 ? diffMonths : 0;
         }
 
+        // Investment goals: also return the required-monthly across a band of
+        // return rates so the CFO can explain compounding and show a range,
+        // rather than presenting the single stored figure as the only truth.
+        const growth_band =
+          goal.type === 'investment' &&
+          goal.target_amount != null &&
+          months_remaining != null &&
+          months_remaining > 0
+            ? requiredMonthlyBand({
+                targetAmount: goal.target_amount,
+                currentAmount: goal.current_amount ?? 0,
+                months: months_remaining,
+              }).map((b) => ({ annual_return_pct: b.ratePct, monthly_required: b.monthly }))
+            : null;
+
         return {
           success: true,
           goal_id: goal.id,
@@ -62,6 +78,8 @@ export function createComputeGoalPaceTool(ctx: ToolContext) {
           target_date: goal.target_date,
           months_remaining,
           monthly_required_saving: goal.monthly_required_saving,
+          monthly_required_basis: goal.type === 'investment' ? 'compound_growth' : 'straight_line',
+          growth_rate_band: growth_band,
           on_track: goal.on_track,
           status: goal.status,
           needs_target_date: goal.target_date == null,

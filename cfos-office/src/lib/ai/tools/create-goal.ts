@@ -3,6 +3,25 @@ import type { ToolContext } from './types';
 import { computePaceAndOnTrack, targetDateFromDuration } from '@/lib/goals/pace';
 import { logContribution } from '@/lib/goals/contributions';
 
+/**
+ * Find an existing active goal that is a duplicate of one being created — same
+ * effective type and same normalised (trimmed, lowercased) name. Pure, so it's
+ * unit-testable. Used to update-not-duplicate when the model re-creates the
+ * "same" goal across conversations.
+ */
+export function findDuplicateActiveGoal<T extends { name?: string | null; type?: string | null }>(
+  existing: T[],
+  candidate: { name: string; type: string },
+): T | undefined {
+  const normName = candidate.name.trim().toLowerCase();
+  return existing.find(
+    (g) =>
+      (g.type ?? 'general') === candidate.type &&
+      typeof g.name === 'string' &&
+      g.name.trim().toLowerCase() === normName,
+  );
+}
+
 export function createCreateGoalTool(ctx: ToolContext) {
   return {
     description:
@@ -93,10 +112,69 @@ export function createCreateGoalTool(ctx: ToolContext) {
           resolvedTargetDate = target_date;
         }
 
+        const effectiveType = type || 'general';
+
+        // Dedup: the model re-creates the "same" goal across conversations
+        // (e.g. once in the goal chat, again in the first read), leaving the
+        // user with duplicate active goals. If an active goal of the same type
+        // and name already exists, UPDATE it rather than inserting a duplicate.
+        const { data: existingGoals } = await ctx.supabase
+          .from('goals')
+          .select('id, name, type, current_amount')
+          .eq('user_id', ctx.userId)
+          .eq('status', 'active')
+          .is('deleted_at', null);
+
+        const match = findDuplicateActiveGoal(existingGoals ?? [], {
+          name,
+          type: effectiveType,
+        });
+
+        if (match) {
+          // Pace against the EXISTING current_amount (contributions are the
+          // source of truth; we don't overwrite it from a re-stated figure).
+          const existingCurrent = Number(match.current_amount ?? 0);
+          const updPace = await computePaceAndOnTrack(ctx, {
+            current_amount: existingCurrent,
+            target_amount,
+            target_date: resolvedTargetDate,
+            type: effectiveType,
+          });
+
+          const { data: updated, error: updErr } = await ctx.supabase
+            .from('goals')
+            .update({
+              description: description || null,
+              target_amount: Math.round(target_amount),
+              target_date: resolvedTargetDate,
+              monthly_required_saving: updPace.monthly_required_saving,
+              on_track: updPace.on_track,
+              priority: priority || 'medium',
+              type: effectiveType,
+            })
+            .eq('id', match.id)
+            .eq('user_id', ctx.userId)
+            .select('id, name, target_amount, current_amount, target_date, monthly_required_saving, on_track, currency')
+            .single();
+
+          if (updErr) {
+            console.error('[tool:create_goal] dedup update error:', updErr);
+            return { error: 'Could not update the goal. Please try again.' };
+          }
+
+          return {
+            success: true,
+            was_updated: true,
+            goal: updated,
+            message: `Updated your existing "${updated.name}" goal — target ${ctx.currency} ${Math.round(target_amount).toLocaleString()}.`,
+          };
+        }
+
         const pace = await computePaceAndOnTrack(ctx, {
           current_amount: saved,
           target_amount,
           target_date: resolvedTargetDate,
+          type: effectiveType,
         });
 
         const { data, error } = await ctx.supabase
@@ -111,7 +189,7 @@ export function createCreateGoalTool(ctx: ToolContext) {
             monthly_required_saving: pace.monthly_required_saving,
             on_track: pace.on_track,
             priority: priority || 'medium',
-            type: type || 'general',
+            type: effectiveType,
             status: 'active',
             currency: ctx.currency,
           })
