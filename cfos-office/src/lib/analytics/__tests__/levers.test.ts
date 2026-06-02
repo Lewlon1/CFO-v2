@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { detectBlocker } from '../levers';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { detectBlocker, deriveLevers } from '../levers';
+import { categoryLabel, DISCRETIONARY_CATEGORY_IDS } from '../categories';
+import type { SpendingBreakdown } from '../spending-breakdown';
 
 type Budget = {
   netIncome: number | null;
@@ -93,5 +96,123 @@ describe('detectBlocker — math-blocking detector', () => {
       grossSalary: 45000,
     };
     expect(detectBlocker(goal, budget)).toBeNull();
+  });
+});
+
+// ── Supabase mock — table → rows, with the terminal shapes the lever helpers use
+// (.single() for user_profiles, .limit() for snapshots, awaited builder otherwise).
+function makeSupabase(data: Record<string, unknown>): SupabaseClient {
+  return {
+    from: (table: string) => {
+      const result = { data: data[table] ?? null, error: null };
+      const builder: Record<string, unknown> = {
+        select: () => builder,
+        eq: () => builder,
+        in: () => builder,
+        is: () => builder,
+        order: () => builder,
+        limit: () => Promise.resolve(result),
+        single: () => Promise.resolve(result),
+        maybeSingle: () => Promise.resolve(result),
+        then: (resolve: (v: typeof result) => unknown) => resolve(result),
+      };
+      return builder;
+    },
+  } as unknown as SupabaseClient;
+}
+
+// netIncome + target + date all set → no supply_input blocker; goal impact computable.
+const baseData = {
+  goals: [
+    { id: 'g1', name: 'House deposit', target_amount: 20000, current_amount: 0, target_date: '2028-01-01', status: 'active' },
+  ],
+  user_profiles: { net_monthly_income: 3000, partner_monthly_contribution: 0, monthly_rent: 1200, gross_salary: null },
+  recurring_expenses: [],
+  monthly_snapshots: [{ total_discretionary: 1500 }],
+};
+
+function breakdown(top: Array<{ category: string; total: number; pct: number }>): SpendingBreakdown {
+  return {
+    total_spend: top.reduce((s, t) => s + t.total, 0),
+    window_days: 90,
+    top_categories: top,
+    biggest_merchant: null,
+    largest_transaction: null,
+    uncategorised_pct: 0,
+  };
+}
+
+describe('categoryLabel', () => {
+  it('humanises slugs and never leaks raw underscores to prose', () => {
+    expect(categoryLabel('eat_drinking_out')).toBe('eating & drinking out');
+    expect(categoryLabel('utilities_bills')).toBe('utilities & bills');
+    expect(categoryLabel('personal_care')).toBe('personal care');
+    expect(categoryLabel('groceries')).toBe('groceries');
+    expect(categoryLabel('transport')).toBe('transport');
+    expect(categoryLabel('Uncategorised')).toBe('uncategorised');
+    expect(categoryLabel('')).toBe('uncategorised');
+    expect(categoryLabel('eat_drinking_out')).not.toContain('_');
+  });
+});
+
+describe('DISCRETIONARY_CATEGORY_IDS', () => {
+  it('excludes essentials/fixed (the renfe / council-tax failure mode), includes discretionary', () => {
+    for (const essential of ['transport', 'utilities_bills', 'groceries', 'housing', 'health']) {
+      expect(DISCRETIONARY_CATEGORY_IDS.has(essential)).toBe(false);
+    }
+    for (const disc of ['eat_drinking_out', 'subscriptions', 'shopping', 'entertainment']) {
+      expect(DISCRETIONARY_CATEGORY_IDS.has(disc)).toBe(true);
+    }
+  });
+});
+
+describe('deriveLevers — cut lever targets the biggest discretionary category', () => {
+  it('picks eating-out over a bigger transport line, labelled humanly (not "transport", not a slug)', async () => {
+    const { levers, blocker } = await deriveLevers({
+      supabase: makeSupabase(baseData),
+      userId: 'u1',
+      currency: 'EUR',
+      windowDays: 90,
+      spendingBreakdown: breakdown([
+        { category: 'transport', total: 900, pct: 30 }, // biggest overall, but ESSENTIAL
+        { category: 'eat_drinking_out', total: 600, pct: 20 }, // biggest DISCRETIONARY → the cut
+        { category: 'groceries', total: 500, pct: 17 },
+        { category: 'shopping', total: 300, pct: 10 },
+      ]),
+    });
+    expect(blocker).toBeNull();
+    const cut = levers.find((l) => l.type === 'cut');
+    expect(cut).toBeDefined();
+    if (cut && cut.type === 'cut') {
+      expect(cut.category).toBe('eating & drinking out');
+      expect(cut.currentMonthly).toBe(Math.round(600 / (90 / 30.44)));
+      expect(cut.suggestedCut).toBe(Math.round((600 / (90 / 30.44)) * 0.25));
+    }
+  });
+
+  it('emits NO cut lever when every sizeable category is an essential (no renfe-style staple)', async () => {
+    const { levers } = await deriveLevers({
+      supabase: makeSupabase(baseData),
+      userId: 'u1',
+      currency: 'EUR',
+      windowDays: 90,
+      spendingBreakdown: breakdown([
+        { category: 'housing', total: 3000, pct: 50 },
+        { category: 'utilities_bills', total: 1200, pct: 20 },
+        { category: 'groceries', total: 1000, pct: 17 },
+        { category: 'transport', total: 800, pct: 13 },
+      ]),
+    });
+    expect(levers.find((l) => l.type === 'cut')).toBeUndefined();
+  });
+
+  it('emits NO cut lever when there is no breakdown', async () => {
+    const { levers } = await deriveLevers({
+      supabase: makeSupabase(baseData),
+      userId: 'u1',
+      currency: 'EUR',
+      spendingBreakdown: null,
+    });
+    expect(levers.find((l) => l.type === 'cut')).toBeUndefined();
   });
 });

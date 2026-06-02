@@ -23,9 +23,15 @@ import {
   loadCurrentBudget,
   loadAverageDiscretionary,
   loadActiveGoals,
-  toMonthlyEquivalent,
 } from '@/lib/ai/tools/helpers';
 import type { ToolContext } from '@/lib/ai/tools/types';
+import { DISCRETIONARY_CATEGORY_IDS, categoryLabel } from '@/lib/analytics/categories';
+import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
+
+const DAYS_PER_MONTH = 30.44;
+// A `cut` lever suggests trimming a quarter of a discretionary category — a
+// meaningful but realistic ask, not "cut it out entirely".
+const CUT_FRACTION = 0.25;
 
 export type Lever =
   | {
@@ -75,6 +81,10 @@ export async function deriveLevers(args: {
   supabase: SupabaseClient;
   userId: string;
   currency?: string;
+  /** The cut lever's category + magnitude are read from this breakdown. */
+  spendingBreakdown?: SpendingBreakdown | null;
+  /** Window the breakdown totals cover, for the monthly-equivalent. Default 90. */
+  windowDays?: number;
 }): Promise<LeverPackage> {
   const ctx = makeMinimalCtx(args.supabase, args.userId, args.currency ?? 'GBP');
 
@@ -89,7 +99,13 @@ export async function deriveLevers(args: {
   }
 
   const blocker = detectBlocker(activeGoal, budget);
-  const cutLever = await deriveCutLever(ctx, activeGoal, budget);
+  const cutLever = await deriveCutLever(
+    ctx,
+    activeGoal,
+    budget,
+    args.spendingBreakdown ?? null,
+    args.windowDays ?? 90,
+  );
 
   const levers: Lever[] = [];
   if (blocker) levers.push(blocker);
@@ -135,45 +151,49 @@ export function detectBlocker(goal: ActiveGoalRow, budget: Budget): Lever | null
   return null;
 }
 
+/**
+ * The cut lever names the user's biggest DISCRETIONARY category and a sized
+ * trim — the SAME category the SPENDING BREAKDOWN leads on, so the Read's ONE
+ * ACTION is coherent. It used to read the biggest `recurring_expenses` row,
+ * which surfaced essentials you can't trim (council tax, water, energy) or a
+ * variable transport line the recurring-detector misflagged as a "bill" (renfe),
+ * then the Read stapled that tiny unrelated cut to whatever category the
+ * breakdown named — "the one move that closes it" followed by a €6 renfe trim
+ * against a €276 gap. Sourcing the cut from the discretionary breakdown fixes
+ * both the bogus target and the contradiction. See SESSION-LOG.
+ *
+ * Essentials (rent, utilities, groceries, transport, health) are never cut
+ * targets — see DISCRETIONARY_CATEGORY_IDS. Returns null when no discretionary
+ * category clears a meaningful floor; the Read then frames the gap qualitatively.
+ */
 async function deriveCutLever(
   ctx: ToolContext,
   goal: ActiveGoalRow,
   budget: Budget,
+  breakdown: SpendingBreakdown | null,
+  windowDays: number,
 ): Promise<Lever | null> {
-  const { data: rows } = await ctx.supabase
-    .from('recurring_expenses')
-    .select('name, amount, frequency, category_id, status')
-    .eq('user_id', ctx.userId)
-    .is('deleted_at', null);
-  if (!rows || rows.length === 0) return null;
+  if (!breakdown || breakdown.top_categories.length === 0) return null;
 
-  const candidates = rows
-    .filter((r) => (r as { status: string | null }).status !== 'cancelled')
-    .map((r) => {
-      const row = r as { name: string; amount: number | string; frequency: string; category_id: string | null };
-      return {
-        name: row.name,
-        category: row.category_id ?? row.name,
-        monthly: toMonthlyEquivalent(Number(row.amount), row.frequency),
-      };
-    })
-    // Rent/housing isn't a recurring "bill to trim" — it's the user's home.
-    .filter((c) => !/(rent|housing|mortgage)/i.test(c.category) && !/(rent|housing|mortgage)/i.test(c.name))
-    .sort((a, b) => b.monthly - a.monthly);
+  const biggest = breakdown.top_categories
+    .filter((c) => DISCRETIONARY_CATEGORY_IDS.has(c.category.trim().toLowerCase()))
+    .sort((a, b) => b.total - a.total)[0];
+  if (!biggest) return null;
 
-  if (candidates.length === 0) return null;
-  const top = candidates[0];
-  // Too small to matter — sub-£10 trims aren't a meaningful lever.
-  if (top.monthly < 10) return null;
+  const monthly =
+    windowDays > 0 ? biggest.total / (windowDays / DAYS_PER_MONTH) : biggest.total;
+  // Sub-€25/mo categories aren't "the one move" — not worth leading the Read on.
+  if (monthly < 25) return null;
 
-  const suggestedCut = Math.round(top.monthly * 0.20);
+  const suggestedCut = Math.round(monthly * CUT_FRACTION);
+  if (suggestedCut < 10) return null;
 
   const goalImpactMonths = await computeGoalImpactMonths(ctx, goal, budget, suggestedCut);
 
   return {
     type: 'cut',
-    category: top.category,
-    currentMonthly: Math.round(top.monthly),
+    category: categoryLabel(biggest.category),
+    currentMonthly: Math.round(monthly),
     suggestedCut,
     goalImpactMonths,
     goalId: goal.id,

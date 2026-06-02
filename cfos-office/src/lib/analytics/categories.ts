@@ -38,3 +38,38 @@ export function isRefundRow(amount: number | string, catId: string | null | unde
 export function affectsSpendingBreakdown(catId: string | null | undefined): boolean {
   return !!catId && !isNeutralCategory(catId) && catId !== INCOME_CATEGORY_ID
 }
+
+// Categories a `cut` lever may target — genuinely reducible discretionary spend.
+// Excludes essentials/fixed (housing, utilities_bills, groceries, transport,
+// health), debt, income, savings, transfers, and uncategorised. A cut lever on
+// any of those is either impossible (rent, council tax, water) or harmful
+// (groceries, health) — that was the renfe / council-tax failure mode where the
+// recurring-expense-sourced cut lever surfaced an essential or a variable
+// transport line as "the bill to trim". See SESSION-LOG.
+export const DISCRETIONARY_CATEGORY_IDS: ReadonlySet<string> = new Set([
+  'eat_drinking_out',
+  'subscriptions',
+  'entertainment',
+  'shopping',
+  'travel',
+  'personal_care',
+  'pets',
+])
+
+// Human-readable label for a category slug, for prose surfaces (the Read, chat).
+// Overrides cover the slugs that don't humanise cleanly; everything else falls
+// back to swapping separators for spaces. Lowercase reads naturally mid-sentence
+// ("eating & drinking out runs €X"). NEVER surface the raw slug to the user.
+const CATEGORY_LABELS: Record<string, string> = {
+  eat_drinking_out: 'eating & drinking out',
+  utilities_bills: 'utilities & bills',
+  savings_investments: 'savings & investments',
+  debt_repayments: 'debt repayments',
+  personal_care: 'personal care',
+}
+
+export function categoryLabel(slug: string | null | undefined): string {
+  const key = (slug ?? '').trim().toLowerCase()
+  if (!key || key === 'uncategorised') return 'uncategorised'
+  return CATEGORY_LABELS[key] ?? key.replace(/[_-]+/g, ' ')
+}

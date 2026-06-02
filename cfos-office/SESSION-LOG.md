@@ -64,6 +64,20 @@ Selector/write-back logic + prompt-layer + staging data hygiene. No schema migra
 - **The redundancy was an instruction conflict, not missing plumbing.** Continuity was fully wired (PriorReadSummary + formatAlreadySaid + ALREADY SAID). The recompose restated the goal math because a concrete, late USER-prompt instruction (`formatReadFocus('target')`: "LEAD with … the contribution the goal needs … show the range") outranked a system-prompt "do NOT re-reveal". A system "don't" loses to a user-prompt "do" — fix the conflicting instruction at its source rather than piling on bans.
 - **The surprise (Session 06 spirit).** The dedup bug was the visible shadow of a deeper silent failure: the learning engine has been persisting zero rules for months. A single 2× signal yields agreement 1.0 ≥ 0.55 → a rule should exist; none do. Worth chasing the bug behind the bug.
 
+### Follow-on — read-quality pass (post-review of a live flow)
+
+Reviewing a real onboarding flow surfaced four read-quality defects (and one voice leak) outside the original dedup/voice scope but glaring enough to fix in the same branch:
+
+- **Raw category slugs leaked** (`eat_drinking_out`, `renfe`) into the Read + chat. `getSpendingBreakdown` used `category_id` verbatim. Added `categoryLabel()` + a label map in `categories.ts` and humanised at render (`formatSpendingBreakdown`) — slug stays the data key (no breakdown/test churn), only the display is humanised.
+- **The cut lever was mis-sourced — the renfe bug.** `deriveCutLever` read the biggest `recurring_expenses` row (minus rent), which surfaced essentials you can't trim (council tax, water, energy) or a variable transport line the recurring-detector misflagged (renfe), then the Read stapled that tiny unrelated cut to whatever category the breakdown named — "the one move that closes it" → a €6 renfe trim against a €276 gap. Rewrote it to take the biggest **discretionary** category (`DISCRETIONARY_CATEGORY_IDS` allowlist) from the spending breakdown, sized at a 25% trim — the SAME category the ACTION names, so the move is coherent. `compose-first-read.ts` reordered so the breakdown feeds the lever. Verified on the real €500k-goal user: cut now = **eating & drinking out €685/mo**, with transport/groceries/utilities correctly excluded.
+- **"One move" contradiction** fixed in the value-first ACTION prompt: name the cut lever's category (now == the biggest discretionary spend), only claim it "closes" the gap when the trim ≥ shortfall, and never staple a small fixed-bill/transport line to a larger gap.
+- **Cents everywhere** (`€2,040.97`, `€1,513.99`) → whole-currency rounding (`Math.round` before `formatMoney`) across the Read formatters + `buildGoalSummary`.
+- **"The system has tagged…" voice leak** → BASE_PERSONA now bans referencing the product's own internals ("the system", "auto-categorised", "the algorithm"); state what's true about the money, not how the software derived it.
+
+Tests: `levers.test.ts` (+5 — discretionary cut selection, essentials/renfe exclusion, `categoryLabel`, `DISCRETIONARY_CATEGORY_IDS`). Full suite **1059 pass**; typecheck + build clean; lint 0 errors.
+
+Follow-on files: `categories.ts` (label + discretionary set), `levers.ts` (cut lever rewrite), `compose-first-read.ts` (reorder + detectBreakdownCited + goal-money rounding), `prompts/first-read.ts` (labels + rounding + ACTION fix), `system-prompt.ts` (internals voice ban), `analytics/__tests__/levers.test.ts`.
+
 ### No production write this session. Staging only.
 
 ---

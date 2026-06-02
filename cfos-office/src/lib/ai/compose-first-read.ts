@@ -31,6 +31,7 @@ import {
   type HookCandidate,
 } from '@/lib/ai/compose-first-read-hooks';
 import { getSpendingBreakdown, type SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
+import { categoryLabel } from '@/lib/analytics/categories';
 import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
 import { monthsBetween } from '@/lib/goals/pace';
 import { requiredMonthlyBand } from '@/lib/finance/compound-growth';
@@ -70,13 +71,12 @@ export async function composeFirstRead(params: {
   const mode = params.mode ?? 'default';
   const isRecompose = mode === 'value_first_recompose';
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts, benchmarkObservation, entry] = await Promise.all([
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
     getTopMerchantKeys(supabase, params.userId),
     getActiveGoal(supabase, params.userId),
     getTransactionCount(supabase, params.userId, WINDOW_DAYS),
     getDataWindowEnd(supabase, params.userId),
-    deriveLevers({ supabase, userId: params.userId }),
     getFinancialFacts(supabase, params.userId),
     getTopBenchmarkObservation(supabase, params.userId),
     getEntryStruggle(supabase, params.userId),
@@ -90,6 +90,17 @@ export async function composeFirstRead(params: {
     WINDOW_DAYS,
     dataWindowEnd,
   );
+
+  // Levers run AFTER the breakdown: the cut lever names the biggest discretionary
+  // category from it, so the Read's ONE ACTION and the breakdown refer to the
+  // same category (was: a recurring_expenses cut that surfaced essentials/renfe).
+  const leverPackage = await deriveLevers({
+    supabase,
+    userId: params.userId,
+    currency: financialFacts.currency,
+    spendingBreakdown,
+    windowDays: WINDOW_DAYS,
+  });
 
   // Goal-first precedence, mirroring resolveUserIntent() in insight-engine.ts.
   const readRecipe = selectReadRecipe({
@@ -370,11 +381,13 @@ function buildGoalSummary(
   currency: string,
 ): string {
   const lines: string[] = [];
+  // Whole-currency rounding for the Read — cents read like a spreadsheet, not a CFO.
+  const m = (v: number) => formatMoney(Math.round(v), currency);
   const head = [
     goal.name,
-    goal.target_amount != null ? `target ${formatMoney(goal.target_amount, currency)}` : null,
+    goal.target_amount != null ? `target ${m(goal.target_amount)}` : null,
     goal.current_amount != null
-      ? `already saved ${formatMoney(goal.current_amount, currency)}`
+      ? `already saved ${m(goal.current_amount)}`
       : null,
     goal.target_date ? `by ${goal.target_date}` : null,
   ]
@@ -395,21 +408,21 @@ function buildGoalSummary(
     const current = goal.current_amount ?? 0;
     const band = requiredMonthlyBand({ targetAmount: target, currentAmount: current, months: monthsLeft });
     const bandStr = band
-      .map((b) => `${formatMoney(b.monthly ?? 0, currency)}/mo at ${b.ratePct}%`)
+      .map((b) => `${m(b.monthly ?? 0)}/mo at ${b.ratePct}%`)
       .join(', ');
     const linear = Math.max(0, (target - current) / monthsLeft);
     lines.push(
       `Monthly contribution needed, accounting for COMPOUND GROWTH (the pot earns returns, ` +
         `so far less than a flat split): ${bandStr}. ` +
-        `A naive no-growth split would demand ${formatMoney(linear, currency)}/mo — cite the ` +
+        `A naive no-growth split would demand ${m(linear)}/mo — cite the ` +
         `growth-aware figures, not that. Explain in plain language that over this horizon ` +
-        `returns on the ${formatMoney(current, currency)} already saved do much of the work. ` +
+        `returns on the ${m(current)} already saved do much of the work. ` +
         `Give a clear verdict on whether the target is realistic given their free cash flow.`,
     );
   } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
     lines.push(
-      `Monthly contribution needed: ${formatMoney(goal.monthly_required_saving, currency)}/mo ` +
-        `(straight-line, already nets off the ${formatMoney(goal.current_amount ?? 0, currency)} saved).`,
+      `Monthly contribution needed: ${m(goal.monthly_required_saving)}/mo ` +
+        `(straight-line, already nets off the ${m(goal.current_amount ?? 0)} saved).`,
     );
   }
 
@@ -559,10 +572,14 @@ function detectBreakdownCited(
   const lower = message.toLowerCase();
 
   for (const slice of breakdown.top_categories) {
-    // Match either the raw slug ("dining_out") or its spaced form ("dining out").
+    // Match the raw slug ("dining_out"), its spaced form, or the human label
+    // ("eating & drinking out") the Read actually prints.
     const slug = slice.category.toLowerCase();
     const spaced = slug.replace(/_/g, ' ');
-    if (slug.length > 2 && (lower.includes(slug) || lower.includes(spaced))) return true;
+    const label = categoryLabel(slice.category).toLowerCase();
+    if (slug.length > 2 && (lower.includes(slug) || lower.includes(spaced) || lower.includes(label))) {
+      return true;
+    }
   }
 
   const total = breakdown.biggest_merchant?.total;

@@ -19,6 +19,7 @@ import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
 import type { FinancialFacts } from '@/lib/ai/compose-first-read';
 import { currencySymbol, formatMoney } from '@/lib/format/money';
+import { categoryLabel } from '@/lib/analytics/categories';
 
 const DAYS_PER_MONTH = 30.44;
 import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
@@ -181,7 +182,7 @@ Your job: write the user's first Read. Not a summary — a move. Tight, specific
 
 STRUCTURE (this is the contract — POSITION, then one action, then clarifiers, then levers):
 1. POSITION — open on the numbers that set the stakes: free cash flow from FINANCIAL FACTS, and where the goal sits against it (what it needs per month vs what's free). Use the FINANCIAL FACTS and GOAL figures verbatim; do NOT recompute or improvise. If the goal math gives a compound-growth band, show the range ("~X at the low end, ~Y if returns are stronger"), not one scary number, and say plainly where the exposure is.
-2. ONE ACTION — the single highest-leverage behavioural move, quantified against the goal gap. Lead it plainly: "The one move that closes it: …". Name the category, its share of tracked spend (from SPENDING BREAKDOWN), and the sized trim from the LEVERS section. Frame the magnitudes you were handed; never compute a new one.
+2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it.
 3. CLARIFIERS — one or two things the data can't settle on its own, posed as DIRECT QUESTIONS on the HOOK CANDIDATES. Cite the merchant, amount, and period_hint verbatim, then ask the either/or: "Aldi, €431 over 90 days, irregular — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
 4. LEVERS + HANDOFF — name the levers worth pulling next as HEADLINES only (e.g. recurring bills, a spend-pattern change like two no-spend days a week) — named, not walked through. Position the Value Map as where these get prioritised against what the user actually values, and note the clarifiers above still gate that precision. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
 
@@ -399,7 +400,7 @@ function formatFinancialFacts(
 ): string {
   if (!facts) return '(no financial facts on file yet — fall back to qualitative framing)';
   const m = (v: number | null | undefined) =>
-    v == null ? null : formatMoney(v, currency);
+    v == null ? null : formatMoney(Math.round(v), currency);
   const lines: string[] = [];
 
   // Variable income: do NOT present a single flat monthly figure. The income
@@ -431,13 +432,15 @@ function formatSpendingBreakdown(
   if (!breakdown || breakdown.top_categories.length === 0) {
     return '(breakdown unavailable — too few transactions)';
   }
-  const m = (v: number) => formatMoney(v, currency);
+  // Whole-currency rounding (cents read like a spreadsheet) + human category
+  // labels (never the raw slug — "eating & drinking out", not "eat_drinking_out").
+  const m = (v: number) => formatMoney(Math.round(v), currency);
   const lines: string[] = [];
   lines.push(`- Total tracked spend (window): ${m(breakdown.total_spend)}`);
   lines.push(
     `- Top categories: ` +
       breakdown.top_categories
-        .map((c) => `${c.category} ${m(c.total)} (${c.pct}%)`)
+        .map((c) => `${categoryLabel(c.category)} ${m(c.total)} (${c.pct}%)`)
         .join(', '),
   );
   if (breakdown.biggest_merchant) {
@@ -540,7 +543,7 @@ function formatHookCandidates(hooks: HookCandidate[], currency: string): string 
       return [
         `${idx + 1}. **${h.label}**`,
         `   - cluster_id: ${h.cluster_id}`,
-        `   - recent amount (window): ${formatMoney(h.recent_amount, currency)}`,
+        `   - recent amount (window): ${formatMoney(Math.round(h.recent_amount), currency)}`,
         `   - pattern hint: ${h.period_hint}`,
         `   - candidate quadrants: ${h.candidate_quadrants.join(' | ')}`,
       ].join('\n');
@@ -756,9 +759,9 @@ function formatClusterForPrompt(b: ClusterBehaviour, currency: string): string {
   const isRecurring =
     b.recurrence.pattern_label === 'monthly' || b.recurrence.pattern_label === 'weekly';
   lines.push(
-    `- volume: ${b.transaction_count} txns totalling ${formatMoney(total, currency)} over ${b.window_days}d` +
+    `- volume: ${b.transaction_count} txns totalling ${formatMoney(Math.round(total), currency)} over ${b.window_days}d` +
       (perMonth != null
-        ? ` (≈ ${formatMoney(perMonth, currency)}/mo${isRecurring ? ' — recurring, prefer the /mo figure' : ''})`
+        ? ` (≈ ${formatMoney(Math.round(perMonth), currency)}/mo${isRecurring ? ' — recurring, prefer the /mo figure' : ''})`
         : ''),
   );
 
