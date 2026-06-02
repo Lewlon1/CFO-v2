@@ -56,6 +56,14 @@ export type FirstReadComposeInput = {
   spendingBreakdown?: SpendingBreakdown | null;
   /** Goal-conditioned LEAD emphasis. Sets which finding the Read opens on; all layers still compose. */
   readRecipe?: ReadRecipe;
+  /**
+   * Recompose mode — present only for value_first_recompose. When set, the Read
+   * is a DELTA: it leads on what the user's Value Map sorting unlocked, never
+   * restates the prior Read's Layer 1, and closes on a directive into chat.
+   */
+  priorReadSummary?: PriorReadSummary | null;
+  /** The merchant keys actually put in front of the user in the Value Map (Phase 1 selection). */
+  valueMapCardKeys?: string[] | null;
 };
 
 export type FirstReadMetadata = {
@@ -67,19 +75,41 @@ export type FirstReadMetadata = {
   levers_offered: string[];
   /** The field the supply_input blocker named, or null when no blocker existed. */
   blocker_field: string | null;
-  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA. */
-  mode?: 'default' | 'value_first';
+  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta. */
+  mode?: 'default' | 'value_first' | 'value_first_recompose';
   /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
   hook_candidates?: HookCandidate[] | null;
   /** Which LEAD recipe drove this Read (visibility | target | control | open), or null pre-change. */
   read_recipe?: ReadRecipe | null;
   /** Whether the composed prose actually surfaced a breakdown category or headline number. */
   breakdown_cited?: boolean;
+  /** True when this composition is the post-Value-Map delta recompose. */
+  is_recompose?: boolean;
+  /** Probe: does the recompose's first sentence string-match the prior Read's first sentence (should be false on a well-formed delta). */
+  repeated_opening?: boolean;
 };
 
 export type FirstReadComposeOutput = {
   composedMessage: string;
   metadata: FirstReadMetadata;
+};
+
+/**
+ * Summary of the prior First Read, handed to the recompose so it knows what is
+ * ALREADY SAID and must not be restated. Built by the recompose route from the
+ * first assistant message + its persisted metadata.
+ */
+export type PriorReadSummary = {
+  /** Income / fixed costs / free cash flow were already stated as standing facts. */
+  layer1Stated: boolean;
+  /** The goal target was already revealed. */
+  goalStatedAsReveal: boolean;
+  /** Merchants the prior Read named (normalised). Do not re-explain as new findings. */
+  merchantsAlreadyNamed: string[];
+  /** The prior "I can see but can't read" hook set — its job is done. */
+  hookMerchantsUsed: string[];
+  /** First sentence of the prior Read, for the repeated_opening probe. */
+  firstSentence?: string | null;
 };
 
 export const FIRST_READ_SYSTEM_PROMPT = `You are the user's CFO. You have just read their last 90 days of transactions, produced behavioural features for their top merchants, computed levers they can act on, and detected whether anything in the goal math is currently blocked. You also have their Value Map and any goals they've set.
@@ -187,7 +217,53 @@ LENGTH & FORMAT:
 - The CTA is on its own line, immediately before "— C.".
 - Sign off "— C." on its own line.`;
 
+/**
+ * Recompose variant — the message that follows the user's Value Map in the
+ * value-first flow. It is NOT a second First Read: it leads on what the sorting
+ * unlocked, never restates Layer 1, never re-explains a merchant the user just
+ * sorted, and closes on a DIRECTIVE that hands into chat (not another hook, not
+ * another card-sort). It inherits the VALUE-FIRST voice and honesty blocks
+ * verbatim (thread consistency — see the voice fork note in the session log);
+ * only STRUCTURE and CLOSE differ.
+ */
+export const FIRST_READ_SYSTEM_PROMPT_RECOMPOSE = `You are the user's CFO. This is NOT the first thing they have seen. They have already read one Read from you, and they have just finished sorting a set of their real transactions in the Value Map — telling you what those merchants mean to them. This message is the payoff for that work. It is the LAST thing you write before the conversation opens up. Sign off "— C." on its own line.
+
+STRUCTURE (this is the contract):
+1. LEAD — open on what their sorting just UNLOCKED. Not the standing facts they already know. Follow READ FOCUS for the angle:
+   - visibility → lead on the picture their sorting made legible: the proportion of spend now accounted for and where it concentrates (named-merchant proportions / absolute amounts when category coverage is low — see DATA).
+   - target → lead on the gap as it now stands against the goal — what's reaching it vs what it needs — sharpened by what they just classified.
+   - control → lead on the trajectory / biggest drain, now that intent is attached.
+   - open → lead on the single sharpest thing the new classifications reveal.
+2. BODY — at most 1-2 observations the NEW Layer 2 makes possible: a stated-vs-actual divergence now visible ("you called X a Leak — it's your second-biggest outflow"), or the concentration of a quadrant. Reference their sorts as GIVENS, never re-derive them. The single biggest remaining unknown (e.g. the uncategorised share) may be named here, plainly, as the thing still between them and a clean read.
+3. CLOSE — a DIRECTIVE on their own money + a handoff into the conversation. Name the single highest-value next action (resolve the uncategorised, confirm what's reaching the goal, trim the named drain, set the missing target) and point them into chat to do it. Emit the CTA on its own line immediately before "— C.". The CTA label is written from the USER's point of view and lands them in the open conversation, e.g. [CTA:open_chat]Let's sort what's uncategorised[/CTA], [CTA:open_chat]Show me what's reaching the goal[/CTA]. This is a directive that opens the room — not another card-sort step, not a question.
+
+ALREADY SAID — DO NOT RESTATE (these are givens; reference in a clause at most). The specific items are in the ALREADY SAID section of the DATA below:
+- Income / fixed costs / free cash flow as standing facts.
+- The goal target as a fresh reveal.
+- The merchants already named in the first Read.
+- The "I can see this but can't read it" hook — its job is DONE. Do not open another one.
+
+BANNED IN THE RECOMPOSE:
+- Re-opening on Layer 1 (income / fixed / FCF / "the clock is running").
+- Re-explaining a merchant the user just sorted as if it were a new finding.
+- A second "I can see X but can't read it without you" hook.
+- Any paragraph ending in a question back to the user.
+- "What do you think?" / "Does that sound right?" closes.
+- The words "advice" or "advise" anywhere.
+- Emoji. Product names or buy/sell/switch calls.
+- Inventing magnitudes — every number comes verbatim from the DATA below.
+
+HONESTY (NO HALLUCINATION):
+- Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
+- Never attribute a transaction to today's date. The data is a snapshot.
+- Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS. Never compute a sum yourself.
+- Proportions and percentages come verbatim from SPENDING BREAKDOWN. When category coverage is low (a large uncategorised share), DO NOT state a total-spend % you can't support — lead on named-merchant proportions and absolute amounts instead.
+- Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim — never recompute them.
+
+LENGTH & FORMAT: hard cap 200 words (tighter than the first Read — it's a delta). Plain prose. Bold (**) merchant names on first mention. CTA on its own line before "— C.". Sign off "— C." on its own line.`;
+
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
+  const isRecompose = input.priorReadSummary != null;
   const isValueFirst = (input.hookCandidates?.length ?? 0) > 0;
   const sections: string[] = [
     `DATA RECENCY:`,
@@ -210,6 +286,19 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     formatSpendingBreakdown(input.spendingBreakdown),
     ``,
   ];
+
+  // Recompose mode: render WHAT THE USER JUST SORTED (the payoff source) and
+  // ALREADY SAID (the do-not-restate contract) before the goal-math sections.
+  if (isRecompose) {
+    sections.push(
+      `WHAT THE USER JUST SORTED (Layer 2 just landed — this is the payoff source; reference these as GIVENS):`,
+      formatWhatJustSorted(input),
+      ``,
+      `ALREADY SAID — DO NOT RESTATE (these were in the first Read; reference in a clause at most):`,
+      formatAlreadySaid(input.priorReadSummary ?? null),
+      ``,
+    );
+  }
 
   // BLOCKER + LEVERS are rendered in BOTH modes. The value-first close stays the
   // HOOK, but the goal math (blocker "set a target", sized cut levers) must be
@@ -254,7 +343,9 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
       ? '(no clusters with sufficient data — fall back to the transaction count and acknowledge the thin data)'
       : input.topClusterBehaviours.map(formatClusterForPrompt).join('\n\n'),
     ``,
-    isValueFirst
+    isRecompose
+      ? `COMPOSE THE RECOMPOSE NOW. Lead on what their sorting unlocked per READ FOCUS, ≤2 delta observations from the NEW Layer 2 (WHAT THE USER JUST SORTED), close on a directive + [CTA:open_chat]…[/CTA] that lands them in chat. Do not restate anything in ALREADY SAID. Do not open a new hook. Hard cap 200 words. Output the message text only — no markdown code fences, no preamble. Sign off with "— C." on its own line.`
+      : isValueFirst
       ? `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 BEHAVIOURAL CLUSTERS body observations, then CLOSE with the HOOK (2-3 items from HOOK CANDIDATES as statements of curiosity) and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
       : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   );
@@ -428,6 +519,52 @@ function formatDataRecency(input: FirstReadComposeInput): string {
     );
   }
   return lines.join('\n');
+}
+
+/**
+ * What the user just sorted — the recompose payoff source. Renders the directly
+ * classified merchants (Layer 2 by_merchant, just populated) plus the card set
+ * that was put in front of them. These are GIVENS: the recompose references the
+ * user's own calls, it does not re-derive them.
+ */
+function formatWhatJustSorted(input: FirstReadComposeInput): string {
+  const lines: string[] = [];
+  const merchantEntries = Object.entries(input.valueProfile.by_merchant ?? {});
+  if (merchantEntries.length > 0) {
+    lines.push(`Merchants the user just classified (their own words on what these mean):`);
+    for (const [merchant, quadrants] of merchantEntries) {
+      const dominant = (Object.entries(quadrants) as Array<[string, number]>)
+        .sort((a, b) => b[1] - a[1])[0];
+      lines.push(`- ${merchant}: ${dominant?.[0] ?? 'unsure'}`);
+    }
+  }
+  const cardKeys = input.valueMapCardKeys ?? [];
+  if (cardKeys.length > 0) {
+    lines.push(`Cards presented in this Value Map (${cardKeys.length}): ${cardKeys.join(', ')}`);
+  }
+  if (lines.length === 0) {
+    return '(no fresh sorts captured — the Value Map returned thin signal; lead on the biggest remaining unknown instead)';
+  }
+  return lines.join('\n');
+}
+
+/** The do-not-restate contract from the prior Read. */
+function formatAlreadySaid(prior: PriorReadSummary | null): string {
+  if (!prior) return '(no prior Read on file — treat nothing as already said)';
+  const lines: string[] = [];
+  if (prior.layer1Stated) {
+    lines.push(`- Income / fixed costs / free cash flow were already stated as standing facts. Do NOT re-open on them.`);
+  }
+  if (prior.goalStatedAsReveal) {
+    lines.push(`- The goal target was already revealed. Do NOT re-reveal it.`);
+  }
+  if (prior.merchantsAlreadyNamed.length > 0) {
+    lines.push(`- Merchants already named in the first Read (reference as givens, do not re-explain as new): ${prior.merchantsAlreadyNamed.join(', ')}`);
+  }
+  if (prior.hookMerchantsUsed.length > 0) {
+    lines.push(`- The "I can see but can't read it" hook already ran on: ${prior.hookMerchantsUsed.join(', ')}. Its job is DONE — do not open another hook.`);
+  }
+  return lines.length > 0 ? lines.join('\n') : '(nothing flagged as already said)';
 }
 
 function formatValueProfile(profile: UserValueProfile): string {

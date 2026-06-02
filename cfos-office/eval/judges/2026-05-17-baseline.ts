@@ -158,6 +158,48 @@ Return strictly the structured output.`
 
 // ── Score entry point ─────────────────────────────────────────────────────────
 
+/**
+ * Deterministic non-repetition check for the delta recompose. The recompose is
+ * the post-Value-Map message; it must lead on what the sorting unlocked, never
+ * re-open on Layer 1, and never open a SECOND hook. We detect a recompose by
+ * its directive close ([CTA:open_chat]); only then do the anti-pattern penalties
+ * apply, so legitimate first Reads (where a hook IS the correct close) are
+ * untouched. Returns 1.0 for a clean delta (or any non-recompose), lower when
+ * an anti-pattern fires. Prior-first-sentence repetition is covered separately
+ * by compose-first-read's `repeated_opening` metadata (it needs the prior Read,
+ * which a single-response judge does not have).
+ */
+export function nonRepetitionScore(text: string): { score: number; notes: string[] } {
+  const isRecompose = /\[CTA:open_chat\]/i.test(text)
+  if (!isRecompose) return { score: 1, notes: [] }
+
+  const notes: string[] = []
+  let score = 1
+
+  // A second hook — the recompose must not re-open "I can see X but can't read
+  // it" nor re-emit the value-map CTA.
+  const secondHook =
+    /\[CTA:start_value_map_real\]/i.test(text) ||
+    /can'?t (read|tell|interpret)[^.]*without you/i.test(text) ||
+    /tell me what (these|they) mean/i.test(text)
+  if (secondHook) {
+    score -= 0.5
+    notes.push('opened a second hook in the recompose')
+  }
+
+  // Re-opening on Layer 1 boilerplate — the standing facts were already said.
+  const firstSentence = (text.trim().split(/(?<=[.!?])\s+|\n/)[0] ?? '').toLowerCase()
+  const reopensLayer1 =
+    /the clock is running/i.test(text) ||
+    /\b(free cash flow|take-home|fixed costs?)\b/.test(firstSentence)
+  if (reopensLayer1) {
+    score -= 0.3
+    notes.push('re-opened on Layer 1 standing facts')
+  }
+
+  return { score: Math.max(0, score), notes }
+}
+
 export async function score(input: JudgeInput): Promise<JudgeScore> {
   // Lazy require to avoid loading the model client at module-import time —
   // tests and pair-storage helpers that just touch the types shouldn't need
@@ -170,8 +212,16 @@ export async function score(input: JudgeInput): Promise<JudgeScore> {
     prompt: buildPrompt(input),
   })
 
+  // Deterministic recompose non-repetition gate. When a recompose trips an
+  // anti-pattern, dock the headline wow proportionally — a repetitive delta is
+  // the exact failure this phase exists to kill.
+  const nonRep = nonRepetitionScore(input.response.text)
+  const wow_score = nonRep.score < 1
+    ? Math.max(0, object.wow_score * nonRep.score)
+    : object.wow_score
+
   return {
-    wow_score: object.wow_score,
+    wow_score,
     diagnostic: {
       recognition: object.recognition,
       goal_calibration: object.goal_calibration,
@@ -180,7 +230,10 @@ export async function score(input: JudgeInput): Promise<JudgeScore> {
       trust: object.trust,
       tangibility: object.tangibility,
       voice: object.voice,
+      non_repetition: nonRep.score,
     },
-    reasoning: object.reasoning,
+    reasoning: nonRep.notes.length > 0
+      ? `${object.reasoning} [non-repetition: ${nonRep.notes.join('; ')}]`
+      : object.reasoning,
   }
 }

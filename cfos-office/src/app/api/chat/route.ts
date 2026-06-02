@@ -390,6 +390,32 @@ export async function POST(req: Request) {
     ? `${baseSystemPrompt}\n\n---\n\n${stallSystemNote}`
     : baseSystemPrompt;
 
+  // Why-beat one-shot gate. The read-and-confirm opener is injected by
+  // buildWhyBeatContext for the first first_read turn after the delta recompose
+  // (this turn's prompt was already built from the in-memory metadata above).
+  // Burn the window now so turn 2+ won't re-offer it — fire-and-forget; the
+  // framing rule itself handles "drop it if the user deflects".
+  if (
+    isLayeredReadEnabled() &&
+    conversationType === 'first_read' &&
+    conversationMetadata?.first_read_metadata_recomposed &&
+    !conversationMetadata?.why_beat_offered &&
+    activeConversationId
+  ) {
+    const convId = activeConversationId;
+    const mergedMeta = { ...conversationMetadata, why_beat_offered: true };
+    after(async () => {
+      try {
+        await createServiceClient()
+          .from('conversations')
+          .update({ metadata: mergedMeta })
+          .eq('id', convId);
+      } catch (err) {
+        console.error('[chat] why_beat_offered flag set failed:', err);
+      }
+    });
+  }
+
   const toolCtx: ToolContext = {
     supabase,
     userId: user.id,

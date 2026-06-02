@@ -36,9 +36,11 @@ import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
 import {
   FIRST_READ_SYSTEM_PROMPT,
   FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST,
+  FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
   buildFirstReadUserPrompt,
   type FirstReadComposeOutput,
   type FirstReadMetadata,
+  type PriorReadSummary,
 } from './prompts/first-read';
 
 const WINDOW_DAYS = 90;
@@ -48,15 +50,22 @@ const MAX_OUTPUT_TOKENS = 700;
 
 const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
 
-export type ComposeFirstReadMode = 'default' | 'value_first';
+export type ComposeFirstReadMode = 'default' | 'value_first' | 'value_first_recompose';
+
+export type { PriorReadSummary };
 
 export async function composeFirstRead(params: {
   userId: string;
   supabase?: SupabaseClient;
   mode?: ComposeFirstReadMode;
+  /** Present only for value_first_recompose — what the prior Read already said. */
+  priorReadSummary?: PriorReadSummary;
+  /** The merchant keys the Value Map actually presented (Phase 1 selection), for the recompose payoff context. */
+  valueMapCardKeys?: string[];
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
+  const isRecompose = mode === 'value_first_recompose';
 
   const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
@@ -147,10 +156,14 @@ export async function composeFirstRead(params: {
     benchmarkObservation,
     spendingBreakdown,
     readRecipe,
+    // Recompose-only: the delta contract + payoff source.
+    priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
+    valueMapCardKeys: isRecompose ? (params.valueMapCardKeys ?? null) : null,
   });
 
-  const systemPrompt =
-    mode === 'value_first' && hookCandidates.length > 0
+  const systemPrompt = isRecompose
+    ? FIRST_READ_SYSTEM_PROMPT_RECOMPOSE
+    : mode === 'value_first' && hookCandidates.length > 0
       ? FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST
       : FIRST_READ_SYSTEM_PROMPT;
 
@@ -174,6 +187,7 @@ export async function composeFirstRead(params: {
     hookCandidates,
     readRecipe,
     spendingBreakdown,
+    priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
   });
 
   return { composedMessage, metadata };
@@ -374,6 +388,14 @@ async function getTransactionCount(
   return count ?? 0;
 }
 
+/** First sentence, lowercased + whitespace-collapsed, for the repeated-opening probe. */
+function firstSentenceOf(message: string): string {
+  const trimmed = message.trim();
+  // Split on sentence-ending punctuation followed by space/newline, or newline.
+  const match = trimmed.split(/(?<=[.!?])\s+|\n/)[0] ?? trimmed;
+  return match.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 export function extractCompositionMetadata(args: {
   composedMessage: string;
   usableClusters: ClusterBehaviour[];
@@ -383,8 +405,10 @@ export function extractCompositionMetadata(args: {
   hookCandidates?: HookCandidate[];
   readRecipe?: ReadRecipe;
   spendingBreakdown?: SpendingBreakdown | null;
+  priorReadSummary?: PriorReadSummary | null;
 }): FirstReadMetadata {
   const text = args.composedMessage.toLowerCase();
+  const isRecompose = args.mode === 'value_first_recompose';
 
   const layers_used = ['L1', 'L2', 'L3'];
   if (args.goalSummary) layers_used.push('L5');
@@ -409,6 +433,16 @@ export function extractCompositionMetadata(args: {
 
   const breakdown_cited = detectBreakdownCited(args.composedMessage, args.spendingBreakdown);
 
+  // Repeated-opening probe: a well-formed delta recompose must NOT open on the
+  // prior Read's first sentence. Only meaningful in recompose mode with a prior
+  // sentence on hand.
+  const priorFirst = args.priorReadSummary?.firstSentence
+    ? args.priorReadSummary.firstSentence.toLowerCase().replace(/\s+/g, ' ').trim()
+    : null;
+  const repeated_opening = isRecompose && priorFirst
+    ? firstSentenceOf(args.composedMessage) === priorFirst
+    : false;
+
   return {
     layers_used,
     features_cited,
@@ -420,6 +454,8 @@ export function extractCompositionMetadata(args: {
     hook_candidates: args.hookCandidates ?? null,
     read_recipe: args.readRecipe ?? null,
     breakdown_cited,
+    is_recompose: isRecompose,
+    repeated_opening,
   };
 }
 

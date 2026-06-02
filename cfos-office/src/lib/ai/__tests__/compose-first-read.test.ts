@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { extractCompositionMetadata } from '../compose-first-read';
+import { buildFirstReadUserPrompt, type FirstReadComposeInput } from '../prompts/first-read';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 
 function mockCluster(name: string): ClusterBehaviour {
@@ -231,5 +232,109 @@ describe('extractCompositionMetadata', () => {
       spendingBreakdown: null,
     });
     expect(md.breakdown_cited).toBe(false);
+  });
+
+  it('sets is_recompose and a false repeated_opening on a well-formed delta', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'Your sorting just made the picture legible. Dining is your biggest leak.\n\n— C.',
+      usableClusters: [],
+      goalSummary: null,
+      mode: 'value_first_recompose',
+      priorReadSummary: {
+        layer1Stated: true,
+        goalStatedAsReveal: true,
+        merchantsAlreadyNamed: ['Tesco'],
+        hookMerchantsUsed: ['Uber'],
+        firstSentence: 'You bring in 3000 a month, with 1800 going to fixed costs.',
+      },
+    });
+    expect(md.is_recompose).toBe(true);
+    expect(md.repeated_opening).toBe(false);
+    expect(md.mode).toBe('value_first_recompose');
+  });
+
+  it('flags repeated_opening when the recompose reopens on the prior first sentence', () => {
+    const prior = 'You bring in 3000 a month, with 1800 going to fixed costs.';
+    const md = extractCompositionMetadata({
+      composedMessage: `${prior} And here we are again.\n\n— C.`,
+      usableClusters: [],
+      goalSummary: null,
+      mode: 'value_first_recompose',
+      priorReadSummary: {
+        layer1Stated: true,
+        goalStatedAsReveal: true,
+        merchantsAlreadyNamed: [],
+        hookMerchantsUsed: [],
+        firstSentence: prior,
+      },
+    });
+    expect(md.repeated_opening).toBe(true);
+  });
+
+  it('leaves is_recompose false and repeated_opening false in default/value_first modes', () => {
+    const md = extractCompositionMetadata({
+      composedMessage: 'A normal first read.',
+      usableClusters: [],
+      goalSummary: null,
+      mode: 'value_first',
+    });
+    expect(md.is_recompose).toBe(false);
+    expect(md.repeated_opening).toBe(false);
+  });
+});
+
+describe('buildFirstReadUserPrompt — recompose mode', () => {
+  const baseInput: FirstReadComposeInput = {
+    userId: 'u1',
+    valueProfile: {
+      by_category: {},
+      signal_count: {},
+      by_merchant: { Dining: { foundation: 0, investment: 0, leak: 1, burden: 0 } },
+      signal_count_by_merchant: { Dining: 3 },
+      has_value_map: true,
+      has_any_leak_signal: true,
+    },
+    goalSummary: 'House deposit · target 20000 · by 2027-01-01',
+    topClusterBehaviours: [],
+    transactionCountTotal: 120,
+    windowDays: 90,
+    dataWindowEnd: '2026-03-31',
+    dataAgeDays: 5,
+    financialFacts: {
+      net_monthly_income: 3000,
+      monthly_rent: 1200,
+      total_fixed_costs: 1800,
+      free_cash_flow: 1200,
+    },
+    spendingBreakdown: null,
+    readRecipe: 'visibility',
+  };
+
+  it('renders ALREADY SAID + WHAT THE USER JUST SORTED when priorReadSummary present', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...baseInput,
+      priorReadSummary: {
+        layer1Stated: true,
+        goalStatedAsReveal: true,
+        merchantsAlreadyNamed: ['Tesco', 'Uber'],
+        hookMerchantsUsed: ['Uber'],
+        firstSentence: 'You bring in 3000 a month.',
+      },
+      valueMapCardKeys: ['Dining', 'Tesco', 'Uber'],
+    });
+    expect(prompt).toContain('WHAT THE USER JUST SORTED');
+    expect(prompt).toContain('ALREADY SAID');
+    expect(prompt).toContain('Tesco');
+    expect(prompt).toContain('COMPOSE THE RECOMPOSE NOW');
+    expect(prompt).toContain('[CTA:open_chat]');
+    // The hook is done — no HOOK CANDIDATES section in recompose mode.
+    expect(prompt).not.toContain('HOOK CANDIDATES');
+  });
+
+  it('omits the recompose sections for a normal first read', () => {
+    const prompt = buildFirstReadUserPrompt(baseInput);
+    expect(prompt).not.toContain('WHAT THE USER JUST SORTED');
+    expect(prompt).not.toContain('ALREADY SAID');
+    expect(prompt).toContain('COMPOSE THE FIRST READ NOW');
   });
 });

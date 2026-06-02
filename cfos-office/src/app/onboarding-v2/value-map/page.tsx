@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { resumeRoute } from '@/lib/onboarding-v2/resume'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
@@ -7,6 +8,7 @@ import {
   getHookCandidatesForUser,
   buildRealTransactionsFromHooks,
 } from '@/lib/value-map/hook-transactions'
+import { selectValueMapCards } from '@/lib/value-map/select-cards'
 import type { ValueMapTransaction } from '@/lib/value-map/types'
 import { ValueMapOrchestrator } from './value-map-orchestrator'
 
@@ -67,12 +69,30 @@ export default async function OnboardingV2ValueMapPage({
   if (isValueFirstPath) {
     const hooks = await getHookCandidatesForUser(supabase, user.id)
     if (hooks && hooks.length > 0) {
-      realTransactions = await buildRealTransactionsFromHooks(
-        supabase,
-        user.id,
-        hooks,
-        currency,
-      )
+      // Decoupled selection: the teased hooks become the SEED for a broader
+      // (≤10) card set chosen by divergence + coverage + spread. merchant_
+      // aggregates is service-role only, so use the service client here.
+      try {
+        const svc = createServiceClient()
+        const selection = await selectValueMapCards(svc, user.id, hooks, currency)
+        if (selection.cards.length > 0) {
+          realTransactions = selection.cards
+          // Persist what was actually put in front of the user so the recompose
+          // (Phase 2) and the why-beat picker (Phase 3) can read the real set.
+          await persistValueMapCards(supabase, user.id, selection)
+        }
+      } catch (err) {
+        console.error('[value-map.page] selectValueMapCards failed', err)
+      }
+      // Fallback: selector returned empty (or threw) → the original hook builder.
+      if (realTransactions.length === 0) {
+        realTransactions = await buildRealTransactionsFromHooks(
+          supabase,
+          user.id,
+          hooks,
+          currency,
+        )
+      }
     }
     // Stamp value_map_offered so a refresh keeps the user here instead of
     // bouncing to /first-read.
@@ -103,4 +123,50 @@ export default async function OnboardingV2ValueMapPage({
       valueFirst={isValueFirstPath}
     />
   )
+}
+
+/**
+ * Persist the Value Map card selection onto the active first_read conversation
+ * metadata (`value_map_cards`), so the delta recompose and the why-beat picker
+ * read what was actually sorted. Merge-update; non-fatal on failure. The user
+ * owns the conversation row, so the user client's RLS permits the update.
+ */
+async function persistValueMapCards(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  selection: Awaited<ReturnType<typeof selectValueMapCards>>,
+): Promise<void> {
+  try {
+    const { data: conv } = await supabase
+      .from('conversations')
+      .select('id, metadata')
+      .eq('user_id', userId)
+      .eq('type', 'first_read')
+      .eq('metadata->>layered_read', 'true')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (!conv?.id) return
+
+    const keys = selection.cards
+      .map((c) => c.merchant ?? c.description ?? '')
+      .filter((s: string) => s.length > 0)
+    const prev = (conv.metadata as Record<string, unknown> | null) ?? {}
+    const newMeta = {
+      ...prev,
+      value_map_cards: {
+        keys,
+        selectionReason: selection.selectionReason,
+        coveragePct: selection.coveragePct,
+        includedHookMerchants: selection.includedHookMerchants,
+      },
+    }
+    await supabase
+      .from('conversations')
+      .update({ metadata: newMeta })
+      .eq('id', conv.id)
+  } catch (err) {
+    console.error('[value-map.page] persistValueMapCards failed', err)
+  }
 }

@@ -2666,3 +2666,46 @@ When Lewis runs the full eval, the personas to watch for failure modes:
 - free_text recipe is keyword-only — Haiku fallback for ambiguous text deferred (kept the selector a pure, no-LLM function in the one-shot path).
 - **Persona coverage gap (target recipe):** every CSV-bearing persona uses `entryStruggle: 'dont_know'` (→ visibility). Visibility coverage already exists implicitly via existing `mustReferenceMerchantsFromCsv` assertions (the breakdown leads with the real biggest merchant). There is NO CSV-bearing `target`/`control` persona, so the "gap appears" assertion has nothing to attach to without authoring a new persona — which can't be validated without the e2e harness. Did NOT weaken existing tuned OR-pools. Authoring a CSV+concrete-goal target persona is a follow-up (relates to §10's open routing fork).
 - Confirmed (§10 fork): wealth/planning DO reach value-first compose post-UI-merge, because mode keys off onboarding_step not struggle.
+
+---
+
+## Session — Delta recompose, decoupled Value Map, why-beat — 2026-06-02
+
+**Branch:** `claude/delta-recompose-valuemap-why-G4aHn` (goal-anchoring already present — verified identical to `youthful-fermi-3Xc54`, 0/0 ahead/behind)
+**Headline:** Post-Value-Map recompose is now a delta (leads on what sorting unlocked, never restates Layer 1, closes on a directive into chat). Value Map decoupled from the hook teaser — up to 10 cards by divergence + coverage + spread. New single-merchant why-beat as a framing-gated chat opener over the existing Layer 4. Additive; rides `isLayeredReadEnabled()`. No migration.
+
+### What shipped
+- `value-map/select-cards.ts` (+tests) — ≤10 cards, hooks seeded, divergence-ranked, coverage floor ~70%, cross-domain spread. Pure `chooseCards` + IO `selectValueMapCards` + shared `buildCandidateMerchants`. Decoupled from the First Read hook close; the hook teaser is now the SEED.
+- `compose-first-read.ts` — `value_first_recompose` mode + `priorReadSummary` + `valueMapCardKeys`; reuses breakdown/levers/recipe/value-profile reads; metadata `is_recompose` + `repeated_opening` (first-sentence-vs-prior probe).
+- `prompts/first-read.ts` — `FIRST_READ_SYSTEM_PROMPT_RECOMPOSE` (delta contract; inherits VALUE-FIRST voice/honesty verbatim); WHAT-THE-USER-JUST-SORTED + ALREADY-SAID sections; recompose COMPOSE directive (≤200 words, `[CTA:open_chat]`).
+- `recompose-first-read` route — fetches the prior Read (first assistant message), builds `priorReadSummary` (layer1Stated, goalStatedAsReveal, merchantsAlreadyNamed from clusters_referenced+hooks, hookMerchantsUsed, firstSentence), reads `value_map_cards` keys, calls recompose mode, persists recomposed metadata.
+- `onboarding-v2/value-map/page.tsx` — value-first path calls `selectValueMapCards` (service client, since merchant_aggregates is service-role only); preserves hook-builder → samples fallbacks; persists `value_map_cards` {keys, selectionReason, coveragePct, includedHookMerchants} onto the first_read conversation metadata.
+- `value-map/significant-merchant.ts` (+tests) — pure `chooseSignificantMerchant` + IO `pickSignificantAmbiguousMerchant`. High-salience AND ambiguous (low sort-confidence OR unsorted OR stated-vs-actual divergence). Reuses `computeDivergenceScore` so picker and selector agree.
+- `context-builder.ts` — `renderWhyBeatBlock` + `buildWhyBeatContext` (read-and-confirm opener, framing-gated, once); slotted into the V2 first_insight prompt assembly. `chat/route.ts` sets `why_beat_offered` fire-and-forget after the first delivered-recompose first_read turn (turn-1 injection, burns the window for turn 2+).
+- `ChatCTA.tsx` — `open_chat` added to ACTION_TYPES so the recompose directive renders as a tappable button that sends the label into chat.
+- `eval/judges/2026-05-17-baseline.ts` (+tests) — deterministic `nonRepetitionScore`: detects a recompose via `[CTA:open_chat]` and docks wow for a second hook / Layer-1 re-open. `non_repetition` added to diagnostic. (First-sentence-vs-prior repetition is covered by compose metadata `repeated_opening`, which a single-response judge can't see.)
+
+### Phase 0 ground truth
+- Goal-anchoring present: YES. `ReadRecipe = 'visibility'|'target'|'control'|'open'` from `@/lib/ai/first-read-recipe`. `SpendingBreakdown` (total_spend, top_categories, biggest_merchant, largest_transaction, uncategorised_pct) from `@/lib/analytics/spending-breakdown`. `ComposeFirstReadMode` was `'default'|'value_first'` → extended to add `'value_first_recompose'`. compose-first-read already fetched `entry_struggle` + computed `readRecipe` and threaded breakdown/levers in both modes.
+- Recompose route had the conversation in hand; prior assistant message is fetchable (ordered by created_at). 
+- `ValueMapTransaction` shape: {id, merchant, description, amount, currency, transaction_date, is_recurring, category_id?, granularity?, context?}. Representative-row logic from `buildRealTransactionsFromHooks` (bucket by normalised merchant, most recent).
+- `ClusterBehaviour` divergence fields: total_amount (signed, spend negative), trend.{direction, slope_percent_per_month, confidence}, recurrence.{regularity_score, pattern_label}, transaction_count, amount_profile.mean_amount, lifecycle.
+- `extractAndStoreSignals` (chat_signals extractor) fires fire-and-forget in `/api/chat` `after()` on EVERY user message when `isLayeredReadEnabled()` — so the why-beat reply is captured regardless of conversation type. No new store.
+- First_insight prompt assembly: value-first first_read chats take the V2 branch (`isChatIntelligenceV2Enabled` defaults true) in `buildSystemPrompt` (~L1088) — where the why-beat block slots.
+- CTA flow: `[CTA:type]label[/CTA]` parsed in `MessageList.parseCTA`; ACTION_TYPES render a button via `ChatCTA` wired to the option-select handler → `sendMessage({text: label})`.
+- Normalisation: `merchant_aggregates.merchant_key` is RAW description; `getClusterBehaviour` resolves a clusterId via ILIKE substring (`resolveMerchantKeys`), so passing a `normaliseMerchantDescription`-normalised key matches. select-cards uses `normaliseMerchantDescription` throughout for consistency with compose + cluster behaviour.
+
+### Migration
+- None. Why-beat → existing `chat_signals`. Card selector → existing `merchant_aggregates`/`transactions`. Recompose mode → code-only. New gating/selection state (`value_map_cards`, `why_beat_offered`, `first_read_metadata_recomposed`) → `conversations.metadata` (freeform jsonb).
+
+### Verification
+- `tsc --noEmit` clean. `eslint` 0 errors (1 pre-existing `_currency` warning, untouched). `next build` clean. Full vitest 996/996 green (new: select-cards 12, significant-merchant 5, compose recompose +6, why-beat 4, judge non-repetition 4).
+- Staging/Dorcas regression, why-beat `chat_signals` row write, and `compare-first-insight.ts` delta diffing require a live app + Bedrock + DB and were NOT run in this code-only session — recorded as runtime follow-ups below.
+
+### Lessons / follow-ups
+- **Categorisation coverage caps the proportion payoff (54% uncategorised) — TOP follow-up.** The recompose degrades gracefully (leads on named-merchant proportions / absolute amounts when category coverage is low — instructed in the recompose HONESTY block and SPENDING BREAKDOWN rules). The actual fix is a separate Layer-1 categorisation session.
+- **Voice fork (§10): inherited the existing VALUE-FIRST first-person voice block verbatim into the recompose for thread consistency** (the recompose appends to the same thread). Reconciling all three prompts to third-person per the constitution remains the `audit/06` workstream — out of scope here.
+- **Why-beat sequencing vs directive CTA (§10):** resolved as turn-1 injection + immediate `why_beat_offered` burn. The framing rule tells the CFO to address a just-tapped directive first, then offer the read in the same turn — so the directive and the read coexist in one message rather than colliding across turns. If the model ignores it on turn 1 the beat is lost (acceptable for an additive, soft feature).
+- **Persona E2E assertions (manifest item) NOT shipped — follow-up.** The onboarding persona harness (`tests/onboarding/runner/playwright-driver.ts`) drives only the LEGACY Marcus path (`onboarding_route: 'value_map'`, value_map_done → upload); it does not walk the value-first upload → first-read → value-map → recompose → chat why-beat sequence, and does not capture the recompose / why-beat as distinct artifacts. Adding ≤10-card / delta-recompose / why-beat assertions requires a driver extension that cannot be validated without a running app + Bedrock. Shipping unrunnable assertions would be worse than recording the gap.
+- Salience uses spend *share*, not absolute — a lone tiny merchant still scores high (correct for relative selection; the `MIN_SALIENCE` floor only trips when many candidates dilute share AND there's no behavioural loudness).
+- `merchant_aggregates` is a service-role-only materialized view (RLS revoked from authenticated) — the value-map page must use the service client for `selectValueMapCards`, not the user client.

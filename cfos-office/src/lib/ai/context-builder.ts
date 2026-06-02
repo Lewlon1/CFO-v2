@@ -14,6 +14,11 @@ import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
 import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
+import { createServiceClient } from '@/lib/supabase/service';
+import {
+  pickSignificantAmbiguousMerchant,
+  type SignificantMerchant,
+} from '@/lib/value-map/significant-merchant';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -913,6 +918,71 @@ function buildGoalDeriveConfirmContext(
   return lines.join('\n')
 }
 
+/**
+ * Why-beat — the CFO's first live conversational move after the delta recompose
+ * hands off into chat. A read-and-confirm about the single most significant
+ * AMBIGUOUS merchant: offer a plausible interpretation of what it's FOR in the
+ * user's life and invite correction. Never "why do you spend on X"; never frame
+ * spend as a problem to defend. Offered once; the reply is captured by the
+ * existing Layer-4 chat_signals extractor.
+ *
+ * Gated to the value-first first_read thread, after the recompose has been
+ * delivered, before why_beat_offered is set. Returns '' when not applicable.
+ *
+ * Exported so the framing-rule text can be asserted in tests.
+ */
+export function renderWhyBeatBlock(m: SignificantMerchant): string {
+  const conf =
+    m.userConfidence != null
+      ? `they sorted it at confidence ${m.userConfidence}/5`
+      : `they didn't sort it`;
+  const shape = m.likelyDivergence
+    ? `its behavioural shape doesn't match how it's usually treated`
+    : `it's high behavioural salience and worth understanding`;
+  return [
+    `## OPENING MOVE — read-and-confirm (use at most once, on an early turn)`,
+    ``,
+    `There is one merchant worth understanding before anything else: ${m.displayName} (${shape}; ${conf}).`,
+    ``,
+    `Offer a READ and invite correction. Propose a plausible, specific interpretation of what`,
+    `this merchant is FOR in their life, then let them confirm or refine it. You are allowed to`,
+    `be slightly wrong in an interesting way — people engage by correcting a read of themselves.`,
+    ``,
+    `  GOOD: "${m.displayName} looks like the thing you reach for when the day's already gotten`,
+    `         away from you — fair, or is it something else?"`,
+    `  BANNED: "Why do you spend so much on ${m.displayName}?" or any phrasing that asks them to`,
+    `         JUSTIFY a spend. The judgement comes from demanding an account; the resonance comes`,
+    `         from offering a read.`,
+    ``,
+    `Do this ONCE. If they engage, follow their lead. If they deflect or ignore it, drop it — do`,
+    `not re-ask, do not push. Never frame their spending as a problem to defend. Weave it in`,
+    `naturally; if the user just tapped a directive, address that first, then offer the read.`,
+  ].join('\n');
+}
+
+export async function buildWhyBeatContext(
+  userId: string,
+  conversationType?: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  conversationMetadata?: Record<string, any> | null,
+): Promise<string> {
+  if (!isLayeredReadEnabled()) return '';
+  if (conversationType !== 'first_read') return '';
+  // The recompose must have been delivered, and the beat not yet offered.
+  if (!conversationMetadata?.first_read_metadata_recomposed) return '';
+  if (conversationMetadata?.why_beat_offered) return '';
+
+  try {
+    const svc = createServiceClient();
+    const merchant = await pickSignificantAmbiguousMerchant(svc, userId);
+    if (!merchant) return '';
+    return renderWhyBeatBlock(merchant);
+  } catch (err) {
+    console.error('[why-beat] context build failed:', err);
+    return '';
+  }
+}
+
 export async function buildSystemPrompt(
   userId: string,
   conversationType?: string,
@@ -1193,6 +1263,10 @@ export async function buildSystemPrompt(
         experimentProposal,
       ),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+      // Why-beat — the read-and-confirm opener after the delta recompose hands
+      // off. Empty unless this is a delivered-recompose first_read thread with a
+      // significant ambiguous merchant and the beat not yet offered.
+      await buildWhyBeatContext(userId, conversationType, conversationMetadata),
       buildToolUsageInstructions(),
       getPosturePromptFragment(profile),
     ].filter(Boolean);
