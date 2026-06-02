@@ -5,6 +5,11 @@ import type { PreviewTransaction, Category } from '@/lib/parsers/types'
 
 type RowState = {
   categoryId: string | null
+  // Whether the user actively changed the category. Untouched rows are sent
+  // to the server as `null` so it re-derives (rules + LLM) rather than locking
+  // in the client-side suggestion; an explicit "Uncategorised" pick is sent as
+  // '' so it is honoured without re-deriving.
+  touched: boolean
   selected: boolean
 }
 
@@ -28,6 +33,7 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
   const [rows, setRows] = useState<RowState[]>(() =>
     transactions.map((t) => ({
       categoryId: t.suggestedCategoryId,
+      touched: false,
       selected: !t.isDuplicate,
     }))
   )
@@ -47,7 +53,9 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
 
   function handleConfirm() {
     const selected = transactions
-      .map((t, i) => ({ ...t, categoryId: rows[i].categoryId }))
+      // Untouched rows → null (server re-derives via rules + LLM). Touched rows
+      // carry the user's decision: a category id, or '' for explicit Uncategorised.
+      .map((t, i) => ({ ...t, categoryId: rows[i].touched ? rows[i].categoryId : null }))
       .filter((_, i) => rows[i].selected)
     onConfirm(selected)
   }
@@ -98,7 +106,7 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
 
               <select
                 value={row.categoryId ?? ''}
-                onChange={(e) => setRow(i, { categoryId: e.target.value || null })}
+                onChange={(e) => setRow(i, { categoryId: e.target.value, touched: true })}
                 className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm min-h-[44px]"
               >
                 <option value="">Uncategorised</option>
@@ -165,7 +173,7 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
                     <td className="px-3 py-2">
                       <select
                         value={row.categoryId ?? ''}
-                        onChange={(e) => setRow(i, { categoryId: e.target.value || null })}
+                        onChange={(e) => setRow(i, { categoryId: e.target.value, touched: true })}
                         className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
                       >
                         <option value="">Uncategorised</option>
