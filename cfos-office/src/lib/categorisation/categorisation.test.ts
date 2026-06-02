@@ -83,3 +83,32 @@ describe('categoriseByRules — smoke test against beta uncategorised merchants'
     expect(matched.length).toBeGreaterThanOrEqual(8)
   })
 })
+
+describe('categoriseByRules — transaction-type + ES/CA coverage (Levers 2 & 3)', () => {
+  const cases: Array<{ desc: string; expected: string }> = [
+    // Tier 0: P2P marker is stripped by normaliseMerchant, so it must be read
+    // from the raw description before normalisation.
+    { desc: 'ROBYN WELCH (P2P Payment)', expected: 'transfers' },
+    { desc: 'BENJAMIN COOKE (P2P Payment)', expected: 'transfers' },
+    // Income / savings markers from the real uncategorised tail
+    { desc: 'TRANSFERENCIA RECIBIDA NORDIC BRANDS AB', expected: 'income' },
+    { desc: 'Fundsmith SIPP Contribution', expected: 'savings_investments' },
+    // Spanish / Catalan merchants the keyword list now generalises over
+    { desc: 'Bonpreu Gracia', expected: 'groceries' },
+    { desc: 'Carniceria Lopez', expected: 'groceries' },
+    { desc: 'Forn de Pa Sant Jordi', expected: 'groceries' },
+    { desc: 'Vinoteca Torres', expected: 'eat_drinking_out' },
+    { desc: 'La Central Libreria', expected: 'shopping' },
+  ]
+
+  for (const { desc, expected } of cases) {
+    it(`${desc} → ${expected}`, () => {
+      expect(categoriseByRules(desc, { categories: CATEGORIES }).categoryId).toBe(expected)
+    })
+  }
+
+  it('P2P detection survives normalisation that strips the (P2P Payment) tag', () => {
+    // Sanity: the normaliser does remove the marker, proving Tier 0 must run first.
+    expect(normaliseMerchant('ROBYN WELCH (P2P Payment)')).toBe('robyn welch')
+  })
+})
