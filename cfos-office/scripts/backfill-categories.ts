@@ -1,10 +1,14 @@
 /**
  * Backfill category_id for transactions where it is null.
  *
- * Run with: npx tsx scripts/backfill-categories.ts
+ * Dry-run (default) — reports what WOULD change, writes nothing, never calls the LLM:
+ *   npx tsx scripts/backfill-categories.ts
+ * Apply — runs the rules + LLM passes and writes category_id/confidence:
+ *   npx tsx scripts/backfill-categories.ts --apply
  *
  * Env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (via .env.local).
- * Staging by default — DO NOT point at prod without Lewis's sign-off.
+ * Points at whatever those env vars target — DO NOT --apply against prod
+ * without Lewis's sign-off. The script prints the DB host on startup; confirm it.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -46,6 +50,9 @@ const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
+// Dry-run by default; only --apply writes to the DB and calls the LLM.
+const APPLY = process.argv.includes('--apply')
+
 type Txn = {
   id: string
   user_id: string
@@ -54,6 +61,10 @@ type Txn = {
 }
 
 async function run() {
+  const host = (() => { try { return new URL(supabaseUrl).host } catch { return supabaseUrl } })()
+  console.log(`\n${APPLY ? '🔴 APPLY' : '🟢 DRY-RUN'} — target DB: ${host}`)
+  if (!APPLY) console.log('(no writes, no LLM calls — pass --apply to execute)')
+
   const { data: categories, error: catErr } = await supabase
     .from('categories')
     .select('*')
@@ -63,15 +74,18 @@ async function run() {
     .from('transactions')
     .select('id,user_id,description,amount')
     .is('category_id', null)
+    .is('deleted_at', null)
   if (txnErr) throw txnErr
 
   const stats = {
     total: txns?.length ?? 0,
     byRules: 0,
     byLLM: 0,
+    wouldGoToLLM: 0,
     stillNull: 0,
     errors: 0,
   }
+  const byCat: Record<string, number> = {}
 
   if (!txns || txns.length === 0) {
     console.log('Nothing to backfill.')
@@ -111,6 +125,11 @@ async function run() {
     for (const t of userTxns) {
       const result = categoriseByRules(t.description, { ...context, amount: t.amount })
       if (result.categoryId) {
+        byCat[result.categoryId] = (byCat[result.categoryId] ?? 0) + 1
+        if (!APPLY) {
+          stats.byRules++
+          continue
+        }
         const { error } = await supabase
           .from('transactions')
           .update({
@@ -127,6 +146,12 @@ async function run() {
       } else {
         stillNeedLLM.push({ id: t.id, description: t.description })
       }
+    }
+
+    // Dry-run stops here: report how many would go to the LLM, don't call it.
+    if (!APPLY) {
+      stats.wouldGoToLLM += stillNeedLLM.length
+      continue
     }
 
     // Pass 2: LLM in batches of 50
@@ -162,20 +187,32 @@ async function run() {
     }
   }
 
-  console.log('\n=== Backfill complete ===')
+  console.log(`\n=== Backfill ${APPLY ? 'complete' : 'dry-run'} ===`)
   console.log(stats)
+
+  console.log('\n-- would-be matches by category --')
+  for (const [cat, n] of Object.entries(byCat).sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${cat.padEnd(20)} ${n}`)
+  }
 
   const { count: totalCount } = await supabase
     .from('transactions')
     .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null)
   const { count: categorisedCount } = await supabase
     .from('transactions')
     .select('*', { count: 'exact', head: true })
     .not('category_id', 'is', null)
+    .is('deleted_at', null)
 
   if (totalCount && categorisedCount !== null) {
     const pct = ((categorisedCount! / totalCount) * 100).toFixed(1)
-    console.log(`Overall: ${categorisedCount}/${totalCount} categorised (${pct}%)`)
+    console.log(`\nCurrent coverage: ${categorisedCount}/${totalCount} (${pct}%)`)
+    if (!APPLY) {
+      const projected = categorisedCount! + stats.byRules
+      const projPct = ((projected / totalCount) * 100).toFixed(1)
+      console.log(`Projected after rules backfill: ${projected}/${totalCount} (${projPct}%), plus up to ${stats.wouldGoToLLM} more via the LLM pass`)
+    }
   }
 }
 
