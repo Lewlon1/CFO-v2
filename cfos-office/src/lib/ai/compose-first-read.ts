@@ -34,7 +34,7 @@ import { getSpendingBreakdown, type SpendingBreakdown } from '@/lib/analytics/sp
 import { categoryLabel } from '@/lib/analytics/categories';
 import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
 import { monthsBetween } from '@/lib/goals/pace';
-import { requiredMonthlyBand } from '@/lib/finance/compound-growth';
+import { requiredMonthlyBand, INVESTMENT_DEFAULT_RATE_PCT } from '@/lib/finance/compound-growth';
 import { formatMoney } from '@/lib/format/money';
 
 import {
@@ -369,7 +369,7 @@ async function getActiveGoal(
  * than the model inventing a flat division (which made achievable long-horizon
  * goals read as impossible) or dropping the already-saved amount.
  */
-function buildGoalSummary(
+export function buildGoalSummary(
   goal: {
     name: string;
     target_amount: number | null;
@@ -410,14 +410,25 @@ function buildGoalSummary(
     const bandStr = band
       .map((b) => `${m(b.monthly ?? 0)}/mo at ${b.ratePct}%`)
       .join(', ');
+    const base =
+      band.find((b) => b.ratePct === INVESTMENT_DEFAULT_RATE_PCT) ?? band[Math.floor(band.length / 2)];
+    const baseStr = base ? m(base.monthly ?? 0) : '(n/a)';
     const linear = Math.max(0, (target - current) / monthsLeft);
     lines.push(
       `Monthly contribution needed, accounting for COMPOUND GROWTH (the pot earns returns, ` +
         `so far less than a flat split): ${bandStr}. ` +
-        `A naive no-growth split would demand ${m(linear)}/mo — cite the ` +
-        `growth-aware figures, not that. Explain in plain language that over this horizon ` +
-        `returns on the ${m(current)} already saved do much of the work. ` +
-        `Give a clear verdict on whether the target is realistic given their free cash flow.`,
+        `A naive no-growth split would demand ${m(linear)}/mo — cite the growth-aware figures, not that. ` +
+        `PLAN AROUND the ${INVESTMENT_DEFAULT_RATE_PCT}% (middle) case — ${baseStr}/mo — as the working number. ` +
+        `Show the full range ONCE so the user sees the options, then commit to the ${INVESTMENT_DEFAULT_RATE_PCT}% figure ` +
+        `and size the verdict and any gap against THAT, not the 4% figure. ` +
+        `Explain in ONE plain line where the ${INVESTMENT_DEFAULT_RATE_PCT}% comes from: it is the moderate middle of the ` +
+        `range — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this — an ` +
+        `assumption, not a promise, which is exactly why the 4% case stays in view as the stress test and 10% as the upside. ` +
+        `Returns on the ${m(current)} already saved do much of the heavy lifting over this horizon. ` +
+        `Give a clear verdict on whether the target is realistic at the ${INVESTMENT_DEFAULT_RATE_PCT}% plan given their free ` +
+        `cash flow. If free cash flow already covers the ${INVESTMENT_DEFAULT_RATE_PCT}% number, say so plainly — the goal is ` +
+        `funded at plan, so frame the next move as getting there sooner or covering the 4% stress case, never as closing a gap ` +
+        `that does not exist at plan.`,
     );
   } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
     lines.push(

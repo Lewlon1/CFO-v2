@@ -78,6 +78,8 @@ Tests: `levers.test.ts` (+5 — discretionary cut selection, essentials/renfe ex
 
 Follow-on files: `categories.ts` (label + discretionary set), `levers.ts` (cut lever rewrite), `compose-first-read.ts` (reorder + detectBreakdownCited + goal-money rounding), `prompts/first-read.ts` (labels + rounding + ACTION fix), `system-prompt.ts` (internals voice ban), `analytics/__tests__/levers.test.ts`.
 
+**Goal-math presentation (second review pass) — lock the 7% plan.** The Read showed the full 4/7/10% band but leaned on the 4% worst case and never justified the rate. 7% is already the system default (`INVESTMENT_DEFAULT_RATE_PCT`, shared with `model_scenario`), so this is purely presentational: `buildGoalSummary` now shows the range ONCE, LOCKS 7% as the working plan, sizes the verdict/gap against it (not 4%), explains in one line where 7% comes from (the moderate long-run average a broadly diversified portfolio has returned — an assumption, not a promise; 4% kept as the stress test, 10% the upside), and — when free cash flow already covers the 7% number — frames the next move as acceleration, never a phantom gap. The value-first POSITION step, the `target` read-focus, and the `scenario` chat instruction were aligned to the same lock-in. Tests: +2 (`buildGoalSummary` investment lock-in / non-investment straight-line passthrough); `buildGoalSummary` exported for the test. Files: `compose-first-read.ts`, `prompts/first-read.ts`, `context-builder.ts`.
+
 ### No production write this session. Staging only.
 
 ---

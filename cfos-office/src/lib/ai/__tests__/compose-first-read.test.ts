@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractCompositionMetadata } from '../compose-first-read';
+import { extractCompositionMetadata, buildGoalSummary } from '../compose-first-read';
 import {
   buildFirstReadUserPrompt,
   FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
@@ -381,5 +381,48 @@ describe('buildFirstReadUserPrompt — recompose mode', () => {
     expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('compound-growth band');
     // §10 — the re-derived few-shot SHAPE travels with the changed rules.
     expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('Your sort just made the shape legible');
+  });
+});
+
+describe('buildGoalSummary — investment goal locks the 7% plan', () => {
+  it('shows the band, locks 7% as the plan, explains where it comes from, and reframes 4% as the stress case', () => {
+    const summary = buildGoalSummary(
+      {
+        name: 'Retirement pot',
+        target_amount: 500000,
+        current_amount: 70000,
+        target_date: '2041-06-01',
+        type: 'investment',
+        monthly_required_saving: null,
+      },
+      'EUR',
+    );
+    // The full range is still shown (the options matter)…
+    expect(summary).toContain('at 4%');
+    expect(summary).toContain('at 7%');
+    expect(summary).toContain('at 10%');
+    // …then 7% is locked as the working plan, and we size against it, not 4%.
+    expect(summary).toContain('PLAN AROUND the 7%');
+    expect(summary).toContain('not the 4% figure');
+    // …with a one-line justification of where 7% comes from…
+    expect(summary).toContain('where the 7% comes from');
+    // …and the conservative case demoted to a stress test, not the default.
+    expect(summary).toMatch(/stress test/);
+  });
+
+  it('leaves non-investment goals on the straight-line line (no rate band, no lock-in)', () => {
+    const summary = buildGoalSummary(
+      {
+        name: 'Emergency fund',
+        target_amount: 10000,
+        current_amount: 0,
+        target_date: '2027-01-01',
+        type: 'savings',
+        monthly_required_saving: 400,
+      },
+      'EUR',
+    );
+    expect(summary).not.toContain('PLAN AROUND the 7%');
+    expect(summary).toContain('straight-line');
   });
 });

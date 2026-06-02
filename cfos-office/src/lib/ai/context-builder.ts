@@ -2557,7 +2557,7 @@ Available scenario types:
 - **career_change**: transition costs, runway analysis, new income comparison
 - **investment_growth**: compound growth projections with year-by-year breakdown
 
-Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. Always mention the impact on their active goals if any exist.`;
+Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. For investment_growth, plan on the 7% annual-return default and say in one line where it comes from — the moderate long-run average a broadly diversified portfolio has returned over long horizons, an assumption not a promise. You may show a 4%/10% sensitivity, but lock 7% as the working number rather than leaving the user with an unanchored band. Always mention the impact on their active goals if any exist.`;
 
     case 'first_read':
     case 'post_upload': {
