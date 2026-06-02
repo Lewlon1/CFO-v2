@@ -99,6 +99,16 @@ describe('categoriseByRules — transaction-type + ES/CA coverage (Levers 2 & 3)
     { desc: 'Forn de Pa Sant Jordi', expected: 'groceries' },
     { desc: 'Vinoteca Torres', expected: 'eat_drinking_out' },
     { desc: 'La Central Libreria', expected: 'shopping' },
+    // Spanish / PR cash & P2P movements (surfaced by staging)
+    { desc: 'Retirada De Efectivo En Cajero Automatico 004923540000', expected: 'transfers' },
+    { desc: 'BIZUM RECIBIDO: Bizum de Alessandro', expected: 'transfers' },
+    { desc: 'ATH MOVIL OUT TO MAMI 7872210000', expected: 'transfers' },
+    { desc: 'Transferencia Inmediata De Lewis Robert Frank Lonsdale', expected: 'transfers' },
+    // More Spanish merchant generalisations
+    { desc: 'Aena', expected: 'travel' },
+    { desc: 'Cines Verdi Barcelona', expected: 'entertainment' },
+    { desc: 'Farmàcia del Pas', expected: 'health' },
+    { desc: 'RECIBO SANITAS SALUD', expected: 'health' },
   ]
 
   for (const { desc, expected } of cases) {

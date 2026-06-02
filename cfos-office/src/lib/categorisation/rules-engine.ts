@@ -25,6 +25,10 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'to eur', 'to gbp', 'to usd', 'exchanged to',
       'withdrawal', 'deposit ', 'internet transfer',
       'p2p payment', 'bank transfer',
+      // Spanish / PR cash & P2P movements
+      'retirada de efectivo', 'efectivo al instante', 'cash withd', 'atm ',
+      'bizum', 'ath movil', 'transferencia inmediata', 'transferencia de ',
+      'transfer completed',
     ],
     categoryId: 'transfers',
   },
@@ -83,6 +87,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'airport', 'aeropuerto', 'airline', 'ryanair', 'easyjet', 'vueling', 'iberia',
       'british airway', 'hotel', 'hostel', 'airbnb', 'booking.com', 'expedia',
       'holiday', 'resort', 'alojamiento', 'travel insurance', 'seguro viaje',
+      'aena', 'jetblue', 'eurostar', 'budgetair',
     ],
     categoryId: 'travel',
   },
@@ -110,9 +115,9 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
   {
     keywords: [
       'gym ', 'puregym', 'the gym', 'fitness', 'crossfit', 'yoga ', 'pilates',
-      'pharmacy', 'farmacia', 'chemist', 'boots ', 'dentist', 'dental',
-      'optician', 'hospital', 'clinic', 'clinica', 'physio', 'medic',
-      'doctor', 'supplement', 'vitamins', 'nhs ',
+      'pharmacy', 'farmacia', 'farmàcia', 'chemist', 'boots ', 'dentist', 'dental',
+      'optician', 'hospital', 'clinic', 'clinica', 'clínica', 'physio', 'medic',
+      'doctor', 'supplement', 'vitamins', 'nhs ', 'sanitas', 'specsavers',
       'peluquer', 'haircut', 'barber', 'nail ', 'beauty', 'spa ', 'massage',
       'skincare', 'cosmetic',
     ],
@@ -135,8 +140,8 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
   {
     keywords: [
       'golf', 'tennis', 'padel', 'playtomic', 'squash', 'bowling', 'cinema', 'cine ',
-      'theatre', 'teatro', 'museum', 'museo', 'zoo ', 'aquarium', 'escape room',
-      'ski ', 'concert', 'event', 'ticket',
+      'cines', 'cinesa', 'theatre', 'teatro', 'museum', 'museo', 'zoo ', 'aquarium',
+      'escape room', 'ski ', 'concert', 'event', 'ticket',
     ],
     categoryId: 'entertainment',
   },
