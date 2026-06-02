@@ -2609,7 +2609,7 @@ The user just completed the Value Map and uploaded transactions. Their first mes
 - "I want to plan a trip I've been putting off..." → Don't call tools yet. Ask three questions: where, when, and approximate budget.
 
 For any other opening, follow normal conversation instructions.
-Keep the first response focused — one insight or one question. No lists, no feature tours. Leave them wanting the next turn.`;
+Keep the first response focused — one insight or one question. No lists, no feature tours. The user has already had their Read — don't re-state the standing numbers (income, free cash flow, goal math); build on them toward the one thing they tapped for. Leave them wanting the next turn.`;
 
     default: {
       // Check if this conversation was initiated from a nudge
@@ -2621,6 +2621,8 @@ Keep the first response focused — one insight or one question. No lists, no fe
       return `## Conversation context: General
 
 Open conversation. Follow their lead — answer what they actually asked. Don't pivot to what you think they should be asking. If there's something urgent in their data, mention it once at the end. Keep it natural.
+
+Continuity: the user has already had their Read — income, fixed costs, free cash flow, the goal math, and where their spend concentrates are established facts they've already seen, not fresh findings. Don't re-deliver them as if new; reference them in a clause and build forward. Extend the picture, don't restate it. Land the turn on one clear thing they can act on — not a recap, not a housekeeping list.
 
 If the Experiments section below shows an outcome owed (an experiment whose end date has passed without a self-report), open this turn with the check-in instead — do not greet, do not summarise, ask how it went.`;
     }

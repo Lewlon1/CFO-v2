@@ -4,6 +4,16 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ---
 
+## Value-Flow Dedup + Post-Read Reveal Voice (2026-06-02) — deferrals
+
+Surfaced by the dedup Phase 0 audit; out of scope for a selector/prompt-layer session.
+
+- **The learning engine persists ZERO `value_category_rules` (the bug under the dedup bug).** Every retake/check-in user on staging has `value_category_rules` total = 0 — lew6 (25 signals / 16 merchants), lew5, lew7, lew4, marcus@test10, lewfinal1, all 0 — across April→June. `processSignals` → `computeFlatRule` should mint a flat merchant rule from even a single 2× signal (agreement 1.0 ≥ the 0.55 floor), so the absence is a real failure, not a threshold effect. Downstream, `backfillForMerchant` (which only lifts a sibling when `prediction.confidence > txn.value_confidence`, sourced from a rule) is therefore inert — siblings never settle, the whole prediction/archetype path runs on raw `correction_signals` only. **The dedup fix this session is robust to this** (it keys off `value_confirmed_by_user`, not rules), which is why it was shippable without fixing this — but the learning engine is silently non-functional for these users and deserves its own session. Likely suspects: the `after()` learning callback on `/api/value-map/personal` not flushing in the serverless runtime; a silent failure in the `value_category_rules` upsert (`onConflict: VCR_ON_CONFLICT`); or the service-client write. Localise with: pick a user with `correction_signals` but 0 rules, run `processSignals` directly, watch whether the upsert lands.
+- **Double-weight signal pollution — historical, immaterial, not cleaned.** Only lew6 (a stale 2026-04-14 test user) has merchants re-rated >1× at elevated weight: `aldi` ×3 (burden AND foundation — conflicting), two more ×3, three ×2. Six merchants. The selector fix stops new accrual at source, so no production cleanup is mandated; an optional dedup query sits in `prod-backfill-071-value-flow-dedup.sql` (section C), marked DO NOT APPLY. Revisit only if (A2) of that file shows real production pollution biasing archetype regeneration.
+- **Continuity not re-applied to `value_map_complete` / `monthly_review`.** The `default` ongoing-chat branch + `chip_opener` got the "don't restate the Read; extend it" rule. `monthly_review` restates the month's numbers by design (that IS the review), and `value_map_complete` is the legacy Gap-reveal surface (under value-first the reveal is the recompose) whose single-question structure the v1.4 session deliberately kept — both left as-is. If either is observed re-delivering the onboarding Read verbatim, extend the continuity rule there too.
+
+---
+
 ## CFO Directness + Constitution v1.4 (2026-06-02) — deferrals
 
 Out of scope for the prompt-layer + docs directness session; logged for follow-up.

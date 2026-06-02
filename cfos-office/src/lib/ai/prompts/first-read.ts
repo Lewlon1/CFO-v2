@@ -251,17 +251,20 @@ STRUCTURE (this is the contract):
    - target → lead on the gap as it now stands against the goal — what's reaching it vs what it needs — sharpened by what they just classified.
    - control → lead on the trajectory / biggest drain, now that intent is attached.
    - open → lead on the single sharpest thing the new classifications reveal.
-2. BODY — at most 1-2 observations the NEW Layer 2 makes possible: a stated-vs-actual divergence now visible ("you called X a Leak — it's your second-biggest outflow"), or the concentration of a quadrant. Reference their sorts as GIVENS, never re-derive them. The single biggest remaining unknown (e.g. the uncategorised share) may be named here, plainly, as the thing still between them and a clean read.
+2. BODY — at most 1-2 observations the NEW Layer 2 makes possible: a stated-vs-actual divergence now visible ("you called X a Leak — it's your second-biggest outflow"), or the concentration of a quadrant. Reference their sorts as GIVENS, never re-derive them. Restating the user's own call is NOT an observation — "you said Aldi is an investment, so it's an investment" is circular and adds nothing. Every reference to a sort must be PAIRED with the new thing it makes visible: a divergence, a concentration, or the lever it unlocks. The single biggest remaining unknown (e.g. the uncategorised share) may be named here, plainly, as the thing still between them and a clean read.
 3. CLOSE — a DIRECTIVE on their own money + a handoff into the conversation. Name the single highest-value next action (resolve the uncategorised, confirm what's reaching the goal, trim the named drain, set the missing target) and point them into chat to do it. Emit the CTA on its own line immediately before "— C.". The CTA label is written from the USER's point of view and lands them in the open conversation, e.g. [CTA:open_chat]Let's sort what's uncategorised[/CTA], [CTA:open_chat]Show me what's reaching the goal[/CTA]. This is a directive that opens the room — not another card-sort step, not a question.
 
 ALREADY SAID — DO NOT RESTATE (these are givens; reference in a clause at most). The specific items are in the ALREADY SAID section of the DATA below:
 - Income / fixed costs / free cash flow as standing facts.
 - The goal target as a fresh reveal.
+- The monthly contribution figure, the compound-growth band (e.g. "€948/mo at 7%, €1,514 at 4%"), and the "is the target realistic" verdict — the first Read delivered all of these. Reference the goal as an established frame; do NOT re-state the band or re-issue the verdict.
 - The merchants already named in the first Read.
 - The unresolved-transaction clarifiers (the first Read's hook into the Value Map) — their job is DONE. Do not pose them again.
 
 BANNED IN THE RECOMPOSE:
 - Re-opening on Layer 1 (income / fixed / FCF / "the clock is running").
+- Re-delivering the goal math: the monthly contribution figure, the compound-growth band, or a fresh "is this realistic" verdict. The first Read settled these — this turn builds on them, it does not repeat them.
+- Echoing the user's classification back as if it were a finding ("you called X an investment, so it's an investment"). State what the sort now makes visible, never the sort by itself.
 - Re-explaining a merchant the user just sorted as if it were a new finding.
 - Re-posing the first Read's clarifier hook — the unresolved-transaction questions.
 - Any paragraph ending in a question back to the user.
@@ -270,6 +273,9 @@ BANNED IN THE RECOMPOSE:
 - Emoji. Product names or buy/sell/switch calls.
 - Inventing magnitudes — every number comes verbatim from the DATA below.
 
+BOUNDARY (felt, not stated):
+If you reference the goal, a contribution figure stays a calculation ("the goal needs €948/mo"), never an instruction to fund a product ("put €948 into a fund"). Naming the user's own goal vehicle is fine; phrasing a calculation as a directed flow into a product is not. No disclaimers, no apologies — if a topic sits outside the remit, the close just doesn't go there.
+
 HONESTY (NO HALLUCINATION):
 - Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
 - Never attribute a transaction to today's date. The data is a snapshot.
@@ -277,7 +283,16 @@ HONESTY (NO HALLUCINATION):
 - Proportions and percentages come verbatim from SPENDING BREAKDOWN. When category coverage is low (a large uncategorised share), DO NOT state a total-spend % you can't support — lead on named-merchant proportions and absolute amounts instead.
 - Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim — never recompute them.
 
-LENGTH & FORMAT: hard cap 200 words (tighter than the first Read — it's a delta). Plain prose. Bold (**) merchant names on first mention. CTA on its own line before "— C.". Sign off "— C." on its own line.`;
+LENGTH & FORMAT: hard cap 200 words (tighter than the first Read — it's a delta). Plain prose. Bold (**) merchant names on first mention. CTA on its own line before "— C.". Sign off "— C." on its own line.
+
+SHAPE TO AIM FOR (illustrative of the SHAPE only — never copy these figures or merchants; the DATA below is the real source):
+> Your sort just made the shape legible. Of everything you classified, **eating out** is the one thing you called a Leak that's also big enough to move the goal — that's the lever, and now it carries your own label.
+> The two you marked Foundation — **Sainsbury's** and rent — are exactly what's holding steady; the slack is all in the Leak column. What's still in the dark is the third of your spend that's uncategorised — clear that and the read is clean.
+> Start with the eating-out leak. That's where the room is.
+> [CTA:open_chat]Let's trim the eating-out leak[/CTA]
+> — C.
+
+Notice what the shape does and does NOT do: it LEADS on what the sort revealed, references the goal only as a frame ("big enough to move the goal" — no contribution figure, no band, no verdict), pairs every sort with the new thing it makes visible (never "you called it X so it's X"), names the one remaining unknown, and lands ONE action before the handoff.`;
 
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   const isRecompose = input.priorReadSummary != null;
@@ -297,10 +312,12 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     `VALUE PROFILE (Stated Intent — what the user said in the Value Map):`,
     formatValueProfile(input.valueProfile),
     ``,
-    `GOAL:`,
+    isRecompose
+      ? `GOAL (ALREADY DELIVERED in the first Read — the target, the monthly contribution figure, and the compound-growth band were all stated. Reference the goal as an established frame, in a clause at most; do NOT restate the band or re-issue a verdict):`
+      : `GOAL:`,
     input.goalSummary ?? '(none set yet)',
     ``,
-    `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):`,
+    `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):${isRecompose ? ' [ALREADY DELIVERED in the first Read — context only; do not re-open on income / fixed costs / FCF.]' : ''}`,
     formatFinancialFacts(input.financialFacts, currency),
     ``,
     `SPENDING BREAKDOWN (Layer 1 — server-computed; cite verbatim, never recompute a % or a sum):`,
@@ -357,7 +374,9 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   }
   sections.push(
     `READ FOCUS — ${input.readRecipe ?? 'open'} (this sets the LEAD only; all layers still compose):`,
-    formatReadFocus(input.readRecipe ?? 'open', input.goalSummary),
+    isRecompose
+      ? formatRecomposeReadFocus(input.readRecipe ?? 'open')
+      : formatReadFocus(input.readRecipe ?? 'open', input.goalSummary),
     ``,
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0
@@ -472,6 +491,44 @@ function formatReadFocus(recipe: ReadRecipe, goalSummary: string | null | undefi
         `No goal and no struggle on file. LEAD with free cash flow as the headline number and one`,
         `specific observation, then invite them to name what they're building toward. (This is the only`,
         `recipe where a "what are you building toward" framing in the body is correct.)`,
+      ].join('\n');
+  }
+}
+
+/**
+ * Recompose LEAD focus. The first Read already delivered Layer 1 AND the goal math
+ * (target, monthly contribution, compound band, verdict — see ALREADY SAID). The
+ * recompose must NOT re-lead on either. Under every recipe it leads on the DELTA
+ * the sort created — what the new Layer 2 makes visible — and references the goal
+ * only as an established frame. This is the fix for the redundancy where the
+ * shared `formatReadFocus('target')` re-invited the €/mo contribution band into a
+ * turn whose whole job is to NOT repeat it.
+ */
+function formatRecomposeReadFocus(recipe: ReadRecipe): string {
+  switch (recipe) {
+    case 'target':
+      return [
+        `The goal, its target, and the monthly contribution band were delivered in the first Read.`,
+        `Do NOT re-lead on them or restate the band/verdict. LEAD on what the sort now reveals about`,
+        `the goal: which of their own classified spends is holding the plan up vs pulling against it.`,
+        `Reference the contribution figure only as an established frame, in a clause at most.`,
+      ].join('\n');
+    case 'visibility':
+      return [
+        `LEAD on the picture the sort just made legible: the proportion of spend now accounted for and`,
+        `where it concentrates (named-merchant proportions / absolute amounts when category coverage`,
+        `is low). The standing Layer 1 facts are already said — build past them, don't restate them.`,
+      ].join('\n');
+    case 'control':
+      return [
+        `LEAD on the biggest drain now that intent is attached to it — the spend they themselves marked`,
+        `a Leak or Burden that the trajectory confirms. Layer 1 and the goal math are already said.`,
+      ].join('\n');
+    case 'open':
+    default:
+      return [
+        `LEAD on the single sharpest thing the new classifications reveal — the call that most changes`,
+        `the picture. The standing facts are already said; do not re-open on them.`,
       ].join('\n');
   }
 }

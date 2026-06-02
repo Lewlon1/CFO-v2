@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { extractCompositionMetadata } from '../compose-first-read';
-import { buildFirstReadUserPrompt, type FirstReadComposeInput } from '../prompts/first-read';
+import {
+  buildFirstReadUserPrompt,
+  FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
+  type FirstReadComposeInput,
+} from '../prompts/first-read';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 
 function mockCluster(name: string): ClusterBehaviour {
@@ -339,5 +343,43 @@ describe('buildFirstReadUserPrompt — recompose mode', () => {
     expect(prompt).not.toContain('WHAT THE USER JUST SORTED');
     expect(prompt).not.toContain('ALREADY SAID');
     expect(prompt).toContain('COMPOSE THE FIRST READ NOW');
+  });
+
+  // Phase 2 regression — the recompose must NOT re-instruct the goal-math LEAD.
+  // Under the 'target' recipe the first Read's formatReadFocus told the model to
+  // re-lead on "FCF vs the contribution the goal needs … show the range", which
+  // made the recompose restate the €948/€1,514 band the first Read already gave.
+  it('recompose under the target recipe leads on the sort delta, not the goal-math band', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...baseInput,
+      readRecipe: 'target',
+      goalSummary:
+        'House deposit · target 20000 · by 2027-01-01\n' +
+        'Monthly contribution needed, accounting for COMPOUND GROWTH: 948/mo at 7%, 1514/mo at 4%. ' +
+        'Give a clear verdict on whether the target is realistic.',
+      priorReadSummary: {
+        layer1Stated: true,
+        goalStatedAsReveal: true,
+        merchantsAlreadyNamed: ['Tesco', 'Uber'],
+        hookMerchantsUsed: ['Uber'],
+        firstSentence: 'You bring in 3000 a month.',
+      },
+    });
+    // Recompose READ FOCUS replaces the first-read 'target' focus…
+    expect(prompt).toContain('Do NOT re-lead on them or restate the band');
+    // …so the first-read 'target' focus instruction must be absent.
+    expect(prompt).not.toContain('LEAD with where they stand against it');
+    // GOAL + FINANCIAL FACTS are re-labelled as already-delivered context.
+    expect(prompt).toContain('ALREADY DELIVERED in the first Read');
+    expect(prompt).toContain('do not re-open on income / fixed costs / FCF');
+  });
+
+  it('the recompose system prompt bans goal-math restatement + circular echo and carries the boundary and shape', () => {
+    expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('Re-delivering the goal math');
+    expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain("Echoing the user's classification back");
+    expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('never an instruction to fund a product');
+    expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('compound-growth band');
+    // §10 — the re-derived few-shot SHAPE travels with the changed rules.
+    expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('Your sort just made the shape legible');
   });
 });
