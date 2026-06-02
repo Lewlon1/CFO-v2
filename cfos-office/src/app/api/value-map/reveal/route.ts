@@ -46,7 +46,7 @@ Paragraph 2 — Walk through the 3–4 most revealing individual decisions. Cove
 Paragraph 3 — One sentence. A non-evaluative synthesis of the pattern the data shows. Observation, not judgement. No flattery, no roasting, no characterological labels.
 
 Style rules:
-- Second person ("you", "your"). Never first person ("I", "me", "my")
+- Second person ("you", "your"). State findings directly; don't narrate the act of observing ("I noticed…", "I can see…")
 - Use *italics* (asterisks) sparingly for a single revealing word or phrase
 - Warm but direct — no filler, no platitudes, no generic financial guidance
 - Every sentence must earn its place

@@ -4,6 +4,16 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ---
 
+## CFO Directness + Constitution v1.4 (2026-06-02) — deferrals
+
+Out of scope for the prompt-layer + docs directness session; logged for follow-up.
+
+- **`persona-sanitiser.ts` undoes the §2 v1.4 first-person relaxation on the chat path.** The runtime guard (`src/lib/ai/persona-sanitiser.ts`, called from `app/api/chat/route.ts`) regex-detects first-person (`\bI\b`, `me`, `my`, `I'd`, `I'll`, `I'm`, `let me`) and rewrites it out via Haiku before persisting. Constitution v1.4 now ALLOWS stance-bearing first person ("I'd push back on that") and bans only narration + the service-desk register — so the sanitiser is now *stricter than the constitution* and will strip legitimate stance-first-person from production chat. **Fix:** soften `LEAK_PATTERNS` + `REWRITE_PROMPT` to match v1.4 (keep stripping narration "I noticed"/"I can see", service-desk "let me"/"I can help", and "advice"/"advise"; STOP stripping bare stance-bearing "I"/"I'd"), and **re-derive `persona-sanitiser.test.ts` in the same edit** (it currently asserts `"I'd note that…"` gets rewritten). Not on the First Read path (`first-read.ts` is already first-person-free), so the headline change is unaffected. Deferred because it's runtime code outside this session's manifest ("prompt-layer + docs only / do not open a rewrite front").
+- **Feed the confirmed fixed-cost / recurring set into the First Read lever context.** `compose-first-read.ts` computes `total_fixed_costs` (+ `reconcileFixedCosts` fallback), but the `Lever` set passed to `first-read.ts` has no dedicated "recurring bills" lever — only `cut | shift | reallocate | supply_input`. So the v1.4 First Read names "recurring bills" generically as a headline (acceptable per the session's lever-as-headline rule). Wire the confirmed fixed-cost set into the lever package so the recurring-bills lever can cite a real number.
+- **`read-judge.ts` word ceiling (250) now looser than the prompt target (120–220).** The first-read prompt targets 120–220 words (relocated from Constitution §8); `READ_WORD_CAP = 250` remains the hard fail-ceiling. 120–220 ⊂ ≤250 so nothing breaks and no test fails, but the judge no longer polices the reveal target. Tighten `READ_WORD_CAP` to 220 if the judge should enforce the target rather than just act as a backstop.
+
+---
+
 ## Audit Zero (v2.6, 2026-05-29) — NEEDS-LEWIS follow-ups
 
 Verified in Audit Zero but intentionally not actioned this session (protected files / deeper work). Full evidence + three-search: `audit/audit-zero-killlist.md`.

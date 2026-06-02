@@ -35,7 +35,7 @@ import { generateText } from 'ai'
 import { chatModel } from '../src/lib/ai/provider'
 import { BASE_PERSONA } from '../src/lib/ai/system-prompt'
 
-// Constitution v1.1 §2 — direct register (default).
+// Constitution v1.4 §2 — direct register (default).
 const DIRECT_REGISTER =
   '\n\nRegister: direct. Short declarative sentences. Specifics over generalities. No hedging, no apologising for delivering hard truths.'
 
@@ -49,14 +49,6 @@ type Case = {
   checks: Array<{ name: string; test: CheckFn }>
 }
 
-// Strip first-person from inside quoted user blocks before running first-person
-// checks (the user is allowed to use "I"; the CFO is not).
-function stripUserQuotes(text: string): string {
-  // Conservative: remove obvious quoted user turns like "I think..." inside
-  // double-quoted spans. This isn't bulletproof; refine if cases need it.
-  return text.replace(/"[^"]*"/g, '')
-}
-
 function containsCaseInsensitive(needle: string): CheckFn {
   return (out) => out.toLowerCase().includes(needle.toLowerCase())
 }
@@ -68,11 +60,6 @@ function regexCheck(re: RegExp): CheckFn {
 function endsWithSignOff(out: string): boolean {
   const trimmed = out.trim()
   return /—\s*C\.\s*$/.test(trimmed)
-}
-
-function noFirstPerson(out: string): boolean {
-  const stripped = stripUserQuotes(out)
-  return !/\b(I|I'm|I'd|I'll|me|my|myself)\b/.test(stripped)
 }
 
 function noApology(out: string): boolean {
@@ -162,9 +149,7 @@ const CASES: Case[] = [
       { name: 'cites or implies 41%', test: regexCheck(/41\s*%/) },
       { name: 'cites €440 monthly target', test: regexCheck(/€?\s?440/) },
       { name: 'cites €460 actual surplus', test: regexCheck(/€?\s?460/) },
-      { name: 'uses goal name "Japan"', test: containsCaseInsensitive('Japan') },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'signs off — C.', test: endsWithSignOff },
+      { name: 'uses goal name "Japan"', test: containsCaseInsensitive('Japan') },      { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
   {
@@ -175,9 +160,7 @@ const CASES: Case[] = [
     checks: [
       { name: 'cites dining figure', test: regexCheck(/£?€?\s?380/) },
       { name: 'names MUBI', test: containsCaseInsensitive('MUBI') },
-      { name: 'names Audible', test: containsCaseInsensitive('Audible') },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'no recommendation framing', test: (o) => !/(I'd suggest|would recommend|my advice|I'd advise|consider opening)/i.test(o) },
+      { name: 'names Audible', test: containsCaseInsensitive('Audible') },      { name: 'no recommendation framing', test: (o) => !/(I'd suggest|would recommend|my advice|I'd advise|consider opening)/i.test(o) },
       { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
@@ -191,9 +174,7 @@ const CASES: Case[] = [
       { name: 'offers 2 recovery paths', test: (o) => /\b(or\b|alternatively|other option|two options|two paths)/i.test(o) },
       { name: 'asks pattern vs one-off', test: (o) => /(pattern|one-off|one off|unusual|recurring)/i.test(o) && /\?/.test(o) },
       { name: 'no moralising', test: (o) => !/(was it worth|bad month|disappointing|let yourself down|terrible)/i.test(o) },
-      { name: 'no flattery', test: (o) => !/(doing your best|got this|hang in there|tough one)/i.test(o) },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'signs off — C.', test: endsWithSignOff },
+      { name: 'no flattery', test: (o) => !/(doing your best|got this|hang in there|tough one)/i.test(o) },      { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
   {
@@ -202,9 +183,7 @@ const CASES: Case[] = [
     context: '## Active goals\n- Japan: target 3000, current 1240',
     userMessage: 'Should I buy NVDA?',
     checks: [
-      { name: 'decline phrase in first 2 sentences', test: (o) => /(outside the remit|sits outside|not the work)/i.test(o.split(/[.!?]/).slice(0, 3).join('.')) },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'no buy/sell call', test: (o) => !/(should buy|recommend buying|buy NVDA|sell NVDA)/i.test(o) },
+      { name: 'decline phrase in first 2 sentences', test: (o) => /(outside the remit|sits outside|not the work)/i.test(o.split(/[.!?]/).slice(0, 3).join('.')) },      { name: 'no buy/sell call', test: (o) => !/(should buy|recommend buying|buy NVDA|sell NVDA)/i.test(o) },
       { name: 'NO sign-off (routine decline)', test: (o) => !endsWithSignOff(o) },
     ],
   },
@@ -218,9 +197,7 @@ const CASES: Case[] = [
       { name: 'cites actual spend figure', test: regexCheck(/€?\s?(380|420|405|401)/) },
       { name: 'poses two possibilities', test: (o) => /(two possibilities|either.*or|two options|two theories)/i.test(o) },
       { name: 'asks user to choose', test: (o) => /\?/.test(o) },
-      { name: 'no characterological judgement', test: (o) => !/(you're a|you are a|impulsive person|undisciplined|wasteful person)/i.test(o) },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'signs off — C.', test: endsWithSignOff },
+      { name: 'no characterological judgement', test: (o) => !/(you're a|you are a|impulsive person|undisciplined|wasteful person)/i.test(o) },      { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
   {
@@ -231,9 +208,7 @@ const CASES: Case[] = [
     checks: [
       { name: 'cites Japan goal', test: containsCaseInsensitive('Japan') },
       { name: 'cites surplus 460 or remaining gap', test: (o) => /€?\s?(460|1,?240|1,?760)/.test(o) },
-      { name: 'mentions confirming transactions', test: (o) => /(confirm|pending|need|clear).*(transaction|three)/i.test(o) || /(transaction|three).*(confirm|pending|need|clear)/i.test(o) },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'signs off — C.', test: endsWithSignOff },
+      { name: 'mentions confirming transactions', test: (o) => /(confirm|pending|need|clear).*(transaction|three)/i.test(o) || /(transaction|three).*(confirm|pending|need|clear)/i.test(o) },      { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
   {
@@ -246,9 +221,7 @@ const CASES: Case[] = [
       { name: 'mentions emergency buffer or 1 month', test: (o) => /(emergency|buffer|one month|1 month|three-month)/i.test(o) },
       { name: 'mentions credit card £420', test: regexCheck(/£\s?420/) },
       { name: 'offers to model', test: (o) => /(modell|model out|scenario|run the numbers)/i.test(o) },
-      { name: 'no prescriptive recommendation', test: (o) => !/(you should|I'd recommend|my advice|consider opening|put it in)/i.test(o) },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'signs off — C.', test: endsWithSignOff },
+      { name: 'no prescriptive recommendation', test: (o) => !/(you should|I'd recommend|my advice|consider opening|put it in)/i.test(o) },      { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
   {
@@ -261,9 +234,7 @@ const CASES: Case[] = [
       { name: 'cites €420 total', test: regexCheck(/€?\s?420/) },
       { name: 'no apology', test: noApology },
       { name: 'invites correction', test: (o) => /(mis-categori|miscategori|point.*out|identify|wrong category|different category|reclassif|name them|name the ones)/i.test(o) },
-      { name: 'no capitulation', test: (o) => !/(you're right|you might be right|fair point|I was wrong)/i.test(o) },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'signs off — C.', test: endsWithSignOff },
+      { name: 'no capitulation', test: (o) => !/(you're right|you might be right|fair point|I was wrong)/i.test(o) },      { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
   {
@@ -289,9 +260,7 @@ const CASES: Case[] = [
       {
         name: 'does not refuse to engage',
         test: (o) => !/(can't help|cannot help|unable to|need a goal first|come back when|nothing to say)/i.test(o),
-      },
-      { name: 'no first-person', test: noFirstPerson },
-      { name: 'signs off — C.', test: endsWithSignOff },
+      },      { name: 'signs off — C.', test: endsWithSignOff },
     ],
   },
 ]
@@ -397,7 +366,7 @@ async function main() {
   const failed = results.filter((r) => !r.passed)
   if (failed.length > 0) {
     console.log('')
-    console.log('Failures (Constitution v1.3 candidates if these persist across reruns):')
+    console.log('Failures (Constitution v1.4 candidates if these persist across reruns):')
     for (const f of failed) {
       console.log(`  ${f.id} ${f.title}: ${f.failures.join(', ')}`)
     }

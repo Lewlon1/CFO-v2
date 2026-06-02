@@ -9,6 +9,46 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-02 — CFO Directness + Constitution v1.4
+
+**Branch:** `claude/gracious-edison-uH2iK` (the session prompt named `claude/cfo-directness-v1.4`; the harness provisioned and pinned this branch instead, so work landed here per the session git requirements).
+
+Prompt-layer + docs only. No migration, no schema, no Supabase writes.
+
+### What shipped
+- **Constitution → v1.4.** Relaxed §2 first-person — an anti-narration principle replaces the strict no-`I` ban (state findings directly; don't narrate the act of observing; first person is fine when it carries a real stance; the service-desk register and surface-then-disclaim never appear). This **reverses the v1.1→v1.3 first-person tightening**. Deleted the §2 "Default to no self-reference" sub-section. Deleted the §8 "one question per turn" rule (lets a Read pose two clarifiers without a carve-out; the distinct profiling one-question-*per-conversation* throttle is untouched). Demoted four response-shape templates (§3 allocation, §5 Gap, §6 bad-month, §8 status anchor) to one-line principles + §9 pointers; **§9 A–I left whole and unedited**. Collapsed §8 sign-off to one line. Removed §8 length numbers (1–3 / 4–6 sentences, 120–220 words); the 120–220 reveal cap relocated to `first-read.ts`. **Voice tunability RETAINED** — direct/blunt/gentle are genuinely wired via `profile.advice_style` (`context-builder.ts:1102-1109`). §1.7 overlap-tidy considered, not forced (no behavioural change).
+- **BASE_PERSONA (`system-prompt.ts`):** first-person rule + forbidden-constructions example re-derived to v1.4; one-question line removed; version comment → v1.4.
+- **`context-builder.ts`: inspect-only.** Its only first-person references already allow first person + ban narration (`:573` "First person", `:620` "never 'I learned'") — they were v1.4-aligned and previously *contradicted* the strict BASE_PERSONA; relaxing BASE_PERSONA resolves that latent contradiction. `:1915` is regulated-boundary phrasing (§4, unchanged). The one-question hits (`:863/2245/2612/2780`) are local profiling/onboarding anti-interrogation throttles — kept.
+- **Rewrote `first-read.ts` (highest-leverage).** The value-first Read now runs POSITION → one ACTION (sized against the goal gap) → 1–2 CLARIFIERS (the unresolved-transaction hook posed as direct either/or questions — no "I can see X but can't tell Y") → named LEVERS as headlines, with the Value Map positioned as where levers get prioritised. The hook **survives**, reframed as clarifiers (fork-2 resolution). Few-shot re-derived into the canonical target shape; 120–220 word cap relocated here; regulated edge reaffirmed (a contribution figure is a calculation, never "put €X into a fund"). All three variants' VOICE blocks moved off the old "First person ('I see', 'I notice')" instruction. `compose-first-read.ts` inspect-only.
+- **Other persona prompts aligned (one line each):** `archetype-prompt.ts`, `free-text-opener-prompt.ts`, `value-map/reveal/route.ts`, `demo/reading/route.ts` — "never first person" → anti-narration principle. Observational/second-person reading voice kept, so the `demo/reading` `<example_reading>` few-shots stay valid under v1.4 (§10 satisfied). `regenerate-archetype-prompt.ts` did not restate the rule (untouched).
+- **Harness (`scripts/test-prompts.ts`):** removed `noFirstPerson` from all 9 cases and **deleted the helper + `stripUserQuotes`** (three-search deletion gate passed — both confined to this file). No case tested a one-question rule. Content checks unchanged.
+
+### Files touched
+- `CFO-CONSTITUTION.md` — v1.4 edits 1.1–1.8 (canonical; `audit/inputs/CFO-CONSTITUTION.md` v1.0 snapshot left frozen).
+- `cfos-office/src/lib/ai/system-prompt.ts` — BASE_PERSONA v1.4 alignment + example re-derivation.
+- `cfos-office/src/lib/ai/prompts/first-read.ts` — structure + voice + length + regulated edge + re-derived few-shot + hook→clarifier relabel.
+- `cfos-office/scripts/test-prompts.ts` — removed `noFirstPerson`/`stripUserQuotes`; version-string bumps.
+- `cfos-office/src/lib/onboarding/archetype-prompt.ts`, `…/onboarding-v2/free-text-opener-prompt.ts`, `…/api/value-map/reveal/route.ts`, `…/api/demo/reading/route.ts` — one-line first-person alignment.
+- `BACKLOG.md`, `cfos-office/SESSION-LOG.md` — this entry + deferrals.
+
+### Verification
+- `npm run typecheck` clean · `npm test` 1047 pass (94 files) · `npm run build` ✓ · `npm run lint` 0 errors (41 pre-existing warnings, none in touched files).
+- **`npm run test:prompts` NOT run live** — the §9 suite calls Bedrock and this sandbox has no AWS region/credentials (every case threw "AWS region setting is missing"). The harness compiles and iterates the 9 cases; a live pass count (exit gate ≥8/9) must be produced where Bedrock is configured. **Open verification item.**
+
+### Deferred (BACKLOG)
+- `persona-sanitiser.ts` strips ALL first-person at runtime on the chat path — undoes the v1.4 stance-first-person relaxation in production chat until softened (+ its test re-derived). Biggest follow-up; not on the First Read path so the headline change is unaffected.
+- Feed the confirmed fixed-cost/recurring set into `compose-first-read` so the "recurring bills" lever cites a real number (currently named generically as a headline).
+- `read-judge.ts` ceiling (250) now looser than the prompt target (120–220) — tighten to 220 if the judge should police the target.
+
+### Lessons learned
+- The strict no-first-person rule lived in THREE places: the constitution, BASE_PERSONA, and — the surprise — a runtime Haiku sanitiser (`persona-sanitiser.ts`). Doc + prompt relax cleanly; the runtime sanitiser is the real drift and the place the relaxation silently fails to land. Constitution-first discipline surfaced it, but it sits outside the prompt layer.
+- The demoted templates were genuinely redundant with §9 (A–I already encode every shape) — the prose walkthroughs taught the same thing twice. (Not re-confirmed via the harness this session: Bedrock unavailable.)
+- The First Read's VOICE blocks literally *instructed* the banned construction ("First person ('I see', 'I notice')"), and the whole value-first close was built on "I can see X but can't tell Y" — the exact surface-then-disclaim the directness pass targets. Reframing the hook as direct clarifiers (rather than deleting it) kept the Value Map pull while killing the hedge.
+
+### No migration this session.
+
+---
+
 ## 2026-06-01 — Measurement layer: fix E2/E3/E4 (wow predicted score, Read judge, first_insight→first_read)
 
 **Branch:** `claude/v2.7-ui-tidy-up`

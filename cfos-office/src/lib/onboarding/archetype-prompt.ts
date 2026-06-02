@@ -170,7 +170,7 @@ Generate a JSON object with this exact structure:
 
 ## Rules
 
-- Write as the CFO speaking directly to ${userName} — "you" not "they". Second person only; never use first person ("I", "me", "my")
+- Write as the CFO speaking directly to ${userName} — "you" not "they". State findings directly; don't narrate the act of observing ("I noticed…", "I can see…"). Second person.
 - Every trait MUST reference a specific merchant name or confidence pattern from the data above
 - When referencing timing, ALWAYS use qualitative language only — never mention seconds, milliseconds, or any specific numbers. Use phrases like "that one took some thought", "you were very clear on that", "you hesitated", "that came to you instantly", "that one required a lot of consideration"
 - Name TENSIONS, not summaries. "You called Netflix Foundation with 5/5 confidence but clearly had to think about your gym membership" is better than "You value entertainment"
