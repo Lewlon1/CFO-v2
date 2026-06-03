@@ -9,6 +9,64 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-02 — Coaching Cadence: principle over procedure
+
+**Branch:** `claude/funny-pasteur-GEpYl` (continues the dedup/voice/read-quality work; harness-pinned per precedent).
+
+A coaching principle, installed as **character** (Constitution → BASE_PERSONA), with the **procedure it replaces deleted** — not a new pile of `ALWAYS/REQUIRED` rules. Came out of three live-flow reviews: the reads got better, but the *conversation* read like a feature demo (forced option-menus, unexplained jargon, multiple topics per turn, a trial whose mechanism didn't match its claim). Prompt-layer + a bounded analytics touch + behavioural eval scaffolding. No prod write.
+
+### The principle (source of truth: `CFO-CONSTITUTION.md` §6 Coaching cadence)
+Lead without lecturing · one topic per turn (≤3 *related* questions, never mixing) · tie every move to the goal · mechanism matches the claim · explain what's new (plain words fine; terms of art / internal names explained or dropped) · the move not the machinery · pace to readiness.
+
+### Phase 0 findings
+- **D1 — `[OPTIONS]` is cosmetic, not load-bearing.** `accept_experiment` fires on "Yes, let's try it (or types acceptance)" — the chip is one path, typing works. Relaxing the menu does not break the lifecycle.
+- **D2 — the "ALWAYS [OPTIONS]" mandate sits in TWO places:** `system-prompt.ts:190` AND the `propose_catalog_experiment` tool description ("Always immediately follow with the OPTIONS block"). Both relax. KEEP the genuinely-good pacing already there: "one experiment per turn" + "if one's running, ask about that first."
+- **D3 — the stacked "REQUIRED experiment beat" is LEGACY.** It's in the `InsightPayload` first-insight path, gated behind `!isLayeredReadEnabled()`. The live value-first flow composes via `compose-first-read.ts` (no experiment beat); the screenshot's experiment came from ongoing **chat**. → Live coaching fixes target the **persona + chat instructions + tool descriptions**; the legacy first-insight de-stack is BACKLOG.
+- **D4 — system-voice contradiction confirmed.** `system-prompt.ts:152-155` gives "The system has these in the Leak bucket" as the GOOD example for attributing a rules-engine (vs user) classification — directly contradicting the no-plumbing ban added to BASE_PERSONA last session. Reconcile: keep the don't-blame-the-user distinction, change the words.
+- **D5 — cut/rate judgment.** The Read already does facts + safety-floor + sensible-default from last session (essentials excluded = floor, biggest-discretionary = default) — which Lewis approved. The *judgment* that was missing (pick the right mechanism, tie to goal, mechanism-matches-claim) lives in **chat**, where the experiment tools already do "model proposes, code computes impact." So the judgment refactor is largely the coaching/tool-discipline layer; the Read gets a light change to expose discretionary alternatives as facts (the model may pick another, essentials still excluded). No big lever rewrite.
+- **D6 — "before" captured:** the test18 transcripts (topic-mixing, "friction experiment" jargon, the McDonald's mechanism mismatch, the forced 3-button menu).
+- **D7 — mandates audit.** Relax: "ALWAYS [OPTIONS]" (×2). Reconcile: 152-155. KEEP (correctness/safety): `:132` no-arithmetic, the essentials-never-cut floor, one-experiment-per-turn, active-first.
+
+### Architecture stance held
+Principle (invokes judgment), not procedure (dictates output). Code keeps only **facts** + a **thin safety floor**; selection / pacing / phrasing / when-to-use-a-tool is the model's judgment. **Verification is behavioural** — eval cases authored for the §9 harness + a human-review checklist; behavioural sign-off needs a live run (no Bedrock creds in this sandbox). Unit tests cover only facts/floor.
+
+### What shipped
+- **Constitution → v1.5.** New §6 subsection **"How the CFO guides"** (the principle, as character). §8 "Asking versus answering" extended with the one-topic / ≤3-related-questions rule. Named **"guides"**, not "coaches": §1 says the CFO is "not a coach" (cheerleader sense — the §2 banned "You've got this!" confirms), so "the CFO coaches" would contradict identity. Behaviour is exactly what was asked; only the label avoids the collision. **Flagged for Lewis** — if "coaching" should be the official term, amend §1's "not a coach" → "not a cheerleader/life-coach".
+- **BASE_PERSONA** gained a derived **"## How you guide"** section (lead · one topic/turn · tie to goal · mechanism matches claim · explain what's new · the move not the machinery · pace to readiness).
+- **Procedure deleted (principle-over-procedure).** Experiments vocabulary (`system-prompt.ts`): keep "experiment" + one-per-turn + active-first + mechanism-matches-claim; **drop "ALWAYS [OPTIONS]"**; ban the *compound* jargon ("friction experiment"). `[OPTIONS]` usage reframed from a default close to genuine forks only. `propose_catalog_experiment` description: drop the forced menu, require the template's own hypothesis (no mismatched claim). **D4 reconciled** — the "The system has these in the Leak bucket" GOOD example demoted to BAD; the don't-blame-the-user distinction kept with plain wording ("auto-sorted into Leak, not your call").
+- **Judgment refactor — D5 decision.** The Read already does facts + safety-floor + sensible-default (essentials excluded, biggest-discretionary default) — approved last session, and a *context-free* one-shot Read gains nothing from model-pick-among-candidates. The judgment that was missing (right mechanism, tie to goal, no forced menu) lives in **chat**, where the experiment tools already do "model proposes, code computes impact" and are now governed by the guiding principle. So **no speculative Read code** — the judgment improvement ships through the coaching layer. The legacy first-insight stacked beat (D3) is behind `!isLayeredReadEnabled()` → BACKLOG.
+- **Verification.** +5 **prompt-content** assertions (`guiding-principle.test.ts`) — runnable, lock the changes, can't be miscalibrated. 1066 tests pass; typecheck + build + lint clean. **Behavioural sign-off is deferred to a live run** (no Bedrock creds in this sandbox) — see the human-review checklist below.
+
+### Human-review checklist (Lewis, live flow — verify against Constitution §6)
+- [ ] One topic per turn — no cut-analysis + value-sort braided in one message
+- [ ] Every move tied to the goal
+- [ ] Mechanism matches the claim — no no-spend-days pitched as targeting a single merchant
+- [ ] New concepts explained in plain words; no compound jargon ("friction experiment"); "experiment" itself reads fine
+- [ ] No forced 3-button menu after every suggestion — chips only on a genuine fork
+- [ ] No plumbing surfaced ("the system tagged…")
+
+### Files touched
+- `CFO-CONSTITUTION.md` — v1.5; §6 "How the CFO guides"; §8 one-topic rule.
+- `cfos-office/src/lib/ai/system-prompt.ts` — "How you guide" section; experiments relax; `[OPTIONS]` reframe; D4 reconcile.
+- `cfos-office/src/lib/ai/tools/propose-catalog-experiment.ts` — description relax (no forced menu; mechanism-matches-claim).
+- `cfos-office/src/lib/ai/__tests__/guiding-principle.test.ts` — new prompt-content net.
+- `cfos-office/SESSION-LOG.md`, `BACKLOG.md`.
+
+### Deferred (BACKLOG)
+- **Legacy first-insight de-stack (D3).** The `InsightPayload` path's REQUIRED experiment beat + stacked headline→gap→STATS→hidden→hook→OPTIONS→experiment, behind `!isLayeredReadEnabled()`. Apply the guiding cadence there if the path is revived; otherwise it ages out with the flag.
+- **Automated coaching behavioural-eval cases** for the §9 `test-prompts.ts` harness — authored where Bedrock creds exist and can be calibrated (fuzzy model-output checks can't be verified blind in this sandbox).
+- **§1 "not a coach" vs the "coaching" shorthand** — decide whether to make "coaching" official (amend §1) or keep "guiding".
+
+### Lessons learned
+- **One disease, two masks.** The lever was over-*constraint* (code decided judgment); the conversation was mis-shaped *latitude* (the prompt rewarded feature-demoing). Both reduce to "the product decides for the model what a guide decides in the moment." One fix family: principle + facts + safety floor, judgment to the model.
+- **Principle-over-procedure is a writing discipline, not a slogan.** The session was mostly *deleting* `ALWAYS/REQUIRED` mandates and stating character once. A new `ALWAYS/REQUIRED` is the smell to watch for.
+- **Contradictions accumulate in procedure, not principle.** The "The system has these" GOOD example directly fought the no-plumbing ban added a session earlier. A pile of imperative rules drifts into self-contradiction; a few principles the model reasons from don't.
+- **Terminology can contradict identity.** "Coaching" collided with §1 "not a coach." Words in a Constitution are load-bearing — caught it and named the behaviour "guiding".
+
+### No production write this session.
+
+---
+
 ## 2026-06-02 — Value-Flow Dedup + Post-Read Reveal Voice
 
 **Branch:** `claude/funny-pasteur-GEpYl` (the session prompt named `claude/value-flow-dedup-and-reveal` off `claude/gracious-edison-uH2iK`; the harness provisioned and pinned `claude/funny-pasteur-GEpYl` instead, sitting at the *exact same commit* as `gracious-edison` — an empty diff — so it IS a fresh branch off the named base, just renamed. Work lands here per the session git requirements, matching the v1.4 session's precedent.)

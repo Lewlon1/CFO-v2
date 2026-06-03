@@ -4,6 +4,14 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ---
 
+## Coaching Cadence (2026-06-02) — deferrals
+
+- **Legacy first-insight de-stack.** The `InsightPayload` first-insight path (`context-builder.ts` ~292/552/623) mandates a REQUIRED experiment closing beat stacked with headline→gap→`[STATS]`→hidden-pattern→hook→`[OPTIONS]`→experiment — a lot of concepts in one message. It's gated behind `!isLayeredReadEnabled()`, so it's NOT on the live value-first flow (which composes via `compose-first-read.ts`). Apply the guiding cadence (one concept at a time, no forced beat) there only if that legacy path is revived; otherwise it ages out when the layered-read kill-switch is removed.
+- **Automated coaching behavioural-eval cases.** The guiding principle is verified by prompt-content unit tests (changes locked) + a human-review checklist (behavioural sign-off). Genuine behavioural eval cases — one-topic-per-turn, tie-to-goal, mechanism-matches-claim, no-forced-menu — belong in the `scripts/test-prompts.ts` §9 harness, but they assert on live model output and can't be calibrated without Bedrock creds. Author + calibrate them in a creds-enabled session.
+- **"Coaching" vs "guiding" terminology (Constitution §1).** The behaviour shipped under "How the CFO guides" because §1 lists "not a coach" (cheerleader sense). If the product wants "coaching" as the official term, amend §1's "not a coach" → "not a cheerleader/life-coach" and rename the §6 subsection + BASE_PERSONA section to match. Cosmetic, but it's identity-level wording — a deliberate call, not a silent rename.
+
+---
+
 ## Value-Flow Dedup + Post-Read Reveal Voice (2026-06-02) — deferrals
 
 Surfaced by the dedup Phase 0 audit; out of scope for a selector/prompt-layer session.
