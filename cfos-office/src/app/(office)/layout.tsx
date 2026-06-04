@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { after } from 'next/server'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { recomputeIfStale } from '@/lib/goals/recompute'
 import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
@@ -134,7 +135,11 @@ export default async function OfficeLayout({ children }: { children: React.React
   const lastSyncedIso = profile?.goals_last_synced_at ?? null
   after(async () => {
     try {
-      const recomputeClient = await createClient()
+      // Use a cookie-free service client: `cookies()` (which createClient calls)
+      // is not allowed inside `after()`. The recompute is scoped by userId, so
+      // RLS via the request client isn't needed — same pattern as the chat /
+      // review `after()` blocks.
+      const recomputeClient = createServiceClient()
       await recomputeIfStale(recomputeClient, userId, lastSyncedIso)
     } catch (err) {
       console.error('[goals-recompute] failed:', err)

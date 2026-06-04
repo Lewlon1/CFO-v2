@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { submitStruggle } from '@/app/onboarding-v2/actions'
 import { STRUGGLE_OPTIONS, type StruggleOptionId } from '@/lib/onboarding-v2/labels'
@@ -69,6 +70,17 @@ export function StruggleBeatBlock() {
 
   return (
     <div className="px-4 py-5">
+      {/* Frame the opener as the CFO's own first message so the very first
+          thing a new user sees reads like a warm welcome into the office,
+          not a form. Mirrors the assistant-message header in MessageList. */}
+      <div className="mb-3 flex items-center gap-2">
+        <CFOAvatar size={28} withOnlineDot />
+        <span className="text-xs font-medium text-text-muted">Your CFO</span>
+      </div>
+      <p className="mb-2 text-sm text-text-secondary leading-snug">
+        Welcome to the office — pull up a chair. This is your space to think
+        out loud about money, and nothing you say here leaves it.
+      </p>
       <h2 className="mb-2 font-serif text-[22px] leading-[1.15] text-text-primary">
         Before we dig in — what brought you in?
       </h2>

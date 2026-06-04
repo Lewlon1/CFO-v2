@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { useTrackEvent } from '@/lib/events/use-track-event';
+import { moneySymbol, sanitizeMoneyInput, parseMoneyInput } from '@/lib/utils/money';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -240,11 +241,14 @@ function CurrencyAmount({
 }) {
   const [value, setValue] = useState('');
 
-  const symbol = currency === 'GBP' ? '£' : currency === 'USD' ? '$' : currency === 'CHF' ? 'Fr.' : '€';
+  const symbol = moneySymbol(currency);
 
   const handleSave = () => {
-    const num = parseFloat(value.replace(/,/g, ''));
-    if (isNaN(num)) return;
+    // Shared sanitiser/parse so leading zeros and locale separators can't
+    // corrupt the value (e.g. "5.200" → 5.2) — same fix as the onboarding
+    // currency fields.
+    const num = parseMoneyInput(value);
+    if (num == null) return;
     if (min !== undefined && num < min) return;
     if (max !== undefined && num > max) return;
     onSubmit(num, `${symbol}${num.toLocaleString()}`);
@@ -258,7 +262,7 @@ function CurrencyAmount({
           type="text"
           inputMode="decimal"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => setValue(sanitizeMoneyInput(e.target.value))}
           placeholder={placeholder || '0'}
           disabled={disabled}
           className="bg-transparent text-sm text-foreground outline-none w-full min-h-[28px]"

@@ -8,11 +8,13 @@ import {
   type InstantPayback,
 } from '@/app/onboarding-v2/processing/processing-actions'
 import { GoalPaceInline } from './goal-pace-inline'
+import { CurrencyInput } from '@/components/ui/CurrencyInput'
+import { parseMoneyInput } from '@/lib/utils/money'
 
 type Props = {
   initialIncome: number | null
   initialRent: number | null
-  currencySymbol: string
+  currency: string
   importComplete: boolean
   onAdvance: (redirectTo: string) => void
 }
@@ -32,7 +34,7 @@ type FieldStatus = 'pristine' | 'saving' | 'saved' | 'error'
 export function ProcessingForm({
   initialIncome,
   initialRent,
-  currencySymbol,
+  currency,
   importComplete,
   onAdvance,
 }: Props) {
@@ -56,8 +58,8 @@ export function ProcessingForm({
   const canAdvance = incomeReady && rentReady && importComplete
 
   async function handleIncomeBlur() {
-    const value = Number.parseFloat(income)
-    if (!Number.isFinite(value) || value <= 0) return
+    const value = parseMoneyInput(income)
+    if (value == null || value <= 0) return
     if (initialIncome === value) return
     setIncomeStatus('saving')
     try {
@@ -71,8 +73,8 @@ export function ProcessingForm({
   }
 
   async function handleRentBlur() {
-    const value = Number.parseFloat(rent)
-    if (!Number.isFinite(value) || value < 0) return
+    const value = parseMoneyInput(rent)
+    if (value == null || value < 0) return
     if (initialRent === value) return
     setRentStatus('saving')
     try {
@@ -115,26 +117,17 @@ export function ProcessingForm({
           >
             What&apos;s your monthly take-home pay?
           </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
-              {currencySymbol}
-            </span>
-            <input
-              id="processing-income"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="1"
-              value={income}
-              onChange={(e) => {
-                setIncome(e.target.value)
-                if (incomeStatus !== 'pristine') setIncomeStatus('pristine')
-              }}
-              onBlur={handleIncomeBlur}
-              placeholder="3,100"
-              className="w-full pl-8 pr-3 py-3 min-h-[44px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-text-primary/40"
-            />
-          </div>
+          <CurrencyInput
+            id="processing-income"
+            currency={currency}
+            value={income}
+            onChange={(display) => {
+              setIncome(display)
+              if (incomeStatus !== 'pristine') setIncomeStatus('pristine')
+            }}
+            onBlur={handleIncomeBlur}
+            placeholder="3,100"
+          />
           {incomeStatus === 'saving' && (
             <p className="text-xs text-text-muted">Saving…</p>
           )}
@@ -153,26 +146,17 @@ export function ProcessingForm({
           >
             And the biggest fixed line — what&apos;s housing?
           </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
-              {currencySymbol}
-            </span>
-            <input
-              id="processing-rent"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="1"
-              value={rent}
-              onChange={(e) => {
-                setRent(e.target.value)
-                if (rentStatus !== 'pristine') setRentStatus('pristine')
-              }}
-              onBlur={handleRentBlur}
-              placeholder="950"
-              className="w-full pl-8 pr-3 py-3 min-h-[44px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-text-primary/40"
-            />
-          </div>
+          <CurrencyInput
+            id="processing-rent"
+            currency={currency}
+            value={rent}
+            onChange={(display) => {
+              setRent(display)
+              if (rentStatus !== 'pristine') setRentStatus('pristine')
+            }}
+            onBlur={handleRentBlur}
+            placeholder="950"
+          />
           {rentStatus === 'saving' && (
             <p className="text-xs text-text-muted">Saving…</p>
           )}

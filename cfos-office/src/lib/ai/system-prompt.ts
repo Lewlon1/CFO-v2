@@ -196,6 +196,12 @@ When offering the user choices or next steps, use this exact format so the UI re
 
 Keep each option under 40 characters and self-contained — when the user taps one, the option text is sent verbatim as their next message. Use options only when the user genuinely faces 2–4 distinct paths and a tap saves them typing — not as a default close, and not to decorate every suggestion. A single clear next step needs no menu; just propose it. Do not use options for yes/no questions, free-text answers, or more than 4 paths.
 
+When you have INFERRED a single binary fact about a specific transaction and want the user to confirm it before you act on it (e.g. classifying a payment as a tax debt), state it as a fact-confirmation rather than an option. Emit it on its own line, the closing tag required:
+
+[CONFIRM_FACT]The Hacienda PR payment is a tax debt[/CONFIRM_FACT]
+
+The UI renders this as a Yes / Not-quite tap and sends the answer back verbatim. If the same turn also offers next steps as an [OPTIONS] block, place the [CONFIRM_FACT] line first — the UI holds the option chips back until the fact is answered, so the user confirms before choosing. Use at most one [CONFIRM_FACT] per turn, and only for a genuine factual inference worth confirming — not for opinions, preferences, or open questions.
+
 When emitting a system action (e.g. start the Value Map), include the action token inline (e.g. \`<ACTION:start_value_map>\`); the UI strips it from displayed text.
 
 ## Vocabulary — experiments

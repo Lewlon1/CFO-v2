@@ -3,7 +3,8 @@
 import type { CoverageLine } from '@/lib/analytics/category-coverage'
 import type { Cadence } from '@/lib/analytics/reconcile-fixed-costs'
 import { formatCurrency } from '@/lib/format/currency'
-import { moneySymbol } from '@/lib/utils/money'
+import { parseMoneyInput } from '@/lib/utils/money'
+import { CurrencyInput } from '@/components/ui/CurrencyInput'
 import { CADENCE_OPTIONS, monthlyEq } from './fixed-cost-display'
 
 export type CaptureDecision = { included: boolean; amount: string; cadence: Cadence }
@@ -26,7 +27,6 @@ function CaptureRow({
   label,
   decision,
   onChange,
-  symbol,
   currency,
   fallbackCadence,
 }: {
@@ -34,7 +34,6 @@ function CaptureRow({
   label: string
   decision: CaptureDecision | undefined
   onChange: (key: string, patch: Partial<CaptureDecision>) => void
-  symbol: string
   currency: string
   fallbackCadence: Cadence
 }) {
@@ -50,7 +49,7 @@ function CaptureRow({
       </button>
     )
   }
-  const perMonth = monthlyEq(Number.parseFloat(d.amount) || 0, d.cadence)
+  const perMonth = monthlyEq(parseMoneyInput(d.amount) ?? 0, d.cadence)
   return (
     <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -66,21 +65,13 @@ function CaptureRow({
       </div>
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">
-              {symbol}
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="1"
-              value={d.amount}
-              onChange={(e) => onChange(keyId, { amount: e.target.value })}
-              placeholder="0"
-              className="w-full pl-7 pr-2 py-2 min-h-[44px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-text-primary/40"
-            />
-          </div>
+          <CurrencyInput
+            currency={currency}
+            value={d.amount}
+            onChange={(display) => onChange(keyId, { amount: display })}
+            placeholder="0"
+            className="text-sm"
+          />
         </div>
         <div className="flex-1">
           <select
@@ -110,7 +101,6 @@ function CaptureRow({
  * counted. CFO voice: third-person observation, no advice, no switch language.
  */
 export function MissingCosts({ coverage, state, onChange, currency }: Props) {
-  const symbol = moneySymbol(currency)
   const utilityLines = coverage.filter((l) => l.group === 'utilities')
   const uncoveredUtilities = utilityLines.filter((l) => !l.covered)
   const allUtilitiesUncovered =
@@ -121,7 +111,7 @@ export function MissingCosts({ coverage, state, onChange, currency }: Props) {
   const utilitiesSubtotal = uncoveredUtilities.reduce((sum, l) => {
     const d = state[l.key]
     if (!d?.included) return sum
-    return sum + monthlyEq(Number.parseFloat(d.amount) || 0, d.cadence)
+    return sum + monthlyEq(parseMoneyInput(d.amount) ?? 0, d.cadence)
   }, 0)
 
   return (
@@ -154,7 +144,6 @@ export function MissingCosts({ coverage, state, onChange, currency }: Props) {
                 label={line.label}
                 decision={state[line.key]}
                 onChange={onChange}
-                symbol={symbol}
                 currency={currency}
                 fallbackCadence={line.defaultCadence}
               />
@@ -178,7 +167,6 @@ export function MissingCosts({ coverage, state, onChange, currency }: Props) {
           label={housing.label}
           decision={state[housing.key]}
           onChange={onChange}
-          symbol={symbol}
           currency={currency}
           fallbackCadence={housing.defaultCadence}
         />
@@ -190,7 +178,6 @@ export function MissingCosts({ coverage, state, onChange, currency }: Props) {
           label={insurance.label}
           decision={state[insurance.key]}
           onChange={onChange}
-          symbol={symbol}
           currency={currency}
           fallbackCadence={insurance.defaultCadence}
         />
@@ -201,7 +188,6 @@ export function MissingCosts({ coverage, state, onChange, currency }: Props) {
         label={COUNCIL_TAX_LABEL}
         decision={state[COUNCIL_TAX_KEY]}
         onChange={onChange}
-        symbol={symbol}
         currency={currency}
         fallbackCadence={COUNCIL_TAX_CADENCE}
       />

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { ProcessingForm } from '@/components/onboarding-v2/processing-form'
 import { ProcessingProgress } from '@/components/onboarding-v2/processing-progress'
-import { moneySymbol } from '@/lib/utils/money'
 
 type Props = {
   currency: string
@@ -39,7 +38,7 @@ export function EssentialsBeatBlock({ currency, initialIncome, initialRent, onAd
       <ProcessingForm
         initialIncome={initialIncome}
         initialRent={initialRent}
-        currencySymbol={moneySymbol(currency)}
+        currency={currency}
         importComplete={importComplete}
         onAdvance={onAdvance}
       />
