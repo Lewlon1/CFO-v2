@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
+import { useChatContext } from '@/components/chat/ChatProvider'
 import { CfoThinking } from '@/components/brand/CfoThinking'
 import { UploadBeatBlock } from './upload-beat-block'
 import { EssentialsBeatBlock } from './essentials-beat-block'
@@ -24,6 +25,7 @@ type Props = {
  */
 export function OnboardingBeatHost({ step, currency }: Props) {
   const router = useRouter()
+  const { openSheet, loadConversation } = useChatContext()
   const readTriggeredRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,12 +58,25 @@ export function OnboardingBeatHost({ step, currency }: Props) {
 
         await advanceStep('first_read_delivered')
         if (cancelled) return
-        // The replace opens + loads the Read via ChatOpenerTrigger; the refresh
-        // re-runs the (office) layout so onboardingBeatActive flips to false
-        // (step is now first_read_delivered) and the sheet shows the loaded
-        // conversation instead of this host's CfoThinking. A same-layout
-        // navigation alone does NOT re-run the layout.
-        router.replace(`/office?chat=open&conversationId=${conversationId}`)
+        // Hand the composed Read into the sheet WITHOUT a URL navigation.
+        //
+        // The old approach — router.replace('?chat=open&conversationId=…') then
+        // router.refresh() — raced THREE navigations in one tick: this replace,
+        // the refresh, and ChatOpenerTrigger's param-strip replace('/office').
+        // The refresh got coalesced away, so the force-dynamic (office) layout
+        // never re-rendered on the client; onboardingStep stayed
+        // 'details_confirmed', onboardingBeatActive stayed true, and this host's
+        // loader showed forever over a Read that was already composed + waiting.
+        //
+        // Instead: load the conversation straight into ChatProvider state (which
+        // lives above this host, so it survives the host's unmount) and fire a
+        // LONE router.refresh() — no competing navigation. The refresh re-runs
+        // the layout so onboardingStep flips to 'first_read_delivered', this
+        // host unmounts, and ChatSheet's message branch shows the loaded Read. A
+        // bare refresh is the same mechanism the upload/essentials/confirm beats
+        // above already use reliably.
+        openSheet()
+        loadConversation(conversationId)
         router.refresh()
       } catch (err) {
         console.error('[onboarding-beat-host] read trigger failed', err)
@@ -77,7 +92,7 @@ export function OnboardingBeatHost({ step, currency }: Props) {
     return () => {
       cancelled = true
     }
-  }, [step, router])
+  }, [step, router, openSheet, loadConversation])
 
   if (error) {
     return (
