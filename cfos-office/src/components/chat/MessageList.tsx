@@ -61,6 +61,7 @@ import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
 import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
 import { CfoThinking } from '@/components/brand/CfoThinking';
+import { CFOAvatar } from '@/components/brand/CFOAvatar';
 import { ValueMapActionButton } from './ValueMapActionButton';
 import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
@@ -73,7 +74,6 @@ import {
   buildValueCategoryCard,
   buildClassificationsCard,
 } from './savedCardBuilders';
-import { moneySymbol } from '@/lib/utils/money';
 
 // ── Tool loading labels ───────────────────────────────────────────────────────
 
@@ -459,9 +459,7 @@ export function MessageList({
             >
               {message.role === 'assistant' && (
                 <div className="flex items-center gap-2 mb-2 px-3">
-                  <div className="w-5 h-5 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-bold text-[10px] flex-shrink-0">
-                    {moneySymbol(userCurrency ?? 'EUR')}
-                  </div>
+                  <CFOAvatar size={20} className="flex-shrink-0" />
                   <span className="text-xs text-muted-foreground font-medium">
                     Your CFO
                   </span>

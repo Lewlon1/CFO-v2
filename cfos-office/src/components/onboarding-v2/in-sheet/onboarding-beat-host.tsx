@@ -36,10 +36,17 @@ export function OnboardingBeatHost({ step, currency }: Props) {
 
     let cancelled = false
     void (async () => {
+      // Bound the compose so a hung request surfaces the retry UI instead of
+      // stranding the user on the rotating loader forever. post-upload is
+      // idempotent (it reuses an existing layered conversation), so retrying
+      // is safe. 90s is generous for the LLM compose without being infinite.
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 90_000)
       try {
         const res = await fetch('/api/insights/post-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
         })
         if (!res.ok) throw new Error(`post-upload returned ${res.status}`)
         const data = await res.json()
@@ -62,6 +69,8 @@ export function OnboardingBeatHost({ step, currency }: Props) {
           setError('Something went wrong preparing your first read.')
           readTriggeredRef.current = false
         }
+      } finally {
+        clearTimeout(timeout)
       }
     })()
 

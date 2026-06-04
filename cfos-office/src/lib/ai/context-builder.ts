@@ -2948,6 +2948,32 @@ HARD RULES:
   const completeness = Number(profile?.profile_completeness ?? 0)
   const addressName = firstName ?? 'them'
 
+  // Only ask for Day-0 basics that aren't already on file. Onboarding captures
+  // income / housing / rent up front, so re-asking them here reads as "did it
+  // even save?" — the single biggest trust hit (see test-user notes). Build the
+  // ask-list dynamically from what's actually missing.
+  const incomeKnown = profile?.net_monthly_income != null && profile?.net_monthly_income !== ''
+  const housingKnown = !!profile?.housing_type
+  const rentKnown = profile?.monthly_rent != null && profile?.monthly_rent !== ''
+  const basicsQuestions: string[] = []
+  if (!incomeKnown) {
+    basicsQuestions.push('field: "net_monthly_income", input_type: "currency_amount", label: "What\'s your monthly take-home pay?", rationale: "Needed to tell whether the spending patterns are sustainable"')
+  }
+  if (!housingKnown) {
+    basicsQuestions.push('field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What\'s your housing situation?", rationale: "Housing is usually the biggest lever — needed for meaningful benchmarks"')
+  }
+  if (!rentKnown) {
+    basicsQuestions.push('field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "Compared against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}')
+  }
+  const numberedBasics = basicsQuestions.map((q, i) => `  ${i + 1}. ${q}`).join('\n')
+  const phase2AgreeInstr = basicsQuestions.length === 0
+    ? `- The Day-0 basics (income, housing, rent) are ALREADY on file — do NOT ask for any of them again; re-asking reads as "it didn't save". Acknowledge in one line that the essentials are already captured, then either ask ONE question that is NOT income/housing/rent, or close warmly.`
+    : `- IMMEDIATELY call request_structured_input. Do NOT output any text before the tool call — the form renders inline and contains its own label/rationale. No preamble like "Great. First one:" — just call the tool.
+- Ask ONLY the question(s) below, ONE at a time. Everything else is already on file — NEVER ask for income, housing, or rent that isn't explicitly listed here:
+${numberedBasics}
+- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
+- Confirm before moving on by quoting the value the user just submitted (e.g. "Noted — sound right?"). Then call the next tool immediately.`
+
   prompt += `
 ### USE COUNTRY BENCHMARKS IN THE FIRST INSIGHT
 
@@ -2983,13 +3009,7 @@ Once you've delivered the first insight and the user has reacted (any response),
 "${addressName}, to sharpen the guidance from generic to actually useful, a few questions about your situation will be needed over time. Right now your CFO profile is at about ${completeness}% — enough to spot patterns, not enough for a real strategy. Fill in a few basics now, or do it as we go?"
 
 If they agree (any affirmative — "sure", "go ahead", "let's do it", "let's do a few now", "yes", "ok"):
-- IMMEDIATELY call request_structured_input. Do NOT output any text before the tool call — the form renders inline and contains its own label/rationale. No preamble like "Great. First one:" — just call the tool.
-- Ask up to 3 questions, ONE at a time:
-  1. field: "net_monthly_income", input_type: "currency_amount", label: "What's your monthly take-home pay?", rationale: "Needed to tell whether the spending patterns are sustainable"
-  2. field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What's your housing situation?", rationale: "Housing is usually the biggest lever — needed for meaningful benchmarks"
-  3. field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "Compared against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}
-- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
-- Confirm before moving on by quoting the value the user just submitted (e.g. "Noted — sound right?"). Then call the next tool immediately.
+${phase2AgreeInstr}
 
 If they defer ("over time" / "later" / "not now"):
 - Respect it. Do NOT push further in this conversation. The profiling engine picks up future questions across sessions.
