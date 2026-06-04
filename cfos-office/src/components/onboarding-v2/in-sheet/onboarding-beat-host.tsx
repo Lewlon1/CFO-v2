@@ -49,7 +49,13 @@ export function OnboardingBeatHost({ step, currency }: Props) {
 
         await advanceStep('first_read_delivered')
         if (cancelled) return
+        // The replace opens + loads the Read via ChatOpenerTrigger; the refresh
+        // re-runs the (office) layout so onboardingBeatActive flips to false
+        // (step is now first_read_delivered) and the sheet shows the loaded
+        // conversation instead of this host's CfoThinking. A same-layout
+        // navigation alone does NOT re-run the layout.
         router.replace(`/office?chat=open&conversationId=${conversationId}`)
+        router.refresh()
       } catch (err) {
         console.error('[onboarding-beat-host] read trigger failed', err)
         if (!cancelled) {

@@ -53,7 +53,13 @@ export function StruggleBeatBlock() {
           freeText: selected ? null : trimmed.length > 0 ? trimmed : null,
         })
         trackEvent('onboarding_v2.continue_clicked', { route: result.route })
-        router.push(result.redirectTo)
+        // We're already in /office, so router.push to a same-layout URL would
+        // NOT re-run the (office) layout — needsEntryStruggle / goalBeatActive
+        // would stay stale and the sheet would never leave this beat. Refresh
+        // re-runs the layout: entry_struggle is now set (→ needsEntryStruggle
+        // false, goalBeatActive true), and the GoalBeatWatcher opens the freshly
+        // created goal-chat conversation in the same sheet.
+        router.refresh()
       } catch (err) {
         console.error('[struggle-beat-block] submitStruggle failed', err)
         setError('Something went wrong. Please try again.')
