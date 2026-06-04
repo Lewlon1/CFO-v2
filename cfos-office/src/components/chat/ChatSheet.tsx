@@ -11,6 +11,7 @@ import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { CHAT_SUBJECTS, getFolderChatMeta, type FolderKey } from '@/lib/chat/folder-prompts'
 import type { PostureProfile } from '@/lib/analytics/posture-helpers'
 import { OnboardingBeatHost } from '@/components/onboarding-v2/in-sheet/onboarding-beat-host'
+import { StruggleBeatBlock } from '@/components/onboarding-v2/in-sheet/struggle-beat-block'
 import { IN_SHEET_BEAT_STEPS } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 
@@ -36,6 +37,7 @@ export function ChatSheet() {
     conversationType,
     registerFirstReadDelivery,
     onboardingStep,
+    needsEntryStruggle,
   } = useChatContext()
 
   const onboardingBeatActive = IN_SHEET_BEAT_STEPS.has(onboardingStep ?? '')
@@ -230,6 +232,12 @@ export function ChatSheet() {
             conversations={conversations}
             onBack={() => setShowConversations(false)}
           />
+        ) : needsEntryStruggle ? (
+          // Folded entry beat — the CFO's "what brought you in?" opening,
+          // in-sheet instead of a full-page screen.
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <StruggleBeatBlock />
+          </div>
         ) : onboardingBeatActive ? (
           // Deterministic onboarding beat (upload → essentials → confirm →
           // Read handoff) renders in-sheet instead of the message list. No

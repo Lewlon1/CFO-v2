@@ -83,6 +83,9 @@ interface ChatContextValue {
   /** Server-derived onboarding_step, threaded from the office layout. Drives
    *  the in-sheet onboarding beat host (deterministic, no LLM tool calls). */
   onboardingStep: string | null
+  /** True for a brand-new user with no entry_struggle yet — the sheet opens
+   *  on the in-sheet "what brought you in?" beat (folded entry). */
+  needsEntryStruggle: boolean
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -114,9 +117,11 @@ interface ChatProviderProps {
   /** Server-derived onboarding_step. Threaded to context for the in-sheet
    *  onboarding beat host. */
   onboardingStep?: string | null
+  /** True when the user has not yet answered the entry struggle. */
+  needsEntryStruggle?: boolean
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -553,6 +558,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     userCurrency,
     currentFolder,
     onboardingStep,
+    needsEntryStruggle,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>

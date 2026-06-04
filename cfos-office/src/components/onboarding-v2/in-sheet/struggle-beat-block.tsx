@@ -1,0 +1,121 @@
+'use client'
+
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { useTrackEvent } from '@/lib/events/use-track-event'
+import { submitStruggle } from '@/app/onboarding-v2/actions'
+import { STRUGGLE_OPTIONS, type StruggleOptionId } from '@/lib/onboarding-v2/labels'
+
+/**
+ * In-sheet entry beat — the CFO's opening "what brought you in?". Folds the
+ * old full-page /onboarding-v2 struggle screen into the chat window so the very
+ * first thing a new user sees is the chat. Logic mirrors the old StruggleQuestion
+ * (preset chips + free text → submitStruggle); on submit we push the returned
+ * /office?chat=open&conversationId URL, which the ChatOpenerTrigger already
+ * knows how to open — the goal-derive beat then proceeds in the same sheet.
+ */
+export function StruggleBeatBlock() {
+  const router = useRouter()
+  const trackEvent = useTrackEvent()
+  const [pending, startTransition] = useTransition()
+  const [selected, setSelected] = useState<StruggleOptionId | null>(null)
+  const [freeText, setFreeText] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const shownFiredRef = useRef(false)
+
+  useEffect(() => {
+    if (shownFiredRef.current) return
+    shownFiredRef.current = true
+    trackEvent('onboarding_v2.struggle_shown')
+  }, [trackEvent])
+
+  const canContinue = (selected !== null || freeText.trim().length > 0) && !pending
+
+  function handleOption(id: StruggleOptionId) {
+    setSelected(id)
+    setFreeText('')
+    trackEvent('onboarding_v2.option_selected', { option_id: id })
+  }
+
+  function handleTextChange(v: string) {
+    setFreeText(v)
+    if (v.trim().length > 0) setSelected(null)
+  }
+
+  function handleContinue() {
+    if (!canContinue) return
+    setError(null)
+    startTransition(async () => {
+      try {
+        const trimmed = freeText.trim()
+        const result = await submitStruggle({
+          selectedOption: selected,
+          freeText: selected ? null : trimmed.length > 0 ? trimmed : null,
+        })
+        trackEvent('onboarding_v2.continue_clicked', { route: result.route })
+        router.push(result.redirectTo)
+      } catch (err) {
+        console.error('[struggle-beat-block] submitStruggle failed', err)
+        setError('Something went wrong. Please try again.')
+      }
+    })
+  }
+
+  return (
+    <div className="px-4 py-5">
+      <h2 className="mb-2 font-serif text-[22px] leading-[1.15] text-text-primary">
+        Before we dig in — what brought you in?
+      </h2>
+      <p className="mb-5 text-sm text-text-secondary leading-snug">
+        Pick whichever sounds closest, or tell me in your own words.
+      </p>
+
+      <div className="space-y-2.5 mb-4">
+        {STRUGGLE_OPTIONS.map((opt) => {
+          const isSelected = selected === opt.id
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => handleOption(opt.id)}
+              className={
+                'w-full text-left px-4 py-3 transition-colors min-h-11 rounded-control text-[14.5px] border ' +
+                (isSelected
+                  ? 'bg-text-primary text-bg-base border-text-primary'
+                  : 'bg-bg-elevated text-text-primary border-[var(--border-subtle)]')
+              }
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <textarea
+        value={freeText}
+        onChange={(e) => handleTextChange(e.target.value)}
+        rows={2}
+        placeholder="What's been on your mind?"
+        className="w-full px-4 py-3 mb-5 outline-none focus:ring-2 focus:ring-text-primary/30 rounded-control border border-[var(--border-subtle)] bg-bg-elevated text-text-primary font-serif italic text-[16px] resize-none placeholder:text-text-muted"
+      />
+
+      {error && (
+        <p className="mb-4 text-sm text-destructive">{error}</p>
+      )}
+
+      <button
+        type="button"
+        onClick={handleContinue}
+        disabled={!canContinue}
+        className={
+          'w-full transition-opacity min-h-12 rounded-control text-sm font-medium ' +
+          (canContinue
+            ? 'bg-text-primary text-bg-base cursor-pointer'
+            : 'bg-bg-muted text-text-muted cursor-not-allowed')
+        }
+      >
+        {pending ? 'Just a moment…' : 'Continue'}
+      </button>
+    </div>
+  )
+}

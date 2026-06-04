@@ -56,12 +56,6 @@ export default async function OfficeLayout({ children }: { children: React.React
     .eq('id', user.id)
     .single()
 
-  // Any incomplete user without a v2 entry_struggle goes into the v2 flow.
-  // Mid-v2 users (entry_struggle set) and completed users fall through.
-  if (!profile?.onboarding_completed_at && !profile?.entry_struggle) {
-    redirect('/onboarding-v2')
-  }
-
   // If the user is mid-Marcus-journey (post-goal-beat), bounce them back to
   // the appropriate onboarding-v2 step. Without this, a Marcus user could
   // navigate manually to /office and skip the value-map / upload / archetype.
@@ -83,6 +77,10 @@ export default async function OfficeLayout({ children }: { children: React.React
   // now (deterministic OnboardingBeatHost), so these steps keep the user in
   // /office with the sheet open rather than routing to /onboarding-v2/* pages.
   const onboardingBeatActive = isInSheetBeatStep(onboardingStep)
+  // Brand-new user, no entry struggle yet — the "what brought you in?" beat now
+  // runs in-sheet (folded entry) rather than on the /onboarding-v2 page.
+  const needsEntryStruggle =
+    !profile?.onboarding_completed_at && !profile?.entry_struggle
   const MID_MARCUS_STEPS = new Set([
     'goal_set',
     'goal_skipped',
@@ -177,8 +175,9 @@ export default async function OfficeLayout({ children }: { children: React.React
 
       <ChatProvider
         userCurrency={currency}
-        initialSheetOpen={goalBeatActive || onboardingBeatActive}
+        initialSheetOpen={goalBeatActive || onboardingBeatActive || needsEntryStruggle}
         onboardingStep={onboardingStep}
+        needsEntryStruggle={needsEntryStruggle}
       >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />
