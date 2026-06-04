@@ -514,6 +514,16 @@ export function MessageList({
                   ) : null
                 })()}
 
+              {/* Onboarding v2 — value-first hook close. The first Read's
+                  composed message ends with a [CTA:start_value_map_real] token
+                  (parsed into `cta`); ChatCTA has no handler for it, so we
+                  render the real-transactions Value Map invite inline here. */}
+              {message.role === 'assistant' && cta?.type === 'start_value_map_real' && (
+                <div className="px-3">
+                  <ValueMapActionButton variant="real" />
+                </div>
+              )}
+
               {/* Structured input components from tool invocations */}
               {structuredInputs.map((config, i) => (
                 <StructuredInput
