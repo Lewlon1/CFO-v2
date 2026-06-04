@@ -103,12 +103,11 @@ export function GoalBeatWatcher({
       completedRef.current = true
       startTransition(async () => {
         try {
-          const { redirectTo } = await completeGoalBeat()
-          if (redirectTo) {
-            router.push(redirectTo)
-          } else {
-            router.refresh()
-          }
+          // Goal landed → upload_pending. The upload beat now runs in-sheet
+          // (OnboardingBeatHost), so stay in /office and refresh rather than
+          // routing to the (now redirect-only) /onboarding-v2/upload page.
+          await completeGoalBeat()
+          router.refresh()
         } catch (err) {
           console.error('[GoalBeatWatcher] completeGoalBeat failed', err)
           completedRef.current = false
@@ -154,12 +153,9 @@ export function GoalBeatWatcher({
     completedRef.current = true
     startTransition(async () => {
       try {
-        const { redirectTo } = await skipGoalBeat()
-        if (redirectTo) {
-          router.push(redirectTo)
-        } else {
-          router.refresh()
-        }
+        // Same in-sheet hand-off as completeGoalBeat — stay in /office.
+        await skipGoalBeat()
+        router.refresh()
       } catch (err) {
         console.error('[GoalBeatWatcher] skipGoalBeat failed', err)
         completedRef.current = false

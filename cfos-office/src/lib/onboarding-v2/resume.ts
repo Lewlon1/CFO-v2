@@ -55,25 +55,15 @@ export function resumeRoute(
       // post-stall pivot to essentials, same surface.
       return '/office'
     case 'essentials_done':
-      // Legacy (pre-value-first). Goal + essentials collected in goal-chat;
-      // head to upload as before. The new processing screen reads existing
-      // net_monthly_income / monthly_rent and auto-skips the form so these
-      // users don't re-enter what they already provided.
-      return '/onboarding-v2/upload'
     case 'upload_pending':
-      // Value-first — goal landed; user is on /upload, ready to import.
-      return '/onboarding-v2/upload'
     case 'upload_processing':
-      // Value-first — upload kicked off; processing screen hosts the
-      // income+rent form alongside the parse/aggregate wait.
-      return '/onboarding-v2/processing'
     case 'details_pending':
-      // Value-first — form submitted; the confirm screen lists the
-      // reconciled fixed costs so the user can nod or drop each one.
-      return '/onboarding-v2/confirm'
     case 'details_confirmed':
-      // Value-first — form submitted and fixed costs reconciled; head to Read.
-      return '/onboarding-v2/first-read'
+      // Value-first — the upload → essentials → confirm → Read hand-off now
+      // all runs inside the chat sheet (OnboardingBeatHost). Keep the user in
+      // /office; the host renders the beat for the current step. (The legacy
+      // 'essentials_done' stamp forward-migrates into the in-sheet upload beat.)
+      return '/office'
     case 'goal_set':
     case 'goal_skipped':
       // Legacy path — users stamped before essentials_done landed continue
@@ -94,9 +84,10 @@ export function resumeRoute(
       // Session 32 (B) — layered terminal state. Route back if mid-flow.
       return '/onboarding-v2/first-read'
     case 'first_read_delivered':
-      // Value-first terminal — Read composed and stamped. The Value Map
-      // invitation surfaces on the first-read page as an opt-in chip.
-      return '/onboarding-v2/first-read'
+      // Value-first terminal — Read composed, delivered into the chat sheet,
+      // and onboarding stamped complete. The Value Map invite is inline in the
+      // Read message. Land in /office.
+      return '/office'
     case 'value_map_offered':
       // User has tapped the post-Read Value Map invite (real-transactions
       // mode). Send them to the Value Map page.

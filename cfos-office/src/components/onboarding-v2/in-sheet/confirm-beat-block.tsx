@@ -1,7 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import type { ReconciledBill, Cadence } from '@/lib/analytics/reconcile-fixed-costs'
 import type { RecurringCandidate } from '@/lib/analytics/recurring-candidates'
 import type { CoverageLine } from '@/lib/analytics/category-coverage'
@@ -17,9 +16,10 @@ import {
   COUNCIL_TAX_LABEL,
   COUNCIL_TAX_CADENCE,
 } from '@/components/onboarding-v2/missing-costs'
-import { confirmFixedCosts } from './confirm-actions'
+import { confirmFixedCosts } from '@/app/onboarding-v2/confirm/confirm-actions'
+import { CfoThinking } from '@/components/brand/CfoThinking'
 
-type Props = {
+type ConfirmData = {
   items: ReconciledBill[]
   variable: ReconciledBill[]
   candidates: RecurringCandidate[]
@@ -27,15 +27,52 @@ type Props = {
   currency: string
 }
 
+type Props = {
+  /** Fires after confirmFixedCosts commits (step is now details_confirmed). */
+  onConfirmed: () => void
+}
+
 /**
- * Stateful container for the Step-4 confirm screen. All editing is local React
- * state — nothing persists until "Continue", which assembles a single
- * ConfirmPayload and calls confirmFixedCosts. The live total is for legibility
- * only; the authoritative total is recomputed server-side after commit. Free
- * cash flow stays the First Read's payoff and is deliberately NOT shown here.
+ * In-sheet fixed-cost confirm beat. The reconciliation logic and sub-components
+ * are lifted verbatim from the old /onboarding-v2/confirm ConfirmOrchestrator;
+ * the difference is that this fetches its data from /api/onboarding-v2/confirm-data
+ * (so it can run inside the chat sheet) and calls onConfirmed instead of
+ * router.push. All editing is local state — nothing persists until "Continue".
  */
-export function ConfirmOrchestrator({ items, variable, candidates, coverage, currency }: Props) {
-  const router = useRouter()
+export function ConfirmBeatBlock({ onConfirmed }: Props) {
+  const [data, setData] = useState<ConfirmData | null>(null)
+  const [loadError, setLoadError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/onboarding-v2/confirm-data', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`status ${r.status}`))))
+      .then((d: ConfirmData) => {
+        if (!cancelled) setData(d)
+      })
+      .catch((err) => {
+        console.error('[confirm-beat-block] load failed', err)
+        if (!cancelled) setLoadError(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loadError) {
+    return (
+      <p className="px-4 py-6 text-sm text-text-secondary">
+        Couldn&apos;t load your fixed costs. Refresh to try again.
+      </p>
+    )
+  }
+  if (!data) return <CfoThinking variant="block" />
+
+  return <ConfirmBeatInner data={data} onConfirmed={onConfirmed} />
+}
+
+function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirmed: () => void }) {
+  const { items, variable, candidates, coverage, currency } = data
   const [pending, startTransition] = useTransition()
 
   const visibleItems = useMemo(() => items.filter((i) => !i.superseded), [items])
@@ -113,7 +150,6 @@ export function ConfirmOrchestrator({ items, variable, candidates, coverage, cur
           if (!dismissed.has(bankedKey(item, idx))) return
           if (item.source === 'declared') declaredDismissals.push(item.label)
           else if (item.source === 'detected') detectedDismissals.push(item.label)
-          // rent drops are not persisted (monthly_rent is the source of truth)
         })
 
         const acceptedCandidates = candidates
@@ -141,84 +177,82 @@ export function ConfirmOrchestrator({ items, variable, candidates, coverage, cur
             }
           })
 
-        const { redirectTo } = await confirmFixedCosts({
+        await confirmFixedCosts({
           declaredDismissals,
           detectedDismissals,
           acceptedCandidates,
           skippedCandidates,
           declaredLines,
         })
-        router.push(redirectTo)
+        onConfirmed()
       } catch (err) {
-        console.error('[confirm-orchestrator] commit failed', err)
+        console.error('[confirm-beat-block] commit failed', err)
       }
     })
   }
 
   return (
-    <div className="min-h-dvh flex flex-col bg-background">
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[430px] mx-auto w-full px-4 py-6 space-y-6">
-          <div className="space-y-1">
-            <h1 className="text-lg font-medium text-text-primary leading-tight">
-              Your fixed costs
-            </h1>
-            <p className="text-sm text-text-secondary leading-snug">
-              What goes out every month no matter what. Get this right and the
-              picture that follows is yours, not a guess.
-            </p>
-          </div>
-
-          <ConfirmFixedCosts
-            items={visibleItems}
-            dismissed={dismissed}
-            onToggle={toggleDismissed}
-            currency={currency}
-          />
-
-          <CandidateBills
-            candidates={candidates}
-            state={candidateState}
-            onChange={patchCandidate}
-            currency={currency}
-          />
-
-          {variable.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="text-base font-medium text-text-primary leading-tight">
-                Recurring, but it flexes
-              </h2>
-              <p className="text-sm text-text-secondary leading-snug">
-                These repeat, but the amount moves — they&apos;re spending, not a
-                fixed cost, so they sit outside the total.
-              </p>
-              <ul className="space-y-1.5">
-                {variable.map((v, idx) => (
-                  <li
-                    key={`${v.label}:${idx}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)] px-3 py-2"
-                  >
-                    <span className="text-sm text-text-secondary line-through truncate">{v.label}</span>
-                    <span className="text-xs text-text-muted tabular-nums whitespace-nowrap">
-                      ~{formatCurrency(v.monthly_equivalent, currency)}/mo
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <MissingCosts
-            coverage={coverage}
-            state={captured}
-            onChange={patchCapture}
-            currency={currency}
-          />
+    <div className="flex flex-col">
+      <div className="px-4 py-4 space-y-6">
+        <div className="space-y-1">
+          <h2 className="text-base font-medium text-text-primary leading-tight">
+            Your fixed costs
+          </h2>
+          <p className="text-sm text-text-secondary leading-snug">
+            What goes out every month no matter what. Get this right and the
+            picture that follows is yours, not a guess.
+          </p>
         </div>
+
+        <ConfirmFixedCosts
+          items={visibleItems}
+          dismissed={dismissed}
+          onToggle={toggleDismissed}
+          currency={currency}
+        />
+
+        <CandidateBills
+          candidates={candidates}
+          state={candidateState}
+          onChange={patchCandidate}
+          currency={currency}
+        />
+
+        {variable.length > 0 && (
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium text-text-primary leading-tight">
+              Recurring, but it flexes
+            </h3>
+            <p className="text-sm text-text-secondary leading-snug">
+              These repeat, but the amount moves — they&apos;re spending, not a
+              fixed cost, so they sit outside the total.
+            </p>
+            <ul className="space-y-1.5">
+              {variable.map((v, idx) => (
+                <li
+                  key={`${v.label}:${idx}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-muted)] px-3 py-2"
+                >
+                  <span className="text-sm text-text-secondary line-through truncate">{v.label}</span>
+                  <span className="text-xs text-text-muted tabular-nums whitespace-nowrap">
+                    ~{formatCurrency(v.monthly_equivalent, currency)}/mo
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <MissingCosts
+          coverage={coverage}
+          state={captured}
+          onChange={patchCapture}
+          currency={currency}
+        />
       </div>
 
-      <div className="sticky bottom-0 border-t border-[var(--border-subtle)] bg-background/95 backdrop-blur">
-        <div className="max-w-[430px] mx-auto w-full px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-3">
+      <div className="sticky bottom-0 border-t border-[var(--border-subtle)] bg-bg-elevated/95 backdrop-blur">
+        <div className="px-4 py-3 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm text-text-secondary">Fixed costs / month</p>
             <p className="text-base font-semibold text-text-primary tabular-nums">
