@@ -9,11 +9,17 @@ import type { InsightPayload, QuotableFact, PatternResult, ExperimentProposalLay
 import { extractNumbers } from './insight-validator';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
+import { currencySymbol, formatMoney } from '@/lib/format/money';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
 import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
+import { createServiceClient } from '@/lib/supabase/service';
+import {
+  pickSignificantAmbiguousMerchant,
+  type SignificantMerchant,
+} from '@/lib/value-map/significant-merchant';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -22,25 +28,6 @@ const COHORT_LABEL: Record<string, string> = {
   wave_3: 'Wave 3',
   public: 'public launch',
 };
-
-function currencySymbol(currency: string): string {
-  switch (currency.toUpperCase()) {
-    case 'GBP': return '£';
-    case 'EUR': return '€';
-    case 'USD': return '$';
-    default: return currency + ' ';
-  }
-}
-
-function formatMoney(amount: number, currency: string): string {
-  const sym = currencySymbol(currency);
-  const rounded = Number.isInteger(amount) ? amount : Math.round(amount * 100) / 100;
-  const hasCents = !Number.isInteger(rounded);
-  return `${sym}${rounded.toLocaleString('en-GB', {
-    minimumFractionDigits: hasCents ? 2 : 0,
-    maximumFractionDigits: hasCents ? 2 : 0,
-  })}`;
-}
 
 /**
  * Keys whose string values are NOT merchant names — categories, day names,
@@ -351,8 +338,14 @@ export function buildFirstInsightContext(payload: InsightPayload, selectedCapabi
   lines.push('');
   lines.push('#### NOT AVAILABLE — do not reference');
   const planningTransform = getTransformPosture(profile) === 'planning';
-  if (planningTransform) {
-    lines.push('- t3m_income_monthly is available — you may reference it as "trailing-3-month income" but never as "your monthly income" (the underlying flow is variable)');
+  // Surface the variable-income caveat whenever the income pattern was detected
+  // as variable — NOT only when posture resolved to 'planning'. Posture often
+  // comes back 'unknown' (low confidence / no runway) even though income is
+  // clearly variable, which previously suppressed the caveat and let the CFO
+  // treat irregular income as a flat monthly salary.
+  const incomeIsVariable = profile?.income_shape === 'variable';
+  if (planningTransform || incomeIsVariable) {
+    lines.push('- Income is VARIABLE — never call any figure "your monthly income". If t3m_income_monthly is available you may cite it as "trailing-3-month income" and note that income swings month to month.');
   } else {
     lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
   }
@@ -913,6 +906,71 @@ function buildGoalDeriveConfirmContext(
   return lines.join('\n')
 }
 
+/**
+ * Why-beat — the CFO's first live conversational move after the delta recompose
+ * hands off into chat. A read-and-confirm about the single most significant
+ * AMBIGUOUS merchant: offer a plausible interpretation of what it's FOR in the
+ * user's life and invite correction. Never "why do you spend on X"; never frame
+ * spend as a problem to defend. Offered once; the reply is captured by the
+ * existing Layer-4 chat_signals extractor.
+ *
+ * Gated to the value-first first_read thread, after the recompose has been
+ * delivered, before why_beat_offered is set. Returns '' when not applicable.
+ *
+ * Exported so the framing-rule text can be asserted in tests.
+ */
+export function renderWhyBeatBlock(m: SignificantMerchant): string {
+  const conf =
+    m.userConfidence != null
+      ? `they sorted it at confidence ${m.userConfidence}/5`
+      : `they didn't sort it`;
+  const shape = m.likelyDivergence
+    ? `its behavioural shape doesn't match how it's usually treated`
+    : `it's high behavioural salience and worth understanding`;
+  return [
+    `## OPENING MOVE — read-and-confirm (use at most once, on an early turn)`,
+    ``,
+    `There is one merchant worth understanding before anything else: ${m.displayName} (${shape}; ${conf}).`,
+    ``,
+    `Offer a READ and invite correction. Propose a plausible, specific interpretation of what`,
+    `this merchant is FOR in their life, then let them confirm or refine it. You are allowed to`,
+    `be slightly wrong in an interesting way — people engage by correcting a read of themselves.`,
+    ``,
+    `  GOOD: "${m.displayName} looks like the thing you reach for when the day's already gotten`,
+    `         away from you — fair, or is it something else?"`,
+    `  BANNED: "Why do you spend so much on ${m.displayName}?" or any phrasing that asks them to`,
+    `         JUSTIFY a spend. The judgement comes from demanding an account; the resonance comes`,
+    `         from offering a read.`,
+    ``,
+    `Do this ONCE. If they engage, follow their lead. If they deflect or ignore it, drop it — do`,
+    `not re-ask, do not push. Never frame their spending as a problem to defend. Weave it in`,
+    `naturally; if the user just tapped a directive, address that first, then offer the read.`,
+  ].join('\n');
+}
+
+export async function buildWhyBeatContext(
+  userId: string,
+  conversationType?: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  conversationMetadata?: Record<string, any> | null,
+): Promise<string> {
+  if (!isLayeredReadEnabled()) return '';
+  if (conversationType !== 'first_read') return '';
+  // The recompose must have been delivered, and the beat not yet offered.
+  if (!conversationMetadata?.first_read_metadata_recomposed) return '';
+  if (conversationMetadata?.why_beat_offered) return '';
+
+  try {
+    const svc = createServiceClient();
+    const merchant = await pickSignificantAmbiguousMerchant(svc, userId);
+    if (!merchant) return '';
+    return renderWhyBeatBlock(merchant);
+  } catch (err) {
+    console.error('[why-beat] context build failed:', err);
+    return '';
+  }
+}
+
 export async function buildSystemPrompt(
   userId: string,
   conversationType?: string,
@@ -1029,9 +1087,14 @@ export async function buildSystemPrompt(
   const assets = assetsResult.status === 'fulfilled' ? assetsResult.value.data : null;
   const liabilities = liabilitiesResult.status === 'fulfilled' ? liabilitiesResult.value.data : null;
   // getPrimaryGoal returns PrimaryGoal | null directly (not { data, error }).
-  // Rejected promise → null → no-goal marker emitted by buildGoalsContext.
+  // A REJECTED promise (transient Postgres error) must NOT be reported to the
+  // CFO as "no active goal" — that made the CFO contradict itself mid-read
+  // ("On your goal…" then "No active goal recorded yet"). We distinguish
+  // unavailable from genuinely-none and let buildGoalsContext fall back to the
+  // multi-goal fetch (`goals`) when it succeeded.
   const primaryGoal: PrimaryGoal | null =
     primaryGoalResult.status === 'fulfilled' ? primaryGoalResult.value : null;
+  const primaryGoalUnavailable = primaryGoalResult.status === 'rejected';
 
   // Voice register (Constitution v1.1 §2). The underlying finding never changes
   // between registers — only the phrasing around it. Gentle is warmer phrasing,
@@ -1193,6 +1256,10 @@ export async function buildSystemPrompt(
         experimentProposal,
       ),
       await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+      // Why-beat — the read-and-confirm opener after the delta recompose hands
+      // off. Empty unless this is a delivered-recompose first_read thread with a
+      // significant ambiguous merchant and the beat not yet offered.
+      await buildWhyBeatContext(userId, conversationType, conversationMetadata),
       buildToolUsageInstructions(),
       getPosturePromptFragment(profile),
     ].filter(Boolean);
@@ -1261,7 +1328,7 @@ export async function buildSystemPrompt(
     conversationInstructions,
     buildPortraitContext(portrait, valueMap),
     buildBalanceSheetContext(assets, liabilities),
-    buildGoalsContext(goals, actions, primaryGoal),
+    buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
     openItemsBlock,
     buildTripsContext(dedupedTrips, profile),
     experimentContext,
@@ -1911,8 +1978,25 @@ function buildGoalsContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   actions: any[] | null,
   primaryGoal: PrimaryGoal | null,
+  primaryGoalUnavailable = false,
 ): string {
   const parts: string[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderGoalLine = (goal: any): string => {
+    let line = `- ${goal.name}`;
+    if (goal.target_amount) line += `: target ${goal.target_amount}`;
+    if (goal.current_amount) line += `, current ${goal.current_amount}`;
+    if (goal.target_date) line += `, by ${goal.target_date}`;
+    if (goal.monthly_required_saving) {
+      // Investment-goal pace already accounts for compound growth — flag it so
+      // the CFO frames it as such, not as a flat saving requirement.
+      const basis = goal.type === 'investment' ? '/mo, growth-adjusted' : '/mo';
+      line += ` (need ${goal.monthly_required_saving}${basis})`;
+    }
+    if (goal.on_track != null) line += goal.on_track ? ' ✓ on track' : ' ✗ off track';
+    return line;
+  };
 
   // Always emit the heading. The explicit no-goal marker is the signal the
   // CFO is trained to act on — silence in this slot produces silence in the
@@ -1920,28 +2004,25 @@ function buildGoalsContext(
   parts.push('## Active goals');
 
   if (primaryGoal == null) {
-    parts.push('No active goal set.');
-  } else if (goals && goals.length > 0) {
-    for (const goal of goals) {
-      let line = `- ${goal.name}`;
-      if (goal.target_amount) line += `: target ${goal.target_amount}`;
-      if (goal.current_amount) line += `, current ${goal.current_amount}`;
-      if (goal.target_date) line += `, by ${goal.target_date}`;
-      if (goal.monthly_required_saving) line += ` (need ${goal.monthly_required_saving}/mo)`;
-      if (goal.on_track !== null) line += goal.on_track ? ' ✓ on track' : ' ✗ off track';
-      parts.push(line);
+    if (goals && goals.length > 0) {
+      // Primary-goal signal came back null/unavailable, but the multi-goal
+      // fetch succeeded and has rows — render those rather than (wrongly)
+      // telling the CFO there is no goal.
+      for (const goal of goals) parts.push(renderGoalLine(goal));
+    } else if (primaryGoalUnavailable) {
+      // The query errored — do NOT assert "no goal". Silence-with-reason so the
+      // CFO doesn't contradict a goal it referenced moments earlier.
+      parts.push('(Goal status temporarily unavailable — do not state that the user has no goal.)');
+    } else {
+      parts.push('No active goal set.');
     }
+  } else if (goals && goals.length > 0) {
+    for (const goal of goals) parts.push(renderGoalLine(goal));
   } else {
     // Defensive fallback: primaryGoal exists but the multi-goal fetch failed
     // or returned empty. Render the primary alone so the CFO is not blind to
     // the goal it has just been told exists.
-    let line = `- ${primaryGoal.name}`;
-    if (primaryGoal.target_amount) line += `: target ${primaryGoal.target_amount}`;
-    if (primaryGoal.current_amount) line += `, current ${primaryGoal.current_amount}`;
-    if (primaryGoal.target_date) line += `, by ${primaryGoal.target_date}`;
-    if (primaryGoal.monthly_required_saving) line += ` (need ${primaryGoal.monthly_required_saving}/mo)`;
-    if (primaryGoal.on_track !== null) line += primaryGoal.on_track ? ' ✓ on track' : ' ✗ off track';
-    parts.push(line);
+    parts.push(renderGoalLine(primaryGoal));
   }
 
   if (actions && actions.length > 0) {
@@ -2476,7 +2557,7 @@ Available scenario types:
 - **career_change**: transition costs, runway analysis, new income comparison
 - **investment_growth**: compound growth projections with year-by-year breakdown
 
-Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. Always mention the impact on their active goals if any exist.`;
+Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. For investment_growth, plan on the 7% annual-return default and say in one line where it comes from — the moderate long-run average a broadly diversified portfolio has returned over long horizons, an assumption not a promise. You may show a 4%/10% sensitivity, but lock 7% as the working number rather than leaving the user with an unanchored band. Always mention the impact on their active goals if any exist.`;
 
     case 'first_read':
     case 'post_upload': {
@@ -2528,7 +2609,7 @@ The user just completed the Value Map and uploaded transactions. Their first mes
 - "I want to plan a trip I've been putting off..." → Don't call tools yet. Ask three questions: where, when, and approximate budget.
 
 For any other opening, follow normal conversation instructions.
-Keep the first response focused — one insight or one question. No lists, no feature tours. Leave them wanting the next turn.`;
+Keep the first response focused — one insight or one question. No lists, no feature tours. The user has already had their Read — don't re-state the standing numbers (income, free cash flow, goal math); build on them toward the one thing they tapped for. Leave them wanting the next turn.`;
 
     default: {
       // Check if this conversation was initiated from a nudge
@@ -2540,6 +2621,8 @@ Keep the first response focused — one insight or one question. No lists, no fe
       return `## Conversation context: General
 
 Open conversation. Follow their lead — answer what they actually asked. Don't pivot to what you think they should be asking. If there's something urgent in their data, mention it once at the end. Keep it natural.
+
+Continuity: the user has already had their Read — income, fixed costs, free cash flow, the goal math, and where their spend concentrates are established facts they've already seen, not fresh findings. Don't re-deliver them as if new; reference them in a clause and build forward. Extend the picture, don't restate it. Land the turn on one clear thing they can act on — not a recap, not a housekeeping list.
 
 If the Experiments section below shows an outcome owed (an experiment whose end date has passed without a self-report), open this turn with the check-in instead — do not greet, do not summarise, ask how it went.`;
     }

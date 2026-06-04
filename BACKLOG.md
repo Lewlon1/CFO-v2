@@ -4,6 +4,34 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ---
 
+## Coaching Cadence (2026-06-02) — deferrals
+
+- **Legacy first-insight de-stack.** The `InsightPayload` first-insight path (`context-builder.ts` ~292/552/623) mandates a REQUIRED experiment closing beat stacked with headline→gap→`[STATS]`→hidden-pattern→hook→`[OPTIONS]`→experiment — a lot of concepts in one message. It's gated behind `!isLayeredReadEnabled()`, so it's NOT on the live value-first flow (which composes via `compose-first-read.ts`). Apply the guiding cadence (one concept at a time, no forced beat) there only if that legacy path is revived; otherwise it ages out when the layered-read kill-switch is removed.
+- **Automated coaching behavioural-eval cases.** The guiding principle is verified by prompt-content unit tests (changes locked) + a human-review checklist (behavioural sign-off). Genuine behavioural eval cases — one-topic-per-turn, tie-to-goal, mechanism-matches-claim, no-forced-menu — belong in the `scripts/test-prompts.ts` §9 harness, but they assert on live model output and can't be calibrated without Bedrock creds. Author + calibrate them in a creds-enabled session.
+- **"Coaching" vs "guiding" terminology (Constitution §1).** The behaviour shipped under "How the CFO guides" because §1 lists "not a coach" (cheerleader sense). If the product wants "coaching" as the official term, amend §1's "not a coach" → "not a cheerleader/life-coach" and rename the §6 subsection + BASE_PERSONA section to match. Cosmetic, but it's identity-level wording — a deliberate call, not a silent rename.
+
+---
+
+## Value-Flow Dedup + Post-Read Reveal Voice (2026-06-02) — deferrals
+
+Surfaced by the dedup Phase 0 audit; out of scope for a selector/prompt-layer session.
+
+- **The learning engine persists ZERO `value_category_rules` (the bug under the dedup bug).** Every retake/check-in user on staging has `value_category_rules` total = 0 — lew6 (25 signals / 16 merchants), lew5, lew7, lew4, marcus@test10, lewfinal1, all 0 — across April→June. `processSignals` → `computeFlatRule` should mint a flat merchant rule from even a single 2× signal (agreement 1.0 ≥ the 0.55 floor), so the absence is a real failure, not a threshold effect. Downstream, `backfillForMerchant` (which only lifts a sibling when `prediction.confidence > txn.value_confidence`, sourced from a rule) is therefore inert — siblings never settle, the whole prediction/archetype path runs on raw `correction_signals` only. **The dedup fix this session is robust to this** (it keys off `value_confirmed_by_user`, not rules), which is why it was shippable without fixing this — but the learning engine is silently non-functional for these users and deserves its own session. Likely suspects: the `after()` learning callback on `/api/value-map/personal` not flushing in the serverless runtime; a silent failure in the `value_category_rules` upsert (`onConflict: VCR_ON_CONFLICT`); or the service-client write. Localise with: pick a user with `correction_signals` but 0 rules, run `processSignals` directly, watch whether the upsert lands.
+- **Double-weight signal pollution — historical, immaterial, not cleaned.** Only lew6 (a stale 2026-04-14 test user) has merchants re-rated >1× at elevated weight: `aldi` ×3 (burden AND foundation — conflicting), two more ×3, three ×2. Six merchants. The selector fix stops new accrual at source, so no production cleanup is mandated; an optional dedup query sits in `prod-backfill-071-value-flow-dedup.sql` (section C), marked DO NOT APPLY. Revisit only if (A2) of that file shows real production pollution biasing archetype regeneration.
+- **Continuity not re-applied to `value_map_complete` / `monthly_review`.** The `default` ongoing-chat branch + `chip_opener` got the "don't restate the Read; extend it" rule. `monthly_review` restates the month's numbers by design (that IS the review), and `value_map_complete` is the legacy Gap-reveal surface (under value-first the reveal is the recompose) whose single-question structure the v1.4 session deliberately kept — both left as-is. If either is observed re-delivering the onboarding Read verbatim, extend the continuity rule there too.
+
+---
+
+## CFO Directness + Constitution v1.4 (2026-06-02) — deferrals
+
+Out of scope for the prompt-layer + docs directness session; logged for follow-up.
+
+- **`persona-sanitiser.ts` undoes the §2 v1.4 first-person relaxation on the chat path.** The runtime guard (`src/lib/ai/persona-sanitiser.ts`, called from `app/api/chat/route.ts`) regex-detects first-person (`\bI\b`, `me`, `my`, `I'd`, `I'll`, `I'm`, `let me`) and rewrites it out via Haiku before persisting. Constitution v1.4 now ALLOWS stance-bearing first person ("I'd push back on that") and bans only narration + the service-desk register — so the sanitiser is now *stricter than the constitution* and will strip legitimate stance-first-person from production chat. **Fix:** soften `LEAK_PATTERNS` + `REWRITE_PROMPT` to match v1.4 (keep stripping narration "I noticed"/"I can see", service-desk "let me"/"I can help", and "advice"/"advise"; STOP stripping bare stance-bearing "I"/"I'd"), and **re-derive `persona-sanitiser.test.ts` in the same edit** (it currently asserts `"I'd note that…"` gets rewritten). Not on the First Read path (`first-read.ts` is already first-person-free), so the headline change is unaffected. Deferred because it's runtime code outside this session's manifest ("prompt-layer + docs only / do not open a rewrite front").
+- **Feed the confirmed fixed-cost / recurring set into the First Read lever context.** `compose-first-read.ts` computes `total_fixed_costs` (+ `reconcileFixedCosts` fallback), but the `Lever` set passed to `first-read.ts` has no dedicated "recurring bills" lever — only `cut | shift | reallocate | supply_input`. So the v1.4 First Read names "recurring bills" generically as a headline (acceptable per the session's lever-as-headline rule). Wire the confirmed fixed-cost set into the lever package so the recurring-bills lever can cite a real number.
+- **`read-judge.ts` word ceiling (250) now looser than the prompt target (120–220).** The first-read prompt targets 120–220 words (relocated from Constitution §8); `READ_WORD_CAP = 250` remains the hard fail-ceiling. 120–220 ⊂ ≤250 so nothing breaks and no test fails, but the judge no longer polices the reveal target. Tighten `READ_WORD_CAP` to 220 if the judge should enforce the target rather than just act as a backstop.
+
+---
+
 ## Audit Zero (v2.6, 2026-05-29) — NEEDS-LEWIS follow-ups
 
 Verified in Audit Zero but intentionally not actioned this session (protected files / deeper work). Full evidence + three-search: `audit/audit-zero-killlist.md`.

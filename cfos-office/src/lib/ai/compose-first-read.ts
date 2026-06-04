@@ -30,13 +30,21 @@ import {
   selectHookCandidates,
   type HookCandidate,
 } from '@/lib/ai/compose-first-read-hooks';
+import { getSpendingBreakdown, type SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
+import { categoryLabel } from '@/lib/analytics/categories';
+import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
+import { monthsBetween } from '@/lib/goals/pace';
+import { requiredMonthlyBand, INVESTMENT_DEFAULT_RATE_PCT } from '@/lib/finance/compound-growth';
+import { formatMoney } from '@/lib/format/money';
 
 import {
   FIRST_READ_SYSTEM_PROMPT,
   FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST,
+  FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
   buildFirstReadUserPrompt,
   type FirstReadComposeOutput,
   type FirstReadMetadata,
+  type PriorReadSummary,
 } from './prompts/first-read';
 
 const WINDOW_DAYS = 90;
@@ -46,26 +54,60 @@ const MAX_OUTPUT_TOKENS = 700;
 
 const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
 
-export type ComposeFirstReadMode = 'default' | 'value_first';
+export type ComposeFirstReadMode = 'default' | 'value_first' | 'value_first_recompose';
+
+export type { PriorReadSummary };
 
 export async function composeFirstRead(params: {
   userId: string;
   supabase?: SupabaseClient;
   mode?: ComposeFirstReadMode;
+  /** Present only for value_first_recompose — what the prior Read already said. */
+  priorReadSummary?: PriorReadSummary;
+  /** The merchant keys the Value Map actually presented (Phase 1 selection), for the recompose payoff context. */
+  valueMapCardKeys?: string[];
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
+  const isRecompose = mode === 'value_first_recompose';
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, leverPackage, financialFacts, benchmarkObservation] = await Promise.all([
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
     getTopMerchantKeys(supabase, params.userId),
     getActiveGoal(supabase, params.userId),
     getTransactionCount(supabase, params.userId, WINDOW_DAYS),
     getDataWindowEnd(supabase, params.userId),
-    deriveLevers({ supabase, userId: params.userId }),
     getFinancialFacts(supabase, params.userId),
     getTopBenchmarkObservation(supabase, params.userId),
+    getEntryStruggle(supabase, params.userId),
   ]);
+
+  // The breakdown windows off dataWindowEnd (resolved above), not today —
+  // a user whose data ended weeks ago would window into an empty range.
+  const spendingBreakdown = await getSpendingBreakdown(
+    supabase,
+    params.userId,
+    WINDOW_DAYS,
+    dataWindowEnd,
+  );
+
+  // Levers run AFTER the breakdown: the cut lever names the biggest discretionary
+  // category from it, so the Read's ONE ACTION and the breakdown refer to the
+  // same category (was: a recurring_expenses cut that surfaced essentials/renfe).
+  const leverPackage = await deriveLevers({
+    supabase,
+    userId: params.userId,
+    currency: financialFacts.currency,
+    spendingBreakdown,
+    windowDays: WINDOW_DAYS,
+  });
+
+  // Goal-first precedence, mirroring resolveUserIntent() in insight-engine.ts.
+  const readRecipe = selectReadRecipe({
+    goal: goalRow,
+    entryStruggle: entry?.entry_struggle ?? null,
+    entryStruggleText: entry?.entry_struggle_text ?? null,
+  });
 
   // Fetched once, threaded into every cluster lookup. Without this every
   // cluster behaviour call re-queries the same MAX(date), and worse, the
@@ -93,13 +135,7 @@ export async function composeFirstRead(params: {
   );
 
   const goalSummary = goalRow
-    ? [
-        goalRow.name,
-        goalRow.target_amount != null ? `target ${goalRow.target_amount}` : null,
-        goalRow.target_date ? `by ${goalRow.target_date}` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+    ? buildGoalSummary(goalRow, financialFacts.currency)
     : null;
 
   const dataAgeDays = dataWindowEnd
@@ -126,10 +162,16 @@ export async function composeFirstRead(params: {
     financialFacts,
     hookCandidates: mode === 'value_first' ? hookCandidates : undefined,
     benchmarkObservation,
+    spendingBreakdown,
+    readRecipe,
+    // Recompose-only: the delta contract + payoff source.
+    priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
+    valueMapCardKeys: isRecompose ? (params.valueMapCardKeys ?? null) : null,
   });
 
-  const systemPrompt =
-    mode === 'value_first' && hookCandidates.length > 0
+  const systemPrompt = isRecompose
+    ? FIRST_READ_SYSTEM_PROMPT_RECOMPOSE
+    : mode === 'value_first' && hookCandidates.length > 0
       ? FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST
       : FIRST_READ_SYSTEM_PROMPT;
 
@@ -151,6 +193,9 @@ export async function composeFirstRead(params: {
     leverPackage,
     mode,
     hookCandidates,
+    readRecipe,
+    spendingBreakdown,
+    priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
   });
 
   return { composedMessage, metadata };
@@ -192,6 +237,10 @@ export type FinancialFacts = {
   monthly_rent: number | null;
   total_fixed_costs: number | null;
   free_cash_flow: number | null;
+  currency: string;
+  /** 'variable' means income swings — surface it instead of a flat monthly figure. */
+  income_shape: string | null;
+  t3m_income_monthly: number | null;
 };
 
 async function getFinancialFacts(
@@ -201,7 +250,7 @@ async function getFinancialFacts(
   const [profileRes, snapshotRes] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent')
+      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly')
       .eq('id', userId)
       .maybeSingle(),
     supabase
@@ -248,16 +297,54 @@ async function getFinancialFacts(
     monthly_rent: rent,
     total_fixed_costs: totalFixed,
     free_cash_flow: freeCashFlow,
+    currency:
+      typeof profileRes.data?.primary_currency === 'string' && profileRes.data.primary_currency
+        ? profileRes.data.primary_currency
+        : 'EUR',
+    income_shape:
+      typeof profileRes.data?.income_shape === 'string' ? profileRes.data.income_shape : null,
+    t3m_income_monthly:
+      typeof profileRes.data?.t3m_income_monthly === 'number'
+        ? profileRes.data.t3m_income_monthly
+        : null,
   };
+}
+
+async function getEntryStruggle(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ entry_struggle: string | null; entry_struggle_text: string | null } | null> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('entry_struggle, entry_struggle_text')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) {
+    console.error('[compose-first-read] getEntryStruggle failed:', error);
+    return null;
+  }
+  return data
+    ? {
+        entry_struggle: (data.entry_struggle as string | null) ?? null,
+        entry_struggle_text: (data.entry_struggle_text as string | null) ?? null,
+      }
+    : null;
 }
 
 async function getActiveGoal(
   supabase: SupabaseClient,
   userId: string,
-): Promise<{ name: string; target_amount: number | null; target_date: string | null } | null> {
+): Promise<{
+  name: string;
+  target_amount: number | null;
+  current_amount: number | null;
+  target_date: string | null;
+  type: string | null;
+  monthly_required_saving: number | null;
+} | null> {
   const { data } = await supabase
     .from('goals')
-    .select('name, target_amount, target_date')
+    .select('name, target_amount, current_amount, target_date, type, monthly_required_saving')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -267,9 +354,90 @@ async function getActiveGoal(
     ? {
         name: data.name as string,
         target_amount: data.target_amount as number | null,
+        current_amount: data.current_amount as number | null,
         target_date: data.target_date as string | null,
+        type: (data.type as string | null) ?? null,
+        monthly_required_saving: (data.monthly_required_saving as number | null) ?? null,
       }
     : null;
+}
+
+/**
+ * Renders the active goal into the GOAL prompt block, in the user's currency.
+ * For investment goals it supplies the compound-growth-aware monthly figure
+ * AND a rate band so the Read can teach the concept and show a range — rather
+ * than the model inventing a flat division (which made achievable long-horizon
+ * goals read as impossible) or dropping the already-saved amount.
+ */
+export function buildGoalSummary(
+  goal: {
+    name: string;
+    target_amount: number | null;
+    current_amount: number | null;
+    target_date: string | null;
+    type: string | null;
+    monthly_required_saving: number | null;
+  },
+  currency: string,
+): string {
+  const lines: string[] = [];
+  // Whole-currency rounding for the Read — cents read like a spreadsheet, not a CFO.
+  const m = (v: number) => formatMoney(Math.round(v), currency);
+  const head = [
+    goal.name,
+    goal.target_amount != null ? `target ${m(goal.target_amount)}` : null,
+    goal.current_amount != null
+      ? `already saved ${m(goal.current_amount)}`
+      : null,
+    goal.target_date ? `by ${goal.target_date}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  lines.push(head);
+
+  const monthsLeft =
+    goal.target_date != null ? monthsBetween(new Date(), new Date(goal.target_date)) : null;
+
+  if (
+    goal.type === 'investment' &&
+    goal.target_amount != null &&
+    monthsLeft != null &&
+    monthsLeft > 0
+  ) {
+    const target = goal.target_amount;
+    const current = goal.current_amount ?? 0;
+    const band = requiredMonthlyBand({ targetAmount: target, currentAmount: current, months: monthsLeft });
+    const bandStr = band
+      .map((b) => `${m(b.monthly ?? 0)}/mo at ${b.ratePct}%`)
+      .join(', ');
+    const base =
+      band.find((b) => b.ratePct === INVESTMENT_DEFAULT_RATE_PCT) ?? band[Math.floor(band.length / 2)];
+    const baseStr = base ? m(base.monthly ?? 0) : '(n/a)';
+    const linear = Math.max(0, (target - current) / monthsLeft);
+    lines.push(
+      `Monthly contribution needed, accounting for COMPOUND GROWTH (the pot earns returns, ` +
+        `so far less than a flat split): ${bandStr}. ` +
+        `A naive no-growth split would demand ${m(linear)}/mo — cite the growth-aware figures, not that. ` +
+        `PLAN AROUND the ${INVESTMENT_DEFAULT_RATE_PCT}% (middle) case — ${baseStr}/mo — as the working number. ` +
+        `Show the full range ONCE so the user sees the options, then commit to the ${INVESTMENT_DEFAULT_RATE_PCT}% figure ` +
+        `and size the verdict and any gap against THAT, not the 4% figure. ` +
+        `Explain in ONE plain line where the ${INVESTMENT_DEFAULT_RATE_PCT}% comes from: it is the moderate middle of the ` +
+        `range — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this — an ` +
+        `assumption, not a promise, which is exactly why the 4% case stays in view as the stress test and 10% as the upside. ` +
+        `Returns on the ${m(current)} already saved do much of the heavy lifting over this horizon. ` +
+        `Give a clear verdict on whether the target is realistic at the ${INVESTMENT_DEFAULT_RATE_PCT}% plan given their free ` +
+        `cash flow. If free cash flow already covers the ${INVESTMENT_DEFAULT_RATE_PCT}% number, say so plainly — the goal is ` +
+        `funded at plan, so frame the next move as getting there sooner or covering the 4% stress case, never as closing a gap ` +
+        `that does not exist at plan.`,
+    );
+  } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
+    lines.push(
+      `Monthly contribution needed: ${m(goal.monthly_required_saving)}/mo ` +
+        `(straight-line, already nets off the ${m(goal.current_amount ?? 0)} saved).`,
+    );
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -330,6 +498,14 @@ async function getTransactionCount(
   return count ?? 0;
 }
 
+/** First sentence, lowercased + whitespace-collapsed, for the repeated-opening probe. */
+function firstSentenceOf(message: string): string {
+  const trimmed = message.trim();
+  // Split on sentence-ending punctuation followed by space/newline, or newline.
+  const match = trimmed.split(/(?<=[.!?])\s+|\n/)[0] ?? trimmed;
+  return match.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 export function extractCompositionMetadata(args: {
   composedMessage: string;
   usableClusters: ClusterBehaviour[];
@@ -337,8 +513,12 @@ export function extractCompositionMetadata(args: {
   leverPackage?: LeverPackage;
   mode?: ComposeFirstReadMode;
   hookCandidates?: HookCandidate[];
+  readRecipe?: ReadRecipe;
+  spendingBreakdown?: SpendingBreakdown | null;
+  priorReadSummary?: PriorReadSummary | null;
 }): FirstReadMetadata {
   const text = args.composedMessage.toLowerCase();
+  const isRecompose = args.mode === 'value_first_recompose';
 
   const layers_used = ['L1', 'L2', 'L3'];
   if (args.goalSummary) layers_used.push('L5');
@@ -361,6 +541,18 @@ export function extractCompositionMetadata(args: {
       return probe.length > 2 && args.composedMessage.toLowerCase().includes(probe);
     });
 
+  const breakdown_cited = detectBreakdownCited(args.composedMessage, args.spendingBreakdown);
+
+  // Repeated-opening probe: a well-formed delta recompose must NOT open on the
+  // prior Read's first sentence. Only meaningful in recompose mode with a prior
+  // sentence on hand.
+  const priorFirst = args.priorReadSummary?.firstSentence
+    ? args.priorReadSummary.firstSentence.toLowerCase().replace(/\s+/g, ' ').trim()
+    : null;
+  const repeated_opening = isRecompose && priorFirst
+    ? firstSentenceOf(args.composedMessage) === priorFirst
+    : false;
+
   return {
     layers_used,
     features_cited,
@@ -370,5 +562,42 @@ export function extractCompositionMetadata(args: {
     blocker_field: args.leverPackage?.blocker?.type === 'supply_input' ? args.leverPackage.blocker.field : null,
     mode: args.mode ?? 'default',
     hook_candidates: args.hookCandidates ?? null,
+    read_recipe: args.readRecipe ?? null,
+    breakdown_cited,
+    is_recompose: isRecompose,
+    repeated_opening,
   };
+}
+
+/**
+ * Did the composed Read actually surface the breakdown? True when a top-category
+ * name or the biggest-merchant total (whole-number, formatting-agnostic) appears
+ * in the prose. A cheap regex probe — not a guarantee, a metadata signal for the
+ * judge/eval path, mirroring how clusters_referenced and features_cited work.
+ */
+function detectBreakdownCited(
+  message: string,
+  breakdown: SpendingBreakdown | null | undefined,
+): boolean {
+  if (!breakdown) return false;
+  const lower = message.toLowerCase();
+
+  for (const slice of breakdown.top_categories) {
+    // Match the raw slug ("dining_out"), its spaced form, or the human label
+    // ("eating & drinking out") the Read actually prints.
+    const slug = slice.category.toLowerCase();
+    const spaced = slug.replace(/_/g, ' ');
+    const label = categoryLabel(slice.category).toLowerCase();
+    if (slug.length > 2 && (lower.includes(slug) || lower.includes(spaced) || lower.includes(label))) {
+      return true;
+    }
+  }
+
+  const total = breakdown.biggest_merchant?.total;
+  if (total != null && message.includes(String(Math.round(total)))) return true;
+
+  const largest = breakdown.largest_transaction?.amount;
+  if (largest != null && message.includes(String(Math.round(largest)))) return true;
+
+  return false;
 }

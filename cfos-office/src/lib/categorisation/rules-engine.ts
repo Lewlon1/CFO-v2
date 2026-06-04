@@ -25,6 +25,10 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'to eur', 'to gbp', 'to usd', 'exchanged to',
       'withdrawal', 'deposit ', 'internet transfer',
       'p2p payment', 'bank transfer',
+      // Spanish / PR cash & P2P movements
+      'retirada de efectivo', 'efectivo al instante', 'cash withd', 'atm ',
+      'bizum', 'ath movil', 'transferencia inmediata', 'transferencia de ',
+      'transfer completed',
     ],
     categoryId: 'transfers',
   },
@@ -41,10 +45,14 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'supermarket', 'supermercado', 'mercadona', 'lidl', 'aldi', 'eroski', 'consum',
       'carrefour', 'waitrose', 'tesco', 'sainsbury', 'morrisons', 'asda', 'coop ',
       'co-op', 'co-operative', 'iceland ', 'ocado', 'marks & spencer', 'm&s food',
-      'primaprix', ' dia ', 'bon preu', 'condis', 'simply', 'ahorramas',
-      'caprabo', 'supermercat', 'mercalatina',
+      'primaprix', ' dia ', 'bon preu', 'bonpreu', 'condis', 'simply', 'ahorramas',
+      'caprabo', 'supermercat', 'mercalatina', 'mercat ',
       'rewe', 'edeka', 'netto ', 'penny ', 'kaufland', 'spar ',
       'verdura', 'fruta', 'grocer', 'alimentaci', 'minimarket',
+      // Spanish / Catalan neighbourhood food shops
+      'fruiteria', 'fruteria', 'carniceria', 'carnisseria', 'pescaderia',
+      'peixateria', 'panaderia', 'pasteleria', 'pastisseria', 'fleca', 'forn de pa',
+      'colmado', 'ultramarinos',
     ],
     categoryId: 'groceries',
   },
@@ -58,6 +66,8 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'boulangerie', 'patisserie', 'trattoria', 'ristorante', 'ramen', 'glovo',
       'deliveroo', 'ubereats', 'uber eats', 'just eat', 'pub ', 'bar ', 'wetherspoon',
       'pan laude', 'red lion', 'mollys',
+      // Spanish / Catalan eating & drinking
+      'vinoteca', 'vermuteria', 'cerveseria', 'braseria', 'taverna', 'gastrobar',
     ],
     categoryId: 'eat_drinking_out',
   },
@@ -77,6 +87,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'airport', 'aeropuerto', 'airline', 'ryanair', 'easyjet', 'vueling', 'iberia',
       'british airway', 'hotel', 'hostel', 'airbnb', 'booking.com', 'expedia',
       'holiday', 'resort', 'alojamiento', 'travel insurance', 'seguro viaje',
+      'aena', 'jetblue', 'eurostar', 'budgetair',
     ],
     categoryId: 'travel',
   },
@@ -97,15 +108,16 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
       'leroy merlin', 'fnac', 'primark', 'media markt',
       'john lewis', 'argos', 'tk maxx', 'tkmaxx',
       'aliexpress', 'shein', 'temu', 'arbitrade', 'humana',
+      'libreria', 'llibreria', 'papeleria',
     ],
     categoryId: 'shopping',
   },
   {
     keywords: [
       'gym ', 'puregym', 'the gym', 'fitness', 'crossfit', 'yoga ', 'pilates',
-      'pharmacy', 'farmacia', 'chemist', 'boots ', 'dentist', 'dental',
-      'optician', 'hospital', 'clinic', 'clinica', 'physio', 'medic',
-      'doctor', 'supplement', 'vitamins', 'nhs ',
+      'pharmacy', 'farmacia', 'farmàcia', 'chemist', 'boots ', 'dentist', 'dental',
+      'optician', 'hospital', 'clinic', 'clinica', 'clínica', 'physio', 'medic',
+      'doctor', 'supplement', 'vitamins', 'nhs ', 'sanitas', 'specsavers',
       'peluquer', 'haircut', 'barber', 'nail ', 'beauty', 'spa ', 'massage',
       'skincare', 'cosmetic',
     ],
@@ -128,8 +140,8 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
   {
     keywords: [
       'golf', 'tennis', 'padel', 'playtomic', 'squash', 'bowling', 'cinema', 'cine ',
-      'theatre', 'teatro', 'museum', 'museo', 'zoo ', 'aquarium', 'escape room',
-      'ski ', 'concert', 'event', 'ticket',
+      'cines', 'cinesa', 'theatre', 'teatro', 'museum', 'museo', 'zoo ', 'aquarium',
+      'escape room', 'ski ', 'concert', 'event', 'ticket',
     ],
     categoryId: 'entertainment',
   },
@@ -144,6 +156,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
     keywords: [
       'savings transfer', 'broker', 'pension', 'crypto', 'bitcoin', 'etf',
       'vanguard', 'degiro', 'trading', 'etoro', 'interactive brokers', 'myinvestor',
+      'sipp', 'fundsmith', 'isa contribution',
     ],
     categoryId: 'savings_investments',
   },
@@ -157,7 +170,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; categoryId: string }> = [
   {
     keywords: [
       'salary', 'salario', 'nomina', 'nómina', 'payroll', 'dividends', 'freelance',
-      'side income', 'rental income', 'refund', 'interest for',
+      'side income', 'rental income', 'refund', 'interest for', 'transferencia recibida',
     ],
     categoryId: 'income',
   },
@@ -247,15 +260,37 @@ function matchByKeywords(paddedText: string, amount?: number): CatResult {
   return { categoryId: null, confidence: 0, tier: 'none' }
 }
 
+// Transaction-type markers read from the RAW description (the un-normalised
+// `description`). normaliseMerchant strips payment tags such as "(P2P Payment)"
+// to clean the merchant name ("ROBYN WELCH (P2P Payment)" → "robyn welch"), so
+// without this tier the 'p2p payment' signal is destroyed before any keyword
+// matching runs. Keep this list to markers the normaliser removes or that only
+// make sense against the full raw text.
+const RAW_TYPE_RULES: Array<{ keywords: string[]; categoryId: string; confidence: number }> = [
+  { keywords: ['p2p payment'], categoryId: 'transfers', confidence: 0.85 },
+]
+
+function matchTransactionType(rawText: string): CatResult {
+  const padded = ` ${rawText.toLowerCase()} `
+  for (const rule of RAW_TYPE_RULES) {
+    if (rule.keywords.some((kw) => padded.includes(kw))) {
+      return { categoryId: rule.categoryId, confidence: rule.confidence, tier: 'keyword' }
+    }
+  }
+  return { categoryId: null, confidence: 0, tier: 'none' }
+}
+
 /**
  * Run all tiers in priority order. Returns null categoryId if no match (needs LLM).
  *
  * Priority:
  *   1. User merchant rules (confidence 0.95)
- *   2. Recurring expense match (confidence 0.9)
- *   3. DB example match (confidence 0.9)
- *   4. Keyword heuristics (confidence 0.6-0.9)
- *   5. No match → LLM batch
+ *   2. Transaction-type markers on the raw text (transfers/income) — runs before
+ *      the normaliser can strip payment tags
+ *   3. Recurring expense match (confidence 0.9)
+ *   4. DB example match (confidence 0.9)
+ *   5. Keyword heuristics (confidence 0.6-0.9)
+ *   6. No match → LLM batch
  */
 export function categoriseByRules(
   description: string,
@@ -273,6 +308,11 @@ export function categoriseByRules(
     const t1 = matchByUserRules(normalised, context.userMerchantRules)
     if (t1.categoryId) return t1
   }
+
+  // Tier 1.5: transaction-type markers on the raw description, before the
+  // normaliser strips payment tags like "(P2P Payment)".
+  const tType = matchTransactionType(description)
+  if (tType.categoryId) return tType
 
   // Tier 2: Recurring expense inheritance
   if (context.recurringExpenses && context.recurringExpenses.length > 0) {

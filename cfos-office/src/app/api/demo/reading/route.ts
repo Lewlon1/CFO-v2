@@ -153,7 +153,7 @@ CRITICAL FORMAT RULES:
 - Reference where the user was most/least certain, and at least one outlier choice.
 - Remember these are sample scenarios, not real purchases. Say "the Zara scenario" or "calling Zara Foundation" — NOT "your Zara purchase".
 - Describe the pattern in the data. Do not characterise the person. No "you're the kind of person who…", no "this reads as someone who…", no labels.
-- Second person only ("you", "your"). Never first person ("I", "me", "my").
+- Second person only ("you", "your"). State findings directly; don't narrate the act of observing ("I noticed…", "I can see…").
 - End with a one-sentence observation of the pattern, beginning with "Pattern:" or equivalent. Observation, not judgement.
 - No bullet points. No headers. No colons introducing lists.
 - No generic filler ("mindful spender", "thinks carefully"). Be SPECIFIC to the data.

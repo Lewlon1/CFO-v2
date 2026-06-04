@@ -1,22 +1,34 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead } from '@/lib/ai/compose-first-read'
+import type { PriorReadSummary } from '@/lib/ai/prompts/first-read'
+import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks'
 import { NextResponse } from 'next/server'
 
 /**
  * Value-first onboarding — after the user completes the optional Value Map
- * on the real flagged transactions named by the First Read's HOOK, Layer 2
- * (Stated Intent) is now populated. We recompose the Read with mode
- * 'value_first' and insert it as a FOLLOW-UP assistant message into the
- * same first_read conversation, so the thread reads:
+ * on their real transactions, Layer 2 (Stated Intent) is now populated. We
+ * recompose the Read as a DELTA (mode 'value_first_recompose') and insert it
+ * as a FOLLOW-UP assistant message into the same first_read conversation:
  *
- *   original Read (hook close)  →  user's Value Map  →  deepened follow-up
+ *   original Read (hook close)  →  user's Value Map  →  delta recompose
  *
- * Same conversation, not a new one — the value-first flow is one continuous
- * narrative, deepened by the user's input. composeFirstRead automatically
- * picks up the new Layer 2 via buildUserValueProfile, so no further wiring
- * is required.
+ * The recompose is NOT a second First Read. It leads on what the user's sorting
+ * unlocked, never restates Layer 1, never re-opens a hook, and closes on a
+ * directive that hands into chat. We hand it a PriorReadSummary built from the
+ * original assistant message + its persisted metadata so it knows what is
+ * already said and must not be restated.
  */
+
+type FirstReadMetaShape = {
+  clusters_referenced?: string[] | null
+  hook_candidates?: HookCandidate[] | null
+}
+
+function firstSentence(message: string): string {
+  const trimmed = message.trim()
+  return (trimmed.split(/(?<=[.!?])\s+|\n/)[0] ?? trimmed).trim()
+}
 export async function POST() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -45,12 +57,55 @@ export async function POST() {
   }
 
   const svc = createServiceClient()
+
+  // Fetch the prior First Read — the first assistant message in this thread —
+  // to build the do-not-restate contract. Failure here is non-fatal: we fall
+  // back to a permissive PriorReadSummary (still recompose mode, just without
+  // the merchant exclusion list).
+  const prevMeta = (conversation.metadata as Record<string, unknown> | null) ?? {}
+  const frMeta = (prevMeta.first_read_metadata as FirstReadMetaShape | undefined) ?? {}
+
+  const { data: priorMsg } = await svc
+    .from('messages')
+    .select('content, created_at')
+    .eq('conversation_id', conversation.id)
+    .eq('role', 'assistant')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const hookCandidates =
+    frMeta.hook_candidates ??
+    (prevMeta.hook_candidates as HookCandidate[] | undefined) ??
+    null
+  const hookMerchantsUsed = (hookCandidates ?? [])
+    .map((h) => h.label || h.cluster_id)
+    .filter((s): s is string => Boolean(s))
+  const merchantsAlreadyNamed = Array.from(
+    new Set([...(frMeta.clusters_referenced ?? []), ...hookMerchantsUsed]),
+  )
+
+  const priorReadSummary: PriorReadSummary = {
+    layer1Stated: true,
+    goalStatedAsReveal: true,
+    merchantsAlreadyNamed,
+    hookMerchantsUsed,
+    firstSentence: priorMsg?.content ? firstSentence(priorMsg.content as string) : null,
+  }
+
+  // The merchant keys the Value Map actually presented (Phase 1 selection),
+  // persisted by the value-map page, so the recompose's payoff context knows
+  // exactly what the user sorted.
+  const valueMapCards = (prevMeta.value_map_cards as { keys?: string[] } | undefined)?.keys ?? []
+
   let composed: Awaited<ReturnType<typeof composeFirstRead>>
   try {
     composed = await composeFirstRead({
       userId: user.id,
       supabase: svc,
-      mode: 'value_first',
+      mode: 'value_first_recompose',
+      priorReadSummary,
+      valueMapCardKeys: valueMapCards,
     })
   } catch (err) {
     console.error('[recompose-first-read] composeFirstRead failed:', err)
@@ -73,7 +128,6 @@ export async function POST() {
 
   // Refresh the conversation's metadata snapshot so dashboards/cron see the
   // post-Value-Map composition state.
-  const prevMeta = (conversation.metadata as Record<string, unknown> | null) ?? {}
   const newMeta = {
     ...prevMeta,
     first_read_metadata_recomposed: composed.metadata,

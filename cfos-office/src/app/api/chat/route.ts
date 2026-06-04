@@ -23,6 +23,8 @@ import { quickClassifyDecline } from '@/lib/onboarding-v2/value-map-decline-quic
 import { quickClassifyGoalDeferral } from '@/lib/onboarding-v2/goal-deferral-quickcheck';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
 import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
+import { showInternalQANotes } from '@/lib/features/qa-notes';
+import { detectValueSaveHallucination } from '@/lib/ai/value-save-guard';
 import {
   buildCitationAllowlist,
   validateCitations,
@@ -389,6 +391,32 @@ export async function POST(req: Request) {
   const systemPrompt = stallSystemNote
     ? `${baseSystemPrompt}\n\n---\n\n${stallSystemNote}`
     : baseSystemPrompt;
+
+  // Why-beat one-shot gate. The read-and-confirm opener is injected by
+  // buildWhyBeatContext for the first first_read turn after the delta recompose
+  // (this turn's prompt was already built from the in-memory metadata above).
+  // Burn the window now so turn 2+ won't re-offer it — fire-and-forget; the
+  // framing rule itself handles "drop it if the user deflects".
+  if (
+    isLayeredReadEnabled() &&
+    conversationType === 'first_read' &&
+    conversationMetadata?.first_read_metadata_recomposed &&
+    !conversationMetadata?.why_beat_offered &&
+    activeConversationId
+  ) {
+    const convId = activeConversationId;
+    const mergedMeta = { ...conversationMetadata, why_beat_offered: true };
+    after(async () => {
+      try {
+        await createServiceClient()
+          .from('conversations')
+          .update({ metadata: mergedMeta })
+          .eq('id', convId);
+      } catch (err) {
+        console.error('[chat] why_beat_offered flag set failed:', err);
+      }
+    });
+  }
 
   const toolCtx: ToolContext = {
     supabase,
@@ -799,19 +827,12 @@ export async function POST(req: Request) {
         // Detect when the model says "saved/got it/etc." in a value-mapping
         // context but didn't actually call record_value_classifications,
         // then auto-retry with a forced tool call.
-        const savedPhraseRegex =
-          /\b(saved|got it|noted|will remember|i'?ll remember|added that|done)\b/i;
-        const valueContextRegex = /\b(foundation|burden|investment|leak)\b/i;
         const lastUserText = extractTextFromParts(lastUserMessage) ?? '';
-
-        const inValueContext =
-          toolsUsed.includes('get_value_review_queue') ||
-          valueContextRegex.test(textContent) ||
-          valueContextRegex.test(lastUserText);
-
-        const claimedSave = savedPhraseRegex.test(textContent);
-        const actuallySaved = toolsUsed.includes('record_value_classifications');
-        const hallucinated = inValueContext && claimedSave && !actuallySaved;
+        const hallucinated = detectValueSaveHallucination({
+          assistantText: textContent,
+          lastUserText,
+          toolsUsed,
+        });
 
         if (hallucinated) {
           // Telemetry: log every detection regardless of whether retry succeeds
@@ -856,16 +877,24 @@ export async function POST(req: Request) {
               toolChoice: { type: 'tool', toolName: 'record_value_classifications' },
             });
 
-            // generateText returns toolCalls/toolResults arrays; check that
-            // the tool actually executed and the underlying applyValueClassification
-            // succeeded (its return shape is { success: true, ... }).
+            // generateText returns toolCalls/toolResults arrays. The tool's
+            // success signal is its `success` field (added alongside the
+            // existing counts); we also treat a positive count as success for
+            // robustness if the field is ever absent. A returned `error` is a
+            // hard failure.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const retryResults: any[] = (retry as any).toolResults ?? [];
             const matched = retryResults.find(
               (r) => r?.toolName === 'record_value_classifications'
             );
             const out = matched?.output ?? matched?.result;
-            if (out?.success) {
+            const savedSomething =
+              !!out &&
+              !out.error &&
+              (out.success === true ||
+                (out.classified ?? 0) > 0 ||
+                (out.merchant_rules_created ?? 0) > 0);
+            if (savedSomething) {
               retrySucceeded = true;
               if (!toolsUsed.includes('record_value_classifications')) {
                 toolsUsed.push('record_value_classifications');
@@ -877,7 +906,7 @@ export async function POST(req: Request) {
                 payload: {
                   message_id: assistantMessageDbId,
                   conversation_id: activeConversationId,
-                  classified_count: out.classified_count ?? null,
+                  classified_count: out.classified ?? null,
                 },
               });
             }
@@ -885,9 +914,11 @@ export async function POST(req: Request) {
             console.error('[chat] forced-retry generateText failed:', err);
           }
 
-          if (!retrySucceeded) {
-            // Safety net: append a clarifying line to the persisted message
-            // so the user is never silently lied to.
+          if (!retrySucceeded && showInternalQANotes()) {
+            // Safety net (dev/staging only): flag that the save didn't land so
+            // it's visible while debugging. Suppressed in production — the
+            // value_save_hallucination_detected telemetry above is the prod
+            // signal.
             textContent +=
               '\n\n_(Note: that classification didn\'t persist — rephrase and try again.)_';
           }
@@ -950,12 +981,17 @@ export async function POST(req: Request) {
             !voiceCheck.valid ||
             !lengthCheck.valid
           ) {
-            textContent = appendCorrection(textContent, {
-              unmatched_citations: citationCheck.unmatched,
-              unmatched_projections: projectionCheck.unmatched_projections,
-              voice_violations: voiceCheck.violations,
-              length_violation: lengthCheck.valid ? undefined : lengthCheck,
-            });
+            // The correction string is an internal QA diagnostic, not product
+            // copy — append to the user-visible message only in dev/staging.
+            // The telemetry insert below always fires.
+            if (showInternalQANotes()) {
+              textContent = appendCorrection(textContent, {
+                unmatched_citations: citationCheck.unmatched,
+                unmatched_projections: projectionCheck.unmatched_projections,
+                voice_violations: voiceCheck.violations,
+                length_violation: lengthCheck.valid ? undefined : lengthCheck,
+              });
+            }
 
             void supabase.from('user_events').insert({
               profile_id: user.id,

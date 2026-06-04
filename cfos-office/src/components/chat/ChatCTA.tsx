@@ -17,6 +17,9 @@ const ACTION_TYPES = new Set([
   'cut_lever',
   'shift_lever',
   'reallocate_lever',
+  // Delta recompose close — the directive that hands the user into chat. Tapping
+  // it sends the label as the user's first turn, which the CFO acts on.
+  'open_chat',
 ])
 
 export function ChatCTA({ type, label, onAction }: Props) {

@@ -97,11 +97,28 @@ export async function fetchAndScoreReviewCandidates(
     return { scoredGroups: [], totalCandidates: 0 }
   }
 
-  // Group by normalised merchant
+  // Dedup guard — drop merchants the user has already classified.
+  //
+  // A check-in confirms ONE card per merchant; that card flips to
+  // value_confirmed_by_user=true, but its low-confidence siblings stay in the
+  // pool above, so the raw per-transaction filter would re-serve the SAME
+  // merchant on the next check-in (SESSION-LOG D1). This mirrors the fix the
+  // hooks selector already carries (compose-first-read-hooks.ts: "made every
+  // recompose surface the same merchants the user had just classified"). Once
+  // the user has told us what a merchant means — any confirmed transaction, or
+  // a learned merchant rule — the whole merchant is settled; skip the group.
+  const classifiedMerchants = await fetchClassifiedMerchants(supabase, userId)
+
+  // Group by normalised merchant, skipping already-classified merchants.
+  // totalCandidates counts only what survives the dedup guard, so
+  // "total_unreviewed" stays honest.
+  let totalCandidates = 0
   const merchantMap = new Map<string, ReviewTransaction[]>()
   for (const txn of candidates) {
     const merchant = normaliseMerchant(txn.description || '')
     if (!merchant) continue
+    if (classifiedMerchants.has(merchant)) continue
+    totalCandidates += 1
     const group = merchantMap.get(merchant) || []
     group.push(txn as ReviewTransaction)
     merchantMap.set(merchant, group)
@@ -152,7 +169,53 @@ export async function fetchAndScoreReviewCandidates(
   }
 
   scoredGroups.sort((a, b) => b.score - a.score)
-  return { scoredGroups, totalCandidates: candidates.length }
+  return { scoredGroups, totalCandidates }
+}
+
+/**
+ * Merchants the user has already classified — excluded from the review queue so
+ * a check-in never re-serves a merchant the user just sorted. Two sources, OR'd:
+ *   1. Any transaction with value_confirmed_by_user=true — the field BOTH confirm
+ *      paths (/api/value-map/personal step 6, /api/corrections/signal) set on the
+ *      classified card. This is the reliable signal and the load-bearing one:
+ *      the learning engine's value_category_rules write is not dependable
+ *      (SESSION-LOG D1 — zero rules persisted across every retake user).
+ *   2. A learned merchant rule (match_type merchant/merchant_time/merchant_amount;
+ *      match_value is already a normaliseMerchant key). Belt-and-suspenders for
+ *      once rule persistence is fixed.
+ * Both are normalised with the SAME normaliseMerchant used to group candidates,
+ * so the keys line up exactly.
+ */
+export async function fetchClassifiedMerchants(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<Set<string>> {
+  const excluded = new Set<string>()
+
+  const [confirmedRes, rulesRes] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('description')
+      .eq('user_id', userId)
+      .eq('value_confirmed_by_user', true)
+      .limit(2000),
+    supabase
+      .from('value_category_rules')
+      .select('match_value')
+      .eq('user_id', userId)
+      .in('match_type', ['merchant', 'merchant_time', 'merchant_amount']),
+  ])
+
+  for (const row of (confirmedRes.data ?? []) as Array<{ description: string | null }>) {
+    const key = normaliseMerchant(row.description || '')
+    if (key) excluded.add(key)
+  }
+  for (const row of (rulesRes.data ?? []) as Array<{ match_value: string | null }>) {
+    const key = (row.match_value || '').toLowerCase()
+    if (key) excluded.add(key)
+  }
+
+  return excluded
 }
 
 /**

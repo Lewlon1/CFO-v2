@@ -64,7 +64,14 @@ export async function selectRetakeCandidates(
   const count = opts?.count ?? DEFAULT_COUNT
   const minMerchants = opts?.minMerchants ?? MIN_QUALIFYING_MERCHANTS
 
-  // 1. Fetch and score uncertain merchant groups
+  // 1. Fetch and score uncertain merchant groups.
+  //
+  // The dedup guard — excluding merchants the user has already classified, so a
+  // retake never re-serves a merchant they just sorted — lives UPSTREAM in
+  // fetchAndScoreReviewCandidates (see SESSION-LOG D1 / fetchClassifiedMerchants).
+  // Do not re-add it here: the groups returned below are already free of
+  // confirmed/rule-mapped merchants. The MIN_QUALIFYING_MERCHANTS gate below
+  // still returns ok:false when too few genuinely-uncertain merchants remain.
   const { scoredGroups, totalCandidates } = await fetchAndScoreReviewCandidates(
     supabase,
     userId

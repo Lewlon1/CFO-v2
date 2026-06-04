@@ -55,6 +55,46 @@ const classificationSchema = z
 
 type Classification = z.infer<typeof classificationSchema>
 
+/**
+ * Split classifications into transaction-id mode, merchant-rule mode, and
+ * unrecoverable. Pure (no I/O) so it can be unit-tested.
+ *
+ * Recovery: first_read narratives name merchants, not transaction rows, so the
+ * model frequently lacks a real UUID and crams a merchant name into
+ * transaction_id. Rather than erroring ("couldn't be saved"), a non-UUID
+ * transaction_id with no merchant_pattern is treated as a merchant_pattern.
+ */
+export function partitionClassifications(classifications: Classification[]): {
+  transactionMode: Classification[]
+  merchantMode: Classification[]
+  unrecoverable: Classification[]
+} {
+  const transactionMode = classifications.filter(
+    (c) => c.transaction_id && UUID_RE.test(c.transaction_id)
+  )
+
+  const merchantMode = classifications
+    .filter((c) => !(c.transaction_id && UUID_RE.test(c.transaction_id)))
+    .map((c) => {
+      if (c.merchant_pattern) return c
+      const candidate = c.transaction_id?.trim()
+      if (candidate && !UUID_RE.test(candidate)) {
+        return { ...c, merchant_pattern: candidate, transaction_id: undefined }
+      }
+      return c
+    })
+    .filter((c) => Boolean(c.merchant_pattern))
+
+  const unrecoverable = classifications.filter(
+    (c) =>
+      !(c.transaction_id && UUID_RE.test(c.transaction_id)) &&
+      !c.merchant_pattern &&
+      !c.transaction_id?.trim()
+  )
+
+  return { transactionMode, merchantMode, unrecoverable }
+}
+
 export function createRecordValueClassificationsTool(ctx: ToolContext) {
   return {
     description:
@@ -63,10 +103,12 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
       '"Got it" without calling this first.\n\n' +
       'TWO MODES:\n' +
       '1. Specific transaction: pass `transaction_id` (a real UUID from the review queue or ' +
-      'context). Use when the user is reviewing one transaction.\n' +
+      'context). Use ONLY when you have a real transaction UUID in front of you.\n' +
       '2. Merchant rule: pass `merchant_pattern` (e.g. "Aldi") plus optional `time_context` ' +
-      '(e.g. "weekday_evening"). Use when the user states a general rule like "Aldi in the evening = leak". ' +
-      'NEVER fabricate a transaction_id like "UNKNOWN" — use merchant_pattern instead.\n\n' +
+      '(e.g. "weekday_evening"). This is the DEFAULT for the first read and any time you are ' +
+      'classifying by merchant name (e.g. "Claude.ai is investment"): you almost never have a ' +
+      'real UUID there, so pass the merchant name as `merchant_pattern`. ' +
+      'NEVER fabricate or guess a transaction_id — use merchant_pattern instead.\n\n' +
       'For contextual rules ("Aldi in the evening = leak, daytime = foundation"), call this tool ' +
       'TWICE — once with time_context="weekday_evening" and category=leak, once with ' +
       'time_context="weekday_midday" and category=foundation.',
@@ -85,23 +127,14 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
         const merchantsLearned = new Set<string>()
         const errors: string[] = []
 
-        // Split into the two modes
-        const transactionMode = classifications.filter(
-          (c) => c.transaction_id && UUID_RE.test(c.transaction_id)
-        )
-        const merchantMode = classifications.filter((c) => c.merchant_pattern)
-        const invalid = classifications.filter(
-          (c) =>
-            (c.transaction_id && !UUID_RE.test(c.transaction_id)) ||
-            (!c.transaction_id && !c.merchant_pattern)
-        )
+        // Split into modes, recovering merchant-rule items from non-UUID
+        // transaction_ids (see partitionClassifications).
+        const { transactionMode, merchantMode, unrecoverable } =
+          partitionClassifications(classifications)
 
-        for (const c of invalid) {
-          errors.push(
-            c.transaction_id
-              ? `Invalid transaction_id "${c.transaction_id}" — use merchant_pattern for general rules`
-              : 'Classification missing both transaction_id and merchant_pattern'
-          )
+        for (const c of unrecoverable) {
+          void c
+          errors.push('Classification missing both transaction_id and merchant_pattern')
         }
 
         // ── Mode 1: specific transactions ──
@@ -199,6 +232,9 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
         )
 
         return {
+          // Explicit, unambiguous signal for the chat route's hallucination
+          // recovery and for the model: did anything actually persist?
+          success: classified + merchantRulesCreated > 0,
           classified,
           merchant_rules_created: merchantRulesCreated,
           propagated,

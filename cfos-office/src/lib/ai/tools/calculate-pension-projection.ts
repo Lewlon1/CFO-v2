@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
+import { futureValueSeries } from '@/lib/finance/compound-growth';
 
 // Map age_range strings (from question-registry.ts) to a midpoint age.
 function ageRangeToMidpoint(range: string | null | undefined): number | null {
@@ -25,18 +26,15 @@ function ageRangeToMidpoint(range: string | null | undefined): number | null {
 function projectPot(opts: {
   initial: number;
   monthlyContribution: number;
-  monthlyRate: number;
+  annualGrowthPct: number;
   months: number;
 }) {
-  const { initial, monthlyContribution, monthlyRate, months } = opts;
-  let fvContrib: number;
-  if (monthlyRate === 0) {
-    fvContrib = monthlyContribution * months;
-  } else {
-    fvContrib = monthlyContribution * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
-  }
-  const fvInitial = initial * Math.pow(1 + monthlyRate, months);
-  return fvContrib + fvInitial;
+  return futureValueSeries({
+    initialAmount: opts.initial,
+    monthlyContribution: opts.monthlyContribution,
+    annualRatePct: opts.annualGrowthPct,
+    months: opts.months,
+  });
 }
 
 export function createCalculatePensionProjectionTool(ctx: ToolContext) {
@@ -72,7 +70,6 @@ If pension or age data is missing, returns a missing-field error so you can ask 
       try {
         const includeEmployer = params.include_employer !== false;
         const annualGrowthPct = params.annual_growth_rate_pct ?? 5;
-        const monthlyRate = annualGrowthPct / 100 / 12;
 
         // Load pensions
         const pensionQuery = ctx.supabase
@@ -163,7 +160,7 @@ If pension or age data is missing, returns a missing-field error so you can ask 
           const finalPot = projectPot({
             initial: totalPot,
             monthlyContribution,
-            monthlyRate,
+            annualGrowthPct,
             months,
           });
           const totalContributed = monthlyContribution * months;
@@ -207,7 +204,7 @@ If pension or age data is missing, returns a missing-field error so you can ask 
           const fv = projectPot({
             initial: totalPot,
             monthlyContribution: monthlyContributionCurrent,
-            monthlyRate,
+            annualGrowthPct,
             months: m,
           });
           const contributed = monthlyContributionCurrent * m;

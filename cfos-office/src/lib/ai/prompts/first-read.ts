@@ -18,6 +18,12 @@ import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
 import type { FinancialFacts } from '@/lib/ai/compose-first-read';
+import { currencySymbol, formatMoney } from '@/lib/format/money';
+import { categoryLabel } from '@/lib/analytics/categories';
+
+const DAYS_PER_MONTH = 30.44;
+import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
+import type { ReadRecipe } from '@/lib/ai/first-read-recipe';
 
 export type FirstReadComposeInput = {
   userId: string;
@@ -46,6 +52,22 @@ export type FirstReadComposeInput = {
    * when present — never invents or recomputes it.
    */
   benchmarkObservation?: string | null;
+  /**
+   * Layer 1 — deterministic, server-computed spending breakdown (top categories,
+   * biggest merchant, largest transaction, uncategorised share). Always rendered
+   * when present, in both modes. Cited verbatim, never recomputed.
+   */
+  spendingBreakdown?: SpendingBreakdown | null;
+  /** Goal-conditioned LEAD emphasis. Sets which finding the Read opens on; all layers still compose. */
+  readRecipe?: ReadRecipe;
+  /**
+   * Recompose mode — present only for value_first_recompose. When set, the Read
+   * is a DELTA: it leads on what the user's Value Map sorting unlocked, never
+   * restates the prior Read's Layer 1, and closes on a directive into chat.
+   */
+  priorReadSummary?: PriorReadSummary | null;
+  /** The merchant keys actually put in front of the user in the Value Map (Phase 1 selection). */
+  valueMapCardKeys?: string[] | null;
 };
 
 export type FirstReadMetadata = {
@@ -57,15 +79,41 @@ export type FirstReadMetadata = {
   levers_offered: string[];
   /** The field the supply_input blocker named, or null when no blocker existed. */
   blocker_field: string | null;
-  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA. */
-  mode?: 'default' | 'value_first';
+  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta. */
+  mode?: 'default' | 'value_first' | 'value_first_recompose';
   /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
   hook_candidates?: HookCandidate[] | null;
+  /** Which LEAD recipe drove this Read (visibility | target | control | open), or null pre-change. */
+  read_recipe?: ReadRecipe | null;
+  /** Whether the composed prose actually surfaced a breakdown category or headline number. */
+  breakdown_cited?: boolean;
+  /** True when this composition is the post-Value-Map delta recompose. */
+  is_recompose?: boolean;
+  /** Probe: does the recompose's first sentence string-match the prior Read's first sentence (should be false on a well-formed delta). */
+  repeated_opening?: boolean;
 };
 
 export type FirstReadComposeOutput = {
   composedMessage: string;
   metadata: FirstReadMetadata;
+};
+
+/**
+ * Summary of the prior First Read, handed to the recompose so it knows what is
+ * ALREADY SAID and must not be restated. Built by the recompose route from the
+ * first assistant message + its persisted metadata.
+ */
+export type PriorReadSummary = {
+  /** Income / fixed costs / free cash flow were already stated as standing facts. */
+  layer1Stated: boolean;
+  /** The goal target was already revealed. */
+  goalStatedAsReveal: boolean;
+  /** Merchants the prior Read named (normalised). Do not re-explain as new findings. */
+  merchantsAlreadyNamed: string[];
+  /** The prior clarifier hook set (unresolved-transaction questions) — its job is done. */
+  hookMerchantsUsed: string[];
+  /** First sentence of the prior Read, for the repeated_opening probe. */
+  firstSentence?: string | null;
 };
 
 export const FIRST_READ_SYSTEM_PROMPT = `You are the user's CFO. You have just read their last 90 days of transactions, produced behavioural features for their top merchants, computed levers they can act on, and detected whether anything in the goal math is currently blocked. You also have their Value Map and any goals they've set.
@@ -80,6 +128,8 @@ STRUCTURE (this is the contract):
 3. CLOSE — one sized lever the system computed (frame the number you were handed; do not improvise magnitudes) PLUS exactly one tappable CTA emitted on its own line as [CTA:type]label[/CTA]. The label is written from the USER's point of view — what tapping it means the user is saying. Examples: [CTA:supply_input]Here's my monthly take-home[/CTA], [CTA:cut_lever]Trim 40 from streaming[/CTA], [CTA:supply_input]Set a target date for the deposit[/CTA]. The close is one lever + one CTA — never a menu, never empty-handed.
 
 BANNED IN THE READ:
+- Narration of the act of observing: "I see", "I notice", "On reviewing your data". State what's true.
+- Surfacing a figure only to disclaim it. If a number isn't knowable, ask the question that settles it.
 - Any paragraph ending in a question back to the user. Answer-first, not question-back.
 - "What do you think?" / "Does that sound right?" / "How does this land?" closes.
 - Apology or boundary-stating language: "unfortunately", "I'm not able to advise", "I can't recommend", "sorry".
@@ -88,12 +138,12 @@ BANNED IN THE READ:
 - Inventing magnitudes. If the data below didn't compute a number, you don't have it — frame what you do have and use the ask to unlock the rest.
 
 BOUNDARY (felt, not stated):
-You may end with a concrete next step on the user's own money — cut a recurring spend, supply a missing number, size a gap, reallocate. You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies. If a topic sits outside the remit, the close just doesn't go there.
+You may end with a concrete next step on the user's own money — cut a recurring spend, supply a missing number, size a gap, reallocate. A contribution figure is a calculation ("the goal needs €948/mo"), never an instruction to fund a product ("put €948 into this fund"). You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies. If a topic sits outside the remit, the close just doesn't go there.
 
-VOICE:
-- First person ("I see", "I notice", "On your current trajectory…").
-- Actionable register, warm authority. "If you're building toward Y, this is worth a conversation." Not "I observe…".
-- Plain English. Short sentences welcome.
+VOICE (Constitution v1.4 §2):
+- State findings directly. "Eating out ran €675 a month" — never "I can see your eating out is high". Don't narrate the act of observing; that narration is the tell of a chatbot.
+- Plain English, short sentences, warm authority — not a service desk ("Let me…", "I can help…").
+- Second person for the user's facts. First person only when it carries a real stance, which a Read rarely needs.
 
 WHEN STATED INTENT AND BEHAVIOUR DIVERGE:
 If the user's Value Map said a category was X (e.g. "Leak") and the behaviour shows Y (e.g. climbing trend), point it out factually as part of the body:
@@ -111,7 +161,7 @@ HONESTY (NO HALLUCINATION):
 - Do NOT compute or quote derived figures the data didn't hand you: surplus, discretionary budget, runway, average monthly spend, percentage-of-income breakdowns. If a number isn't in the LEVERS section verbatim, it isn't available — frame the qualitative observation and end with the lever's own magnitude. Recomputing surplus from income minus rent in your head is forbidden.
 
 LENGTH & FORMAT:
-- Hard cap: 250 words.
+- Target 120–220 words. A reveal is tight — a few short paragraphs, not an essay.
 - Plain prose. Bold (**) the cluster names when first mentioned.
 - The close's CTA is on its own line, immediately before "— C.".
 - Sign off "— C." on its own line.`;
@@ -126,35 +176,36 @@ LENGTH & FORMAT:
  * rule still applies). It is a statement of curiosity that creates the pull
  * toward the optional Value Map step.
  */
-export const FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST = `You are the user's CFO. You have just read their last 90 days of transactions, produced behavioural features for their top merchants, computed Layer 1 financial facts (income, fixed costs, free cash flow), and identified 2-3 clusters where you can see what's happening but you can't read the user's relationship to it without their input. You also have their goals.
+export const FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST = `You are the user's CFO. You have just read their last 90 days of transactions, produced behavioural features for their top merchants, computed Layer 1 financial facts (income, fixed costs, free cash flow), the goal math and sized levers, and flagged 1-2 transactions the data can't resolve on its own. You also have their goals.
 
 Your job: write the user's first Read. Not a summary — a move. Tight, specific, no fluff. Sign off with "— C." on its own line.
 
-STRUCTURE (this is the contract):
-1. LEAD — open with the single highest-actionability observation. State the picture as it actually is from the data handed to you: income, fixed costs, what's left to work with, where the goal sits against that. Use the FINANCIAL FACTS numbers verbatim; do NOT recompute or improvise.
-2. BODY — at most 2 supporting observations from the BEHAVIOURAL CLUSTERS section that sharpen the picture (a climb, an emerging pattern, a contradiction). Each must be specific to a named merchant or cluster.
-3. CLOSE — the HOOK: name the 2-3 specific clusters from the HOOK CANDIDATES section that you can see but cannot read alone. Frame as statements of curiosity, not questions back ("I can see X happening but I can't tell if it's a Y or a Z without you"). Cite the merchant name and the period_hint verbatim. Immediately before "— C.", emit the CTA on its own line: [CTA:start_value_map_real]Tell me what these mean[/CTA].
+STRUCTURE (this is the contract — POSITION, then one action, then clarifiers, then levers):
+1. POSITION — open on the numbers that set the stakes: free cash flow from FINANCIAL FACTS, and where the goal sits against it (what it needs per month vs what's free). Use the FINANCIAL FACTS and GOAL figures verbatim; do NOT recompute or improvise. If the goal math gives a compound-growth band, show the range ONCE so the options are visible, then LOCK the moderate middle case (the rate flagged in the GOAL block) as the plan and size the position against THAT — not the worst-case figure. Say in one line where that rate comes from (the GOAL block gives it), and name the conservative case as the stress test, not the default.
+2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it.
+3. CLARIFIERS — one or two things the data can't settle on its own, posed as DIRECT QUESTIONS on the HOOK CANDIDATES. Cite the merchant, amount, and period_hint verbatim, then ask the either/or: "Aldi, €431 over 90 days, irregular — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
+4. LEVERS + HANDOFF — name the levers worth pulling next as HEADLINES only (e.g. recurring bills, a spend-pattern change like two no-spend days a week) — named, not walked through. Position the Value Map as where these get prioritised against what the user actually values, and note the clarifiers above still gate that precision. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
 
 BANNED IN THE READ:
-- Any paragraph ending in a question back to the user. Statements of curiosity are NOT questions: "I can see X but I can't read it" is allowed; "what is X to you?" is not.
-- "What do you think?" / "Does that sound right?" / "How does this land?" closes.
+- Narration of the act of observing: "I see", "I notice", "I can see X but I can't tell Y", "On reviewing your data". State what's true; ask the rest as a direct question.
+- Surfacing a figure only to disclaim it. If a number isn't knowable, ask the question that settles it — don't float the number then hedge.
+- A vague question-back close: "What do you think?" / "Does that sound right?" / "How does this land?". (The CLARIFIERS are specific either/or questions about named transactions — those are the point, not banned.)
 - Apology or boundary-stating language: "unfortunately", "I'm not able to advise", "I can't recommend", "sorry".
-- Emoji.
+- Emoji. The words "advice" or "advise" anywhere.
 - Product names or buy/sell/switch calls on instruments.
-- The words "advice" or "advise" anywhere.
 - Inventing magnitudes. If the data didn't compute a number, you don't have it.
-- Naming the hook items in the BODY — they belong in the CLOSE only, so the close has something specific to land on.
+- Putting the CLARIFIER transactions anywhere but the clarifiers — they are the hook the Read turns on.
 
 BOUNDARY (felt, not stated):
-You may end with the hook on the user's own money. You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies. If a topic sits outside the remit, the close just doesn't go there.
+Directness applies to behaviour and cash flow — cut a spend, change a pattern, supply a missing number, size a gap. It does NOT cross into regulated territory: a contribution figure is a calculation ("the goal needs €948/mo"), never an instruction to fund a product ("put €948 into this fund"). You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies.
 
-VOICE:
-- First person ("I see", "I notice", "On your current trajectory…").
-- Actionable register, warm authority. "If you're building toward Y, this is worth a conversation." Not "I observe…".
-- Plain English. Short sentences welcome.
+VOICE (Constitution v1.4 §2):
+- State findings directly. "Eating out ran €675 a month" — never "I can see your eating out is high". Don't narrate the act of observing; that narration is the tell of a chatbot.
+- Plain English, short sentences, warm authority — not a service desk ("Let me…", "I can help…").
+- Second person for the user's facts. First person only when it carries a real stance, which a Read rarely needs.
 
 WHEN STATED INTENT AND BEHAVIOUR DIVERGE:
-If the user's Value Profile said a category was X (e.g. "Leak") and the behaviour shows Y (e.g. climbing trend), point it out factually as part of the body:
+If the user's Value Profile said a category was X (e.g. "Leak") and the behaviour shows Y (e.g. climbing trend), state it as fact where it sharpens the POSITION or ACTION:
 > "You called dining a Leak in the Value Map. It's been climbing — up 18% a month over three months."
 Do NOT end the divergence on a question. Frame as fact, then move on.
 
@@ -166,16 +217,92 @@ HONESTY (NO HALLUCINATION):
 - If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line. Do not imply the activity is happening now.
 - Do not say a merchant is dormant unless its lifecycle status is "dormant".
 - Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim — never recompute them in your head. If a value is null in the data, do not invent one.
+- The ACTION's trim magnitude comes from the LEVERS section; the category's share comes from SPENDING BREAKDOWN. The next-step levers are HEADLINES — where a lever (e.g. a generic "recurring bills" lever) carries no magnitude in the data, name it without inventing a number.
 
 LENGTH & FORMAT:
-- Hard cap: 250 words.
-- Plain prose. Bold (**) cluster names when first mentioned.
+- Target 120–220 words. A reveal is tight — a few short paragraphs, not an essay.
+- Plain prose. Bold (**) cluster names when first mentioned. The clarifiers may sit as up to two short dashed lines.
 - The CTA is on its own line, immediately before "— C.".
-- Sign off "— C." on its own line.`;
+- Sign off "— C." on its own line.
+
+SHAPE TO AIM FOR (numbers are illustrative of the SHAPE only — the structured data below is the real source; never copy these figures):
+> Your free cash flow is €1,238 a month. The €500,000 goal by 2041 needs €948 a month in the middle case at 7% returns, €1,514 at the conservative 4% end. At the middle case you're already clear — €1,238 covers €948 with €290 to spare. The exposure is at the low-return end, where you're €276 short.
+> The one move that closes it: **eating and drinking out** runs €675 a month — 31.8% of everything tracked, and the single category big enough to cover that €276 gap on its own. Trim it by about 40% and even a 4%-return world is funded — without touching groceries, rent, or anything you've called an investment.
+> Two things the data can't settle on its own:
+> – **Aldi**, €431 over 90 days, irregular — primary shop, or a top-up alongside another?
+> – **Uber**, €135 over 45 days, new this window — one-off, or a habit forming?
+> Once those land, two levers worth pulling before any hard cut: your recurring bills, and a spend-pattern change that hits eating-out without counting every coffee — two no-spend days a week tends to land around €60 a month on these figures.
+> [CTA:start_value_map_real]Tell me what these mean[/CTA]
+> — C.`;
+
+/**
+ * Recompose variant — the message that follows the user's Value Map in the
+ * value-first flow. It is NOT a second First Read: it leads on what the sorting
+ * unlocked, never restates Layer 1, never re-explains a merchant the user just
+ * sorted, and closes on a DIRECTIVE that hands into chat (not another hook, not
+ * another card-sort). It inherits the VALUE-FIRST voice and honesty blocks
+ * verbatim (thread consistency — see the voice fork note in the session log);
+ * only STRUCTURE and CLOSE differ.
+ */
+export const FIRST_READ_SYSTEM_PROMPT_RECOMPOSE = `You are the user's CFO. This is NOT the first thing they have seen. They have already read one Read from you, and they have just finished sorting a set of their real transactions in the Value Map — telling you what those merchants mean to them. This message is the payoff for that work. It is the LAST thing you write before the conversation opens up. Sign off "— C." on its own line.
+
+STRUCTURE (this is the contract):
+1. LEAD — open on what their sorting just UNLOCKED. Not the standing facts they already know. Follow READ FOCUS for the angle:
+   - visibility → lead on the picture their sorting made legible: the proportion of spend now accounted for and where it concentrates (named-merchant proportions / absolute amounts when category coverage is low — see DATA).
+   - target → lead on the gap as it now stands against the goal — what's reaching it vs what it needs — sharpened by what they just classified.
+   - control → lead on the trajectory / biggest drain, now that intent is attached.
+   - open → lead on the single sharpest thing the new classifications reveal.
+2. BODY — at most 1-2 observations the NEW Layer 2 makes possible: a stated-vs-actual divergence now visible ("you called X a Leak — it's your second-biggest outflow"), or the concentration of a quadrant. Reference their sorts as GIVENS, never re-derive them. Restating the user's own call is NOT an observation — "you said Aldi is an investment, so it's an investment" is circular and adds nothing. Every reference to a sort must be PAIRED with the new thing it makes visible: a divergence, a concentration, or the lever it unlocks. The single biggest remaining unknown (e.g. the uncategorised share) may be named here, plainly, as the thing still between them and a clean read.
+3. CLOSE — a DIRECTIVE on their own money + a handoff into the conversation. Name the single highest-value next action (resolve the uncategorised, confirm what's reaching the goal, trim the named drain, set the missing target) and point them into chat to do it. Emit the CTA on its own line immediately before "— C.". The CTA label is written from the USER's point of view and lands them in the open conversation, e.g. [CTA:open_chat]Let's sort what's uncategorised[/CTA], [CTA:open_chat]Show me what's reaching the goal[/CTA]. This is a directive that opens the room — not another card-sort step, not a question.
+
+ALREADY SAID — DO NOT RESTATE (these are givens; reference in a clause at most). The specific items are in the ALREADY SAID section of the DATA below:
+- Income / fixed costs / free cash flow as standing facts.
+- The goal target as a fresh reveal.
+- The monthly contribution figure, the compound-growth band (e.g. "€948/mo at 7%, €1,514 at 4%"), and the "is the target realistic" verdict — the first Read delivered all of these. Reference the goal as an established frame; do NOT re-state the band or re-issue the verdict.
+- The merchants already named in the first Read.
+- The unresolved-transaction clarifiers (the first Read's hook into the Value Map) — their job is DONE. Do not pose them again.
+
+BANNED IN THE RECOMPOSE:
+- Re-opening on Layer 1 (income / fixed / FCF / "the clock is running").
+- Re-delivering the goal math: the monthly contribution figure, the compound-growth band, or a fresh "is this realistic" verdict. The first Read settled these — this turn builds on them, it does not repeat them.
+- Echoing the user's classification back as if it were a finding ("you called X an investment, so it's an investment"). State what the sort now makes visible, never the sort by itself.
+- Re-explaining a merchant the user just sorted as if it were a new finding.
+- Re-posing the first Read's clarifier hook — the unresolved-transaction questions.
+- Any paragraph ending in a question back to the user.
+- "What do you think?" / "Does that sound right?" closes.
+- The words "advice" or "advise" anywhere.
+- Emoji. Product names or buy/sell/switch calls.
+- Inventing magnitudes — every number comes verbatim from the DATA below.
+
+BOUNDARY (felt, not stated):
+If you reference the goal, a contribution figure stays a calculation ("the goal needs €948/mo"), never an instruction to fund a product ("put €948 into a fund"). Naming the user's own goal vehicle is fine; phrasing a calculation as a directed flow into a product is not. No disclaimers, no apologies — if a topic sits outside the remit, the close just doesn't go there.
+
+HONESTY (NO HALLUCINATION):
+- Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
+- Never attribute a transaction to today's date. The data is a snapshot.
+- Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS. Never compute a sum yourself.
+- Proportions and percentages come verbatim from SPENDING BREAKDOWN. When category coverage is low (a large uncategorised share), DO NOT state a total-spend % you can't support — lead on named-merchant proportions and absolute amounts instead.
+- Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim — never recompute them.
+
+LENGTH & FORMAT: hard cap 200 words (tighter than the first Read — it's a delta). Plain prose. Bold (**) merchant names on first mention. CTA on its own line before "— C.". Sign off "— C." on its own line.
+
+SHAPE TO AIM FOR (illustrative of the SHAPE only — never copy these figures or merchants; the DATA below is the real source):
+> Your sort just made the shape legible. Of everything you classified, **eating out** is the one thing you called a Leak that's also big enough to move the goal — that's the lever, and now it carries your own label.
+> The two you marked Foundation — **Sainsbury's** and rent — are exactly what's holding steady; the slack is all in the Leak column. What's still in the dark is the third of your spend that's uncategorised — clear that and the read is clean.
+> Start with the eating-out leak. That's where the room is.
+> [CTA:open_chat]Let's trim the eating-out leak[/CTA]
+> — C.
+
+Notice what the shape does and does NOT do: it LEADS on what the sort revealed, references the goal only as a frame ("big enough to move the goal" — no contribution figure, no band, no verdict), pairs every sort with the new thing it makes visible (never "you called it X so it's X"), names the one remaining unknown, and lands ONE action before the handoff.`;
 
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
+  const isRecompose = input.priorReadSummary != null;
   const isValueFirst = (input.hookCandidates?.length ?? 0) > 0;
+  const currency = input.financialFacts?.currency ?? 'EUR';
+  const symbol = currencySymbol(currency).trim() || currency;
   const sections: string[] = [
+    `CURRENCY: All amounts are in ${currency}. Always format money with "${symbol}" — never use any other currency symbol (e.g. never £ or $ unless that IS the symbol above).`,
+    ``,
     `DATA RECENCY:`,
     formatDataRecency(input),
     ``,
@@ -186,27 +313,48 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     `VALUE PROFILE (Stated Intent — what the user said in the Value Map):`,
     formatValueProfile(input.valueProfile),
     ``,
-    `GOAL:`,
+    isRecompose
+      ? `GOAL (ALREADY DELIVERED in the first Read — the target, the monthly contribution figure, and the compound-growth band were all stated. Reference the goal as an established frame, in a clause at most; do NOT restate the band or re-issue a verdict):`
+      : `GOAL:`,
     input.goalSummary ?? '(none set yet)',
     ``,
-    `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):`,
-    formatFinancialFacts(input.financialFacts),
+    `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):${isRecompose ? ' [ALREADY DELIVERED in the first Read — context only; do not re-open on income / fixed costs / FCF.]' : ''}`,
+    formatFinancialFacts(input.financialFacts, currency),
+    ``,
+    `SPENDING BREAKDOWN (Layer 1 — server-computed; cite verbatim, never recompute a % or a sum):`,
+    formatSpendingBreakdown(input.spendingBreakdown, currency),
     ``,
   ];
 
-  if (isValueFirst) {
+  // Recompose mode: render WHAT THE USER JUST SORTED (the payoff source) and
+  // ALREADY SAID (the do-not-restate contract) before the goal-math sections.
+  if (isRecompose) {
     sections.push(
-      `HOOK CANDIDATES (the 2-3 specific clusters you can see but cannot read alone — these are the CLOSE):`,
-      formatHookCandidates(input.hookCandidates ?? []),
+      `WHAT THE USER JUST SORTED (Layer 2 just landed — this is the payoff source; reference these as GIVENS):`,
+      formatWhatJustSorted(input),
+      ``,
+      `ALREADY SAID — DO NOT RESTATE (these were in the first Read; reference in a clause at most):`,
+      formatAlreadySaid(input.priorReadSummary ?? null),
       ``,
     );
-  } else {
+  }
+
+  // BLOCKER + LEVERS are rendered in BOTH modes. The value-first close stays the
+  // HOOK, but the goal math (blocker "set a target", sized cut levers) must be
+  // available for the LEAD — the target recipe leans on it.
+  sections.push(
+    `BLOCKER (a required input for the goal math is missing — when present this IS the lead under the target recipe, not a footnote):`,
+    formatBlocker(input.blocker, isValueFirst),
+    ``,
+    `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
+    formatLevers(input.levers),
+    ``,
+  );
+
+  if (isValueFirst) {
     sections.push(
-      `BLOCKER (a required input for the goal math is missing — when present this IS the lead, not a footnote):`,
-      formatBlocker(input.blocker),
-      ``,
-      `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
-      formatLevers(input.levers),
+      `HOOK CANDIDATES (the 1-2 things the data can't settle — pose these as direct CLARIFIER questions, not a closing hook):`,
+      formatHookCandidates(input.hookCandidates ?? [], currency),
       ``,
     );
   }
@@ -226,39 +374,177 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     );
   }
   sections.push(
+    `READ FOCUS — ${input.readRecipe ?? 'open'} (this sets the LEAD only; all layers still compose):`,
+    isRecompose
+      ? formatRecomposeReadFocus(input.readRecipe ?? 'open')
+      : formatReadFocus(input.readRecipe ?? 'open', input.goalSummary),
+    ``,
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0
       ? '(no clusters with sufficient data — fall back to the transaction count and acknowledge the thin data)'
-      : input.topClusterBehaviours.map(formatClusterForPrompt).join('\n\n'),
+      : input.topClusterBehaviours.map((b) => formatClusterForPrompt(b, currency)).join('\n\n'),
     ``,
-    isValueFirst
-      ? `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead with the Layer 1 picture (income / fixed costs / free cash flow / goal sitting), ≤2 BEHAVIOURAL CLUSTERS body observations, CLOSE with the HOOK (2-3 items from HOOK CANDIDATES as statements of curiosity) and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
-      : `COMPOSE THE FIRST READ NOW. Follow the STRUCTURE contract: lead, ≤2 body observations, close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
+    isRecompose
+      ? `COMPOSE THE RECOMPOSE NOW. Lead on what their sorting unlocked per READ FOCUS, ≤2 delta observations from the NEW Layer 2 (WHAT THE USER JUST SORTED), close on a directive + [CTA:open_chat]…[/CTA] that lands them in chat. Do not restate anything in ALREADY SAID. Do not open a new hook. Hard cap 200 words. Output the message text only — no markdown code fences, no preamble. Sign off with "— C." on its own line.`
+      : isValueFirst
+      ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
+      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   );
 
   return sections.join('\n');
 }
 
-function formatFinancialFacts(facts: FinancialFacts | null | undefined): string {
+function formatFinancialFacts(
+  facts: FinancialFacts | null | undefined,
+  currency: string,
+): string {
   if (!facts) return '(no financial facts on file yet — fall back to qualitative framing)';
+  const m = (v: number | null | undefined) =>
+    v == null ? null : formatMoney(Math.round(v), currency);
   const lines: string[] = [];
-  lines.push(`- Net monthly income: ${facts.net_monthly_income ?? '(not on file)'}`);
-  lines.push(`- Total fixed costs / month: ${facts.total_fixed_costs ?? '(not on file)'}`);
-  lines.push(`- Free cash flow / month: ${facts.free_cash_flow ?? '(not computable until both income and fixed costs are on file)'}`);
+
+  // Variable income: do NOT present a single flat monthly figure. The income
+  // pattern was detected as variable, so a "your monthly income is X" framing
+  // is misleading — lead with the trailing-3-month average and name the swing.
+  if (facts.income_shape === 'variable') {
+    const t3m = m(facts.t3m_income_monthly);
+    lines.push(
+      `- Income: VARIABLE (irregular deposits). Do NOT call any number "your monthly income".` +
+        (t3m
+          ? ` Trailing-3-month average ≈ ${t3m}/mo — cite it as a trailing average, and note income swings month to month.`
+          : ` Treat income as uncertain and avoid a precise monthly figure.`),
+    );
+  } else {
+    lines.push(`- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'}`);
+  }
+  lines.push(`- Total fixed costs / month: ${m(facts.total_fixed_costs) ?? '(not on file)'}`);
+  lines.push(`- Free cash flow / month: ${m(facts.free_cash_flow) ?? '(not computable until both income and fixed costs are on file)'}`);
   if (facts.monthly_rent != null) {
-    lines.push(`- (of which) Housing: ${facts.monthly_rent}`);
+    lines.push(`- (of which) Housing: ${m(facts.monthly_rent)}`);
   }
   return lines.join('\n');
 }
 
-function formatHookCandidates(hooks: HookCandidate[]): string {
+function formatSpendingBreakdown(
+  breakdown: SpendingBreakdown | null | undefined,
+  currency: string,
+): string {
+  if (!breakdown || breakdown.top_categories.length === 0) {
+    return '(breakdown unavailable — too few transactions)';
+  }
+  // Whole-currency rounding (cents read like a spreadsheet) + human category
+  // labels (never the raw slug — "eating & drinking out", not "eat_drinking_out").
+  const m = (v: number) => formatMoney(Math.round(v), currency);
+  const lines: string[] = [];
+  lines.push(`- Total tracked spend (window): ${m(breakdown.total_spend)}`);
+  lines.push(
+    `- Top categories: ` +
+      breakdown.top_categories
+        .map((c) => `${categoryLabel(c.category)} ${m(c.total)} (${c.pct}%)`)
+        .join(', '),
+  );
+  if (breakdown.biggest_merchant) {
+    lines.push(
+      `- Biggest single merchant by spend: ${breakdown.biggest_merchant.name} — ${m(breakdown.biggest_merchant.total)} across ${breakdown.biggest_merchant.txn_count} txns`,
+    );
+  }
+  if (breakdown.largest_transaction) {
+    lines.push(
+      `- Largest single transaction: ${breakdown.largest_transaction.merchant} ${m(breakdown.largest_transaction.amount)} on ${breakdown.largest_transaction.date}`,
+    );
+  }
+  lines.push(`- Uncategorised share: ${breakdown.uncategorised_pct}%`);
+  return lines.join('\n');
+}
+
+/**
+ * One block per recipe. The COMPOSE directive points here for the LEAD; the
+ * body rules, hook close, honesty guards, and CTA contract are unchanged. The
+ * recipe only sets which finding the Read opens on.
+ */
+function formatReadFocus(recipe: ReadRecipe, goalSummary: string | null | undefined): string {
+  const goal = goalSummary ?? 'their goal';
+  switch (recipe) {
+    case 'visibility':
+      return [
+        `The user said they don't know where their money goes. LEAD with the SPENDING BREAKDOWN made`,
+        `legible: the biggest category, the single biggest merchant by spend, the largest single`,
+        `transaction, and the one line most likely to surprise them — in the first three sentences.`,
+        `Then ≤2 body observations, then the close.`,
+      ].join('\n');
+    case 'target':
+      return [
+        `The user is working toward ${goal}. LEAD with where they stand against it: free cash flow vs`,
+        `the monthly contribution the goal needs vs what's currently reaching it. Use the monthly figure(s)`,
+        `GIVEN in the GOAL block verbatim — never recompute or invent one, and never ignore the amount`,
+        `already saved. If the GOAL block gives a compound-growth rate band, name compounding in plain`,
+        `language and show the range once, then LOCK the moderate middle case (the rate the GOAL block`,
+        `flags) as the plan, size the verdict against it, and treat the conservative case as the stress`,
+        `test, not the default. If the target`,
+        `amount or date is missing, the BLOCKER ("set a target") IS the lead. Body: the biggest drain`,
+        `pulling against the goal. Then the close.`,
+      ].join('\n');
+    case 'control':
+      return [
+        `LEAD with the trajectory and the single biggest recurring drain. Body: one more drain or a`,
+        `divergence. Then the close.`,
+      ].join('\n');
+    case 'open':
+    default:
+      return [
+        `No goal and no struggle on file. LEAD with free cash flow as the headline number and one`,
+        `specific observation, then invite them to name what they're building toward. (This is the only`,
+        `recipe where a "what are you building toward" framing in the body is correct.)`,
+      ].join('\n');
+  }
+}
+
+/**
+ * Recompose LEAD focus. The first Read already delivered Layer 1 AND the goal math
+ * (target, monthly contribution, compound band, verdict — see ALREADY SAID). The
+ * recompose must NOT re-lead on either. Under every recipe it leads on the DELTA
+ * the sort created — what the new Layer 2 makes visible — and references the goal
+ * only as an established frame. This is the fix for the redundancy where the
+ * shared `formatReadFocus('target')` re-invited the €/mo contribution band into a
+ * turn whose whole job is to NOT repeat it.
+ */
+function formatRecomposeReadFocus(recipe: ReadRecipe): string {
+  switch (recipe) {
+    case 'target':
+      return [
+        `The goal, its target, and the monthly contribution band were delivered in the first Read.`,
+        `Do NOT re-lead on them or restate the band/verdict. LEAD on what the sort now reveals about`,
+        `the goal: which of their own classified spends is holding the plan up vs pulling against it.`,
+        `Reference the contribution figure only as an established frame, in a clause at most.`,
+      ].join('\n');
+    case 'visibility':
+      return [
+        `LEAD on the picture the sort just made legible: the proportion of spend now accounted for and`,
+        `where it concentrates (named-merchant proportions / absolute amounts when category coverage`,
+        `is low). The standing Layer 1 facts are already said — build past them, don't restate them.`,
+      ].join('\n');
+    case 'control':
+      return [
+        `LEAD on the biggest drain now that intent is attached to it — the spend they themselves marked`,
+        `a Leak or Burden that the trajectory confirms. Layer 1 and the goal math are already said.`,
+      ].join('\n');
+    case 'open':
+    default:
+      return [
+        `LEAD on the single sharpest thing the new classifications reveal — the call that most changes`,
+        `the picture. The standing facts are already said; do not re-open on them.`,
+      ].join('\n');
+  }
+}
+
+function formatHookCandidates(hooks: HookCandidate[], currency: string): string {
   if (hooks.length === 0) return '(no hook candidates — close on a qualitative observation)';
   return hooks
     .map((h, idx) => {
       return [
         `${idx + 1}. **${h.label}**`,
         `   - cluster_id: ${h.cluster_id}`,
-        `   - recent amount (window): ${h.recent_amount}`,
+        `   - recent amount (window): ${formatMoney(Math.round(h.recent_amount), currency)}`,
         `   - pattern hint: ${h.period_hint}`,
         `   - candidate quadrants: ${h.candidate_quadrants.join(' | ')}`,
       ].join('\n');
@@ -266,7 +552,7 @@ function formatHookCandidates(hooks: HookCandidate[]): string {
     .join('\n');
 }
 
-function formatBlocker(blocker: Lever | null | undefined): string {
+function formatBlocker(blocker: Lever | null | undefined, isValueFirst = false): string {
   if (!blocker || blocker.type !== 'supply_input') {
     return '(no blocker — every required pace input is populated)';
   }
@@ -276,13 +562,25 @@ function formatBlocker(blocker: Lever | null | undefined): string {
     : blocker.field === 'target_date'
       ? `[CTA:supply_input]Set a target date for ${blocker.goalName}[/CTA]`
       : `[CTA:supply_input]Set the target amount for ${blocker.goalName}[/CTA]`;
-  return [
+  const lines = [
     `- field: ${blocker.field}`,
     `- goal: ${blocker.goalName}`,
     `- unlocks: ${blocker.unlocks}`,
-    `- LEAD WITH THIS. Frame it as the one thing between the user and the goal math.`,
-    `- CLOSE WITH THIS CTA (verbatim, on its own line just before "— C."): ${ctaHint}`,
-  ].join('\n');
+    `- LEAD WITH THIS under the target recipe. Frame it as the one thing between the user and the goal math.`,
+  ];
+  if (isValueFirst) {
+    // Value-first close is the HOOK + start_value_map_real CTA (system prompt
+    // contract). The blocker informs the LEAD only here — do NOT emit the
+    // supply_input CTA, or it collides with the hook close.
+    lines.push(
+      `- This sets the POSITION only. The CLOSE remains the Value Map handoff and its [CTA:start_value_map_real] line; the hook items are the CLARIFIERS — do not emit a supply_input CTA.`,
+    );
+  } else {
+    lines.push(
+      `- CLOSE WITH THIS CTA (verbatim, on its own line just before "— C."): ${ctaHint}`,
+    );
+  }
+  return lines.join('\n');
 }
 
 function formatLevers(levers: Lever[] | undefined): string {
@@ -332,6 +630,52 @@ function formatDataRecency(input: FirstReadComposeInput): string {
   return lines.join('\n');
 }
 
+/**
+ * What the user just sorted — the recompose payoff source. Renders the directly
+ * classified merchants (Layer 2 by_merchant, just populated) plus the card set
+ * that was put in front of them. These are GIVENS: the recompose references the
+ * user's own calls, it does not re-derive them.
+ */
+function formatWhatJustSorted(input: FirstReadComposeInput): string {
+  const lines: string[] = [];
+  const merchantEntries = Object.entries(input.valueProfile.by_merchant ?? {});
+  if (merchantEntries.length > 0) {
+    lines.push(`Merchants the user just classified (their own words on what these mean):`);
+    for (const [merchant, quadrants] of merchantEntries) {
+      const dominant = (Object.entries(quadrants) as Array<[string, number]>)
+        .sort((a, b) => b[1] - a[1])[0];
+      lines.push(`- ${merchant}: ${dominant?.[0] ?? 'unsure'}`);
+    }
+  }
+  const cardKeys = input.valueMapCardKeys ?? [];
+  if (cardKeys.length > 0) {
+    lines.push(`Cards presented in this Value Map (${cardKeys.length}): ${cardKeys.join(', ')}`);
+  }
+  if (lines.length === 0) {
+    return '(no fresh sorts captured — the Value Map returned thin signal; lead on the biggest remaining unknown instead)';
+  }
+  return lines.join('\n');
+}
+
+/** The do-not-restate contract from the prior Read. */
+function formatAlreadySaid(prior: PriorReadSummary | null): string {
+  if (!prior) return '(no prior Read on file — treat nothing as already said)';
+  const lines: string[] = [];
+  if (prior.layer1Stated) {
+    lines.push(`- Income / fixed costs / free cash flow were already stated as standing facts. Do NOT re-open on them.`);
+  }
+  if (prior.goalStatedAsReveal) {
+    lines.push(`- The goal target was already revealed. Do NOT re-reveal it.`);
+  }
+  if (prior.merchantsAlreadyNamed.length > 0) {
+    lines.push(`- Merchants already named in the first Read (reference as givens, do not re-explain as new): ${prior.merchantsAlreadyNamed.join(', ')}`);
+  }
+  if (prior.hookMerchantsUsed.length > 0) {
+    lines.push(`- The clarifier hook (unresolved-transaction questions) already ran on: ${prior.hookMerchantsUsed.join(', ')}. Its job is DONE — do not pose them again.`);
+  }
+  return lines.length > 0 ? lines.join('\n') : '(nothing flagged as already said)';
+}
+
 function formatValueProfile(profile: UserValueProfile): string {
   if (!profile.has_value_map) return '(user has not completed the Value Map — Layer 2 unavailable)';
 
@@ -370,7 +714,7 @@ function formatValueProfile(profile: UserValueProfile): string {
   return lines.join('\n');
 }
 
-function formatClusterForPrompt(b: ClusterBehaviour): string {
+function formatClusterForPrompt(b: ClusterBehaviour, currency: string): string {
   const clean = b.cluster_type === 'merchant'
     ? normaliseMerchantDescription(b.cluster_id)
     : b.cluster_id;
@@ -408,8 +752,18 @@ function formatClusterForPrompt(b: ClusterBehaviour): string {
     `- amount: mean ${b.amount_profile.mean_amount.toFixed(2)}, range ${b.amount_profile.min_amount.toFixed(2)}–${b.amount_profile.max_amount.toFixed(2)}, consistency ${b.amount_profile.consistency_label}`,
   );
 
+  const total = Math.abs(b.total_amount);
+  // Per-month equivalent so recurring spend is legible as a rate, not a raw
+  // window total ("X over 90 days" forces the user to do the division). Cite
+  // the /mo figure for recurring patterns; keep the window total for context.
+  const perMonth = b.window_days > 0 ? total / (b.window_days / DAYS_PER_MONTH) : null;
+  const isRecurring =
+    b.recurrence.pattern_label === 'monthly' || b.recurrence.pattern_label === 'weekly';
   lines.push(
-    `- volume: ${b.transaction_count} txns totalling ${Math.abs(b.total_amount).toFixed(2)} over ${b.window_days}d`,
+    `- volume: ${b.transaction_count} txns totalling ${formatMoney(Math.round(total), currency)} over ${b.window_days}d` +
+      (perMonth != null
+        ? ` (≈ ${formatMoney(Math.round(perMonth), currency)}/mo${isRecurring ? ' — recurring, prefer the /mo figure' : ''})`
+        : ''),
   );
 
   lines.push(

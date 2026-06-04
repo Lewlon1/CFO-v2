@@ -126,9 +126,21 @@ export async function runImportPipeline(
       batchSummaries
     )
 
-    // Use user-preset categories from preview if provided
-    if (txn.presetCategoryId !== undefined || txn.presetValueCategory !== undefined) {
-      const categoryId = txn.presetCategoryId !== undefined ? txn.presetCategoryId : null
+    // Honour a traditional-category preset ONLY when the client sent an
+    // explicit decision. Contract (see api/upload/route.ts + TransactionPreview):
+    //   - non-empty string  → user picked / accepted a category → honour it
+    //   - '' (empty string) → user explicitly chose "Uncategorised" → honour as
+    //                         NULL, do not re-derive
+    //   - null / undefined  → NOT a decision → fall through to rules + LLM
+    //                         (server-side re-derive).
+    //
+    // Previously this gate was `presetCategoryId !== undefined`, and the client
+    // sends a categoryId for every row — so rules-uncategorised rows arrived as
+    // explicit `null`, entered this branch with needsLLM:false, and Pass 2 (the
+    // LLM fallback) was unreachable in production. `null` now means "re-derive".
+    const hasCategoryDecision = typeof txn.presetCategoryId === 'string'
+    if (hasCategoryDecision) {
+      const categoryId = txn.presetCategoryId ? txn.presetCategoryId : null
       const valResult = txn.presetValueCategory
         ? { valueCategory: txn.presetValueCategory, confidence: 1.0, source: 'user_confirmed' as const }
         : assignValueCategory(txn.description, categoryId, userRules, categories, signals, txn.amount)
@@ -142,10 +154,10 @@ export async function runImportPipeline(
         needsLLM: false,
         tier: 'user_rule',
       })
-      // Capture the pick as a learned merchant rule. Skip empty string (the
-      // user explicitly chose "Uncategorised" — don't lock that in) and skip
+      // Capture the pick as a learned merchant rule. categoryId is already null
+      // for the explicit-"Uncategorised" case (''), so don't lock that in; skip
       // when normaliseMerchant returns nothing.
-      if (typeof categoryId === 'string' && categoryId.length > 0) {
+      if (categoryId) {
         const normalised = normaliseMerchant(txn.description)
         if (normalised) learnedFromPreview.set(normalised, categoryId)
       }

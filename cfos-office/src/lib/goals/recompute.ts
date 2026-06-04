@@ -86,11 +86,21 @@ export async function recomputeGoal(
     };
   }
 
+  // The recompute RPC doesn't return `type`; fetch it so investment goals are
+  // paced with compound growth rather than a flat division.
+  const { data: typeRow } = await supabase
+    .from('goals')
+    .select('type')
+    .eq('id', goalId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
   const ctx = buildToolContext(supabase, userId);
   const pace = await computePaceAndOnTrack(ctx, {
     current_amount: Number(row.current_amount ?? 0),
     target_amount: Number(row.target_amount ?? 0),
     target_date: row.target_date,
+    type: typeRow?.type ?? null,
   });
 
   const { error: writeErr } = await supabase

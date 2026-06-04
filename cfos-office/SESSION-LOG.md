@@ -9,6 +9,179 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-02 — Coaching Cadence: principle over procedure
+
+**Branch:** `claude/funny-pasteur-GEpYl` (continues the dedup/voice/read-quality work; harness-pinned per precedent).
+
+A coaching principle, installed as **character** (Constitution → BASE_PERSONA), with the **procedure it replaces deleted** — not a new pile of `ALWAYS/REQUIRED` rules. Came out of three live-flow reviews: the reads got better, but the *conversation* read like a feature demo (forced option-menus, unexplained jargon, multiple topics per turn, a trial whose mechanism didn't match its claim). Prompt-layer + a bounded analytics touch + behavioural eval scaffolding. No prod write.
+
+### The principle (source of truth: `CFO-CONSTITUTION.md` §6 Coaching cadence)
+Lead without lecturing · one topic per turn (≤3 *related* questions, never mixing) · tie every move to the goal · mechanism matches the claim · explain what's new (plain words fine; terms of art / internal names explained or dropped) · the move not the machinery · pace to readiness.
+
+### Phase 0 findings
+- **D1 — `[OPTIONS]` is cosmetic, not load-bearing.** `accept_experiment` fires on "Yes, let's try it (or types acceptance)" — the chip is one path, typing works. Relaxing the menu does not break the lifecycle.
+- **D2 — the "ALWAYS [OPTIONS]" mandate sits in TWO places:** `system-prompt.ts:190` AND the `propose_catalog_experiment` tool description ("Always immediately follow with the OPTIONS block"). Both relax. KEEP the genuinely-good pacing already there: "one experiment per turn" + "if one's running, ask about that first."
+- **D3 — the stacked "REQUIRED experiment beat" is LEGACY.** It's in the `InsightPayload` first-insight path, gated behind `!isLayeredReadEnabled()`. The live value-first flow composes via `compose-first-read.ts` (no experiment beat); the screenshot's experiment came from ongoing **chat**. → Live coaching fixes target the **persona + chat instructions + tool descriptions**; the legacy first-insight de-stack is BACKLOG.
+- **D4 — system-voice contradiction confirmed.** `system-prompt.ts:152-155` gives "The system has these in the Leak bucket" as the GOOD example for attributing a rules-engine (vs user) classification — directly contradicting the no-plumbing ban added to BASE_PERSONA last session. Reconcile: keep the don't-blame-the-user distinction, change the words.
+- **D5 — cut/rate judgment.** The Read already does facts + safety-floor + sensible-default from last session (essentials excluded = floor, biggest-discretionary = default) — which Lewis approved. The *judgment* that was missing (pick the right mechanism, tie to goal, mechanism-matches-claim) lives in **chat**, where the experiment tools already do "model proposes, code computes impact." So the judgment refactor is largely the coaching/tool-discipline layer; the Read gets a light change to expose discretionary alternatives as facts (the model may pick another, essentials still excluded). No big lever rewrite.
+- **D6 — "before" captured:** the test18 transcripts (topic-mixing, "friction experiment" jargon, the McDonald's mechanism mismatch, the forced 3-button menu).
+- **D7 — mandates audit.** Relax: "ALWAYS [OPTIONS]" (×2). Reconcile: 152-155. KEEP (correctness/safety): `:132` no-arithmetic, the essentials-never-cut floor, one-experiment-per-turn, active-first.
+
+### Architecture stance held
+Principle (invokes judgment), not procedure (dictates output). Code keeps only **facts** + a **thin safety floor**; selection / pacing / phrasing / when-to-use-a-tool is the model's judgment. **Verification is behavioural** — eval cases authored for the §9 harness + a human-review checklist; behavioural sign-off needs a live run (no Bedrock creds in this sandbox). Unit tests cover only facts/floor.
+
+### What shipped
+- **Constitution → v1.5.** New §6 subsection **"How the CFO guides"** (the principle, as character). §8 "Asking versus answering" extended with the one-topic / ≤3-related-questions rule. Named **"guides"**, not "coaches": §1 says the CFO is "not a coach" (cheerleader sense — the §2 banned "You've got this!" confirms), so "the CFO coaches" would contradict identity. Behaviour is exactly what was asked; only the label avoids the collision. **Flagged for Lewis** — if "coaching" should be the official term, amend §1's "not a coach" → "not a cheerleader/life-coach".
+- **BASE_PERSONA** gained a derived **"## How you guide"** section (lead · one topic/turn · tie to goal · mechanism matches claim · explain what's new · the move not the machinery · pace to readiness).
+- **Procedure deleted (principle-over-procedure).** Experiments vocabulary (`system-prompt.ts`): keep "experiment" + one-per-turn + active-first + mechanism-matches-claim; **drop "ALWAYS [OPTIONS]"**; ban the *compound* jargon ("friction experiment"). `[OPTIONS]` usage reframed from a default close to genuine forks only. `propose_catalog_experiment` description: drop the forced menu, require the template's own hypothesis (no mismatched claim). **D4 reconciled** — the "The system has these in the Leak bucket" GOOD example demoted to BAD; the don't-blame-the-user distinction kept with plain wording ("auto-sorted into Leak, not your call").
+- **Judgment refactor — D5 decision.** The Read already does facts + safety-floor + sensible-default (essentials excluded, biggest-discretionary default) — approved last session, and a *context-free* one-shot Read gains nothing from model-pick-among-candidates. The judgment that was missing (right mechanism, tie to goal, no forced menu) lives in **chat**, where the experiment tools already do "model proposes, code computes impact" and are now governed by the guiding principle. So **no speculative Read code** — the judgment improvement ships through the coaching layer. The legacy first-insight stacked beat (D3) is behind `!isLayeredReadEnabled()` → BACKLOG.
+- **Verification.** +5 **prompt-content** assertions (`guiding-principle.test.ts`) — runnable, lock the changes, can't be miscalibrated. 1066 tests pass; typecheck + build + lint clean. **Behavioural sign-off is deferred to a live run** (no Bedrock creds in this sandbox) — see the human-review checklist below.
+
+### Human-review checklist (Lewis, live flow — verify against Constitution §6)
+- [ ] One topic per turn — no cut-analysis + value-sort braided in one message
+- [ ] Every move tied to the goal
+- [ ] Mechanism matches the claim — no no-spend-days pitched as targeting a single merchant
+- [ ] New concepts explained in plain words; no compound jargon ("friction experiment"); "experiment" itself reads fine
+- [ ] No forced 3-button menu after every suggestion — chips only on a genuine fork
+- [ ] No plumbing surfaced ("the system tagged…")
+
+### Files touched
+- `CFO-CONSTITUTION.md` — v1.5; §6 "How the CFO guides"; §8 one-topic rule.
+- `cfos-office/src/lib/ai/system-prompt.ts` — "How you guide" section; experiments relax; `[OPTIONS]` reframe; D4 reconcile.
+- `cfos-office/src/lib/ai/tools/propose-catalog-experiment.ts` — description relax (no forced menu; mechanism-matches-claim).
+- `cfos-office/src/lib/ai/__tests__/guiding-principle.test.ts` — new prompt-content net.
+- `cfos-office/SESSION-LOG.md`, `BACKLOG.md`.
+
+### Deferred (BACKLOG)
+- **Legacy first-insight de-stack (D3).** The `InsightPayload` path's REQUIRED experiment beat + stacked headline→gap→STATS→hidden→hook→OPTIONS→experiment, behind `!isLayeredReadEnabled()`. Apply the guiding cadence there if the path is revived; otherwise it ages out with the flag.
+- **Automated coaching behavioural-eval cases** for the §9 `test-prompts.ts` harness — authored where Bedrock creds exist and can be calibrated (fuzzy model-output checks can't be verified blind in this sandbox).
+- **§1 "not a coach" vs the "coaching" shorthand** — decide whether to make "coaching" official (amend §1) or keep "guiding".
+
+### Lessons learned
+- **One disease, two masks.** The lever was over-*constraint* (code decided judgment); the conversation was mis-shaped *latitude* (the prompt rewarded feature-demoing). Both reduce to "the product decides for the model what a guide decides in the moment." One fix family: principle + facts + safety floor, judgment to the model.
+- **Principle-over-procedure is a writing discipline, not a slogan.** The session was mostly *deleting* `ALWAYS/REQUIRED` mandates and stating character once. A new `ALWAYS/REQUIRED` is the smell to watch for.
+- **Contradictions accumulate in procedure, not principle.** The "The system has these" GOOD example directly fought the no-plumbing ban added a session earlier. A pile of imperative rules drifts into self-contradiction; a few principles the model reasons from don't.
+- **Terminology can contradict identity.** "Coaching" collided with §1 "not a coach." Words in a Constitution are load-bearing — caught it and named the behaviour "guiding".
+
+### No production write this session.
+
+---
+
+## 2026-06-02 — Value-Flow Dedup + Post-Read Reveal Voice
+
+**Branch:** `claude/funny-pasteur-GEpYl` (the session prompt named `claude/value-flow-dedup-and-reveal` off `claude/gracious-edison-uH2iK`; the harness provisioned and pinned `claude/funny-pasteur-GEpYl` instead, sitting at the *exact same commit* as `gracious-edison` — an empty diff — so it IS a fresh branch off the named base, just renamed. Work lands here per the session git requirements, matching the v1.4 session's precedent.)
+
+Selector/write-back logic + prompt-layer + staging data hygiene. No schema migration. No production write (`iccelmjenljanqrhhzdv` untouched); all live investigation + backfill on staging (`qlbhvlssksnrhsleadzn`) only.
+
+### Phase 0 findings (read-only audit + staging confirmation)
+
+- **D1 — dedup cause: (b), with a (c) contributor; (a) REFUTED.**
+  - **(a) refuted.** The check-in write-back (`/api/value-map/personal/route.ts` POST step 6, L258-266) DOES flip the selector fields on the classified card — `value_confirmed_by_user=true`, `value_confidence=1.0`, `prediction_source='user_confirmed'`, `confirmed_at` — *identical* to the canonical single-confirm path (`/api/corrections/signal/route.ts` L45-51). The confirmed card is correctly excluded; the fields are not the problem.
+  - **(b) confirmed.** The write-back confirms ONLY the card transaction (`.eq('id', r.transaction_id)`), never the merchant's other transactions. The real selector — `fetchAndScoreReviewCandidates` in `get-value-review-queue.ts` (L82-108), which `retake-candidates.ts` and `/api/value-map/checkin` both consume — is **rule-blind and merchant-confirmation-blind**: it filters purely per-transaction (`value_confirmed_by_user=false AND (value_confidence IS NULL OR <0.7) AND amount<0`), groups by `normaliseMerchant(description)`, and re-surfaces any merchant that still has ≥1 qualifying *sibling*. (Schema/doc divergence: the live predicate is `value_confirmed_by_user`/`<0.7`, NOT the spec's `prediction_source!='user_confirmed'`/`<0.50`; and `transactions` has **no `merchant_clean` column** — that column lives on `correction_signals`.)
+  - **Evidence (staging, `marcus.tester@test10.com` / `4824f997-…`).** One check-in classified 8 distinct merchants (8 `correction_signals` @ weight 2.0, single timestamp). EVERY classified merchant still has re-qualifying siblings: deliveroo 6 txns / 1 confirmed / **5 requalify**; sainsburys **5**; common bar **4**; puregym / virgin media / grainger / octopus **2** each; asos **1**. Sibling confidences 0.15–0.6 (all <0.7). A second check-in re-serves all eight — the bug, reproduced in data.
+  - **(c) contributor.** `backfillForMerchant` runs in `after()` (post-response, async), so a fast second check-in races it — but this is moot here because backfill produces nothing (next point).
+  - **Deeper systemic cause — rules never persist.** EVERY retake user has `value_category_rules` total = **0** (lew6: 25 signals / 16 merchants → 0 rules; lew5, lew7, lew4, marcus@test10, lewfinal1 all 0). `computeFlatRule` *should* mint a flat rule from a single 2× signal (agreement 1.0 ≥ 0.55), but none land → `backfillForMerchant` has no rule to apply → siblings are never lifted ≥0.7. **Consequence for the fix:** a rule-based exclusion (spec 1.1b) would be USELESS (there are no rules). The robust exclusion must key off `value_confirmed_by_user` (reliably written by the confirm). The rule-persistence failure is a *separate, broader* learning-engine bug → BACKLOG.
+
+- **D2 — double-weight blast radius: immaterial / contained.** Only ONE stale test user (`lew6@test.com`, all 2026-04-14) has merchants with >1 elevated signal: `aldi` ×3 (rated burden AND foundation — conflicting), `fruites…naima-ridoy` ×3 and `supermercado muntades 16` ×3 (foundation AND leak), `caprabo` / `pan laude` / `primaprix` ×2. 6 merchants, staging only. marcus@test10 (freshest) has only one check-in, no second-rating yet. **Decision:** immaterial. The Phase-1 selector fix eliminates re-serving at source, so no NEW double-weights accrue; no separate insertion-dedup guard needed. Clean lew6 + marcus@test10 in the staging hygiene backfill; no prod cleanup mandated (prod companion written, marked DO NOT APPLY). Logged to BACKLOG.
+
+- **D3 — reveal composer + continuity.** The "Your sorting just sharpened the goal picture" turn is the **recompose-mode First Read**: `FIRST_READ_SYSTEM_PROMPT_RECOMPOSE` + the recompose branch of `buildFirstReadUserPrompt` in `src/lib/ai/prompts/first-read.ts`, composed by `compose-first-read.ts`, invoked by `/api/insights/recompose-first-read/route.ts`. (The *other* "reveal", `/api/value-map/reveal/route.ts` `buildRevealSystemPrompt`, is the personality/archetype reading — no goal math — NOT this turn.) **Continuity is ALREADY plumbed:** the route builds a `PriorReadSummary` (the read_digest) from the prior assistant message + persisted metadata and renders it via `formatAlreadySaid()` under an "ALREADY SAID — DO NOT RESTATE" system block. **No new plumbing needed.** Root cause of the redundancy: the orchestrator computes `readRecipe` once and passes it to BOTH modes — for a goal user it's `'target'`, so the recompose USER prompt gets `formatReadFocus('target')` ("LEAD with… FCF vs the contribution the goal needs vs what's reaching it… show the [compound] range") AND the full `buildGoalSummary` block ("€948/mo at 7 %, €1,514/mo at 4 %… give a clear verdict"). These concrete USER-prompt LEAD/GOAL instructions OVERRIDE the system block's ALREADY-SAID contract → the recompose re-delivers the goal math. Fix = recipe/GOAL-block tuning in recompose mode, not plumbing.
+
+- **D4 — conversation instructions.** `getConversationInstructions` (`context-builder.ts:2454`). No-observation-narration is ALREADY global (`BASE_PERSONA`, `system-prompt.ts:12-14`, v1.4) → no per-branch narration fix. The §8 one-question rule was ALREADY removed from BASE_PERSONA/Constitution by the v1.4 session; the surviving one-question hits (799/863/878 = goal-beat forcing-function; **2245 = profiling throttle, KEEP**; 2780 = value_map_complete; 2903/2932 = post-upload) are intentional local throttles. The real gap: **no continuity rule** ("don't restate what the Read already delivered; extend it") in the ongoing-chat `default` branch (2621-2625) — the surface where chat re-delivers the Read's numbers. `monthly_review` restates the month's numbers *by design* (that IS the review) — leave. `value_map_complete` (2742) is the legacy Gap surface (under value-first the reveal is the recompose) — light-touch only. **Stays untouched:** profiling throttle, "end on one specific actionable thing", `[OPTIONS]` tappable structure, the goal-beat forcing function.
+
+- **D5 — reveal few-shot/tests.** The recompose SYSTEM prompt carries NO worked few-shot SHAPE (the value-first variant does). Per §10, since the recompose instructions change, a re-derived SHAPE is added. Tests exist (`src/lib/ai/__tests__/compose-first-read.test.ts`): recompose metadata (`is_recompose`, `repeated_opening`) + prompt-render assertions (ALREADY SAID / WHAT THE USER JUST SORTED present, `[CTA:open_chat]`, no HOOK CANDIDATES). NONE assert "does not re-instruct goal-math restatement" — add a build-time prompt-assertion regression case (live-LLM `test:prompts` can't run in this sandbox — no Bedrock creds, per the v1.4 precedent).
+
+- **D6 — write-back path.** `/api/value-map/personal/route.ts` POST step 6 (L252-272). Already writes the correct confirm fields (see D1(a)); **no field-flip change needed** — File-manifest item 1.1a drops out. Fix is selector-side (1.1b/1.2) in `get-value-review-queue.ts`.
+
+- **D7 — migration: NONE.** Fix is selector logic fed by the reliably-written `value_confirmed_by_user`; no DDL. Staging data hygiene backfill only; prod companion written + marked DO NOT APPLY. The rule-persistence bug is logic (not schema) → BACKLOG.
+
+### What shipped
+- **Dedup (selector-side, the robust fix).** `fetchAndScoreReviewCandidates` (`get-value-review-queue.ts` — the single choke point feeding the retake selector, the `/api/value-map/checkin` flow, AND the inline review tool) now drops merchants the user has already classified, via a new exported `fetchClassifiedMerchants`. Keyed off `value_confirmed_by_user` (the field BOTH confirm paths reliably set) with a `value_category_rules` merchant-rule fallback — NOT rules alone, because rules never persist (D1). `totalCandidates` now counts only post-exclusion survivors, so "total_unreviewed" stays honest. `retake-candidates.ts` carries a comment documenting the upstream guard (no logic duplication). **No write-back change** — D6 confirmed the confirm fields are already written correctly (cause (a) refuted). **No insertion-dedup guard** — D2 immaterial and the selector fix stops re-serving at source.
+- **Staging data hygiene.** marcus@test10's 8 classified merchants had their unconfirmed siblings settled to the user's own category at `value_confidence=0.7`, `prediction_source='merchant_rule'` (what `backfillForMerchant` would have done). Verified: all 8 now show 0 re-qualifying siblings, ~22 genuinely-uncertain merchants still surface (queue not starved). `prod-backfill-071-value-flow-dedup.sql` written at repo root, **marked DO NOT APPLY** (read-only blast-radius SELECTs + optional, commented sibling-settle + optional signal-dedup).
+- **Voice (recompose reveal).** The "Your sorting just sharpened the goal picture" turn = recompose-mode First Read. `read_digest` (`PriorReadSummary`) was ALREADY plumbed — used, not added. Root fix: the shared `formatReadFocus('target')` + the verbose GOAL block re-invited the €948/€1,514 band the first Read already delivered, overriding ALREADY SAID. New `formatRecomposeReadFocus` replaces `formatReadFocus` in recompose mode (leads on the sort DELTA under every recipe); GOAL + FINANCIAL FACTS re-labelled "ALREADY DELIVERED — context only" in recompose; system prompt gained explicit goal-math + circular-echo bans, a regulated BOUNDARY (§4 — contribution as calculation, not a product flow), and a re-derived few-shot SHAPE (§10).
+- **Voice (ongoing chat).** `getConversationInstructions` `default` branch + `chip_opener` gained a continuity rule ("the user has already had their Read … don't re-deliver standing numbers as fresh findings; extend, land on one action"). Untouched (deliberately): the profiling throttle (2245), the one-question throttles the v1.4 session kept, the global narration ban (BASE_PERSONA), the goal-beat forcing function, `monthly_review` (restates by design), `value_map_complete` (legacy Gap surface, kept by v1.4).
+- **Regression nets.** `get-value-review-queue.test.ts` (new — exclusion via confirmed-txn + via rule, queue-not-starved, `fetchClassifiedMerchants` folding). `compose-first-read.test.ts` (+2 — recompose under 'target' leads on the delta not the band; system prompt carries the bans/boundary/shape). **1054/1054 tests pass.**
+
+### Files touched
+- `cfos-office/src/lib/ai/tools/get-value-review-queue.ts` — dedup guard (`fetchClassifiedMerchants` + skip-in-grouping); honest `totalCandidates`.
+- `cfos-office/src/lib/value-map/retake-candidates.ts` — comment pointing at the upstream guard (no logic dup).
+- `cfos-office/src/lib/ai/prompts/first-read.ts` — recompose voice: ALREADY SAID / BANNED / BOUNDARY / SHAPE + `formatRecomposeReadFocus` + GOAL/FINANCIAL-FACTS recompose relabel.
+- `cfos-office/src/lib/ai/context-builder.ts` — continuity rule in `default` + `chip_opener` conversation instructions.
+- `cfos-office/src/lib/ai/tools/get-value-review-queue.test.ts` — new dedup regression net.
+- `cfos-office/src/lib/ai/__tests__/compose-first-read.test.ts` — recompose-voice regression (+ import).
+- `prod-backfill-071-value-flow-dedup.sql` (repo root) — prod companion, **DO NOT APPLY**.
+- `cfos-office/SESSION-LOG.md`, `BACKLOG.md` — this entry + deferrals.
+
+### Deferred (BACKLOG)
+- **Rule-persistence is broken (the bigger bug under the dedup symptom).** `value_category_rules` total = 0 for EVERY retake user across months. `processSignals` → `computeFlatRule` should mint a flat rule from a single 2× signal; none land → `backfillForMerchant` is inert → the whole learning/prediction engine is non-functional for these users. The selector fix is robust to this (keys off `value_confirmed_by_user`), but the learning engine needs its own investigation (after() not flushing on the retake path? service-client write failing silently? upsert onConflict mismatch?).
+- **Double-weight historical cleanup** — confined to one stale test user (lew6, 6 merchants, conflicting categories). Immaterial; the selector fix stops new accrual. Optional prod dedup lives in `prod-backfill-071` (section C), DO NOT APPLY.
+- `value_map_complete` + `monthly_review` continuity not re-touched (aligned / restate-by-design).
+
+### Lessons learned
+- **Trace to the predicate, not the wrapper.** The design spec + file manifest pointed at `retake-candidates.ts`, but the qualifying predicate (and the bug) live in `fetchAndScoreReviewCandidates` (`get-value-review-queue.ts`), which `retake-candidates.ts` merely wraps. The hooks selector got `signal_count_by_merchant` awareness in a prior session; this selector never did because nobody traced past the wrapper. The fix belongs at the choke point, where all three callers benefit.
+- **Schema diverges from docs, again.** `transactions` has no `merchant_clean` (it's on `correction_signals`); the live selector predicate is `value_confirmed_by_user` / `< 0.7`, not the spec's `prediction_source != 'user_confirmed'` / `< 0.50`. Phase 0's schema-discovery-first rule caught both before they shaped a wrong fix.
+- **The redundancy was an instruction conflict, not missing plumbing.** Continuity was fully wired (PriorReadSummary + formatAlreadySaid + ALREADY SAID). The recompose restated the goal math because a concrete, late USER-prompt instruction (`formatReadFocus('target')`: "LEAD with … the contribution the goal needs … show the range") outranked a system-prompt "do NOT re-reveal". A system "don't" loses to a user-prompt "do" — fix the conflicting instruction at its source rather than piling on bans.
+- **The surprise (Session 06 spirit).** The dedup bug was the visible shadow of a deeper silent failure: the learning engine has been persisting zero rules for months. A single 2× signal yields agreement 1.0 ≥ 0.55 → a rule should exist; none do. Worth chasing the bug behind the bug.
+
+### Follow-on — read-quality pass (post-review of a live flow)
+
+Reviewing a real onboarding flow surfaced four read-quality defects (and one voice leak) outside the original dedup/voice scope but glaring enough to fix in the same branch:
+
+- **Raw category slugs leaked** (`eat_drinking_out`, `renfe`) into the Read + chat. `getSpendingBreakdown` used `category_id` verbatim. Added `categoryLabel()` + a label map in `categories.ts` and humanised at render (`formatSpendingBreakdown`) — slug stays the data key (no breakdown/test churn), only the display is humanised.
+- **The cut lever was mis-sourced — the renfe bug.** `deriveCutLever` read the biggest `recurring_expenses` row (minus rent), which surfaced essentials you can't trim (council tax, water, energy) or a variable transport line the recurring-detector misflagged (renfe), then the Read stapled that tiny unrelated cut to whatever category the breakdown named — "the one move that closes it" → a €6 renfe trim against a €276 gap. Rewrote it to take the biggest **discretionary** category (`DISCRETIONARY_CATEGORY_IDS` allowlist) from the spending breakdown, sized at a 25% trim — the SAME category the ACTION names, so the move is coherent. `compose-first-read.ts` reordered so the breakdown feeds the lever. Verified on the real €500k-goal user: cut now = **eating & drinking out €685/mo**, with transport/groceries/utilities correctly excluded.
+- **"One move" contradiction** fixed in the value-first ACTION prompt: name the cut lever's category (now == the biggest discretionary spend), only claim it "closes" the gap when the trim ≥ shortfall, and never staple a small fixed-bill/transport line to a larger gap.
+- **Cents everywhere** (`€2,040.97`, `€1,513.99`) → whole-currency rounding (`Math.round` before `formatMoney`) across the Read formatters + `buildGoalSummary`.
+- **"The system has tagged…" voice leak** → BASE_PERSONA now bans referencing the product's own internals ("the system", "auto-categorised", "the algorithm"); state what's true about the money, not how the software derived it.
+
+Tests: `levers.test.ts` (+5 — discretionary cut selection, essentials/renfe exclusion, `categoryLabel`, `DISCRETIONARY_CATEGORY_IDS`). Full suite **1059 pass**; typecheck + build clean; lint 0 errors.
+
+Follow-on files: `categories.ts` (label + discretionary set), `levers.ts` (cut lever rewrite), `compose-first-read.ts` (reorder + detectBreakdownCited + goal-money rounding), `prompts/first-read.ts` (labels + rounding + ACTION fix), `system-prompt.ts` (internals voice ban), `analytics/__tests__/levers.test.ts`.
+
+**Goal-math presentation (second review pass) — lock the 7% plan.** The Read showed the full 4/7/10% band but leaned on the 4% worst case and never justified the rate. 7% is already the system default (`INVESTMENT_DEFAULT_RATE_PCT`, shared with `model_scenario`), so this is purely presentational: `buildGoalSummary` now shows the range ONCE, LOCKS 7% as the working plan, sizes the verdict/gap against it (not 4%), explains in one line where 7% comes from (the moderate long-run average a broadly diversified portfolio has returned — an assumption, not a promise; 4% kept as the stress test, 10% the upside), and — when free cash flow already covers the 7% number — frames the next move as acceleration, never a phantom gap. The value-first POSITION step, the `target` read-focus, and the `scenario` chat instruction were aligned to the same lock-in. Tests: +2 (`buildGoalSummary` investment lock-in / non-investment straight-line passthrough); `buildGoalSummary` exported for the test. Files: `compose-first-read.ts`, `prompts/first-read.ts`, `context-builder.ts`.
+
+### No production write this session. Staging only.
+
+---
+
+## 2026-06-02 — CFO Directness + Constitution v1.4
+
+**Branch:** `claude/gracious-edison-uH2iK` (the session prompt named `claude/cfo-directness-v1.4`; the harness provisioned and pinned this branch instead, so work landed here per the session git requirements).
+
+Prompt-layer + docs only. No migration, no schema, no Supabase writes.
+
+### What shipped
+- **Constitution → v1.4.** Relaxed §2 first-person — an anti-narration principle replaces the strict no-`I` ban (state findings directly; don't narrate the act of observing; first person is fine when it carries a real stance; the service-desk register and surface-then-disclaim never appear). This **reverses the v1.1→v1.3 first-person tightening**. Deleted the §2 "Default to no self-reference" sub-section. Deleted the §8 "one question per turn" rule (lets a Read pose two clarifiers without a carve-out; the distinct profiling one-question-*per-conversation* throttle is untouched). Demoted four response-shape templates (§3 allocation, §5 Gap, §6 bad-month, §8 status anchor) to one-line principles + §9 pointers; **§9 A–I left whole and unedited**. Collapsed §8 sign-off to one line. Removed §8 length numbers (1–3 / 4–6 sentences, 120–220 words); the 120–220 reveal cap relocated to `first-read.ts`. **Voice tunability RETAINED** — direct/blunt/gentle are genuinely wired via `profile.advice_style` (`context-builder.ts:1102-1109`). §1.7 overlap-tidy considered, not forced (no behavioural change).
+- **BASE_PERSONA (`system-prompt.ts`):** first-person rule + forbidden-constructions example re-derived to v1.4; one-question line removed; version comment → v1.4.
+- **`context-builder.ts`: inspect-only.** Its only first-person references already allow first person + ban narration (`:573` "First person", `:620` "never 'I learned'") — they were v1.4-aligned and previously *contradicted* the strict BASE_PERSONA; relaxing BASE_PERSONA resolves that latent contradiction. `:1915` is regulated-boundary phrasing (§4, unchanged). The one-question hits (`:863/2245/2612/2780`) are local profiling/onboarding anti-interrogation throttles — kept.
+- **Rewrote `first-read.ts` (highest-leverage).** The value-first Read now runs POSITION → one ACTION (sized against the goal gap) → 1–2 CLARIFIERS (the unresolved-transaction hook posed as direct either/or questions — no "I can see X but can't tell Y") → named LEVERS as headlines, with the Value Map positioned as where levers get prioritised. The hook **survives**, reframed as clarifiers (fork-2 resolution). Few-shot re-derived into the canonical target shape; 120–220 word cap relocated here; regulated edge reaffirmed (a contribution figure is a calculation, never "put €X into a fund"). All three variants' VOICE blocks moved off the old "First person ('I see', 'I notice')" instruction. `compose-first-read.ts` inspect-only.
+- **Other persona prompts aligned (one line each):** `archetype-prompt.ts`, `free-text-opener-prompt.ts`, `value-map/reveal/route.ts`, `demo/reading/route.ts` — "never first person" → anti-narration principle. Observational/second-person reading voice kept, so the `demo/reading` `<example_reading>` few-shots stay valid under v1.4 (§10 satisfied). `regenerate-archetype-prompt.ts` did not restate the rule (untouched).
+- **Harness (`scripts/test-prompts.ts`):** removed `noFirstPerson` from all 9 cases and **deleted the helper + `stripUserQuotes`** (three-search deletion gate passed — both confined to this file). No case tested a one-question rule. Content checks unchanged.
+
+### Files touched
+- `CFO-CONSTITUTION.md` — v1.4 edits 1.1–1.8 (canonical; `audit/inputs/CFO-CONSTITUTION.md` v1.0 snapshot left frozen).
+- `cfos-office/src/lib/ai/system-prompt.ts` — BASE_PERSONA v1.4 alignment + example re-derivation.
+- `cfos-office/src/lib/ai/prompts/first-read.ts` — structure + voice + length + regulated edge + re-derived few-shot + hook→clarifier relabel.
+- `cfos-office/scripts/test-prompts.ts` — removed `noFirstPerson`/`stripUserQuotes`; version-string bumps.
+- `cfos-office/src/lib/onboarding/archetype-prompt.ts`, `…/onboarding-v2/free-text-opener-prompt.ts`, `…/api/value-map/reveal/route.ts`, `…/api/demo/reading/route.ts` — one-line first-person alignment.
+- `BACKLOG.md`, `cfos-office/SESSION-LOG.md` — this entry + deferrals.
+
+### Verification
+- `npm run typecheck` clean · `npm test` 1047 pass (94 files) · `npm run build` ✓ · `npm run lint` 0 errors (41 pre-existing warnings, none in touched files).
+- **`npm run test:prompts` NOT run live** — the §9 suite calls Bedrock and this sandbox has no AWS region/credentials (every case threw "AWS region setting is missing"). The harness compiles and iterates the 9 cases; a live pass count (exit gate ≥8/9) must be produced where Bedrock is configured. **Open verification item.**
+
+### Deferred (BACKLOG)
+- `persona-sanitiser.ts` strips ALL first-person at runtime on the chat path — undoes the v1.4 stance-first-person relaxation in production chat until softened (+ its test re-derived). Biggest follow-up; not on the First Read path so the headline change is unaffected.
+- Feed the confirmed fixed-cost/recurring set into `compose-first-read` so the "recurring bills" lever cites a real number (currently named generically as a headline).
+- `read-judge.ts` ceiling (250) now looser than the prompt target (120–220) — tighten to 220 if the judge should police the target.
+
+### Lessons learned
+- The strict no-first-person rule lived in THREE places: the constitution, BASE_PERSONA, and — the surprise — a runtime Haiku sanitiser (`persona-sanitiser.ts`). Doc + prompt relax cleanly; the runtime sanitiser is the real drift and the place the relaxation silently fails to land. Constitution-first discipline surfaced it, but it sits outside the prompt layer.
+- The demoted templates were genuinely redundant with §9 (A–I already encode every shape) — the prose walkthroughs taught the same thing twice. (Not re-confirmed via the harness this session: Bedrock unavailable.)
+- The First Read's VOICE blocks literally *instructed* the banned construction ("First person ('I see', 'I notice')"), and the whole value-first close was built on "I can see X but can't tell Y" — the exact surface-then-disclaim the directness pass targets. Reframing the hook as direct clarifiers (rather than deleting it) kept the Value Map pull while killing the hedge.
+
+### No migration this session.
+
+---
+
 ## 2026-06-01 — Measurement layer: fix E2/E3/E4 (wow predicted score, Read judge, first_insight→first_read)
 
 **Branch:** `claude/v2.7-ui-tidy-up`
@@ -2631,3 +2804,81 @@ When Lewis runs the full eval, the personas to watch for failure modes:
 1. Set `CRON_SECRET` + `ADMIN_EMAILS` on Vercel preview env (see above).
 2. Apply `prod-backfill-065_wow_events.sql` + `prod-backfill-066_wow_assessments.sql` to production Supabase before merging to main.
 3. Run the manual end-to-end check from the plan's Phase 7.10 (single persona, full event flow, dashboard inspection).
+
+---
+
+## Session — First Read goal-anchoring & spending visibility — 2026-06-01
+
+**Branch:** `claude/youthful-fermi-3Xc54` (off `main` at `a5865e7`, v2.7 UI refactor #63 merged)
+**Headline:** Read now leads with what the user asked for. New deterministic spending breakdown + ReadRecipe selector keyed off entry_struggle/goal; levers/blocker re-included in value-first mode. Additive; rides isLayeredReadEnabled().
+
+### What shipped
+- `spending-breakdown.ts` (+ tests) — total spend, top categories, biggest merchant by spend, largest txn, uncategorised %; sourced from `transactions` directly, windowed off `dataWindowEnd` (not today). Reuses `isPlSpend`/`absExpense` so transfers/income/debt-repayments are excluded.
+- `first-read-recipe.ts` (+ tests) — `visibility | target | control | open`; goal-first precedence mirroring `resolveUserIntent`. Adds `dont_know → visibility` (resolveUserIntent treats dont_know as null; left unchanged). Free-text is keyword-only.
+- `compose-first-read.ts` — reads `entry_struggle`/`entry_struggle_text` via new `getEntryStruggle`, computes breakdown + recipe, threads `spendingBreakdown` + `readRecipe` into the prompt and metadata. Metadata now records `read_recipe` + `breakdown_cited`.
+- `first-read.ts` — SPENDING BREAKDOWN section (both modes), READ FOCUS lead directive (one block per recipe), BLOCKER + LEVERS now rendered in value-first (previously dropped). `formatBlocker` is mode-aware: in value-first it informs the LEAD only and does NOT emit a supply_input CTA (the hook close stays). COMPOSE directive now says "Follow READ FOCUS for the LEAD".
+- judge baseline (`eval/judges/2026-05-17-baseline.ts`) — added `goal_service` (0–1) dimension to the Zod schema, prompt scoring guidance, and wow_score weighting (a Read that doesn't answer the user's actual ask is capped at 0.5). Added to the `diagnostic` return.
+
+### Phase 0 ground truth
+- `transactions` cols: `amount`, `category_id` (string|null, traditional category), `date`, `deleted_at`, `description` (merchant/desc — no dedicated merchant col), `user_id`.
+- `monthly_snapshots.spending_by_category`: not used — breakdown sources `transactions` directly → no migration.
+- Spend-filter exports: `isPlSpend({amount, category_id})` + `absExpense(amount)` from `@/lib/analytics/pattern-detectors`; `normaliseMerchantDescription` from `@/lib/analytics/merchant-normalise`.
+- Mode routing: `composeFirstRead` mode is decided in `post-upload/route.ts` SOLELY by `onboarding_step === 'details_confirmed'` → `value_first`, **independent of entry_struggle**. So wealth/planning/debt/dont_know ALL hit value-first during onboarding. The fix applies to both modes; routing unchanged.
+- Judge dims pre-change: wow_score, recognition, goal_calibration, surprise, trust, tangibility, voice.
+
+### Migration
+- None. Breakdown sources `transactions` directly; `entry_struggle`/`entry_struggle_text` already exist. No DDL.
+
+### Verification
+- `tsc --noEmit` clean (excluding the auto-excluded `tests/onboarding/` Playwright tree).
+- Full `vitest run`: 84 files, 968 tests pass (incl. new spending-breakdown + first-read-recipe + extended compose-first-read metadata tests). ESLint clean on changed files. knip clean.
+- NOT runnable in this environment (no Bedrock/Supabase creds, e2e harness needs a running app): live Read comparisons via `scripts/compare-first-insight.ts` for Marcus/lewis.tester/Dorcas, and the judge `goal_service` delta run. These remain manual verification items for Lewis.
+
+### Lessons / follow-ups
+- `merchant-normalise` strips bank prefixes + 6+ digit trailing refs but does NOT brand-roll (`ALDI 123` ≠ `ALDI`); brand rollup is a query-layer concern. The breakdown's `biggest_merchant` inherits this — variants that differ past the prefix stay distinct. Acceptable for a first Read.
+- free_text recipe is keyword-only — Haiku fallback for ambiguous text deferred (kept the selector a pure, no-LLM function in the one-shot path).
+- **Persona coverage gap (target recipe):** every CSV-bearing persona uses `entryStruggle: 'dont_know'` (→ visibility). Visibility coverage already exists implicitly via existing `mustReferenceMerchantsFromCsv` assertions (the breakdown leads with the real biggest merchant). There is NO CSV-bearing `target`/`control` persona, so the "gap appears" assertion has nothing to attach to without authoring a new persona — which can't be validated without the e2e harness. Did NOT weaken existing tuned OR-pools. Authoring a CSV+concrete-goal target persona is a follow-up (relates to §10's open routing fork).
+- Confirmed (§10 fork): wealth/planning DO reach value-first compose post-UI-merge, because mode keys off onboarding_step not struggle.
+
+---
+
+## Session — Delta recompose, decoupled Value Map, why-beat — 2026-06-02
+
+**Branch:** `claude/delta-recompose-valuemap-why-G4aHn` (goal-anchoring already present — verified identical to `youthful-fermi-3Xc54`, 0/0 ahead/behind)
+**Headline:** Post-Value-Map recompose is now a delta (leads on what sorting unlocked, never restates Layer 1, closes on a directive into chat). Value Map decoupled from the hook teaser — up to 10 cards by divergence + coverage + spread. New single-merchant why-beat as a framing-gated chat opener over the existing Layer 4. Additive; rides `isLayeredReadEnabled()`. No migration.
+
+### What shipped
+- `value-map/select-cards.ts` (+tests) — ≤10 cards, hooks seeded, divergence-ranked, coverage floor ~70%, cross-domain spread. Pure `chooseCards` + IO `selectValueMapCards` + shared `buildCandidateMerchants`. Decoupled from the First Read hook close; the hook teaser is now the SEED.
+- `compose-first-read.ts` — `value_first_recompose` mode + `priorReadSummary` + `valueMapCardKeys`; reuses breakdown/levers/recipe/value-profile reads; metadata `is_recompose` + `repeated_opening` (first-sentence-vs-prior probe).
+- `prompts/first-read.ts` — `FIRST_READ_SYSTEM_PROMPT_RECOMPOSE` (delta contract; inherits VALUE-FIRST voice/honesty verbatim); WHAT-THE-USER-JUST-SORTED + ALREADY-SAID sections; recompose COMPOSE directive (≤200 words, `[CTA:open_chat]`).
+- `recompose-first-read` route — fetches the prior Read (first assistant message), builds `priorReadSummary` (layer1Stated, goalStatedAsReveal, merchantsAlreadyNamed from clusters_referenced+hooks, hookMerchantsUsed, firstSentence), reads `value_map_cards` keys, calls recompose mode, persists recomposed metadata.
+- `onboarding-v2/value-map/page.tsx` — value-first path calls `selectValueMapCards` (service client, since merchant_aggregates is service-role only); preserves hook-builder → samples fallbacks; persists `value_map_cards` {keys, selectionReason, coveragePct, includedHookMerchants} onto the first_read conversation metadata.
+- `value-map/significant-merchant.ts` (+tests) — pure `chooseSignificantMerchant` + IO `pickSignificantAmbiguousMerchant`. High-salience AND ambiguous (low sort-confidence OR unsorted OR stated-vs-actual divergence). Reuses `computeDivergenceScore` so picker and selector agree.
+- `context-builder.ts` — `renderWhyBeatBlock` + `buildWhyBeatContext` (read-and-confirm opener, framing-gated, once); slotted into the V2 first_insight prompt assembly. `chat/route.ts` sets `why_beat_offered` fire-and-forget after the first delivered-recompose first_read turn (turn-1 injection, burns the window for turn 2+).
+- `ChatCTA.tsx` — `open_chat` added to ACTION_TYPES so the recompose directive renders as a tappable button that sends the label into chat.
+- `eval/judges/2026-05-17-baseline.ts` (+tests) — deterministic `nonRepetitionScore`: detects a recompose via `[CTA:open_chat]` and docks wow for a second hook / Layer-1 re-open. `non_repetition` added to diagnostic. (First-sentence-vs-prior repetition is covered by compose metadata `repeated_opening`, which a single-response judge can't see.)
+
+### Phase 0 ground truth
+- Goal-anchoring present: YES. `ReadRecipe = 'visibility'|'target'|'control'|'open'` from `@/lib/ai/first-read-recipe`. `SpendingBreakdown` (total_spend, top_categories, biggest_merchant, largest_transaction, uncategorised_pct) from `@/lib/analytics/spending-breakdown`. `ComposeFirstReadMode` was `'default'|'value_first'` → extended to add `'value_first_recompose'`. compose-first-read already fetched `entry_struggle` + computed `readRecipe` and threaded breakdown/levers in both modes.
+- Recompose route had the conversation in hand; prior assistant message is fetchable (ordered by created_at). 
+- `ValueMapTransaction` shape: {id, merchant, description, amount, currency, transaction_date, is_recurring, category_id?, granularity?, context?}. Representative-row logic from `buildRealTransactionsFromHooks` (bucket by normalised merchant, most recent).
+- `ClusterBehaviour` divergence fields: total_amount (signed, spend negative), trend.{direction, slope_percent_per_month, confidence}, recurrence.{regularity_score, pattern_label}, transaction_count, amount_profile.mean_amount, lifecycle.
+- `extractAndStoreSignals` (chat_signals extractor) fires fire-and-forget in `/api/chat` `after()` on EVERY user message when `isLayeredReadEnabled()` — so the why-beat reply is captured regardless of conversation type. No new store.
+- First_insight prompt assembly: value-first first_read chats take the V2 branch (`isChatIntelligenceV2Enabled` defaults true) in `buildSystemPrompt` (~L1088) — where the why-beat block slots.
+- CTA flow: `[CTA:type]label[/CTA]` parsed in `MessageList.parseCTA`; ACTION_TYPES render a button via `ChatCTA` wired to the option-select handler → `sendMessage({text: label})`.
+- Normalisation: `merchant_aggregates.merchant_key` is RAW description; `getClusterBehaviour` resolves a clusterId via ILIKE substring (`resolveMerchantKeys`), so passing a `normaliseMerchantDescription`-normalised key matches. select-cards uses `normaliseMerchantDescription` throughout for consistency with compose + cluster behaviour.
+
+### Migration
+- None. Why-beat → existing `chat_signals`. Card selector → existing `merchant_aggregates`/`transactions`. Recompose mode → code-only. New gating/selection state (`value_map_cards`, `why_beat_offered`, `first_read_metadata_recomposed`) → `conversations.metadata` (freeform jsonb).
+
+### Verification
+- `tsc --noEmit` clean. `eslint` 0 errors (1 pre-existing `_currency` warning, untouched). `next build` clean. Full vitest 996/996 green (new: select-cards 12, significant-merchant 5, compose recompose +6, why-beat 4, judge non-repetition 4).
+- Staging/Dorcas regression, why-beat `chat_signals` row write, and `compare-first-insight.ts` delta diffing require a live app + Bedrock + DB and were NOT run in this code-only session — recorded as runtime follow-ups below.
+
+### Lessons / follow-ups
+- **Categorisation coverage caps the proportion payoff (54% uncategorised) — TOP follow-up.** The recompose degrades gracefully (leads on named-merchant proportions / absolute amounts when category coverage is low — instructed in the recompose HONESTY block and SPENDING BREAKDOWN rules). The actual fix is a separate Layer-1 categorisation session.
+- **Voice fork (§10): inherited the existing VALUE-FIRST first-person voice block verbatim into the recompose for thread consistency** (the recompose appends to the same thread). Reconciling all three prompts to third-person per the constitution remains the `audit/06` workstream — out of scope here.
+- **Why-beat sequencing vs directive CTA (§10):** resolved as turn-1 injection + immediate `why_beat_offered` burn. The framing rule tells the CFO to address a just-tapped directive first, then offer the read in the same turn — so the directive and the read coexist in one message rather than colliding across turns. If the model ignores it on turn 1 the beat is lost (acceptable for an additive, soft feature).
+- **Persona E2E assertions (manifest item) NOT shipped — follow-up.** The onboarding persona harness (`tests/onboarding/runner/playwright-driver.ts`) drives only the LEGACY Marcus path (`onboarding_route: 'value_map'`, value_map_done → upload); it does not walk the value-first upload → first-read → value-map → recompose → chat why-beat sequence, and does not capture the recompose / why-beat as distinct artifacts. Adding ≤10-card / delta-recompose / why-beat assertions requires a driver extension that cannot be validated without a running app + Bedrock. Shipping unrunnable assertions would be worse than recording the gap.
+- Salience uses spend *share*, not absolute — a lone tiny merchant still scores high (correct for relative selection; the `MIN_SALIENCE` floor only trips when many candidates dilute share AND there's no behavioural loudness).
+- `merchant_aggregates` is a service-role-only materialized view (RLS revoked from authenticated) — the value-map page must use the service client for `selectValueMapCards`, not the user client.

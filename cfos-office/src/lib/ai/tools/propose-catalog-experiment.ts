@@ -49,7 +49,7 @@ export type ProposeCatalogExperimentInput = z.infer<typeof inputSchema>;
 export function createProposeCatalogExperimentTool(ctx: ToolContext) {
   return {
     description:
-      'Propose ONE catalog experiment to the user. Always immediately follow with the OPTIONS block: "Yes, let\'s try it" / "Pick a different one" / "Not right now". Capacity and the 90-day novelty window are enforced server-side — if either fails this call returns an error and you must tell the user they\'re at their limit (or that template was already tried) instead of pushing further. Use propose_experiment for ad-hoc hypotheses with custom impact computation.',
+      'Propose ONE catalog experiment to the user, in plain language, once they have engaged with the problem it addresses. Use the template\'s own hypothesis — do not bolt on a mismatched claim (a no-spend-days trial does not test a single-merchant habit). Capacity and the 90-day novelty window are enforced server-side — if either fails this call returns an error and you must tell the user they\'re at their limit (or that template was already tried) instead of pushing further. Let the user respond naturally; add an [OPTIONS] block only when accepting/declining is a genuine fork worth a tap (it is not required). Use propose_experiment for ad-hoc hypotheses with custom impact computation.',
     inputSchema,
     execute: async (input: ProposeCatalogExperimentInput) => {
       try {

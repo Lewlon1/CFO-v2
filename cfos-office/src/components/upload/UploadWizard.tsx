@@ -477,7 +477,11 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
   useEffect(() => {
     if (state.step === 'preview' && autoImport && !autoImportFiredRef.current) {
       autoImportFiredRef.current = true
-      const rows = state.preview.map((tx) => ({ ...tx, categoryId: tx.suggestedCategoryId ?? null }))
+      // Auto-import has no user review, so send categoryId: null for every row
+      // and let the server re-derive (rules + LLM fallback). Passing the
+      // client-side suggestion here would lock it in as a preset and skip the
+      // LLM fallback for everything the rules engine missed.
+      const rows = state.preview.map((tx) => ({ ...tx, categoryId: null }))
       handleImportConfirm(rows)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
