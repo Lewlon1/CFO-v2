@@ -150,6 +150,61 @@ export async function getDataWindowEnd(
   return typeof row.date === 'string' ? row.date.slice(0, 10) : new Date(row.date).toISOString().slice(0, 10);
 }
 
+/**
+ * Actual data coverage inside the analysis window. `coveredDays` is the inclusive
+ * span (first → last transaction date) within [windowEnd − windowDays, windowEnd];
+ * `monthsSpanned` is the count of calendar months that span touches. Used to
+ * normalise window totals to a monthly rate and to caveat thin data in the first
+ * Read: dividing a one-month upload by the fixed 90-day window (≈2.96 months)
+ * understated every "/mo" figure ~3x. Returns zeros when the user has no
+ * transactions in the window.
+ */
+export async function getDataWindowCoverage(
+  supabase: SupabaseClient,
+  userId: string,
+  windowDays: number,
+  windowEnd?: string | null,
+): Promise<{
+  coveredDays: number;
+  monthsSpanned: number;
+  firstDate: string | null;
+  lastDate: string | null;
+}> {
+  const end = windowEnd ?? (await getDataWindowEnd(supabase, userId));
+  if (!end) return { coveredDays: 0, monthsSpanned: 0, firstDate: null, lastDate: null };
+
+  const startBound = new Date(new Date(end).getTime() - windowDays * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('date')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .gte('date', startBound)
+    .lte('date', end)
+    .order('date', { ascending: true })
+    .limit(1);
+  if (error) throw error;
+
+  const firstRow = (data ?? [])[0] as { date: string } | undefined;
+  if (!firstRow) return { coveredDays: 0, monthsSpanned: 0, firstDate: null, lastDate: end };
+
+  const first =
+    typeof firstRow.date === 'string'
+      ? firstRow.date.slice(0, 10)
+      : new Date(firstRow.date).toISOString().slice(0, 10);
+  const coveredDays = Math.max(
+    1,
+    Math.floor((new Date(end).getTime() - new Date(first).getTime()) / 86_400_000) + 1,
+  );
+  const [fy, fm] = first.split('-').map(Number);
+  const [ly, lm] = end.split('-').map(Number);
+  const monthsSpanned = (ly - fy) * 12 + (lm - fm) + 1;
+
+  return { coveredDays, monthsSpanned, firstDate: first, lastDate: end };
+}
+
 /** First-seen date for the cluster across the user's history (not the windowed slice). Used by lifecycle.appeared_within_window. */
 export async function getFirstSeenForCluster(
   supabase: SupabaseClient,

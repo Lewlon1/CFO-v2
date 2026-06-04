@@ -17,7 +17,7 @@ import { bedrock, chatModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
-import { getDataWindowEnd } from '@/lib/analytics/cluster-behaviour/queries';
+import { getDataWindowEnd, getDataWindowCoverage } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
@@ -48,6 +48,7 @@ import {
 } from './prompts/first-read';
 
 const WINDOW_DAYS = 90;
+const DAYS_PER_MONTH = 30.44;
 const TOP_CLUSTER_LIMIT = 10;
 const MIN_DATA_COMPLETENESS = 0.3;
 const MAX_OUTPUT_TOKENS = 700;
@@ -91,6 +92,18 @@ export async function composeFirstRead(params: {
     dataWindowEnd,
   );
 
+  // Actual data coverage inside the window. The monthly normaliser and the
+  // thin-data caveat both key off REAL coverage, not the fixed 90d window — a
+  // one-month upload divided by 90d understated every "/mo" figure ~3x and the
+  // Read never flagged that it was reading a single month.
+  const coverage = await getDataWindowCoverage(
+    supabase,
+    params.userId,
+    WINDOW_DAYS,
+    dataWindowEnd,
+  );
+  const effectiveMonths = Math.max(1, coverage.coveredDays / DAYS_PER_MONTH);
+
   // Levers run AFTER the breakdown: the cut lever names the biggest discretionary
   // category from it, so the Read's ONE ACTION and the breakdown refer to the
   // same category (was: a recurring_expenses cut that surfaced essentials/renfe).
@@ -100,6 +113,7 @@ export async function composeFirstRead(params: {
     currency: financialFacts.currency,
     spendingBreakdown,
     windowDays: WINDOW_DAYS,
+    effectiveMonths,
   });
 
   // Goal-first precedence, mirroring resolveUserIntent() in insight-engine.ts.
@@ -156,7 +170,11 @@ export async function composeFirstRead(params: {
     transactionCountTotal,
     windowDays: WINDOW_DAYS,
     dataWindowEnd,
+    dataWindowStart: coverage.firstDate,
     dataAgeDays,
+    coveredDays: coverage.coveredDays,
+    monthsSpanned: coverage.monthsSpanned,
+    effectiveMonths,
     levers: leverPackage.levers,
     blocker: leverPackage.blocker,
     financialFacts,
