@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from './normalise-merchant'
 import { CATEGORY_AMBIGUITY } from './context-signals'
 import { getTimeContext } from '@/lib/utils/time-context'
-import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
+import { VCR_ON_CONFLICT, NONE_TIME_CONTEXT } from '@/lib/prediction/types'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -78,6 +78,7 @@ export async function applyValueClassification(
       match_value: normDesc,
       value_category: newValue,
       confidence: 1.0,
+      time_context: NONE_TIME_CONTEXT,
       source: 'correction',
       last_signal_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

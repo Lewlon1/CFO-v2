@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { ToolContext } from './types';
 import { computePaceAndOnTrack, targetDateFromDuration } from '@/lib/goals/pace';
 import { logContribution } from '@/lib/goals/contributions';
+import { ensureLiabilityForDebtGoal } from '@/lib/balance-sheet/liability-from-goal';
 
 /**
  * Find an existing active goal that is a duplicate of one being created — same
@@ -162,6 +163,17 @@ export function createCreateGoalTool(ctx: ToolContext) {
             return { error: 'Could not update the goal. Please try again.' };
           }
 
+          // Backfill a liability for a debt-clearance goal if one isn't on the
+          // balance sheet yet (dedup-safe; won't clobber an existing balance).
+          if (effectiveType === 'debt_clearance') {
+            await ensureLiabilityForDebtGoal(ctx, {
+              goalId: updated.id,
+              goalName: updated.name,
+              balance: Math.round(target_amount),
+              currency: ctx.currency,
+            });
+          }
+
           return {
             success: true,
             was_updated: true,
@@ -217,6 +229,19 @@ export function createCreateGoalTool(ctx: ToolContext) {
           } catch (seedErr) {
             console.error('[tool:create_goal] seed contribution failed:', seedErr);
           }
+        }
+
+        // Debt-clearance goals carry the balance to clear in target_amount. Seed
+        // a matching liability so the payoff tools have a balance to read — the
+        // figure the user just stated otherwise never reaches the balance sheet
+        // and the CFO ends up re-asking for it. Best-effort, never fatal.
+        if (effectiveType === 'debt_clearance') {
+          await ensureLiabilityForDebtGoal(ctx, {
+            goalId: data.id,
+            goalName: data.name,
+            balance: Math.round(target_amount),
+            currency: ctx.currency,
+          });
         }
 
         return {

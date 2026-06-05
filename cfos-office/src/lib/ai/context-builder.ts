@@ -892,6 +892,8 @@ function buildGoalDeriveConfirmContext(
     '- `current_amount`: the starting amount the user told you',
     '- `description`: a short clarifying sentence if useful',
     '',
+    'For a debt-clearing goal, `target_amount` is the balance on the debt today (e.g. what is on the card). The system records that balance on the balance sheet automatically when the goal is created — so treat the card/loan balance as captured. Do NOT re-ask for it in a later turn; if you later need to size a payoff, ask only for the APR and the monthly payment, not the balance.',
+    '',
     'Do not call `create_goal` speculatively. One goal per onboarding.',
     '',
     "### When the user can't articulate a goal",

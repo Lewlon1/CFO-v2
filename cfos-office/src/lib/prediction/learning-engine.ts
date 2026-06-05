@@ -1,5 +1,6 @@
 import { baseConfidence } from './confidence'
 import type { CorrectionSignal, RuleCandidate, ValueCategoryType } from './types'
+import { NONE_TIME_CONTEXT } from './types'
 
 type WeightedCounts = Map<ValueCategoryType, number>
 
@@ -46,7 +47,7 @@ export function computeFlatRule(merchantClean: string, signals: CorrectionSignal
     agreement_ratio: d.ratio,
     avg_amount_low: null,
     avg_amount_high: null,
-    time_context: null,
+    time_context: NONE_TIME_CONTEXT,
     source: 'learned',
   }
 }
@@ -133,7 +134,7 @@ export function computeAmountRules(
         agreement_ratio: lowD.ratio,
         avg_amount_low: null,
         avg_amount_high: Math.round(((boundary + boundaryHigh) / 2) * 100) / 100,
-        time_context: null,
+        time_context: NONE_TIME_CONTEXT,
         source: 'learned',
       },
       {
@@ -145,7 +146,7 @@ export function computeAmountRules(
         agreement_ratio: highD.ratio,
         avg_amount_low: Math.round(((boundary + boundaryHigh) / 2) * 100) / 100,
         avg_amount_high: null,
-        time_context: null,
+        time_context: NONE_TIME_CONTEXT,
         source: 'learned',
       },
     ],
@@ -175,7 +176,7 @@ export function computePriorRule(
     agreement_ratio: d.ratio,
     avg_amount_low: null,
     avg_amount_high: null,
-    time_context: null,
+    time_context: NONE_TIME_CONTEXT,
     source: 'learned',
   }
 }
