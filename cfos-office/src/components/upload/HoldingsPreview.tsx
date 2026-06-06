@@ -11,6 +11,7 @@
 //      one `assets` or `liabilities` row.
 
 import { useMemo, useState } from 'react'
+import { Select } from '@/components/ui/Select'
 import type { ParsedHolding } from '@/lib/parsers/types'
 import type {
   ConfirmedBalanceSheetImport,
@@ -362,70 +363,70 @@ export function HoldingsPreview({
           </label>
           <label className="block">
             <span className="text-xs text-muted-foreground">Currency</span>
-            <select
+            <Select
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
+              className="mt-1"
             >
               <option value="GBP">GBP</option>
               <option value="EUR">EUR</option>
               <option value="USD">USD</option>
-            </select>
+            </Select>
           </label>
 
           {mode === 'holdings' && (
             <label className="block">
               <span className="text-xs text-muted-foreground">Asset type</span>
-              <select
+              <Select
                 value={assetType}
                 onChange={(e) =>
                   setAssetType(e.target.value as HoldingsAssetType)
                 }
-                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
+                className="mt-1"
               >
                 <option value="stocks">Stocks / ETFs</option>
                 <option value="bonds">Bonds</option>
                 <option value="pension">Pension</option>
                 <option value="crypto">Crypto</option>
-              </select>
+              </Select>
             </label>
           )}
 
           {mode === 'single_balance' && singleKind === 'asset' && (
             <label className="block">
               <span className="text-xs text-muted-foreground">Asset type</span>
-              <select
+              <Select
                 value={singleAssetType}
                 onChange={(e) =>
                   setSingleAssetType(e.target.value as (typeof SINGLE_ASSET_TYPES)[number])
                 }
-                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
+                className="mt-1"
               >
                 {SINGLE_ASSET_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
 
           {mode === 'single_balance' && singleKind === 'liability' && (
             <label className="block">
               <span className="text-xs text-muted-foreground">Debt type</span>
-              <select
+              <Select
                 value={singleLiabilityType}
                 onChange={(e) =>
                   setSingleLiabilityType(e.target.value as (typeof LIABILITY_TYPES)[number])
                 }
-                className="mt-1 w-full min-h-[44px] rounded-md border border-input bg-background px-3 text-base"
+                className="mt-1"
               >
                 {LIABILITY_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
         </div>

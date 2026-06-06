@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Select } from '@/components/ui/Select'
 import type { PreviewTransaction, Category } from '@/lib/parsers/types'
 
 type RowState = {
@@ -104,16 +105,15 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
                 </span>
               </div>
 
-              <select
+              <Select
                 value={row.categoryId ?? ''}
                 onChange={(e) => setRow(i, { categoryId: e.target.value, touched: true })}
-                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm min-h-[44px]"
               >
                 <option value="">Uncategorised</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           )
         })}
@@ -171,16 +171,15 @@ export function TransactionPreview({ transactions, categories, onConfirm, onCanc
                       {formatAmount(t.amount, t.currency)}
                     </td>
                     <td className="px-3 py-2">
-                      <select
+                      <Select
                         value={row.categoryId ?? ''}
                         onChange={(e) => setRow(i, { categoryId: e.target.value, touched: true })}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
                       >
                         <option value="">Uncategorised</option>
                         {categories.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
-                      </select>
+                      </Select>
                     </td>
                   </tr>
                 )

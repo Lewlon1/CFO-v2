@@ -4,6 +4,7 @@ import type { CoverageLine } from '@/lib/analytics/category-coverage'
 import type { Cadence } from '@/lib/analytics/reconcile-fixed-costs'
 import { formatCurrency } from '@/lib/format/currency'
 import { moneySymbol } from '@/lib/utils/money'
+import { Select } from '@/components/ui/Select'
 import { CADENCE_OPTIONS, monthlyEq } from './fixed-cost-display'
 
 export type CaptureDecision = { included: boolean; amount: string; cadence: Cadence }
@@ -83,17 +84,16 @@ function CaptureRow({
           </div>
         </div>
         <div className="flex-1">
-          <select
+          <Select
             value={d.cadence}
             onChange={(e) => onChange(keyId, { cadence: e.target.value as Cadence })}
-            className="w-full px-2 py-2 min-h-[44px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-text-primary/40"
           >
             {CADENCE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <p className="text-sm text-text-secondary tabular-nums whitespace-nowrap pb-2">
           {formatCurrency(perMonth, currency)}/mo
