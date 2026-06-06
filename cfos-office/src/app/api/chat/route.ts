@@ -277,7 +277,7 @@ export async function POST(req: Request) {
 
   // Goal-chat stall handler. The prompt-side "draft on next turn" rule is the
   // primary mechanism; this is a safety net for the case where the model
-  // doesn't comply. After 5 user turns in `onboarding_goal_chat` without an
+  // doesn't comply. After 7 user turns in `onboarding_goal_chat` without an
   // active goal, the onboarding state advances to `goal_chat_tentative` and a
   // transient system note tells the CFO to acknowledge and stop. Value-first
   // flow: the next screen handles income / rent — do NOT collect them here.
@@ -317,7 +317,7 @@ export async function POST(req: Request) {
       !lastUserTextForDeferral.startsWith('[System:') &&
       quickClassifyGoalDeferral(lastUserTextForDeferral) === 'deferred';
 
-    if (((userTurnCount ?? 0) >= 5 || deferredGoal) && (goalCount ?? 0) === 0) {
+    if (((userTurnCount ?? 0) >= 7 || deferredGoal) && (goalCount ?? 0) === 0) {
       const existingProgress =
         profileForChat.onboarding_progress && typeof profileForChat.onboarding_progress === 'object'
           ? (profileForChat.onboarding_progress as Record<string, unknown>)
@@ -334,14 +334,15 @@ export async function POST(req: Request) {
         .eq('id', user.id);
 
       stallSystemNote =
-        '[SYSTEM] The user is moving on without a confirmed goal. ' +
-        'Acknowledge that briefly — a goal can come later — and say you are about to ' +
-        'look at their transactions so the picture gets specific. Do NOT ask another ' +
-        'goal-related question. Do NOT call any tools. Do NOT ask for income, rent, ' +
-        'or any other number — those are collected on the next screen, not here. ' +
-        'Do NOT tell the user to upload anything or that there is an upload button ' +
-        'here — the system moves them to the upload screen automatically. ' +
-        'Keep the reply to 2-3 sentences.';
+        '[SYSTEM] The user would rather just see where their money goes for now ' +
+        'than set a goal. Take that at face value — it is a valid way to start. ' +
+        'Acknowledge it warmly in a sentence (a target can come whenever one clicks) ' +
+        'and say you are about to look at their transactions so the picture gets ' +
+        'specific. Do NOT ask another goal-related question. Do NOT call any tools. ' +
+        'Do NOT ask for income, rent, or any other number — those are collected on ' +
+        'the next screen, not here. Do NOT tell the user to upload anything or that ' +
+        'there is an upload button here — the system moves them to the upload screen ' +
+        'automatically. Keep the reply to 2-3 sentences.';
     }
   }
 

@@ -42,7 +42,7 @@ export function GoalBeatWatcher({
   const openedRef = useRef(false)
 
   // Active for the goal-derive beat AND the tentative state the chat route's
-  // stall handler advances to after 5 turns without a goal — both still need
+  // stall handler advances to after 7 turns without a goal — both still need
   // essentials collection, both should advance to upload once income+rent land.
   const isActive =
     onboardingStep === 'goal_chat_started' ||
@@ -66,7 +66,7 @@ export function GoalBeatWatcher({
 
   // Surface the skip control after 90 seconds for Marcus users from the start,
   // and immediately for anyone who has hit the tentative-stall state (the
-  // chat-route stall handler advances to `goal_chat_tentative` after 5 turns
+  // chat-route stall handler advances to `goal_chat_tentative` after 7 turns
   // without a goal). Either signal means the user is stuck on goal-picking
   // and should be able to move to upload.
   useEffect(() => {
