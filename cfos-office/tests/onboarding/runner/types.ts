@@ -43,6 +43,10 @@ export interface DbStateSnapshot {
   financial_portrait: Record<string, unknown>[] | null
   onboarding_progress: Record<string, unknown> | null
   transactionCount: number
+  /** Content of every assistant message for the user — checked for leaked QA notes (fix #2). */
+  assistantMessageContents: string[]
+  /** recurring_expenses names for the user — checked for case-variant dupes (fix #3). */
+  recurringNames: string[]
 }
 
 export interface PersonaRunResult {
