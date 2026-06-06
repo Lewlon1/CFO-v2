@@ -72,9 +72,9 @@ export const truthTellerBalanced: Persona = {
       expectedQuadrant: 'foundation',
       personalityId: 'truth_teller',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [30, 70] },
     },
     hardRules: {

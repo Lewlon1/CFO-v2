@@ -97,10 +97,12 @@ export const drifterExpat: Persona = {
       expectedQuadrant: 'leak',
       personalityId: 'drifter',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
-      financial_portrait: { archetype_name: 'exists' },
+      // Value-first terminal: the Read is delivered and onboarding is stamped
+      // complete. There is no archetype screen here — the archetype only exists
+      // if the user takes the optional post-Read Value Map.
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [70, 120] },
     },
     hardRules: {

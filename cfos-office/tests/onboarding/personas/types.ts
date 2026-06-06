@@ -1,22 +1,19 @@
 import type { ValueQuadrant, MoneyPersonality, ValueMapResult } from '@/lib/value-map/types'
 
-// ── Onboarding-v2 walk stages ───────────────────────────────────────────────
-// The v1 modal flow walked a fixed sequence of "beats" inside a modal. The
-// v2 flow is route-based: the user clicks through actual pages. Each stage
-// below corresponds to a milestone the driver verifies.
-//
-// Marcus path (entry_struggle = 'dont_know'):
-//   struggle_submitted → value_map_done → upload_done → archetype_shown → complete
-// Chat-first path (entry_struggle ∈ {wealth, debt, planning, free_text}):
-//   struggle_submitted → chat_opener
+// ── Onboarding-v2 walk stages (value-first, in-sheet beats at /office) ───────
+// The current flow runs entirely inside the chat sheet at /office, advancing by
+// onboarding_step (OnboardingBeatHost), with NO Marcus/chat-first split:
+//   struggle_submitted → goal_done → upload_done → essentials_done →
+//   confirm_done → first_read
+// Each stage is a milestone the driver verifies.
 
 export type OnboardingStage =
-  | 'struggle_submitted'
-  | 'value_map_done'
-  | 'upload_done'
-  | 'archetype_shown'
-  | 'complete'      // Marcus: landed in /office?chat=open with first_read conversation
-  | 'chat_opener'   // Non-Marcus: landed in chat directly from struggle screen
+  | 'struggle_submitted'  // in-sheet "what brought you in?" answered
+  | 'goal_done'           // goal beat resolved (goal set or skipped → upload_pending)
+  | 'upload_done'         // statement uploaded → essentials beat shows
+  | 'essentials_done'     // income + rent submitted → confirm beat shows
+  | 'confirm_done'        // fixed costs confirmed → Read composes
+  | 'first_read'          // first_read assistant message delivered into the sheet
 
 // ── Scripted Value Map response ─────────────────────────────────────────────
 // Same shape as the runtime ValueMapResult, but merchant + transaction_id are
@@ -39,6 +36,9 @@ export interface PersonaProfile {
   country: string
   city?: string
   currency: string
+  /** Typed into the value-first essentials beat. Driver falls back to a default if unset. */
+  monthlyIncome?: number
+  monthlyRent?: number
 }
 
 // ── Persona CSV upload ──────────────────────────────────────────────────────
@@ -71,10 +71,21 @@ export interface PersonaExpectations {
   /** Stages the driver must reach for the run to be functionally passing. */
   stagesCompleted: OnboardingStage[]
   /**
+   * Optional goal seeded (via the admin client) before the upload beat, so the
+   * value-first First Read can be checked for goal-awareness — the CFO must
+   * never deny a goal it has (regression for the goal-denial fix).
+   */
+  goal?: {
+    name: string
+    type?: string
+    targetAmount: number
+    currentAmount?: number
+    targetDate?: string
+  }
+  /**
    * DB state asserted once the driver lands at the terminal stage
-   * ('complete' for Marcus, 'chat_opener' for non-Marcus). Field shape
-   * is unchanged from v1 — kept as `dbAfterHandoff` to avoid renames in
-   * captured-output JSON files.
+   * ('first_read'). Field shape is unchanged — kept as `dbAfterHandoff`
+   * to avoid renames in captured-output JSON files.
    */
   dbAfterHandoff: {
     user_profiles?: Record<string, unknown>

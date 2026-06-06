@@ -115,10 +115,9 @@ export const builderClassic: Persona = {
       expectedQuadrant: 'investment',
       personalityId: 'builder',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
     dbAfterHandoff: {
-      user_profiles: { onboarding_completed_at: 'not-null' },
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [40, 80] },
     },
     hardRules: {

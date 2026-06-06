@@ -1,5 +1,11 @@
 # Onboarding Test Suite — Smoke-Run Findings
 
+> **Historical (pre-value-first).** These findings are from 2026-04-20, before the
+> suite was rewritten for the value-first in-sheet flow (2026-06-06). The
+> chat-first personas referenced below (`skip-value-map`, `skip-csv-upload`) have
+> since been removed, and the Marcus/value-map-first/archetype path no longer
+> exists. Bug #3 (teardown FK on `llm_usage_log`) is still open. Kept for context.
+
 These are surfacing from smoke tests against CFO Staging on 2026-04-20. Not bugs in the suite — bugs and observations in the **onboarding flow** itself that the suite correctly identified.
 
 ## Bugs to investigate

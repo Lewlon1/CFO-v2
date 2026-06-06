@@ -117,13 +117,14 @@ export const zaneSpain: Persona = {
     },
     stagesCompleted: [
       'struggle_submitted',
-      'value_map_done',
+      'goal_done',
       'upload_done',
-      'archetype_shown',
-      'complete',
+      'essentials_done',
+      'confirm_done',
+      'first_read',
     ],
     dbAfterHandoff: {
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [55, 80] },
     },
     hardRules: {
