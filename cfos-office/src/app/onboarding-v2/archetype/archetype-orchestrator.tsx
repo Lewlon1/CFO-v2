@@ -144,12 +144,7 @@ export function ArchetypeOrchestrator({ onboardingData, entryStruggle }: Props) 
           type="button"
           onClick={handleContinue}
           disabled={loading || pending}
-          className={
-            'w-full mt-6 transition-opacity min-h-12 rounded-xl font-sans text-h3 font-medium ' +
-            (loading || pending
-              ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : 'bg-foreground text-background cursor-pointer')
-          }
+          className="w-full mt-6 transition-colors min-h-12 rounded-xl font-sans text-h3 font-medium bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {pending ? 'Just a moment…' : 'See what I found →'}
         </button>

@@ -51,7 +51,7 @@ function CaptureRow({
   }
   const perMonth = monthlyEq(parseMoneyInput(d.amount) ?? 0, d.cadence)
   return (
-    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-3 space-y-2">
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium text-text-primary">{label}</p>
         <button
@@ -116,7 +116,7 @@ export function MissingCosts({ coverage, state, onChange, currency }: Props) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-medium text-text-primary leading-tight">What&apos;s missing</h2>
+      <h2 className="text-base font-medium text-text-secondary leading-tight">What&apos;s missing</h2>
 
       {uncoveredUtilities.length > 0 && (
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-4 space-y-3">

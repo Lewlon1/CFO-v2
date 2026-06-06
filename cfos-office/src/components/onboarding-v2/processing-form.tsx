@@ -176,7 +176,7 @@ export function ProcessingForm({
           type="button"
           disabled={!canAdvance || pendingAdvance}
           onClick={handleContinue}
-          className="w-full min-h-[44px] rounded-lg bg-text-primary text-bg-base text-sm font-medium px-4 py-3 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          className="w-full min-h-[44px] rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-medium px-4 py-3 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {!importComplete && incomeReady && rentReady
             ? 'Just a moment — finishing up…'

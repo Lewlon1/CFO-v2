@@ -59,7 +59,7 @@ export function ProcessingProgress({ importComplete }: Props) {
       </div>
       <div className="h-1.5 rounded-full bg-[var(--bg-muted)] overflow-hidden">
         <div
-          className="h-full bg-text-primary transition-all duration-700 ease-out"
+          className="h-full bg-primary transition-all duration-700 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>

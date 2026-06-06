@@ -220,7 +220,7 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
 
         {variable.length > 0 && (
           <section className="space-y-2">
-            <h3 className="text-sm font-medium text-text-primary leading-tight">
+            <h3 className="text-sm font-medium text-text-secondary leading-tight">
               Recurring, but it flexes
             </h3>
             <p className="text-sm text-text-secondary leading-snug">
@@ -263,7 +263,7 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
             type="button"
             disabled={pending}
             onClick={handleContinue}
-            className="w-full min-h-[44px] rounded-lg bg-text-primary text-bg-base text-sm font-medium px-4 py-3 disabled:opacity-40 transition-opacity"
+            className="w-full min-h-[44px] rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-medium px-4 py-3 disabled:opacity-40 transition-colors"
           >
             {pending ? 'Saving…' : 'Looks right — show me the picture'}
           </button>

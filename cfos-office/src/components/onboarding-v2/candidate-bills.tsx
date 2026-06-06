@@ -92,7 +92,7 @@ export function CandidateBills({ candidates, state, onChange, currency }: Props)
                   aria-pressed={d.counted}
                   className={`text-xs px-3 py-2 min-h-[44px] rounded border transition-colors shrink-0 ${
                     d.counted
-                      ? 'border-text-primary bg-text-primary text-bg-base'
+                      ? 'border-primary bg-primary/10 text-text-primary'
                       : 'border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]'
                   }`}
                 >

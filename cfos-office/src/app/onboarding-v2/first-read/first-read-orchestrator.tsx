@@ -83,7 +83,7 @@ export function FirstReadOrchestrator({ entryStruggle, valueFirst = false }: Pro
               requestedRef.current = false
               router.refresh()
             }}
-            className="min-h-12 px-6 rounded-xl bg-foreground text-background text-sm font-medium"
+            className="min-h-12 px-6 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-medium transition-colors"
           >
             Try again
           </button>

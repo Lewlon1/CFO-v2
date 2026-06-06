@@ -104,7 +104,7 @@ export function OnboardingBeatHost({ step, currency }: Props) {
             setError(null)
             router.refresh()
           }}
-          className="min-h-11 px-5 rounded-control bg-text-primary text-bg-base text-sm font-medium"
+          className="min-h-11 px-5 rounded-control bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-medium transition-colors"
         >
           Try again
         </button>

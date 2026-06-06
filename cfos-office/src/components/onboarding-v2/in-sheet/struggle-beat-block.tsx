@@ -99,8 +99,8 @@ export function StruggleBeatBlock() {
               className={
                 'w-full text-left px-4 py-3 transition-colors min-h-11 rounded-control text-[14.5px] border ' +
                 (isSelected
-                  ? 'bg-text-primary text-bg-base border-text-primary'
-                  : 'bg-bg-elevated text-text-primary border-[var(--border-subtle)]')
+                  ? 'bg-primary/10 text-text-primary border-primary'
+                  : 'bg-bg-elevated text-text-secondary border-[var(--border-subtle)]')
               }
             >
               {opt.label}
@@ -125,12 +125,7 @@ export function StruggleBeatBlock() {
         type="button"
         onClick={handleContinue}
         disabled={!canContinue}
-        className={
-          'w-full transition-opacity min-h-12 rounded-control text-sm font-medium ' +
-          (canContinue
-            ? 'bg-text-primary text-bg-base cursor-pointer'
-            : 'bg-bg-muted text-text-muted cursor-not-allowed')
-        }
+        className="w-full transition-colors min-h-12 rounded-control text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {pending ? 'Just a moment…' : 'Continue'}
       </button>
