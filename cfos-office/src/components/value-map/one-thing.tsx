@@ -30,8 +30,8 @@ export function OneThing({ onSubmit, onSkip }: OneThingProps) {
     <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center animate-value-feedback">
       <CFOAvatar size={24} />
 
-      <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm">
-        <p className="text-sm text-foreground leading-relaxed">
+      <div className="rounded-card border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm">
+        <p className="text-sm text-text-primary leading-relaxed">
           If I could change one thing about your finances, what would it be?
         </p>
       </div>
@@ -49,9 +49,9 @@ export function OneThing({ onSubmit, onSkip }: OneThingProps) {
           }}
           placeholder="e.g. Stop wasting money on takeaways"
           rows={3}
-          className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent-gold focus:outline-none resize-none"
+          className="w-full rounded-lg border border-[var(--border-subtle)] bg-bg-base px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:border-accent-gold focus:outline-none resize-none"
         />
-        <p className="text-xs text-muted-foreground text-right">
+        <p className="text-xs text-text-secondary text-right">
           {value.length}/{MAX_LENGTH}
         </p>
       </div>
@@ -68,7 +68,7 @@ export function OneThing({ onSubmit, onSkip }: OneThingProps) {
         <Button
           variant="ghost"
           onClick={onSkip}
-          className="text-muted-foreground text-sm"
+          className="text-text-secondary text-sm"
         >
           Skip for now
         </Button>

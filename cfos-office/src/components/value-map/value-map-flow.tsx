@@ -653,10 +653,10 @@ export function ValueMapFlow({
         <div className="flex flex-col items-center text-center gap-6">
           <CFOAvatar size={48} />
           <div className="space-y-3 max-w-sm">
-            <h1 className="font-serif text-[28px] leading-[1.15] text-foreground">
+            <h1 className="text-[28px] leading-[1.15] text-text-primary">
               {VALUE_MAP_INTRO_HERO}
             </h1>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-sm text-text-secondary leading-relaxed">
               {introSubhead}
             </p>
           </div>
@@ -665,16 +665,16 @@ export function ValueMapFlow({
         {/* What the Value Map is — frames the unique way of thinking about
             spending and the no-sacrifice optimisation before the bucket list. */}
         <div className="space-y-3">
-          <p className="eyebrow">The idea</p>
+          <p className="text-caption font-medium uppercase tracking-wide text-text-muted">The idea</p>
           {VALUE_MAP_INTRO_EXPLAINER.map((bullet) => (
             <div
               key={bullet.title}
-              className="rounded-xl border border-border bg-card px-4 py-3"
+              className="rounded-card border border-[var(--border-subtle)] bg-bg-elevated px-4 py-3"
             >
-              <h3 className="font-serif text-[17px] leading-[1.25] text-foreground">
+              <h3 className="text-[17px] leading-[1.25] text-text-primary">
                 {bullet.title}
               </h3>
-              <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
+              <p className="mt-1 text-[13.5px] leading-[1.5] text-text-secondary">
                 {bullet.body}
               </p>
             </div>
@@ -683,8 +683,8 @@ export function ValueMapFlow({
 
         {/* Category overview — four quadrants plus the Unsure escape hatch */}
         <div className="space-y-3">
-          <p className="eyebrow">The buckets</p>
-          <p className="text-[13px] leading-[1.5] text-muted-foreground">
+          <p className="text-caption font-medium uppercase tracking-wide text-text-muted">The buckets</p>
+          <p className="text-[13px] leading-[1.5] text-text-secondary">
             You&apos;ll sort a handful of transactions into one of these. Trust
             your gut — we can refine later.
           </p>
@@ -694,7 +694,7 @@ export function ValueMapFlow({
               return (
                 <div
                   key={q.id}
-                  className="rounded-xl border border-border bg-card px-4 py-3 flex items-start gap-3"
+                  className="rounded-card border border-[var(--border-subtle)] bg-bg-elevated px-4 py-3 flex items-start gap-3"
                 >
                   <span
                     className="text-2xl leading-none shrink-0"
@@ -705,16 +705,16 @@ export function ValueMapFlow({
                   <div className="min-w-0">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <h3
-                        className="font-serif text-[17px] leading-[1.2]"
+                        className="text-[17px] leading-[1.2]"
                         style={{ color: q.colour }}
                       >
                         {q.name}
                       </h3>
-                      <span className="font-serif italic text-[13px] text-muted-foreground">
+                      <span className="italic text-[13px] text-text-secondary">
                         &ldquo;{q.tagline}&rdquo;
                       </span>
                     </div>
-                    <p className="mt-1 text-[13px] leading-[1.45] text-muted-foreground">
+                    <p className="mt-1 text-[13px] leading-[1.45] text-text-secondary">
                       {q.description}
                     </p>
                   </div>
@@ -726,7 +726,7 @@ export function ValueMapFlow({
                 but de-emphasised: muted heading (no brand colour), dashed
                 border to signal it's the escape hatch rather than a real
                 quadrant. */}
-            <div className="rounded-xl border border-dashed border-border bg-card px-4 py-3 flex items-start gap-3">
+            <div className="rounded-card border border-dashed border-[var(--border-subtle)] bg-bg-elevated px-4 py-3 flex items-start gap-3">
               <span
                 className="text-2xl leading-none shrink-0"
                 aria-hidden="true"
@@ -735,14 +735,14 @@ export function ValueMapFlow({
               </span>
               <div className="min-w-0">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <h3 className="font-serif text-[17px] leading-[1.2] text-muted-foreground">
+                  <h3 className="text-[17px] leading-[1.2] text-text-secondary">
                     {VALUE_MAP_INTRO_UNSURE_BUCKET.name}
                   </h3>
-                  <span className="font-serif italic text-[13px] text-muted-foreground">
+                  <span className="italic text-[13px] text-text-secondary">
                     &ldquo;{VALUE_MAP_INTRO_UNSURE_BUCKET.tagline}&rdquo;
                   </span>
                 </div>
-                <p className="mt-1 text-[13px] leading-[1.45] text-muted-foreground">
+                <p className="mt-1 text-[13px] leading-[1.45] text-text-secondary">
                   {VALUE_MAP_INTRO_UNSURE_BUCKET.description}
                 </p>
               </div>
@@ -753,16 +753,16 @@ export function ValueMapFlow({
         {/* How the exercise works — sets expectations about samples seeding a
             baseline + the Unsure escape hatch. */}
         <div className="space-y-3">
-          <p className="eyebrow">How it works</p>
+          <p className="text-caption font-medium uppercase tracking-wide text-text-muted">How it works</p>
           {VALUE_MAP_INTRO_HOW.map((bullet) => (
             <div
               key={bullet.title}
-              className="rounded-xl border border-border bg-card px-4 py-3"
+              className="rounded-card border border-[var(--border-subtle)] bg-bg-elevated px-4 py-3"
             >
-              <h3 className="font-serif text-[17px] leading-[1.25] text-foreground">
+              <h3 className="text-[17px] leading-[1.25] text-text-primary">
                 {bullet.title}
               </h3>
-              <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
+              <p className="mt-1 text-[13.5px] leading-[1.5] text-text-secondary">
                 {bullet.body}
               </p>
             </div>
@@ -788,16 +788,16 @@ export function ValueMapFlow({
       <div className="flex flex-col h-full">
         {mode === 'checkin' && (
           <div className="px-6 pt-6 pb-2 text-center">
-            <h2 className="text-base font-semibold text-foreground">Value check-in</h2>
-            <p className="text-xs text-muted-foreground mt-1">
+            <h2 className="text-base font-semibold text-text-primary">Value check-in</h2>
+            <p className="text-xs text-text-secondary mt-1">
               {transactions.length} transactions I&apos;m not sure about
             </p>
           </div>
         )}
         {mode === 'personal' && (
           <div className="px-6 pt-6 pb-2 text-center">
-            <h2 className="text-base font-semibold text-foreground">Your retake</h2>
-            <p className="text-xs text-muted-foreground mt-1">
+            <h2 className="text-base font-semibold text-text-primary">Your retake</h2>
+            <p className="text-xs text-text-secondary mt-1">
               {transactions.length} transactions I want to learn about
             </p>
           </div>
@@ -820,7 +820,7 @@ export function ValueMapFlow({
           <div className="flex justify-center pb-6 pt-2">
             <button
               onClick={() => router.push('/chat')}
-              className="text-sm text-muted-foreground underline min-h-[44px] px-4"
+              className="text-sm text-text-secondary underline min-h-[44px] px-4"
             >
               Done for now
             </button>
@@ -849,8 +849,8 @@ export function ValueMapFlow({
       <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
         <CFOAvatar size={48} />
         <div className="space-y-2 max-w-sm">
-          <h1 className="text-xl font-semibold text-foreground">Nothing to check in on</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <h1 className="text-xl font-semibold text-text-primary">Nothing to check in on</h1>
+          <p className="text-sm text-text-secondary leading-relaxed">
             {checkinError ?? "You've already told me how you feel about most of your spending. Upload more transactions and come back."}
           </p>
         </div>
@@ -931,8 +931,8 @@ export function ValueMapFlow({
       <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
         <CFOAvatar size={48} />
         <div className="space-y-2 max-w-sm">
-          <h1 className="text-xl font-semibold text-foreground">Nothing to retake yet</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <h1 className="text-xl font-semibold text-text-primary">Nothing to retake yet</h1>
+          <p className="text-sm text-text-secondary leading-relaxed">
             {personalError ??
               "Your categorisation is looking good. I'll let you know when I could use your help."}
           </p>

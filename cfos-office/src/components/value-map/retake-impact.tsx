@@ -62,8 +62,8 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
       <div className="flex flex-col items-center justify-center h-full px-6 gap-6 text-center">
         <CFOAvatar size={48} />
         <div className="space-y-2 max-w-sm">
-          <h1 className="text-xl font-semibold text-foreground">Thanks for the help</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <h1 className="text-xl font-semibold text-text-primary">Thanks for the help</h1>
+          <p className="text-sm text-text-secondary leading-relaxed">
             I&apos;ve logged your answers and I&apos;m working through them.
           </p>
         </div>
@@ -82,7 +82,7 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 gap-4 text-center">
         <CFOAvatar size={48} />
-        <p className="text-sm text-muted-foreground">Measuring the impact of your answers…</p>
+        <p className="text-sm text-text-secondary">Measuring the impact of your answers…</p>
       </div>
     )
   }
@@ -97,8 +97,8 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
     <div className="flex flex-col items-center justify-start h-full px-6 pt-12 pb-8 gap-6 text-center overflow-y-auto">
       <CFOAvatar size={48} />
       <div className="space-y-2 max-w-sm">
-        <h1 className="text-xl font-semibold text-foreground">That just paid off</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <h1 className="text-xl font-semibold text-text-primary">That just paid off</h1>
+        <p className="text-sm text-text-secondary leading-relaxed">
           Your answers rippled through your whole spending picture.
         </p>
       </div>
@@ -123,10 +123,10 @@ export function RetakeImpact({ retakeId, onContinue }: RetakeImpactProps) {
             value={`${rules} new pattern${rules === 1 ? '' : 's'} about how you value spending`}
           />
         )}
-        <div className="pt-3 border-t border-border">
-          <p className="text-xs text-muted-foreground">
+        <div className="pt-3 border-t border-[var(--border-subtle)]">
+          <p className="text-xs text-text-secondary">
             Your Values View is now{' '}
-            <span className="font-semibold text-foreground">{pct}%</span> confidently categorised.
+            <span className="font-semibold text-text-primary">{pct}%</span> confidently categorised.
           </p>
         </div>
       </div>
@@ -153,12 +153,12 @@ function ImpactRow({
 }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 text-left">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background text-muted-foreground">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-base text-text-secondary">
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-sm font-medium text-foreground">{value}</p>
+        <p className="text-xs text-text-secondary">{label}</p>
+        <p className="text-sm font-medium text-text-primary">{value}</p>
       </div>
     </div>
   )
