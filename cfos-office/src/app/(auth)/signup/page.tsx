@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { calculateProfileCompleteness } from '@/lib/profiling/engine'
 
@@ -192,12 +193,12 @@ function SignupForm() {
           <label htmlFor="country" className="block text-sm text-muted-foreground mb-1.5">
             Country
           </label>
-          <select
+          <Select
             id="country"
             value={country}
             onChange={e => setCountry(e.target.value)}
             required
-            className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base focus:outline-none focus:ring-2 focus:ring-ring"
+            className="bg-input border-border px-3 text-base text-foreground focus:ring-ring"
           >
             <option value="">Select your country</option>
             {COUNTRIES.map(c => (
@@ -205,7 +206,7 @@ function SignupForm() {
                 {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div>
