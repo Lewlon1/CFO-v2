@@ -6,6 +6,35 @@
 > since been removed, and the Marcus/value-map-first/archetype path no longer
 > exists. Bug #3 (teardown FK on `llm_usage_log`) is still open. Kept for context.
 
+## Open items — value-first rewrite (2026-06-06)
+
+First full judged run of the rewritten suite (10 personas): **Functional 8/10,
+Visual 10/10, judge hard-rules 0/10, Likert strong** (warmth 4.7, accuracy 3.7,
+on-brand 4.3, persona-fit 3.6, actionability 4.6). Three items remain — none is a
+flow/driver bug (all 10 walk the value-first flow end-to-end):
+
+1. **`onboarding_completed_at` race — `sofia-chaotic` + `zane-spain` functional FAIL.**
+   The `first_read` stage snapshots DB state the moment the Read *message*
+   appears, but `onboarding_completed_at` is stamped a beat later in
+   `advanceStep('first_read_delivered')`. Fix: in `runner/playwright-driver.ts`,
+   after the Read message arrives, poll `user_profiles.onboarding_completed_at`
+   (or `onboarding_step='first_read_delivered'`) until set, then snapshot. The
+   other 8 personas pass it — it's a timing race, not an app bug.
+
+2. **Judge hard-rules stale for value-first — all 10 LLM FAIL.**
+   `R4_numbers_match_csv` extracts the year "2026" as an ungrounded number
+   (date/year extraction bug); `R3_insight_references_csv_merchants` expects exact
+   CSV merchant strings, but the value-first Read leads with the spending
+   picture/clusters rather than naming merchants. Recalibrate both in
+   `runner/judge.ts` (+ `@/lib/ai/read-judge`) for the value-first Read, then
+   re-run without `--skip-judge`. The strong Likert scores confirm the Reads
+   themselves are good — this is rule miscalibration, not Read quality.
+
+3. **Teardown FK (Bug #3)** still leaves one orphaned test user per persona per
+   run; the next run's pre-clean sweeps stale ones.
+
+These three are the remaining work to get the suite fully green.
+
 These are surfacing from smoke tests against CFO Staging on 2026-04-20. Not bugs in the suite — bugs and observations in the **onboarding flow** itself that the suite correctly identified.
 
 ## Bugs to investigate
