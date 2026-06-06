@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { QUADRANTS, QUADRANT_ORDER } from '@/lib/value-map/constants'
 import { VALUE_MAP_INTRO_UNSURE_BUCKET } from '@/lib/value-map/copy'
-import { formatAmount, formatDate } from '@/lib/value-map/format'
+import { formatAmount, formatDateWithDay } from '@/lib/value-map/format'
+import { createClient } from '@/lib/supabase/client'
 import { getFeedback, getMilestoneFeedback } from '@/lib/value-map/feedback'
 import type { ValueMapTransaction, ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import { cn } from '@/lib/utils'
@@ -17,18 +18,6 @@ import { useTrackEvent } from '@/lib/events/use-track-event'
 const FEEDBACK_DURATION = 5000 // ms
 const CARD_TRANSITION = 250 // ms
 const GATE_DURATION = 1500 // ms — buttons inert for this long
-
-
-function contextHint(tx: ValueMapTransaction): string | null {
-  if (tx.is_recurring) return 'Recurring monthly'
-  try {
-    const d = new Date(tx.transaction_date + 'T00:00:00')
-    const day = d.toLocaleDateString('en-GB', { weekday: 'long' })
-    return day
-  } catch {
-    return null
-  }
-}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,6 +82,10 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
 
   // Engagement gate state
   const [canTap, setCanTap] = useState(false)
+
+  // Traditional-category correction: list fetched once, edits tracked per txn.
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({})
 
   // Timing refs
   const cardShownAt = useRef<number>(0)
@@ -313,6 +306,51 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
     // Timing refs will be reset by the currentIndex effect
   }, [results.length, cardState])
 
+  // Load the traditional-category list once (global; names for the dropdown).
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('categories')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+        if (!cancelled && data) setCategories(data as { id: string; name: string }[])
+      } catch (err) {
+        console.error('[value-map] categories load failed', err)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Correct a transaction's traditional category — optimistic; persists and
+  // teaches a merchant rule server-side, reverting the UI on failure.
+  const handleCategoryChange = useCallback(
+    async (txId: string, newCategoryId: string) => {
+      const prev =
+        categoryOverrides[txId] ?? transactions.find((t) => t.id === txId)?.category_id ?? ''
+      if (!newCategoryId || newCategoryId === prev) return
+      setCategoryOverrides((o) => ({ ...o, [txId]: newCategoryId }))
+      try {
+        const res = await fetch('/api/transactions/recategorise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transaction_id: txId, category_id: newCategoryId }),
+        })
+        if (!res.ok) throw new Error(`recategorise ${res.status}`)
+      } catch (err) {
+        console.error('[value-map] category change failed', err)
+        setCategoryOverrides((o) => ({ ...o, [txId]: prev }))
+      }
+    },
+    [categoryOverrides, transactions],
+  )
+
   if (!tx) return null
 
   // When the card is in feedback state, the user has already decided this card,
@@ -321,6 +359,13 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
   const displayIndex =
     cardState === 'feedback' ? Math.min(currentIndex + 2, total) : currentIndex + 1
   const progressPercent = (displayIndex / total) * 100
+
+  // Sample cards (ids like "vm-…") have no DB row to correct — read-only.
+  const isRealTxn = !/^(vm-|sample-|csv-|ocr-)/.test(tx.id)
+  const currentCategoryId = categoryOverrides[tx.id] ?? tx.category_id ?? ''
+  const currentCategoryName =
+    categories.find((c) => c.id === currentCategoryId)?.name ?? 'Uncategorised'
+  const frequency = tx.context ?? (tx.is_recurring ? 'Recurring monthly' : null)
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-y-auto">
@@ -395,27 +440,43 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
             <p className="text-lg font-semibold text-text-primary">
               {tx.description ?? tx.merchant ?? 'Transaction'}
             </p>
-            {tx.context && (
-              <p className="text-sm italic text-text-secondary">
-                {tx.context}
-              </p>
-            )}
             <p className="font-data text-2xl font-bold text-text-primary">
               {formatAmount(tx.amount, currency)}
             </p>
             <div className="flex items-center justify-center gap-2 text-xs text-text-secondary">
-              <span>{formatDate(tx.transaction_date)}</span>
-              {contextHint(tx) && (
+              <span>{formatDateWithDay(tx.transaction_date)}</span>
+              {frequency && (
                 <>
                   <span className="text-border">&middot;</span>
-                  <span>{contextHint(tx)}</span>
+                  <span>{frequency}</span>
                 </>
               )}
             </div>
-            {tx.category_name && (
-              <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-text-secondary">
-                {tx.category_name}
-              </span>
+            {/* Traditional category — last in the card. Editable select for real
+                transactions (office select idiom: rounded-lg + native arrow);
+                persists + teaches a merchant rule. Read-only label for samples. */}
+            {categories.length > 0 && (isRealTxn || currentCategoryId) && (
+              <div className="pt-1.5">
+                {isRealTxn ? (
+                  <select
+                    value={currentCategoryId}
+                    onChange={(e) => handleCategoryChange(tx.id, e.target.value)}
+                    aria-label="Transaction category"
+                    className="w-full min-h-[44px] rounded-lg border border-[var(--border-subtle)] bg-bg-elevated px-2 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-text-primary/40"
+                  >
+                    {!currentCategoryId && <option value="">Uncategorised</option>}
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="flex w-full items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-bg-elevated px-2 py-2 text-sm text-text-secondary">
+                    {currentCategoryName}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
