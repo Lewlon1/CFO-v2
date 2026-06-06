@@ -7,19 +7,32 @@ import type { ClusterBehaviour } from './types';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function formatAmount(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1000) return `${n < 0 ? '-' : ''}£${(abs / 1000).toFixed(1)}k`;
-  return `${n < 0 ? '-' : ''}£${abs.toFixed(2)}`;
+function symbolFor(currency: string): string {
+  return currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency === 'USD' ? '$' : `${currency} `;
 }
 
-export function composeSummary(behaviour: Omit<ClusterBehaviour, 'summary'>): string {
+// Spend magnitude, currency-aware. Always positive: spend is stored negative in
+// this codebase, but the summary describes a spend amount ("mean €24.61"), so a
+// leading "-" reads as a credit. Mirrors deriveTrend, which also works in
+// magnitude. Currency comes from the caller (the user's primary_currency) — the
+// glyph used to be hardcoded to £, wrong for every non-GBP user.
+function formatAmount(n: number, currency: string): string {
+  const symbol = symbolFor(currency);
+  const abs = Math.abs(n);
+  if (abs >= 1000) return `${symbol}${(abs / 1000).toFixed(1)}k`;
+  return `${symbol}${abs.toFixed(2)}`;
+}
+
+export function composeSummary(
+  behaviour: Omit<ClusterBehaviour, 'summary'>,
+  currency: string = 'EUR',
+): string {
   const parts: string[] = [behaviour.cluster_id];
   const fragments: string[] = [];
 
   // Lifecycle takes precedence — dormant or new is the headline
   if (behaviour.lifecycle.status === 'dormant') {
-    fragments.push(`dormant ${behaviour.lifecycle.days_since_last} days, last ${formatAmount(behaviour.amount_profile.mean_amount)}`);
+    fragments.push(`dormant ${behaviour.lifecycle.days_since_last} days, last ${formatAmount(behaviour.amount_profile.mean_amount, currency)}`);
     return `${parts.join(': ')} ${fragments.join(', ')}`.trim();
   }
   if (behaviour.lifecycle.status === 'new' && behaviour.lifecycle.appeared_within_window) {
@@ -50,7 +63,7 @@ export function composeSummary(behaviour: Omit<ClusterBehaviour, 'summary'>): st
 
   // Amount
   if (behaviour.amount_profile.mean_amount !== 0) {
-    fragments.push(`mean ${formatAmount(behaviour.amount_profile.mean_amount)}`);
+    fragments.push(`mean ${formatAmount(behaviour.amount_profile.mean_amount, currency)}`);
   }
 
   // Trend
