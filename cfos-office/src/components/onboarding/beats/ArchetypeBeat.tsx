@@ -68,7 +68,7 @@ export function ArchetypeBeat({ data, archetypeData, loading }: ArchetypeBeatPro
     return (
       <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.4s_ease-out]">
         <div className="rounded-xl border border-border-subtle bg-bg-elevated p-5 max-w-sm">
-          <p className="text-caption uppercase tracking-widest text-text-tertiary mb-3">
+          <p className="text-caption uppercase tracking-widest text-text-secondary mb-3">
             Your Money Personality
           </p>
 
@@ -107,7 +107,7 @@ export function ArchetypeBeat({ data, archetypeData, loading }: ArchetypeBeatPro
   return (
     <div className="px-4 py-2 ml-[40px] animate-[fade-in_0.4s_ease-out]">
       <div className="rounded-xl border border-border-subtle bg-bg-elevated p-5 max-w-sm">
-        <p className="text-caption uppercase tracking-widest text-text-tertiary mb-3">
+        <p className="text-caption uppercase tracking-widest text-text-secondary mb-3">
           Your Money Personality
         </p>
 

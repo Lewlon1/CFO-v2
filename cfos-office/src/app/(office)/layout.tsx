@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation'
 import { after } from 'next/server'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { recomputeIfStale } from '@/lib/goals/recompute'
 import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
+import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
@@ -55,12 +57,6 @@ export default async function OfficeLayout({ children }: { children: React.React
     .eq('id', user.id)
     .single()
 
-  // Any incomplete user without a v2 entry_struggle goes into the v2 flow.
-  // Mid-v2 users (entry_struggle set) and completed users fall through.
-  if (!profile?.onboarding_completed_at && !profile?.entry_struggle) {
-    redirect('/onboarding-v2')
-  }
-
   // If the user is mid-Marcus-journey (post-goal-beat), bounce them back to
   // the appropriate onboarding-v2 step. Without this, a Marcus user could
   // navigate manually to /office and skip the value-map / upload / archetype.
@@ -78,6 +74,14 @@ export default async function OfficeLayout({ children }: { children: React.React
   const goalBeatActive =
     onboardingStep === 'goal_chat_started' ||
     onboardingStep === 'goal_chat_tentative'
+  // Upload → essentials → confirm → Read handoff all run inside the chat sheet
+  // now (deterministic OnboardingBeatHost), so these steps keep the user in
+  // /office with the sheet open rather than routing to /onboarding-v2/* pages.
+  const onboardingBeatActive = isInSheetBeatStep(onboardingStep)
+  // Brand-new user, no entry struggle yet — the "what brought you in?" beat now
+  // runs in-sheet (folded entry) rather than on the /onboarding-v2 page.
+  const needsEntryStruggle =
+    !profile?.onboarding_completed_at && !profile?.entry_struggle
   const MID_MARCUS_STEPS = new Set([
     'goal_set',
     'goal_skipped',
@@ -95,14 +99,6 @@ export default async function OfficeLayout({ children }: { children: React.React
     if (onboardingStep === 'upload_done') redirect(layered ? '/onboarding-v2/first-read' : '/onboarding-v2/archetype')
     if (onboardingStep === 'archetype_shown') redirect('/onboarding-v2/archetype')
     if (onboardingStep === 'first_read_shown') redirect('/onboarding-v2/first-read')
-  }
-
-  // Universal post-essentials redirect (applies to all routes). Once a user
-  // is past the goal-chat beat with both essentials supplied, they should be
-  // on the upload screen — refreshing /office shouldn't strand them on an
-  // empty office before they've ever shared their statements.
-  if (!profile?.onboarding_completed_at && onboardingStep === 'essentials_done') {
-    redirect('/onboarding-v2/upload')
   }
 
   // If the user is mid-goal-beat (either the primary state or the tentative
@@ -139,7 +135,11 @@ export default async function OfficeLayout({ children }: { children: React.React
   const lastSyncedIso = profile?.goals_last_synced_at ?? null
   after(async () => {
     try {
-      const recomputeClient = await createClient()
+      // Use a cookie-free service client: `cookies()` (which createClient calls)
+      // is not allowed inside `after()`. The recompute is scoped by userId, so
+      // RLS via the request client isn't needed — same pattern as the chat /
+      // review `after()` blocks.
+      const recomputeClient = createServiceClient()
       await recomputeIfStale(recomputeClient, userId, lastSyncedIso)
     } catch (err) {
       console.error('[goals-recompute] failed:', err)
@@ -178,7 +178,12 @@ export default async function OfficeLayout({ children }: { children: React.React
         <UserAvatarMenu initial={initial} />
       </header>
 
-      <ChatProvider userCurrency={currency} initialSheetOpen={goalBeatActive}>
+      <ChatProvider
+        userCurrency={currency}
+        initialSheetOpen={goalBeatActive || onboardingBeatActive || needsEntryStruggle}
+        onboardingStep={onboardingStep}
+        needsEntryStruggle={needsEntryStruggle}
+      >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />
 

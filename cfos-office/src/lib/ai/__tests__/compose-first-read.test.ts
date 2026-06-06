@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { extractCompositionMetadata, buildGoalSummary } from '../compose-first-read';
 import {
   buildFirstReadUserPrompt,
+  FIRST_READ_SYSTEM_PROMPT,
+  FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST,
   FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
   type FirstReadComposeInput,
 } from '../prompts/first-read';
@@ -381,6 +383,66 @@ describe('buildFirstReadUserPrompt — recompose mode', () => {
     expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('compound-growth band');
     // §10 — the re-derived few-shot SHAPE travels with the changed rules.
     expect(FIRST_READ_SYSTEM_PROMPT_RECOMPOSE).toContain('Your sort just made the shape legible');
+  });
+});
+
+describe('buildFirstReadUserPrompt — data sufficiency (single-month caveat + coverage-based /mo)', () => {
+  const thinInput: FirstReadComposeInput = {
+    userId: 'u1',
+    valueProfile: {
+      by_category: {},
+      signal_count: {},
+      by_merchant: {},
+      signal_count_by_merchant: {},
+      has_value_map: false,
+      has_any_leak_signal: false,
+    },
+    goalSummary: null,
+    topClusterBehaviours: [mockCluster('TESCO')], // total_amount -117.6, weekly
+    transactionCountTotal: 71,
+    windowDays: 90,
+    dataWindowStart: '2026-04-01',
+    dataWindowEnd: '2026-04-30',
+    dataAgeDays: 35,
+    coveredDays: 30,
+    monthsSpanned: 1,
+    effectiveMonths: 1,
+    spendingBreakdown: null,
+    readRecipe: 'open',
+  };
+
+  it('flags a single month explicitly and frames figures as that month', () => {
+    const prompt = buildFirstReadUserPrompt(thinInput);
+    expect(prompt).toContain('SINGLE MONTH OF DATA');
+    expect(prompt).toContain('in April'); // monthName(dataWindowStart)
+    expect(prompt).toContain('Data coverage: 30 days');
+  });
+
+  it('normalises cluster /mo by actual coverage (not the 90d window) and drops the recurring nudge', () => {
+    const prompt = buildFirstReadUserPrompt(thinInput);
+    // total 117.6 over one month → ≈118/mo "over 30d", NOT 117.6/2.957≈40 "over 90d".
+    expect(prompt).toContain('over 30d');
+    expect(prompt).not.toContain('over 90d');
+    // Recurrence can't be established on one month → no "prefer the /mo figure" nudge.
+    expect(prompt).not.toContain('prefer the /mo figure');
+  });
+
+  it('both first-read system prompts ban fabricated day-spans (the "over 52 days" hallucination)', () => {
+    for (const sys of [FIRST_READ_SYSTEM_PROMPT, FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST]) {
+      expect(sys).toContain('Cite ONLY day-counts and date spans that appear verbatim');
+      expect(sys).toContain('over 52 days');
+    }
+  });
+
+  it('does not caveat when coverage is a full quarter', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...thinInput,
+      coveredDays: 90,
+      monthsSpanned: 3,
+      effectiveMonths: 90 / 30.44,
+    });
+    expect(prompt).not.toContain('SINGLE MONTH OF DATA');
+    expect(prompt).toContain('enough for monthly figures');
   });
 });
 

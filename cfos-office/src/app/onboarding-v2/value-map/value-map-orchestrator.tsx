@@ -97,7 +97,7 @@ export function ValueMapOrchestrator({
   }, [valueFirst, postReadOptIn, router])
 
   return (
-    <div className="min-h-dvh flex flex-col bg-background">
+    <div className="min-h-dvh flex flex-col bg-bg-base">
       <div className="flex-1 flex flex-col max-w-[430px] mx-auto w-full">
         {isCompleting ? (
           <CompletingPanel />
@@ -118,10 +118,10 @@ function CompletingPanel() {
   return (
     <div className="flex-1 flex items-center justify-center px-6">
       <div className="text-center space-y-3">
-        <p className="text-foreground text-lg animate-pulse">
+        <p className="text-text-primary text-lg animate-pulse">
           Reading your answers…
         </p>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-text-secondary text-sm">
           Folding what you said back into your CFO&apos;s read. A few seconds.
         </p>
       </div>

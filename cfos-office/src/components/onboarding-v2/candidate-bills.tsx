@@ -1,12 +1,41 @@
 'use client'
 
+import { useState } from 'react'
 import type { RecurringCandidate } from '@/lib/analytics/recurring-candidates'
 import type { Cadence } from '@/lib/analytics/reconcile-fixed-costs'
 import { formatCurrency } from '@/lib/format/currency'
-import { moneySymbol } from '@/lib/utils/money'
+import { CurrencyInput } from '@/components/ui/CurrencyInput'
 import { CADENCE_OPTIONS, monthlyEq, capitaliseLabel } from './fixed-cost-display'
 
 export type CandidateDecision = { counted: boolean; amount: number; cadence: Cadence }
+
+/**
+ * Bridges the number-typed decision amount to the string-first CurrencyInput.
+ * Holds its own display string (seeded from the initial number) so partial
+ * entries like "5." edit smoothly, and pushes the parsed number to the parent.
+ */
+function BillAmountInput({
+  currency,
+  amount,
+  onAmount,
+}: {
+  currency: string
+  amount: number
+  onAmount: (value: number) => void
+}) {
+  const [display, setDisplay] = useState(
+    Number.isFinite(amount) && amount > 0 ? String(amount) : '',
+  )
+  return (
+    <CurrencyInput
+      currency={currency}
+      value={display}
+      onChange={setDisplay}
+      onValueChange={(value) => onAmount(value ?? 0)}
+      className="text-sm"
+    />
+  )
+}
 
 type Props = {
   candidates: RecurringCandidate[]
@@ -24,7 +53,6 @@ type Props = {
  */
 export function CandidateBills({ candidates, state, onChange, currency }: Props) {
   if (candidates.length === 0) return null
-  const symbol = moneySymbol(currency)
 
   return (
     <section className="space-y-3">
@@ -64,7 +92,7 @@ export function CandidateBills({ candidates, state, onChange, currency }: Props)
                   aria-pressed={d.counted}
                   className={`text-xs px-3 py-2 min-h-[44px] rounded border transition-colors shrink-0 ${
                     d.counted
-                      ? 'border-text-primary bg-text-primary text-bg-base'
+                      ? 'border-primary bg-primary/10 text-text-primary'
                       : 'border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]'
                   }`}
                 >
@@ -82,20 +110,11 @@ export function CandidateBills({ candidates, state, onChange, currency }: Props)
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
                     <label className="block text-xs text-text-muted mb-1">Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">
-                        {symbol}
-                      </span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="1"
-                        value={Number.isFinite(d.amount) ? d.amount : ''}
-                        onChange={(e) => onChange(c.name, { amount: Number.parseFloat(e.target.value) || 0 })}
-                        className="w-full pl-7 pr-2 py-2 min-h-[44px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-text-primary/40"
-                      />
-                    </div>
+                    <BillAmountInput
+                      currency={currency}
+                      amount={d.amount}
+                      onAmount={(value) => onChange(c.name, { amount: value })}
+                    />
                   </div>
                   <div className="flex-1">
                     <label className="block text-xs text-text-muted mb-1">Every</label>

@@ -35,3 +35,10 @@ export type PredictionResult = {
  *  Repaired by migration 064_vcr_unique_index_repair: time_context is now
  *  NOT NULL DEFAULT '__none__' and the unique index is on plain columns. */
 export const VCR_ON_CONFLICT = 'user_id,match_type,match_value,time_context'
+
+/** Sentinel stored in value_category_rules.time_context for rules with no time
+ *  context (plain merchant / category / global rules). Migration 064 set the
+ *  column NOT NULL DEFAULT '__none__'; PostgREST only applies that default when
+ *  the field is OMITTED, so any path that passes an explicit value must use this
+ *  sentinel rather than null — both when writing and when matching on read. */
+export const NONE_TIME_CONTEXT = '__none__'

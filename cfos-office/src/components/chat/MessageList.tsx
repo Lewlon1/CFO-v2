@@ -46,6 +46,7 @@ const markdownComponents: Components = {
   ),
 };
 import { TappableOptions } from './TappableOptions';
+import { ConfirmFact } from './ConfirmFact';
 import { StatCardBlock } from './StatCardBlock';
 import { ChatCTA } from './ChatCTA';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
@@ -60,10 +61,12 @@ import { TripPlanResult } from './TripPlanResult';
 import { MessageFeedback } from './MessageFeedback';
 import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
 import { CfoThinking } from '@/components/brand/CfoThinking';
+import { CFOAvatar } from '@/components/brand/CFOAvatar';
 import { ValueMapActionButton } from './ValueMapActionButton';
 import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
 import { parseOptions } from '@/lib/chat/options-parser';
+import { parseConfirmFact } from '@/lib/chat/confirm-fact-parser';
 import {
   buildActionItemCard,
   buildProfileUpdateCard,
@@ -71,7 +74,6 @@ import {
   buildValueCategoryCard,
   buildClassificationsCard,
 } from './savedCardBuilders';
-import { moneySymbol } from '@/lib/utils/money';
 
 // ── Tool loading labels ───────────────────────────────────────────────────────
 
@@ -190,6 +192,7 @@ function parseMessageContent(rawContent: string): {
   text: string;
   options: string[] | null;
   cta: { type: string; label: string } | null;
+  confirmFact: string | null;
   stats: Array<{ label: string; value: string }>;
 } {
   // Strip the <ACTION:start_value_map> token so it doesn't render as visible
@@ -199,12 +202,14 @@ function parseMessageContent(rawContent: string): {
   // Order matters: extract stats first so the [STATS] block is stripped
   // before any downstream parsers (or markdown) see it.
   const withStats = extractStats(stripped);
-  const withOptions = parseOptions(withStats.text);
+  const withConfirm = parseConfirmFact(withStats.text);
+  const withOptions = parseOptions(withConfirm.text);
   const withCTA = parseCTA(withOptions.text);
   return {
     text: withCTA.text,
     options: withOptions.options,
     cta: withCTA.cta,
+    confirmFact: withConfirm.confirmFact,
     stats: withStats.stats,
   };
 }
@@ -414,9 +419,9 @@ export function MessageList({
           return acc + (needsSpace ? ' ' : '') + part;
         }, '');
 
-        const { text, options, cta, stats } = message.role === 'assistant'
+        const { text, options, cta, confirmFact, stats } = message.role === 'assistant'
           ? parseMessageContent(rawText)
-          : { text: rawText, options: null, cta: null, stats: [] as Array<{ label: string; value: string }> };
+          : { text: rawText, options: null, cta: null, confirmFact: null, stats: [] as Array<{ label: string; value: string }> };
 
         // Wow plumbing: is THIS message the first-Read delivery?
         const messageDbIdValue = (message.metadata as { messageDbId?: string } | null)?.messageDbId;
@@ -454,9 +459,7 @@ export function MessageList({
             >
               {message.role === 'assistant' && (
                 <div className="flex items-center gap-2 mb-2 px-3">
-                  <div className="w-5 h-5 rounded-sm bg-primary flex items-center justify-center text-primary-foreground font-bold text-[10px] flex-shrink-0">
-                    {moneySymbol(userCurrency ?? 'EUR')}
-                  </div>
+                  <CFOAvatar size={20} className="flex-shrink-0" />
                   <span className="text-xs text-muted-foreground font-medium">
                     Your CFO
                   </span>
@@ -481,9 +484,19 @@ export function MessageList({
                 <StatCardBlock cards={stats} />
               )}
 
-              {/* Tappable options */}
-              {options && optionSelectHandler && (
-                <TappableOptions options={options} onSelect={optionSelectHandler} />
+              {/* Fact-confirmation: when present, the Yes/Not-quite tap renders
+                  first and the option chips are revealed only after it's
+                  answered. Without a confirmFact, options render as before. */}
+              {confirmFact && optionSelectHandler ? (
+                <ConfirmFact
+                  fact={confirmFact}
+                  options={options}
+                  onSelect={optionSelectHandler}
+                />
+              ) : (
+                options && optionSelectHandler && (
+                  <TappableOptions options={options} onSelect={optionSelectHandler} />
+                )
               )}
 
               {/* CTA block — action-type CTAs (supply_input, cut_lever, etc.)
@@ -513,6 +526,16 @@ export function MessageList({
                     </div>
                   ) : null
                 })()}
+
+              {/* Onboarding v2 — value-first hook close. The first Read's
+                  composed message ends with a [CTA:start_value_map_real] token
+                  (parsed into `cta`); ChatCTA has no handler for it, so we
+                  render the real-transactions Value Map invite inline here. */}
+              {message.role === 'assistant' && cta?.type === 'start_value_map_real' && (
+                <div className="px-3">
+                  <ValueMapActionButton variant="real" />
+                </div>
+              )}
 
               {/* Structured input components from tool invocations */}
               {structuredInputs.map((config, i) => (

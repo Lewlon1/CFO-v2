@@ -149,7 +149,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
     <div className="flex flex-col gap-6 px-4 py-6 overflow-y-auto">
       {/* Hero: CFO Observations (instant) */}
       {hasObservations && (
-        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+        <div className="rounded-card border border-primary/30 bg-primary/5 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <CFOAvatar size={24} />
             <span className="text-sm font-semibold text-primary">Your CFO</span>
@@ -165,7 +165,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
               )}
             >
               {deterministicObs.map((obs, i) => (
-                <p key={obs.rule + i} className="text-sm text-foreground leading-relaxed">
+                <p key={obs.rule + i} className="text-sm text-text-primary leading-relaxed">
                   {obs.text}
                 </p>
               ))}
@@ -173,7 +173,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
 
             {/* Opus narrative (crossfade in) */}
             {opusText && (
-              <div className="text-sm text-foreground leading-relaxed whitespace-pre-line animate-in fade-in duration-500">
+              <div className="text-sm text-text-primary leading-relaxed whitespace-pre-line animate-in fade-in duration-500">
                 {opusText}
               </div>
             )}
@@ -182,22 +182,22 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
       )}
 
       {/* Personality badge — shareable card */}
-      <div ref={shareCardRef} className="text-center space-y-2 py-4 px-4 rounded-xl">
+      <div ref={shareCardRef} className="text-center space-y-2 py-4 px-4 rounded-card">
         <div className="text-4xl">{personalityResult.emoji}</div>
         <h2 className="text-xl font-bold text-primary">
           {personalityResult.name}
         </h2>
-        <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+        <p className="text-sm text-text-secondary max-w-xs mx-auto">
           {personalityResult.description}
         </p>
-        <p className="text-caption text-muted-foreground/50 pt-1">The CFO&apos;s Office</p>
+        <p className="text-caption text-text-secondary/50 pt-1">The CFO&apos;s Office</p>
       </div>
 
       {/* Share button */}
       <button
         onClick={handleShareCard}
         disabled={sharing}
-        className="mx-auto flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors min-h-[44px] px-4 disabled:opacity-50"
+        className="mx-auto flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors min-h-[44px] px-4 disabled:opacity-50"
       >
         <Share2 className="h-4 w-4" />
         {sharing ? 'Saving...' : 'Share your result'}
@@ -236,7 +236,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
           return (
             <div
               key={qId}
-              className="rounded-xl border-2 p-3 space-y-1.5"
+              className="rounded-card border-2 p-3 space-y-1.5"
               style={{
                 borderColor: `color-mix(in oklab, ${q.colour} 19%, transparent)`,
                 backgroundColor: `color-mix(in oklab, ${q.colour} 3%, transparent)`,
@@ -248,18 +248,18 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
                   {q.name}
                 </span>
               </div>
-              <p className="font-mono text-lg font-bold text-foreground">
+              <p className="font-data text-lg font-bold text-text-primary">
                 {formatAmount(data.total, currency)}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-text-secondary">
                 {data.count} transaction{data.count !== 1 ? 's' : ''} &middot; {data.percentage}%
               </p>
               {items.length > 0 && (
-                <div className="space-y-0.5 pt-1 border-t border-border/50">
+                <div className="space-y-0.5 pt-1 border-t border-[var(--border-subtle)]/50">
                   {items.map((item) => (
                     <div key={item.transaction_id} className="flex justify-between text-xs">
-                      <span className="text-muted-foreground truncate mr-2">{item.merchant}</span>
-                      <span className="font-mono text-foreground shrink-0">
+                      <span className="text-text-secondary truncate mr-2">{item.merchant}</span>
+                      <span className="font-data text-text-primary shrink-0">
                         {formatAmount(item.amount, currency)}
                       </span>
                     </div>
@@ -273,7 +273,7 @@ export function ValueMapSummary({ results, transactions, currency, isRealData, o
 
       {/* Sample data notice */}
       {!isRealData && (
-        <p className="text-xs text-muted-foreground text-center">
+        <p className="text-xs text-text-secondary text-center">
           This was based on example data. Upload your own transactions for real insights.
         </p>
       )}

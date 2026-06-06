@@ -68,6 +68,57 @@ export function formatMoney(amount: number, opts: FormatMoneyOpts): string {
 }
 
 /**
+ * Sanitise a raw money input string for display in a text field.
+ *
+ * Keeps digits and a single decimal point; strips currency symbols, thousands
+ * separators (commas/spaces), and any character that isn't a digit or the first
+ * dot; collapses leading zeros ("05" → "5", but "0.5" is preserved). This is
+ * the deterministic, locale-agnostic guard that replaces the old
+ * `type="number"` inputs whose string state let "5.200" parse to 5.2 and
+ * preserved leading zeros while typing.
+ *
+ * Note: the decimal separator on input is the dot. A bare leading "." becomes
+ * "0." so the field reads naturally as the user types a fractional amount.
+ */
+export function sanitizeMoneyInput(raw: string): string {
+  if (!raw) return ''
+  // Drop everything except digits and dots.
+  let cleaned = raw.replace(/[^0-9.]/g, '')
+  // No digits at all (e.g. a lone "." or "..") is not a value.
+  if (!/[0-9]/.test(cleaned)) return ''
+  // Keep only the first dot.
+  const firstDot = cleaned.indexOf('.')
+  if (firstDot !== -1) {
+    cleaned =
+      cleaned.slice(0, firstDot + 1) +
+      cleaned.slice(firstDot + 1).replace(/\./g, '')
+  }
+  // Split into integer / fraction around the (single) dot.
+  const dotIndex = cleaned.indexOf('.')
+  if (dotIndex === -1) {
+    // Integer only — strip leading zeros, but keep a single "0".
+    const stripped = cleaned.replace(/^0+(?=\d)/, '')
+    return stripped
+  }
+  let intPart = cleaned.slice(0, dotIndex).replace(/^0+(?=\d)/, '')
+  const fracPart = cleaned.slice(dotIndex + 1)
+  if (intPart === '') intPart = '0'
+  return `${intPart}.${fracPart}`
+}
+
+/**
+ * Parse a (possibly raw) money input string to a number, or null if it isn't a
+ * valid positive-or-zero amount. Sanitises first so commas / leading zeros /
+ * stray separators never corrupt the value.
+ */
+export function parseMoneyInput(raw: string): number | null {
+  const sanitised = sanitizeMoneyInput(raw)
+  if (sanitised === '' || sanitised === '.') return null
+  const value = Number(sanitised)
+  return Number.isFinite(value) ? value : null
+}
+
+/**
  * Server-side helper for fetching the user's currency. Components should
  * receive currency via props/context — never call this from a render path.
  */

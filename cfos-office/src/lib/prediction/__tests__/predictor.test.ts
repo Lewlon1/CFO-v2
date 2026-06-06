@@ -51,6 +51,16 @@ describe('resolveValueCategory', () => {
     expect(result.source).toBe('merchant')
   })
 
+  it('matches a plain merchant rule stored with the NONE sentinel (post-migration-064)', () => {
+    // Migration 064 stores plain rules with time_context '__none__', not null.
+    const rules = [
+      rule({ match_type: 'merchant', value_category: 'foundation', confidence: 0.70, time_context: '__none__' }),
+    ]
+    const result = resolveValueCategory(rules, categories, 'tesco', 'groceries', 10, new Date('2026-01-06T12:00:00'))
+    expect(result.value_category).toBe('foundation')
+    expect(result.source).toBe('merchant')
+  })
+
   it('matches merchant_amount rule when amount falls in band', () => {
     const rules = [
       rule({ match_type: 'merchant_amount', value_category: 'foundation', confidence: 0.60, avg_amount_low: null, avg_amount_high: 20 }),

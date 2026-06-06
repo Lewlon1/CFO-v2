@@ -31,7 +31,7 @@ export default async function OnboardingV2FirstReadPage() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('entry_struggle, onboarding_step, display_name')
+    .select('entry_struggle, onboarding_step')
     .eq('id', user.id)
     .single()
 
@@ -47,7 +47,6 @@ export default async function OnboardingV2FirstReadPage() {
 
   return (
     <FirstReadOrchestrator
-      displayName={profile?.display_name ?? null}
       entryStruggle={profile?.entry_struggle ?? null}
       valueFirst={valueFirst}
     />

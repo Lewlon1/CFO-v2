@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { computeFlatRule, computeTimeRules, computeAmountRules, computePriorRule } from './learning-engine'
 import type { CorrectionSignal, RuleCandidate } from './types'
-import { VCR_ON_CONFLICT } from './types'
+import { VCR_ON_CONFLICT, NONE_TIME_CONTEXT } from './types'
 
 /**
  * Process all correction signals for a merchant and recalculate rules.
@@ -47,7 +47,7 @@ export async function processSignals(userId: string, merchantClean: string): Pro
       .eq('user_id', userId)
       .eq('match_type', 'merchant')
       .eq('match_value', merchantClean)
-      .is('time_context', null)
+      .eq('time_context', NONE_TIME_CONTEXT)
   } else if (flatRule) {
     rulesToUpsert.push(flatRule)
   }
@@ -65,7 +65,7 @@ export async function processSignals(userId: string, merchantClean: string): Pro
         agreement_ratio: rule.agreement_ratio,
         avg_amount_low: rule.avg_amount_low,
         avg_amount_high: rule.avg_amount_high,
-        time_context: rule.time_context,
+        time_context: rule.time_context ?? NONE_TIME_CONTEXT,
         source: rule.source,
         last_signal_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -97,7 +97,7 @@ export async function processSignals(userId: string, merchantClean: string): Pro
             agreement_ratio: catPrior.agreement_ratio,
             avg_amount_low: null,
             avg_amount_high: null,
-            time_context: null,
+            time_context: NONE_TIME_CONTEXT,
             source: 'learned',
             last_signal_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -128,7 +128,7 @@ export async function processSignals(userId: string, merchantClean: string): Pro
           agreement_ratio: globalPrior.agreement_ratio,
           avg_amount_low: null,
           avg_amount_high: null,
-          time_context: null,
+          time_context: NONE_TIME_CONTEXT,
           source: 'learned',
           last_signal_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

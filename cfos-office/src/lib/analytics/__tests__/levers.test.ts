@@ -190,6 +190,28 @@ describe('deriveLevers — cut lever targets the biggest discretionary category'
     }
   });
 
+  it('normalises by ACTUAL data coverage, not the fixed 90d window — a 1-month upload is not understated ~3x', async () => {
+    // Regression: with one calendar month of data, dividing the window total by
+    // a fixed 90d window (≈2.96 months) understated every "/mo" figure ~3x — a
+    // real $362 shopping month surfaced as "$122 a month". effectiveMonths is the
+    // actual coverage; the lever must divide by THAT, floored at 1 month.
+    const { levers } = await deriveLevers({
+      supabase: makeSupabase(baseData),
+      userId: 'u1',
+      currency: 'EUR',
+      windowDays: 90,
+      effectiveMonths: 1, // one month of real data, not a full 90d window
+      spendingBreakdown: breakdown([{ category: 'shopping', total: 362, pct: 13 }]),
+    });
+    const cut = levers.find((l) => l.type === 'cut');
+    expect(cut).toBeDefined();
+    if (cut && cut.type === 'cut') {
+      expect(cut.currentMonthly).toBe(362); // the month's real spend, not 362/2.957
+      expect(cut.currentMonthly).not.toBe(Math.round(362 / (90 / 30.44))); // not the ~$122 bug
+      expect(cut.suggestedCut).toBe(Math.round(362 * 0.25)); // ~$91, sized to reality
+    }
+  });
+
   it('emits NO cut lever when every sizeable category is an essential (no renfe-style staple)', async () => {
     const { levers } = await deriveLevers({
       supabase: makeSupabase(baseData),

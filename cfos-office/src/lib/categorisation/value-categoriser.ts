@@ -6,6 +6,7 @@ import {
   type ContextualSignals,
 } from './context-signals'
 import { getTimeContext } from '@/lib/utils/time-context'
+import { NONE_TIME_CONTEXT } from '@/lib/prediction/types'
 
 export type ValueCatResult = {
   valueCategory: string
@@ -225,7 +226,11 @@ function findRule(
     if (timeContext !== null) {
       return r.time_context === timeContext
     }
-    return r.time_context === null || r.time_context === undefined
+    return (
+      r.time_context === NONE_TIME_CONTEXT ||
+      r.time_context === null ||
+      r.time_context === undefined
+    )
   })
 }
 

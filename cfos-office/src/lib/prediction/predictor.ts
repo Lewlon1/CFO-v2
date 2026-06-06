@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ValueCategoryRule, Category } from '@/lib/parsers/types'
 import { getTimeContext } from '@/lib/utils/time-context'
 import type { PredictionResult, ValueCategoryType } from './types'
+import { NONE_TIME_CONTEXT } from './types'
 
 /** Confidence thresholds per tier — a rule must meet this to be used */
 const THRESHOLDS: Record<string, number> = {
@@ -46,7 +47,13 @@ function findRule(
     if (r.match_value !== matchValue) return false
     if (matchType.endsWith('_time')) return r.time_context === timeContext
     if (matchType.endsWith('_amount')) return true // amount checked separately
-    return r.time_context === null || r.time_context === undefined
+    // Plain rules store the NONE sentinel (migration 064). Accept legacy
+    // null/undefined too, in case any pre-064 row lingers.
+    return (
+      r.time_context === NONE_TIME_CONTEXT ||
+      r.time_context === null ||
+      r.time_context === undefined
+    )
   })
 }
 

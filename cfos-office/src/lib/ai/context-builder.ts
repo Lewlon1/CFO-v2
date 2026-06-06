@@ -827,10 +827,10 @@ function buildGoalDeriveConfirmContext(
       '',
       hasGoal
         ? 'You have their goal. The next move is their transactions — the system is about to route them to the upload screen.'
-        : 'The user is taking a moment to decide on a goal. That is fine — say so briefly. The next move is their transactions; the system will route them to upload.',
+        : 'The user would rather just see where their money goes for now than set a goal — a perfectly good place to start. Acknowledge that warmly and briefly. The next move is their transactions; the system will route them to upload.',
       '',
       'In one short message (2–3 sentences):',
-      '- Acknowledge what you have (or that a goal can wait).',
+      '- Acknowledge what you have (or that they want to see where their money goes first — that is fine).',
       '- Say you are about to look at their numbers so the picture gets specific.',
       '',
       'Do NOT call any tools. Do NOT ask for income, rent, or any other number — those are collected on the next screen, not here. Do NOT ask another question. Do NOT tell the user to upload anything or that there is an upload button here — the system moves them to the upload screen automatically.',
@@ -892,11 +892,29 @@ function buildGoalDeriveConfirmContext(
     '- `current_amount`: the starting amount the user told you',
     '- `description`: a short clarifying sentence if useful',
     '',
+    'For a debt-clearing goal, `target_amount` is the balance on the debt today (e.g. what is on the card). The system records that balance on the balance sheet automatically when the goal is created — so treat the card/loan balance as captured. Do NOT re-ask for it in a later turn; if you later need to size a payoff, ask only for the APR and the monthly payment, not the balance.',
+    '',
     'Do not call `create_goal` speculatively. One goal per onboarding.',
     '',
-    "### When the user can't articulate a goal",
+    "### If the user stays vague — propose, don't give up",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this once we can see your money moving.\" — and stop. Do NOT ask for any numbers; do NOT call request_structured_input. The system will route the user to the upload screen on its own; your job here is just to acknowledge and stop. There is NO upload control on this screen: never tell the user to upload anything here, to drag in a statement, or that an upload button is below the chat — the system takes them to the upload screen automatically.",
+    "If after ONE clarifying question the user still hasn't named a target (most likely with `planning` or `dont_know`), do NOT abandon the goal. Propose a concrete, specific starter goal yourself — tailored to why they came in — and present it as a starting point they can accept or adjust, not a fixed decision. Use the same draft shape:",
+    '',
+    '> **[Goal title]** — [amount in their currency] by [target date].',
+    "> A starting point — change the number or date if you have one in mind, then confirm to set it.",
+    '',
+    'Tailor the proposal to their reason for coming in:',
+    "- `planning` — ask once what they are planning for, then propose a round starter target for it (a trip, a deposit) with a sensible date. If they will not name the thing, propose a general savings target.",
+    "- `debt` — propose a payoff goal anchored on what they owe today: ask \"what's on the card right now?\" and make that balance the target.",
+    "- `wealth` — propose a first milestone, e.g. a 12-month savings or investing target they can build from.",
+    "- `dont_know` — propose a small starter buffer, e.g. \"let's set a £500 starter buffer as your first target — once we can see your spending we'll sharpen it.\"",
+    '- otherwise — propose the best fit of the above from what they have said.',
+    '',
+    'Keep it concrete (a real number and date), modest, and clearly adjustable. Make ONE proposal — do not stack options. On confirm, call `create_goal` as above.',
+    '',
+    '### If they decline — they want visibility, and that is fine',
+    '',
+    "If the user turns down your proposal or says they just want to see where their money goes, take it at face value: for now they are here to explore and understand their spending. Acknowledge it warmly as a good place to start — e.g. \"No problem — sounds like you mainly want to see where your money goes for now. That's a solid place to start; you can set a target the moment one clicks.\" — then stop. Do NOT force a goal, do NOT ask for any numbers, do NOT call request_structured_input. The system routes the user to the upload screen automatically; there is NO upload control here, so never tell them to upload anything or that a button is below the chat.",
     '',
     '### After create_goal succeeds',
     '',
@@ -2948,6 +2966,32 @@ HARD RULES:
   const completeness = Number(profile?.profile_completeness ?? 0)
   const addressName = firstName ?? 'them'
 
+  // Only ask for Day-0 basics that aren't already on file. Onboarding captures
+  // income / housing / rent up front, so re-asking them here reads as "did it
+  // even save?" — the single biggest trust hit (see test-user notes). Build the
+  // ask-list dynamically from what's actually missing.
+  const incomeKnown = profile?.net_monthly_income != null && profile?.net_monthly_income !== ''
+  const housingKnown = !!profile?.housing_type
+  const rentKnown = profile?.monthly_rent != null && profile?.monthly_rent !== ''
+  const basicsQuestions: string[] = []
+  if (!incomeKnown) {
+    basicsQuestions.push('field: "net_monthly_income", input_type: "currency_amount", label: "What\'s your monthly take-home pay?", rationale: "Needed to tell whether the spending patterns are sustainable"')
+  }
+  if (!housingKnown) {
+    basicsQuestions.push('field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What\'s your housing situation?", rationale: "Housing is usually the biggest lever — needed for meaningful benchmarks"')
+  }
+  if (!rentKnown) {
+    basicsQuestions.push('field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "Compared against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}')
+  }
+  const numberedBasics = basicsQuestions.map((q, i) => `  ${i + 1}. ${q}`).join('\n')
+  const phase2AgreeInstr = basicsQuestions.length === 0
+    ? `- The Day-0 basics (income, housing, rent) are ALREADY on file — do NOT ask for any of them again; re-asking reads as "it didn't save". Acknowledge in one line that the essentials are already captured, then either ask ONE question that is NOT income/housing/rent, or close warmly.`
+    : `- IMMEDIATELY call request_structured_input. Do NOT output any text before the tool call — the form renders inline and contains its own label/rationale. No preamble like "Great. First one:" — just call the tool.
+- Ask ONLY the question(s) below, ONE at a time. Everything else is already on file — NEVER ask for income, housing, or rent that isn't explicitly listed here:
+${numberedBasics}
+- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
+- Confirm before moving on by quoting the value the user just submitted (e.g. "Noted — sound right?"). Then call the next tool immediately.`
+
   prompt += `
 ### USE COUNTRY BENCHMARKS IN THE FIRST INSIGHT
 
@@ -2983,13 +3027,7 @@ Once you've delivered the first insight and the user has reacted (any response),
 "${addressName}, to sharpen the guidance from generic to actually useful, a few questions about your situation will be needed over time. Right now your CFO profile is at about ${completeness}% — enough to spot patterns, not enough for a real strategy. Fill in a few basics now, or do it as we go?"
 
 If they agree (any affirmative — "sure", "go ahead", "let's do it", "let's do a few now", "yes", "ok"):
-- IMMEDIATELY call request_structured_input. Do NOT output any text before the tool call — the form renders inline and contains its own label/rationale. No preamble like "Great. First one:" — just call the tool.
-- Ask up to 3 questions, ONE at a time:
-  1. field: "net_monthly_income", input_type: "currency_amount", label: "What's your monthly take-home pay?", rationale: "Needed to tell whether the spending patterns are sustainable"
-  2. field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What's your housing situation?", rationale: "Housing is usually the biggest lever — needed for meaningful benchmarks"
-  3. field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "Compared against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}
-- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
-- Confirm before moving on by quoting the value the user just submitted (e.g. "Noted — sound right?"). Then call the next tool immediately.
+${phase2AgreeInstr}
 
 If they defer ("over time" / "later" / "not now"):
 - Respect it. Do NOT push further in this conversation. The profiling engine picks up future questions across sessions.
