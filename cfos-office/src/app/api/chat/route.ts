@@ -33,6 +33,7 @@ import {
   validateChips,
   validateLength,
   appendCorrection,
+  stripValidatorNote,
   type ToolResultLike,
 } from '@/lib/ai/insight-validator';
 import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
@@ -428,8 +429,25 @@ export async function POST(req: Request) {
 
   const toolbox = wrapToolsWithAlerts(createToolbox(toolCtx), user.id);
 
-  // Convert UI messages to model format
-  const modelMessages = await convertToModelMessages(messages);
+  // Convert UI messages to model format. First strip any internal QA
+  // "(System note: …)" diagnostic that historically leaked into persisted
+  // assistant messages — otherwise the model sees the pattern in its own history
+  // and fabricates fake notes on later turns (an echo loop, confirmed in
+  // staging). Defence-in-depth alongside the showInternalQANotes() gate (now
+  // default-off) and the one-off DB scrub.
+  const sanitisedMessages = messages.map((m) =>
+    m.role === 'assistant' && Array.isArray(m.parts)
+      ? {
+          ...m,
+          parts: m.parts.map((p) =>
+            p.type === 'text' && typeof p.text === 'string'
+              ? { ...p, text: stripValidatorNote(p.text) }
+              : p,
+          ),
+        }
+      : m,
+  );
+  const modelMessages = await convertToModelMessages(sanitisedMessages);
 
   // Pre-generate DB ID for the assistant message so we can stream it to the client
   const assistantMessageDbId = crypto.randomUUID();
