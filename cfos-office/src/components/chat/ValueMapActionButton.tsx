@@ -47,17 +47,24 @@ export function ValueMapActionButton({ variant = 'sample' }: Props) {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={pending}
-      className="w-full mt-3 px-4 py-3 rounded-xl min-h-11 bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-    >
-      {pending
-        ? 'Just a moment…'
-        : variant === 'real'
-          ? 'Tell me what those mean →'
-          : 'Start the Value Map →'}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={pending}
+        className="w-full mt-3 px-4 py-3 rounded-xl min-h-11 bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+      >
+        {pending
+          ? 'Just a moment…'
+          : variant === 'real'
+            ? 'Value-map these so I learn what your spending really means →'
+            : 'Start the Value Map →'}
+      </button>
+      {variant === 'real' && (
+        <p className="mt-2 text-center text-caption text-text-secondary">
+          Something no other budgeting app can do.
+        </p>
+      )}
+    </>
   )
 }
