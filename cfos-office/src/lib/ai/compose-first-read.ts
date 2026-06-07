@@ -25,6 +25,7 @@ import {
   reconcileFixedCosts,
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
+import { resolveUserCurrency } from '@/lib/analytics/insight-engine';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
   selectHookCandidates,
@@ -268,7 +269,7 @@ async function getFinancialFacts(
   const [profileRes, snapshotRes] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly')
+      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, country')
       .eq('id', userId)
       .maybeSingle(),
     supabase
@@ -279,6 +280,11 @@ async function getFinancialFacts(
       .limit(1)
       .maybeSingle(),
   ]);
+  const txnRes = await supabase
+    .from('transactions')
+    .select('currency')
+    .eq('user_id', userId)
+    .limit(500);
   const income =
     typeof profileRes.data?.net_monthly_income === 'number'
       ? profileRes.data.net_monthly_income
@@ -315,10 +321,11 @@ async function getFinancialFacts(
     monthly_rent: rent,
     total_fixed_costs: totalFixed,
     free_cash_flow: freeCashFlow,
-    currency:
-      typeof profileRes.data?.primary_currency === 'string' && profileRes.data.primary_currency
-        ? profileRes.data.primary_currency
-        : 'EUR',
+    currency: resolveUserCurrency(
+      (profileRes.data?.country as string | null) ?? null,
+      (profileRes.data?.primary_currency as string | null) ?? null,
+      (txnRes.data as Array<{ currency?: string | null }> | null) ?? [],
+    ),
     income_shape:
       typeof profileRes.data?.income_shape === 'string' ? profileRes.data.income_shape : null,
     t3m_income_monthly:
