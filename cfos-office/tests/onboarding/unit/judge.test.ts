@@ -89,3 +89,21 @@ describe('R5 currency symbol', () => {
     expect(r5(zaneSpain, loadRead('zane-spain.captured'))?.passed).toBe(true)
   })
 })
+
+describe('R6 goal-denial / R7 system-note', () => {
+  // builderClassic seeds a goal after Task 9; for this unit we fake it inline:
+  const withGoal = { ...builderClassic, expectations: { ...builderClassic.expectations, goal: { name: 'X', targetAmount: 1 } } }
+  const noGoal = { ...builderClassic, expectations: { ...builderClassic.expectations, goal: undefined } }
+  const r = (p: typeof builderClassic, read: string, id: string) =>
+    evaluateHardRules(p, 'insight', read, null).find((x) => x.ruleId === id)
+
+  it('R6 fails when a goal-persona Read denies the goal', () => {
+    expect(r(withGoal, loadRead('bad-goal-denial'), 'R6_no_goal_denial')?.passed).toBe(false)
+  })
+  it('R6 is exempt for goal-less personas (prompting "set a goal" is fine)', () => {
+    expect(r(noGoal, loadRead('bad-goal-denial'), 'R6_no_goal_denial')?.passed).toBe(true)
+  })
+  it('R7 fails on a leaked (System note: …)', () => {
+    expect(r(noGoal, loadRead('bad-system-note'), 'R7_no_system_note')?.passed).toBe(false)
+  })
+})

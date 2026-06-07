@@ -113,6 +113,28 @@ function checkCurrencySymbol(text: string, persona: Persona): HardRuleResult {
   return { ruleId: 'R5_currency_symbol', passed: true }
 }
 
+const GOAL_DENIAL_RE: RegExp[] = [
+  /\bno (active )?goal\b/i,
+  /\bdon'?t have (a|any) goal\b/i,
+  /\bwithout a goal\b/i,
+  /\bhaven'?t set (a|any) goal\b/i,
+  /\bno goal (attached|set|on file)\b/i,
+]
+
+function checkGoalDenial(text: string, persona: Persona): HardRuleResult {
+  if (!persona.expectations.goal) return { ruleId: 'R6_no_goal_denial', passed: true }
+  const hit = GOAL_DENIAL_RE.find((re) => re.test(text))
+  return hit
+    ? { ruleId: 'R6_no_goal_denial', passed: false, detail: `goal-denial phrase matched ${hit}` }
+    : { ruleId: 'R6_no_goal_denial', passed: true }
+}
+
+function checkSystemNoteLeak(text: string): HardRuleResult {
+  return /\(System note:/i.test(text)
+    ? { ruleId: 'R7_no_system_note', passed: false, detail: 'leaked "(System note: …)" QA diagnostic' }
+    : { ruleId: 'R7_no_system_note', passed: true }
+}
+
 // ── LLM judge for subjective dimensions ─────────────────────────────────────
 
 const JUDGE_PROMPT_TEMPLATE = `You are grading output from "your CFO" — a personal-finance AI in The CFO's Office.
@@ -214,6 +236,8 @@ export function evaluateHardRules(
   const out: HardRuleResult[] = []
   out.push(checkBannedWords(content, rules?.bannedWords))
   out.push(checkBannedPatterns(content, rules?.bannedPatterns))
+  out.push(checkSystemNoteLeak(content))
+  out.push(checkGoalDenial(content, persona))
 
   if (outputType === 'archetype') {
     out.push(checkMustMentionOneOf(content, rules?.archetype?.mustMentionOneOf, 'R2_archetype_mentions_one_of'))
