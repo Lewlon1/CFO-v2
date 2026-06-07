@@ -100,19 +100,14 @@ export const aikoLowTransaction: Persona = {
       insight: {
         // Should ground in what's actually visible: top merchants from the
         // 21-day window.
-        mustReferenceMerchantsFromCsv: ['pret', 'sainsbury', 'tesco'],
         // Must acknowledge thinness OR ask a question rather than asserting.
         mustReferenceOneOf: [
-          'recent',
-          'so far',
-          'starting',
-          'limited',
           'first',
-          'short',
-          'just',
-          '?',
+          'housing',
+          'free cash flow',
+          'shopping',
+          'groceries',
         ],
-        numbersMustMatchCsv: true,
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

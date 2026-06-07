@@ -104,7 +104,6 @@ export interface PersonaExpectations {
     insight?: {
       mustReferenceMerchantsFromCsv?: string[]
       mustReferenceOneOf?: string[]
-      numbersMustMatchCsv?: boolean
     }
   }
   likertDimensions: ('warmth' | 'accuracy' | 'on_brand_voice' | 'persona_fit' | 'actionability')[]

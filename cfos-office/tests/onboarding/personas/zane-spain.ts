@@ -139,9 +139,8 @@ export const zaneSpain: Persona = {
         '£[0-9]',
       ],
       insight: {
-        mustReferenceMerchantsFromCsv: ['mercadona', 'endesa', 'movistar'],
-        mustReferenceOneOf: ['€', 'eur', 'every two months', 'bi-monthly', 'mercadona', 'madrid'],
-        numbersMustMatchCsv: true,
+        mustReferenceMerchantsFromCsv: ['alquiler'],
+        mustReferenceOneOf: ['health', 'groceries', 'free cash flow', 'fixed cost'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

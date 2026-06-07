@@ -4,6 +4,7 @@ import { summariseCsv } from '../runner/csv-summariser'
 import { builderClassic } from '../personas/builder-classic'
 import { zaneSpain } from '../personas/zane-spain'
 import { loadRead, listReads } from '../fixtures'
+import { PERSONAS } from '../personas'
 
 describe('readContent', () => {
   it('unwraps the message wrapper object to its content string', () => {
@@ -126,4 +127,44 @@ describe('R8 CTA vocabulary + merchant threshold', () => {
     const rules = evaluateHardRules(builderClassic, 'insight', loadRead('aiko-low-transaction.gbp'), aikoCsv)
     expect(rules.find((r) => r.ruleId === 'H8_cites_known_merchant')).toBeUndefined()
   })
+})
+
+// NOTE: personas/index.ts exports the PERSONAS array (no individual named
+// exports), so iterate it directly. Do NOT use `import * as personas` +
+// Object.values().filter(p=>p.id) — that matches nothing and the loop would
+// vacuously pass.
+function csvFor(p: (typeof PERSONAS)[number]) {
+  return p.csv ? summariseCsv(Buffer.from(p.csv.contentBase64, 'base64').toString('utf-8'), p.profile.currency) : null
+}
+
+describe('golden corpus — good Reads pass every rule', () => {
+  for (const p of PERSONAS) {
+    const fixture = p.profile.currency === 'EUR' ? `${p.id}.captured` : `${p.id}.gbp`
+    it(`${p.id}: all hard rules pass on the good Read`, () => {
+      // Phase-1 fixtures were captured BEFORE goal seeding (Task 10), so several
+      // legitimately discuss the absence of a goal ("no goal to size against").
+      // Evaluate them goal-stripped so R6 (goal-denial) is exempt — those Reads
+      // predate goals. Task 14 refreshes the corpus with goal-aware Reads and
+      // switches this to the full persona (and adds a goal-reference assertion).
+      const phase1Persona = { ...p, expectations: { ...p.expectations, goal: undefined } }
+      const rules = evaluateHardRules(phase1Persona, 'insight', loadRead(fixture), csvFor(p))
+      const failed = rules.filter((r) => !r.passed)
+      expect(failed.map((f) => `${f.ruleId}:${f.detail ?? ''}`)).toEqual([])
+    })
+  }
+})
+
+describe('golden corpus — bad Reads fail the intended rule', () => {
+  const cases: [string, string][] = [
+    ['bad-missing-signoff', 'H1_signoff_present'],
+    ['bad-options-block', 'H4_no_options_block'],
+    ['bad-question-close', 'H5_no_question_close'],
+    ['bad-euro-on-gbp', 'R5_currency_symbol'],
+  ]
+  for (const [fixture, ruleId] of cases) {
+    it(`${fixture} → ${ruleId} fails`, () => {
+      const rules = evaluateHardRules(builderClassic, 'insight', loadRead(fixture), null)
+      expect(rules.find((r) => r.ruleId === ruleId)?.passed).toBe(false)
+    })
+  }
 })

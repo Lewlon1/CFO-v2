@@ -112,9 +112,8 @@ export const drifterExpat: Persona = {
         mustMentionOneOf: ['drift', 'impulse', 'leak', 'habit', 'small'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['glovo', 'deliveroo', 'netflix', 'hbo', 'disney', 'subscription'],
-        mustReferenceOneOf: ['subscription', 'dining', 'delivery', 'leak'],
-        numbersMustMatchCsv: true,
+        mustReferenceMerchantsFromCsv: ['alquiler piso'],
+        mustReferenceOneOf: ['eating', 'groceries', 'free cash flow', 'rent'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

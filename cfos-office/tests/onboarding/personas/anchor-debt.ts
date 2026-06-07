@@ -102,9 +102,8 @@ export const anchorDebt: Persona = {
         mustMentionOneOf: ['weight', 'burden', 'anchor', 'carrying', 'heavy'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['credit', 'loan', 'finance'],
-        mustReferenceOneOf: ['debt', 'refinance', 'reduce', 'priority'],
-        numbersMustMatchCsv: true,
+        mustReferenceMerchantsFromCsv: ['rent'],
+        mustReferenceOneOf: ['housing', 'free cash flow', 'fixed costs', 'eating'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

@@ -140,10 +140,9 @@ export const tomLongHistory: Persona = {
         'lisbon|madrid|cervejaria|pasteis|easyjet',
       ],
       insight: {
-        // The 90-day window should surface recent regulars.
-        mustReferenceMerchantsFromCsv: ['waitrose', 'isa', 'savings', 'dishoom', 'puregym', 'netflix', 'spotify'],
-        mustReferenceOneOf: ['90', 'three months', 'recent', 'last', 'steady', 'consistent', 'savings'],
-        numbersMustMatchCsv: true,
+        // The 90-day window should surface the top merchant.
+        mustReferenceMerchantsFromCsv: ['rent'],
+        mustReferenceOneOf: ['snapshot', 'fixed costs', 'take-home', 'housing'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

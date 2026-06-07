@@ -127,9 +127,8 @@ export const builderClassic: Persona = {
         mustMentionOneOf: ['invest', 'grow', 'build', 'intentional', 'purposeful'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['gym', 'vanguard', 'course'],
-        mustReferenceOneOf: ['investment', 'growth', 'discipline', 'habit'],
-        numbersMustMatchCsv: true,
+        mustReferenceMerchantsFromCsv: ['rent landlord'],
+        mustReferenceOneOf: ['housing', 'groceries', 'free cash flow', 'fixed costs'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

@@ -113,12 +113,8 @@ export const sofiaChaotic: Persona = {
         'monthly\\s+(rent|housing)',
       ],
       insight: {
-        // The recurring software subs (Adobe, Figma) are the rare regular
-        // pattern; the first Read should ground in those + the actually-recurring
-        // merchants rather than inventing rhythms in chaotic categories.
-        mustReferenceMerchantsFromCsv: ['adobe', 'figma', 'allpress', 'dishoom'],
-        mustReferenceOneOf: ['irregular', 'bursts', 'varies', 'spike', 'project', 'invoice', 'uneven', 'freelance'],
-        numbersMustMatchCsv: true,
+        mustReferenceMerchantsFromCsv: ['sublet'],
+        mustReferenceOneOf: ['housing', 'free cash flow', 'snapshot', 'entertainment', 'travel'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

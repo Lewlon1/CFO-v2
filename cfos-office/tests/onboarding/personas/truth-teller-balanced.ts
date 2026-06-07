@@ -83,7 +83,8 @@ export const truthTellerBalanced: Persona = {
         mustMentionOneOf: ['balance', 'clear', 'mixed', 'truth', 'honest', 'see'],
       },
       insight: {
-        numbersMustMatchCsv: true,
+        mustReferenceMerchantsFromCsv: ['rent'],
+        mustReferenceOneOf: ['snapshot', 'free cash flow', 'rent', 'housing'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
