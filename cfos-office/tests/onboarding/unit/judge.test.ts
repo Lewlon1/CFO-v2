@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readContent, evaluateHardRules } from '../runner/judge'
+import { summariseCsv } from '../runner/csv-summariser'
 import { builderClassic } from '../personas/builder-classic'
 import { loadRead, listReads } from '../fixtures'
 
@@ -30,6 +31,39 @@ describe('evaluateHardRules: signoff on unwrapped content', () => {
     const content = readContent(wrapper)
     const rules = evaluateHardRules(builderClassic, 'insight', content, null)
     expect(rules.find((r) => r.ruleId === 'H1_signoff_present')?.passed).toBe(true)
+  })
+})
+
+// Multi-month so spendingTotal (4000) exceeds the computed monthly facts the
+// Read legitimately quotes (fixed costs, FCF) — those must NOT be flagged.
+const TINY_CSV = [
+  'Type,Started Date,Description,Amount,Currency,Balance',
+  'CARD_PAYMENT,2026-01-01,Rent Landlord,-1100.00,GBP,0',
+  'CARD_PAYMENT,2026-02-01,Rent Landlord,-1100.00,GBP,0',
+  'CARD_PAYMENT,2026-03-01,Rent Landlord,-1100.00,GBP,0',
+  'CARD_PAYMENT,2026-01-15,Tesco,-300.00,GBP,0',
+  'CARD_PAYMENT,2026-02-15,Tesco,-300.00,GBP,0',
+  'CARD_PAYMENT,2026-01-20,Farmer J,-100.00,GBP,0',
+].join('\n')
+
+describe('R4 minimal numbers', () => {
+  const csv = summariseCsv(TINY_CSV, 'GBP') // spendingTotal = 4000; amounts {1100,300,100}
+  const run = (read: string) =>
+    evaluateHardRules(builderClassic, 'insight', read, csv).find((r) => r.ruleId === 'R4_numbers_match_csv')
+
+  it('passes years, percentages, counts (not currency-anchored)', () => {
+    expect(run('In 2026, 70% across 14 transactions. £1,100 rent.\n\n— C.')?.passed).toBe(true)
+  })
+  it('passes computed facts below total spend (£1,717 fixed costs, £1,283 FCF)', () => {
+    expect(run('Fixed costs £1,717/month; free cash flow £1,283.\n\n— C.')?.passed).toBe(true)
+  })
+  it('passes a thousands-comma amount that matches a CSV figure (== spendingTotal)', () => {
+    expect(run('You tracked £4,000 in total.\n\n— C.')?.passed).toBe(true)
+  })
+  it('flags an egregious hallucinated amount exceeding total spend', () => {
+    const r = run('Your portfolio holds £250,000.\n\n— C.')
+    expect(r?.passed).toBe(false)
+    expect(r?.detail).toContain('250000')
   })
 })
 

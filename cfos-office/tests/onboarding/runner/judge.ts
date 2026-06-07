@@ -60,36 +60,36 @@ function checkMustMentionOneOf(text: string, candidates: string[] | undefined, r
   }
 }
 
-function extractNumbers(text: string): number[] {
-  const matches = text.match(/-?\d+(?:\.\d+)?/g) ?? []
-  return matches.map(Number).filter((n) => Number.isFinite(n))
+/** Currency-anchored money tokens only: £/€/$ then digits with optional thousands commas/decimals. */
+function extractMoneyTokens(text: string): number[] {
+  const re = /[£€$]\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)/g
+  const out: number[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const n = Number(m[1].replace(/,/g, ''))
+    if (Number.isFinite(n)) out.push(n)
+  }
+  return out
 }
 
-function checkNumbersMatchCsv(text: string, csvSummary: CsvSummary | null): HardRuleResult {
-  if (!csvSummary) return { ruleId: 'R4_numbers_match_csv', passed: true }
-  const quoted = extractNumbers(text)
-  const allowed = new Set([...csvSummary.allNumbersMentioned])
+function checkMinimalNumbers(text: string, csv: CsvSummary | null): HardRuleResult {
+  if (!csv) return { ruleId: 'R4_numbers_match_csv', passed: true }
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const plausible = [
+    ...csv.allNumbersMentioned,
+    ...csv.topMerchants.map((m) => round2(m.total)),
+    round2(csv.incomeTotal),
+    round2(csv.spendingTotal),
+  ]
+  const within = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, b * 0.01)
   const violations: number[] = []
-  for (const n of quoted) {
-    if (n < 10) continue
-    if (n === Math.round(csvSummary.spendingTotal * 100) / 100) continue
-    if (n === Math.round(csvSummary.incomeTotal * 100) / 100) continue
-    // Tolerate rounding: match if n matches any csv number within 1% or ±1 currency unit
-    let ok = false
-    for (const num of allowed) {
-      if (num === n) { ok = true; break }
-      if (Math.abs(num - n) < Math.max(1, num * 0.01)) { ok = true; break }
-    }
-    if (!ok) violations.push(n)
+  for (const n of extractMoneyTokens(text)) {
+    const ok = plausible.some((p) => within(n, p))
+    if (!ok && n > csv.spendingTotal) violations.push(n)
   }
-  if (violations.length > 0) {
-    return {
-      ruleId: 'R4_numbers_match_csv',
-      passed: false,
-      detail: `Numbers not found in CSV: ${violations.slice(0, 5).join(', ')}`,
-    }
-  }
-  return { ruleId: 'R4_numbers_match_csv', passed: true }
+  return violations.length
+    ? { ruleId: 'R4_numbers_match_csv', passed: false, detail: `Implausible money figure(s) exceeding total spend: ${violations.slice(0, 5).join(', ')}` }
+    : { ruleId: 'R4_numbers_match_csv', passed: true }
 }
 
 // ── LLM judge for subjective dimensions ─────────────────────────────────────
@@ -203,9 +203,7 @@ export function evaluateHardRules(
   } else {
     out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceMerchantsFromCsv, 'R3_insight_references_csv_merchants'))
     out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
-    if (rules?.insight?.numbersMustMatchCsv) {
-      out.push(checkNumbersMatchCsv(content, csvSummary))
-    }
+    out.push(checkMinimalNumbers(content, csvSummary))
     // NOTE: the retired `isValueFirst` detection (mode 'value_first' → the H3b
     // rule asserting the CTA is `start_value_map_real`) is intentionally dropped.
     // The live product emits supply_input/set_goal CTAs, not start_value_map_real
