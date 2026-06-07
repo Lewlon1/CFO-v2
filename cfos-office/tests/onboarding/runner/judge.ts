@@ -5,6 +5,18 @@ import type { Persona } from '../personas/types'
 import type { CsvSummary } from './csv-summariser'
 import type { JudgeOutput, HardRuleResult, LikertResult } from './types'
 
+// ── Content unwrap ───────────────────────────────────────────────────────────
+
+/** Unwrap the captured insight (a message wrapper `{content}`) to its content string. */
+export function readContent(cfoOutput: unknown): string {
+  if (typeof cfoOutput === 'string') return cfoOutput
+  if (cfoOutput && typeof cfoOutput === 'object' && 'content' in cfoOutput) {
+    const c = (cfoOutput as { content?: unknown }).content
+    if (typeof c === 'string') return c
+  }
+  return JSON.stringify(cfoOutput)
+}
+
 // ── Hard-rule pre-checks (deterministic, run before the LLM) ────────────────
 
 function checkBannedWords(text: string, banned: string[] | undefined): HardRuleResult {
@@ -133,13 +145,13 @@ function buildPersonaBlock(persona: Persona): string {
 async function callLlmJudge(
   persona: Persona,
   outputType: 'archetype' | 'insight',
-  cfoOutput: unknown,
+  content: string,
   csvSummary: CsvSummary | null,
 ): Promise<{ likert: LikertResult[]; raw: unknown; modelId: string }> {
   const prompt = JUDGE_PROMPT_TEMPLATE
     .replace('{persona_block}', buildPersonaBlock(persona))
     .replace('{output_type}', outputType)
-    .replace('{cfo_output}', JSON.stringify(cfoOutput, null, 2))
+    .replace('{cfo_output}', content)
     .replace('{csv_summary}', csvSummary?.asText() ?? 'No CSV uploaded for this persona.')
 
   const { text } = await generateText({
@@ -169,6 +181,39 @@ async function callLlmJudge(
   return { likert, raw: parsed, modelId: utilityModelId }
 }
 
+// ── Pure deterministic hard-rule evaluator ────────────────────────────────
+
+export function evaluateHardRules(
+  persona: Persona,
+  outputType: 'archetype' | 'insight',
+  content: string,
+  csvSummary: CsvSummary | null,
+): HardRuleResult[] {
+  const rules = persona.expectations.hardRules
+  const out: HardRuleResult[] = []
+  out.push(checkBannedWords(content, rules?.bannedWords))
+  out.push(checkBannedPatterns(content, rules?.bannedPatterns))
+
+  if (outputType === 'archetype') {
+    out.push(checkMustMentionOneOf(content, rules?.archetype?.mustMentionOneOf, 'R2_archetype_mentions_one_of'))
+    out.push(checkMustMentionOneOf(content, rules?.archetype?.mustAcknowledgeOneOf, 'R2b_archetype_acknowledges_one_of'))
+    if (rules?.archetype?.mustReferenceQuadrant) {
+      out.push(checkMustMentionOneOf(content, [rules.archetype.mustReferenceQuadrant], 'R2c_archetype_references_quadrant'))
+    }
+  } else {
+    out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceMerchantsFromCsv, 'R3_insight_references_csv_merchants'))
+    out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
+    if (rules?.insight?.numbersMustMatchCsv) {
+      out.push(checkNumbersMatchCsv(content, csvSummary))
+    }
+    const knownMerchants = csvSummary?.topMerchants.map((m) => m.description.toLowerCase()) ?? []
+    for (const r of checkReadHardRules(content, { mode: 'default', knownMerchants })) {
+      out.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
+    }
+  }
+  return out
+}
+
 // ── Public entry point ─────────────────────────────────────────────────────
 
 export async function judgeOutput(
@@ -177,44 +222,15 @@ export async function judgeOutput(
   cfoOutput: unknown,
   csvSummary: CsvSummary | null,
 ): Promise<JudgeOutput> {
-  const text = typeof cfoOutput === 'string' ? cfoOutput : JSON.stringify(cfoOutput)
-  const rules = persona.expectations.hardRules
+  const content = readContent(cfoOutput)
 
-  const hardRules: HardRuleResult[] = []
-  hardRules.push(checkBannedWords(text, rules?.bannedWords))
-  hardRules.push(checkBannedPatterns(text, rules?.bannedPatterns))
-
-  if (outputType === 'archetype') {
-    hardRules.push(checkMustMentionOneOf(text, rules?.archetype?.mustMentionOneOf, 'R2_archetype_mentions_one_of'))
-    hardRules.push(checkMustMentionOneOf(text, rules?.archetype?.mustAcknowledgeOneOf, 'R2b_archetype_acknowledges_one_of'))
-    if (rules?.archetype?.mustReferenceQuadrant) {
-      hardRules.push(checkMustMentionOneOf(text, [rules.archetype.mustReferenceQuadrant], 'R2c_archetype_references_quadrant'))
-    }
-  } else {
-    hardRules.push(checkMustMentionOneOf(text, rules?.insight?.mustReferenceMerchantsFromCsv, 'R3_insight_references_csv_merchants'))
-    hardRules.push(checkMustMentionOneOf(text, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
-    if (rules?.insight?.numbersMustMatchCsv) {
-      hardRules.push(checkNumbersMatchCsv(text, csvSummary))
-    }
-    // Current-Read format/voice contract (250-word cap, single [CTA], no
-    // [OPTIONS] chips, no question-back close, "— C." signoff). Calibrated to
-    // the live composition prompt, not the retired first-insight format. The
-    // value-first close (start_value_map_real CTA) is detected from the text.
-    const isValueFirst = /\[CTA:start_value_map_real\]/i.test(text)
-    const knownMerchants = csvSummary?.topMerchants.map((m) => m.description.toLowerCase()) ?? []
-    for (const r of checkReadHardRules(text, {
-      mode: isValueFirst ? 'value_first' : 'default',
-      knownMerchants,
-    })) {
-      hardRules.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
-    }
-  }
+  const hardRules: HardRuleResult[] = evaluateHardRules(persona, outputType, content, csvSummary)
 
   let likert: LikertResult[] = []
   let raw: unknown = null
   let modelId = utilityModelId
   try {
-    const judged = await callLlmJudge(persona, outputType, cfoOutput, csvSummary)
+    const judged = await callLlmJudge(persona, outputType, content, csvSummary)
     likert = judged.likert
     raw = judged.raw
     modelId = judged.modelId
@@ -222,12 +238,5 @@ export async function judgeOutput(
     hardRules.push({ ruleId: 'R0_judge_call_succeeded', passed: false, detail: String(e) })
   }
 
-  return {
-    outputType,
-    modelId,
-    timestamp: new Date().toISOString(),
-    hardRules,
-    likert,
-    raw,
-  }
+  return { outputType, modelId, timestamp: new Date().toISOString(), hardRules, likert, raw }
 }
