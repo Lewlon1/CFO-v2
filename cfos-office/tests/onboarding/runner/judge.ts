@@ -84,15 +84,16 @@ function checkMinimalNumbers(text: string, csv: CsvSummary | null): HardRuleResu
   ]
   const within = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, b * 0.01)
   const violations: number[] = []
-  // NOTE: by design this only flags money figures that exceed total spend — a
-  // deliberately conservative "egregious hallucination" gate, not a full
-  // correctness check (computed facts like fixed costs / FCF stay below spend).
+  // Egregious floor: income-aware so legitimately-quoted monthly income / free
+  // cash flow (which can exceed a low total tracked spend) are not false-flagged.
+  // Only figures far above the larger of total spend or total income are caught.
+  const egregiousFloor = Math.max(csv.spendingTotal, csv.incomeTotal) * 1.5
   for (const n of extractMoneyTokens(text)) {
     const ok = plausible.some((p) => within(n, p))
-    if (!ok && n > csv.spendingTotal) violations.push(n)
+    if (!ok && n > egregiousFloor) violations.push(n)
   }
   return violations.length
-    ? { ruleId: 'R4_numbers_match_csv', passed: false, detail: `Implausible money figure(s) exceeding total spend: ${violations.slice(0, 5).join(', ')}` }
+    ? { ruleId: 'R4_numbers_match_csv', passed: false, detail: `Implausible money figure(s) exceeding egregious floor: ${violations.slice(0, 5).join(', ')}` }
     : { ruleId: 'R4_numbers_match_csv', passed: true }
 }
 

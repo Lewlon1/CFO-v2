@@ -67,6 +67,24 @@ describe('R4 minimal numbers', () => {
     expect(r?.passed).toBe(false)
     expect(r?.detail).toContain('250000')
   })
+
+  const INCOME_HEAVY_CSV = [
+    'Type,Started Date,Description,Amount,Currency,Balance',
+    'TRANSFER,2026-01-30,Salary,3100.00,GBP,0',
+    'CARD_PAYMENT,2026-01-01,Rent,-1000.00,GBP,0',
+    'CARD_PAYMENT,2026-01-05,Tesco,-300.00,GBP,0',
+    'CARD_PAYMENT,2026-01-10,Sundries,-254.00,GBP,0',
+  ].join('\n') // incomeTotal 3100, spendingTotal 1554
+  it('does not flag declared income / FCF above total spend but below the income-aware floor', () => {
+    const c = summariseCsv(INCOME_HEAVY_CSV, 'GBP')
+    const r = evaluateHardRules(builderClassic, 'insight', 'Net income £3,000; free cash flow £2,000 a month.\n\n— C.', c)
+    expect(r.find((x) => x.ruleId === 'R4_numbers_match_csv')?.passed).toBe(true)
+  })
+  it('still flags a genuinely egregious figure on an income-heavy CSV', () => {
+    const c = summariseCsv(INCOME_HEAVY_CSV, 'GBP')
+    const r = evaluateHardRules(builderClassic, 'insight', 'Portfolio holds £250,000.\n\n— C.', c)
+    expect(r.find((x) => x.ruleId === 'R4_numbers_match_csv')?.passed).toBe(false)
+  })
 })
 
 describe('fixtures', () => {
