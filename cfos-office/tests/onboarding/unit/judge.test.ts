@@ -35,7 +35,7 @@ describe('evaluateHardRules: signoff on unwrapped content', () => {
 
 describe('fixtures', () => {
   it('loads the captured corpus', () => {
-    expect(listReads().length).toBeGreaterThanOrEqual(18) // 10 captured + 8 gbp + 7 bad
+    expect(listReads().length).toBeGreaterThanOrEqual(18) // 25 fixtures: 10 captured + 8 gbp + 7 bad (loose lower bound)
     expect(loadRead('zane-spain.captured')).toMatch(/— C\.\s*$/)
   })
 })
