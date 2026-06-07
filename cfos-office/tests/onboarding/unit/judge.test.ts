@@ -19,4 +19,15 @@ describe('evaluateHardRules: signoff on unwrapped content', () => {
     const h1 = rules.find((r) => r.ruleId === 'H1_signoff_present')
     expect(h1?.passed).toBe(true)
   })
+
+  it('H1_signoff_present passes when judged via the wrapper object (the original bug)', () => {
+    const wrapper = {
+      conversationType: 'first_read',
+      content: 'Housing is £1,100.\n\n[CTA:set_goal]Set a goal[/CTA]\n\n— C.',
+      messageId: 'abc',
+    }
+    const content = readContent(wrapper)
+    const rules = evaluateHardRules(builderClassic, 'insight', content, null)
+    expect(rules.find((r) => r.ruleId === 'H1_signoff_present')?.passed).toBe(true)
+  })
 })

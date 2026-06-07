@@ -206,6 +206,11 @@ export function evaluateHardRules(
     if (rules?.insight?.numbersMustMatchCsv) {
       out.push(checkNumbersMatchCsv(content, csvSummary))
     }
+    // NOTE: the retired `isValueFirst` detection (mode 'value_first' → the H3b
+    // rule asserting the CTA is `start_value_map_real`) is intentionally dropped.
+    // The live product emits supply_input/set_goal CTAs, not start_value_map_real
+    // (CTA contract drift — see the plan's decision D5). A later task replaces it
+    // with an R8 CTA-vocabulary rule. Always use mode: 'default' here.
     const knownMerchants = csvSummary?.topMerchants.map((m) => m.description.toLowerCase()) ?? []
     for (const r of checkReadHardRules(content, { mode: 'default', knownMerchants })) {
       out.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
