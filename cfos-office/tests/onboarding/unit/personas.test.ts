@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { PERSONAS } from '../personas'
 import { summariseCsv } from '../runner/csv-summariser'
+import { USER_DATA_TABLES_BY_USER_ID } from '../runner/user-factory'
 
 // PERSONAS is the exported array from personas/index.ts — iterate it directly.
 const ALL = PERSONAS
@@ -55,5 +56,11 @@ describe('goal coverage + variance', () => {
     for (const t of VALID_TYPES) {
       expect(types).toContain(t)
     }
+  })
+})
+
+describe('teardown coverage', () => {
+  it('includes llm_usage_log (prevents orphan accumulation)', () => {
+    expect(USER_DATA_TABLES_BY_USER_ID).toContain('llm_usage_log')
   })
 })
