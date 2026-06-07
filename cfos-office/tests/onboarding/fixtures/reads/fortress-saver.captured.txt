@@ -1,0 +1,11 @@
+The data here runs to 2026-03-29 — 69 days ago — so treat this as a snapshot, not a live picture.
+
+As of that date, **housing** was consuming 59.4% of your tracked spend, driven entirely by Rent - Shared house at €1,950 across three payments. The largest single transaction in the window was a €650 rent payment on 1 January. The number most likely to surprise you: after housing and bills, **groceries** at €548 outweighed everything else combined — eating out was just €44.
+
+Two things worth noting. Fixed costs — rent, utilities, bills — are running at €2,199 a month against €3,000 net income. That leaves €801 of free cash flow each month, and right now there's no goal attached to it. With only 11 transactions across 88 days, the picture is thin; there may be spending happening outside what's connected here.
+
+No levers have been computed yet because there's no goal to size them against. The fastest way to make this useful is to tell me what you're building toward — a buffer, a trip, clearing a debt — so the €801 has somewhere to go.
+
+[CTA:supply_input]Set my first financial goal[/CTA]
+
+— C.

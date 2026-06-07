@@ -1,0 +1,11 @@
+Heads up: this picture is 69 days old (last transaction 29 March 2026), so treat it as a baseline rather than a live view.
+
+As of that date, **health** was the single biggest category — €2,565, nearly 56% of everything tracked. The largest merchant overall was **Alquiler — Calle Doctor Esquerdo** at €2,460 across 3 transactions, with the biggest single hit being €820 on 1 March. That rent figure sits inside the health category as classified, which is worth a second look — if that's a misclassification, the health number is overstated and the housing number is understated.
+
+**Groceries** came in at €894 (19.5% of tracked spend), making it the second-largest category. With only 15 transactions across 88 days, the picture is thin — patterns aren't established yet, so monthly rates are directional, not firm.
+
+Free cash flow is €959/month against a fixed cost base of €2,041. That's the number to build from. Before sizing any lever, the most useful move is getting the Value Map filled in — knowing what you'd call a Leak versus a priority changes which of those categories deserves attention first.
+
+[CTA:supply_input]Fill in my Value Map so you can flag what's a leak vs. a priority[/CTA]
+
+— C.

@@ -1,0 +1,5 @@
+Housing is £1,100. (System note: validator flagged this.)
+
+[CTA:set_goal]Set a goal[/CTA]
+
+— C.

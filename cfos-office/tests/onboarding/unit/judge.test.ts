@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readContent, evaluateHardRules } from '../runner/judge'
 import { builderClassic } from '../personas/builder-classic'
+import { loadRead, listReads } from '../fixtures'
 
 describe('readContent', () => {
   it('unwraps the message wrapper object to its content string', () => {
@@ -29,5 +30,12 @@ describe('evaluateHardRules: signoff on unwrapped content', () => {
     const content = readContent(wrapper)
     const rules = evaluateHardRules(builderClassic, 'insight', content, null)
     expect(rules.find((r) => r.ruleId === 'H1_signoff_present')?.passed).toBe(true)
+  })
+})
+
+describe('fixtures', () => {
+  it('loads the captured corpus', () => {
+    expect(listReads().length).toBeGreaterThanOrEqual(18) // 10 captured + 8 gbp + 7 bad
+    expect(loadRead('zane-spain.captured')).toMatch(/— C\.\s*$/)
   })
 })

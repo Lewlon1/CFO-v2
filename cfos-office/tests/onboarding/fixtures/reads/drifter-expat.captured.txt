@@ -1,0 +1,11 @@
+Heads up: this picture is 69 days old, last updated 2026-03-29, so treat it as a baseline rather than a live view.
+
+As of that date, **housing** was the dominant force — €2,850, over half of every euro tracked, driven entirely by Alquiler Piso across three rent payments. The largest single transaction was €950 on 1 March. That's expected. What's worth pausing on: **eating & drinking out** at €762 and **groceries** at €672 together account for more than a quarter of tracked spend — your food bill, in and out of the house, is running close to your second-biggest cost after rent.
+
+Free cash flow sits at €1,708 a month once fixed costs are covered. With 21 transactions across 88 days, the data is thin enough that patterns aren't fully established yet — but the shape is already readable: rent anchors everything, and food is the next real variable.
+
+No levers have been computed yet because there's no goal to size them against. The fastest way to change that is to tell me what you're working toward.
+
+[CTA:supply_input]Set my first financial goal[/CTA]
+
+— C.
