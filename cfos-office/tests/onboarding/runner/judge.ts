@@ -83,6 +83,9 @@ function checkMinimalNumbers(text: string, csv: CsvSummary | null): HardRuleResu
   ]
   const within = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, b * 0.01)
   const violations: number[] = []
+  // NOTE: by design this only flags money figures that exceed total spend — a
+  // deliberately conservative "egregious hallucination" gate, not a full
+  // correctness check (computed facts like fixed costs / FCF stay below spend).
   for (const n of extractMoneyTokens(text)) {
     const ok = plausible.some((p) => within(n, p))
     if (!ok && n > csv.spendingTotal) violations.push(n)
@@ -90,6 +93,24 @@ function checkMinimalNumbers(text: string, csv: CsvSummary | null): HardRuleResu
   return violations.length
     ? { ruleId: 'R4_numbers_match_csv', passed: false, detail: `Implausible money figure(s) exceeding total spend: ${violations.slice(0, 5).join(', ')}` }
     : { ruleId: 'R4_numbers_match_csv', passed: true }
+}
+
+const CURRENCY_SYMBOL: Record<string, string> = { GBP: '£', EUR: '€', USD: '$' }
+const ALL_SYMBOLS = ['£', '€', '$']
+
+function checkCurrencySymbol(text: string, persona: Persona): HardRuleResult {
+  const expected = CURRENCY_SYMBOL[(persona.profile.currency ?? '').toUpperCase()]
+  if (!expected) return { ruleId: 'R5_currency_symbol', passed: true } // unknown currency — skip
+  for (const sym of ALL_SYMBOLS) {
+    if (sym !== expected && text.includes(sym)) {
+      return { ruleId: 'R5_currency_symbol', passed: false, detail: `foreign symbol "${sym}" present, expected "${expected}"` }
+    }
+  }
+  const quotesMoney = /\d{2,}/.test(text)
+  if (quotesMoney && !text.includes(expected)) {
+    return { ruleId: 'R5_currency_symbol', passed: false, detail: `expected symbol "${expected}" not found` }
+  }
+  return { ruleId: 'R5_currency_symbol', passed: true }
 }
 
 // ── LLM judge for subjective dimensions ─────────────────────────────────────
@@ -204,6 +225,7 @@ export function evaluateHardRules(
     out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceMerchantsFromCsv, 'R3_insight_references_csv_merchants'))
     out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
     out.push(checkMinimalNumbers(content, csvSummary))
+    out.push(checkCurrencySymbol(content, persona))
     // NOTE: the retired `isValueFirst` detection (mode 'value_first' → the H3b
     // rule asserting the CTA is `start_value_map_real`) is intentionally dropped.
     // The live product emits supply_input/set_goal CTAs, not start_value_map_real

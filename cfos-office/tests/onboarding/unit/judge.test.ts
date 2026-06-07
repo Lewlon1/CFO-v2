@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readContent, evaluateHardRules } from '../runner/judge'
 import { summariseCsv } from '../runner/csv-summariser'
 import { builderClassic } from '../personas/builder-classic'
+import { zaneSpain } from '../personas/zane-spain'
 import { loadRead, listReads } from '../fixtures'
 
 describe('readContent', () => {
@@ -71,5 +72,20 @@ describe('fixtures', () => {
   it('loads the captured corpus', () => {
     expect(listReads().length).toBeGreaterThanOrEqual(18) // 25 fixtures: 10 captured + 8 gbp + 7 bad (loose lower bound)
     expect(loadRead('zane-spain.captured')).toMatch(/— C\.\s*$/)
+  })
+})
+
+describe('R5 currency symbol', () => {
+  const r5 = (persona: typeof builderClassic, read: string) =>
+    evaluateHardRules(persona, 'insight', read, null).find((r) => r.ruleId === 'R5_currency_symbol')
+
+  it('fails a GBP persona whose Read uses €', () => {
+    expect(r5(builderClassic, loadRead('builder-classic.captured'))?.passed).toBe(false)
+  })
+  it('passes a GBP persona whose Read uses £', () => {
+    expect(r5(builderClassic, loadRead('builder-classic.gbp'))?.passed).toBe(true)
+  })
+  it('passes a EUR persona whose Read uses €', () => {
+    expect(r5(zaneSpain, loadRead('zane-spain.captured'))?.passed).toBe(true)
   })
 })
