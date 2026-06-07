@@ -727,7 +727,13 @@ describe('golden corpus — good Reads pass every rule', () => {
   for (const p of PERSONAS) {
     const fixture = p.profile.currency === 'EUR' ? `${p.id}.captured` : `${p.id}.gbp`
     it(`${p.id}: all hard rules pass on the good Read`, () => {
-      const rules = evaluateHardRules(p, 'insight', loadRead(fixture), csvFor(p))
+      // Phase-1 fixtures were captured BEFORE goal seeding (Task 10), so several
+      // legitimately discuss the absence of a goal ("no goal to size against").
+      // Evaluate them goal-stripped so R6 (goal-denial) is exempt — those Reads
+      // predate goals. Task 14 refreshes the corpus with goal-aware Reads and
+      // switches this to the full persona (and adds a goal-reference assertion).
+      const phase1Persona = { ...p, expectations: { ...p.expectations, goal: undefined } }
+      const rules = evaluateHardRules(phase1Persona, 'insight', loadRead(fixture), csvFor(p))
       const failed = rules.filter((r) => !r.passed)
       expect(failed.map((f) => `${f.ruleId}:${f.detail ?? ''}`)).toEqual([])
     })
@@ -1301,7 +1307,7 @@ console.log("refreshed corpus from", dir);
 '
 ```
 
-Re-run the corpus unit tests to confirm the rules still pass on the real post-fix Reads:
+Now that the Phase-2 fixtures are goal-aware, switch the "good Reads pass every rule" test in `judge.test.ts` from the goal-stripped `phase1Persona` back to the full `p` (remove the `phase1Persona` strip), so R6 (goal-denial) is exercised against the real goal-aware Reads. Re-run the corpus unit tests to confirm the rules still pass on the real post-fix Reads:
 
 Run: `npm run test`
 Expected: PASS. If a goal persona's Read reliably references its goal, **promote goal-reference to a hard rule**: add to `evaluateHardRules` (insight) a check that goal personas' Reads include the goal name or target amount, and add the corresponding corpus assertion.
