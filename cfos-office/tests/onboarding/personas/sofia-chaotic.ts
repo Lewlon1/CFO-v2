@@ -63,6 +63,8 @@ export const sofiaChaotic: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 2900,
+    monthlyRent: 680,
   },
   // Sofia is "drifter"-shape: leak ≥ 25% of decided. Rent is hard-to-decide
   // (she sublets month-to-month — never sure what "rent" even means for her).

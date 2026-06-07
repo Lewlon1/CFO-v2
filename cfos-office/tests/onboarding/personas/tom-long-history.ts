@@ -90,6 +90,8 @@ export const tomLongHistory: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 4000,
+    monthlyRent: 1420,
   },
   // Tom is "builder"-shape: investment ≥ 35% of decided. Rent is
   // hard-to-decide (he sees it as background noise after 18 months of paying

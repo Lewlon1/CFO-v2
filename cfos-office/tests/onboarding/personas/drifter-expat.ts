@@ -73,6 +73,8 @@ export const drifterExpat: Persona = {
     country: 'ES',
     city: 'Barcelona',
     currency: 'EUR',
+    monthlyIncome: 2700,
+    monthlyRent: 950,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: null, confidence: 0, firstTapMs: 5500, cardTimeMs: 7200, deliberationMs: 1500, hardToDecide: true },

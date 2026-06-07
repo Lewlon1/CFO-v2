@@ -63,6 +63,8 @@ export const fortressSaver: Persona = {
     country: 'GB',
     city: 'Manchester',
     currency: 'GBP',
+    monthlyIncome: 2650,
+    monthlyRent: 650,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: 'foundation', confidence: 5, firstTapMs: 600, cardTimeMs: 900, deliberationMs: 200 },

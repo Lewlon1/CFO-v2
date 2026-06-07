@@ -81,6 +81,8 @@ export const builderClassic: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 3200,
+    monthlyRent: 1100,
   },
   valueMapResponses: [
     // Rent → hard-to-decide (calm, sees rent as neutral background cost)

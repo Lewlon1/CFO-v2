@@ -60,6 +60,8 @@ export const anchorDebt: Persona = {
     country: 'GB',
     city: 'Leeds',
     currency: 'GBP',
+    monthlyIncome: 2300,
+    monthlyRent: 780,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: null, confidence: 0, firstTapMs: 3800, cardTimeMs: 5100, deliberationMs: 1300, hardToDecide: true },

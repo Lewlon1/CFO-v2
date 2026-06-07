@@ -75,6 +75,8 @@ export const timeSaverExpert: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 6200,
+    monthlyRent: 1800,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: 'investment', confidence: 5, firstTapMs: 500, cardTimeMs: 800, deliberationMs: 200 },

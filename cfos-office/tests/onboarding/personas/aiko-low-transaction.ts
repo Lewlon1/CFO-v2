@@ -45,6 +45,8 @@ export const aikoLowTransaction: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 3100,
+    monthlyRent: 1150,
   },
   // Confidence levels skew toward 'don't really know' — Aiko hasn't built
   // strong opinions yet. Several `hardToDecide` taps.

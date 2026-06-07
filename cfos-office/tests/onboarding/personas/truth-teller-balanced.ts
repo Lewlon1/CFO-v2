@@ -48,6 +48,8 @@ export const truthTellerBalanced: Persona = {
     country: 'GB',
     city: 'Bristol',
     currency: 'GBP',
+    monthlyIncome: 2800,
+    monthlyRent: 900,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: null, confidence: 0, firstTapMs: 4000, cardTimeMs: 5500, deliberationMs: 1200, hardToDecide: true },

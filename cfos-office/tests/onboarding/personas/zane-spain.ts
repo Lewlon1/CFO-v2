@@ -91,6 +91,8 @@ export const zaneSpain: Persona = {
     country: 'ES',
     city: 'Madrid',
     currency: 'EUR',
+    monthlyIncome: 2350,
+    monthlyRent: 820,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: 'foundation', confidence: 5, firstTapMs: 1100, cardTimeMs: 1600, deliberationMs: 400 },

@@ -251,14 +251,15 @@ async function runOnboarding(
 async function ensureEntryStruggle(admin: SupabaseClient, user: TestUser, persona: Persona): Promise<void> {
   const { data: prof } = await admin
     .from('user_profiles')
-    .select('entry_struggle')
+    .select('entry_struggle, country')
     .eq('id', user.id)
     .maybeSingle()
-  if (prof?.entry_struggle) return
-  await admin
-    .from('user_profiles')
-    .update({ entry_struggle: persona.expectations.entryStruggle })
-    .eq('id', user.id)
+  const patch: Record<string, unknown> = {}
+  if (!prof?.entry_struggle) patch.entry_struggle = persona.expectations.entryStruggle
+  if (!prof?.country) patch.country = persona.profile.country
+  if (Object.keys(patch).length > 0) {
+    await admin.from('user_profiles').update(patch).eq('id', user.id)
+  }
 }
 
 /**
