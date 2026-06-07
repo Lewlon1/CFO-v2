@@ -613,7 +613,8 @@ Accept the real onboarding CTA vocabulary; gate merchant citation (R3 + H8) on `
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise'
+// NOTE: normaliseMerchantDescription is imported in judge.ts (Step 3), NOT here —
+// these tests don't reference it directly, so don't add an unused import.
 
 describe('R8 CTA vocabulary + merchant threshold', () => {
   it('R8 passes a known CTA type (set_goal)', () => {
