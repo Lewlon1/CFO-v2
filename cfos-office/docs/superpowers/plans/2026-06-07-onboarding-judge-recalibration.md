@@ -713,22 +713,20 @@ Now make the **good** corpus pass every rule and the **bad** corpus fail the int
 - [ ] **Step 1: Write the corpus-wide failing test**
 
 ```ts
-import * as personas from '../personas'
+import { PERSONAS } from '../personas'
 
-const PERSONA_BY_ID = Object.fromEntries(
-  Object.values(personas).filter((p: any) => p && p.id).map((p: any) => [p.id, p]),
-)
-const CONTRACT_RULES = ['H1_signoff_present','H2_within_word_cap','H3_exactly_one_cta','H4_no_options_block','H5_no_question_close','H6_no_emoji','H7_voice_no_banned','R1_no_banned_words','R1b_no_banned_patterns','R5_currency_symbol','R8_cta_vocabulary','R4_numbers_match_csv','R3b_insight_mentions_one_of','R6_no_goal_denial','R7_no_system_note']
-
-function csvFor(p: any) {
+// NOTE: personas/index.ts exports the PERSONAS array (no individual named
+// exports), so iterate it directly. Do NOT use `import * as personas` +
+// Object.values().filter(p=>p.id) — that matches nothing and the loop would
+// vacuously pass.
+function csvFor(p: (typeof PERSONAS)[number]) {
   return p.csv ? summariseCsv(Buffer.from(p.csv.contentBase64, 'base64').toString('utf-8'), p.profile.currency) : null
 }
 
 describe('golden corpus — good Reads pass every rule', () => {
-  for (const id of Object.keys(PERSONA_BY_ID)) {
-    const p = PERSONA_BY_ID[id]
-    const fixture = p.profile.currency === 'EUR' ? `${id}.captured` : `${id}.gbp`
-    it(`${id}: all hard rules pass on the good Read`, () => {
+  for (const p of PERSONAS) {
+    const fixture = p.profile.currency === 'EUR' ? `${p.id}.captured` : `${p.id}.gbp`
+    it(`${p.id}: all hard rules pass on the good Read`, () => {
       const rules = evaluateHardRules(p, 'insight', loadRead(fixture), csvFor(p))
       const failed = rules.filter((r) => !r.passed)
       expect(failed.map((f) => `${f.ruleId}:${f.detail ?? ''}`)).toEqual([])
@@ -892,10 +890,11 @@ Create `tests/onboarding/unit/personas.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import * as personas from '../personas'
+import { PERSONAS } from '../personas'
 import { summariseCsv } from '../runner/csv-summariser'
 
-const ALL = Object.values(personas).filter((p: any) => p && p.id) as any[]
+// PERSONAS is the exported array from personas/index.ts — iterate it directly.
+const ALL = PERSONAS
 
 describe('persona income/rent realism', () => {
   for (const p of ALL) {
