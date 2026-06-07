@@ -107,3 +107,23 @@ describe('R6 goal-denial / R7 system-note', () => {
     expect(r(noGoal, loadRead('bad-system-note'), 'R7_no_system_note')?.passed).toBe(false)
   })
 })
+
+// NOTE: normaliseMerchantDescription is imported in judge.ts (Step 3), NOT here —
+// these tests don't reference it directly, so don't add an unused import.
+
+describe('R8 CTA vocabulary + merchant threshold', () => {
+  it('R8 passes a known CTA type (set_goal)', () => {
+    const read = 'Body.\n\n[CTA:set_goal]Set a goal[/CTA]\n\n— C.'
+    expect(evaluateHardRules(builderClassic, 'insight', read, null).find((r) => r.ruleId === 'R8_cta_vocabulary')?.passed).toBe(true)
+  })
+  it('R8 fails an unknown CTA type', () => {
+    const read = 'Body.\n\n[CTA:teleport]Go[/CTA]\n\n— C.'
+    expect(evaluateHardRules(builderClassic, 'insight', read, null).find((r) => r.ruleId === 'R8_cta_vocabulary')?.passed).toBe(false)
+  })
+  it('does not emit H8_cites_known_merchant below the txn threshold', () => {
+    // aiko captured Read cites categories, not merchants; with <20 txns H8 must not run
+    const aikoCsv = summariseCsv('Type,Started Date,Description,Amount,Currency,Balance\nCARD_PAYMENT,2026-01-01,Tesco,-10,GBP,0', 'GBP')
+    const rules = evaluateHardRules(builderClassic, 'insight', loadRead('aiko-low-transaction.gbp'), aikoCsv)
+    expect(rules.find((r) => r.ruleId === 'H8_cites_known_merchant')).toBeUndefined()
+  })
+})

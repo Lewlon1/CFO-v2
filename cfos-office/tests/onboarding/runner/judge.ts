@@ -1,6 +1,7 @@
 import { generateText } from 'ai'
 import { utilityModel, utilityModelId } from '@/lib/ai/provider'
 import { checkReadHardRules } from '@/lib/ai/read-judge'
+import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise'
 import type { Persona } from '../personas/types'
 import type { CsvSummary } from './csv-summariser'
 import type { JudgeOutput, HardRuleResult, LikertResult } from './types'
@@ -135,6 +136,17 @@ function checkSystemNoteLeak(text: string): HardRuleResult {
     : { ruleId: 'R7_no_system_note', passed: true }
 }
 
+const ALLOWED_CTA_TYPES = ['supply_input', 'set_goal', 'start_value_map_real']
+
+function checkCtaVocabulary(text: string): HardRuleResult {
+  const types = [...text.matchAll(/\[CTA:([a-z_]+)\]/gi)].map((m) => m[1].toLowerCase())
+  if (types.length === 0) return { ruleId: 'R8_cta_vocabulary', passed: true } // H3 handles "missing CTA"
+  const bad = types.filter((t) => !ALLOWED_CTA_TYPES.includes(t))
+  return bad.length
+    ? { ruleId: 'R8_cta_vocabulary', passed: false, detail: `unknown CTA type(s): ${bad.join(', ')}` }
+    : { ruleId: 'R8_cta_vocabulary', passed: true }
+}
+
 // ── LLM judge for subjective dimensions ─────────────────────────────────────
 
 const JUDGE_PROMPT_TEMPLATE = `You are grading output from "your CFO" — a personal-finance AI in The CFO's Office.
@@ -246,16 +258,31 @@ export function evaluateHardRules(
       out.push(checkMustMentionOneOf(content, [rules.archetype.mustReferenceQuadrant], 'R2c_archetype_references_quadrant'))
     }
   } else {
-    out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceMerchantsFromCsv, 'R3_insight_references_csv_merchants'))
+    const MERCHANT_CITATION_MIN_TXNS = 20
+    const txnCount = csvSummary?.transactionCount ?? 0
+    out.push(checkCurrencySymbol(content, persona))
+    out.push(checkCtaVocabulary(content))
+    if (txnCount >= MERCHANT_CITATION_MIN_TXNS) {
+      out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceMerchantsFromCsv, 'R3_insight_references_csv_merchants'))
+    }
     out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
     out.push(checkMinimalNumbers(content, csvSummary))
-    out.push(checkCurrencySymbol(content, persona))
     // NOTE: the retired `isValueFirst` detection (mode 'value_first' → the H3b
     // rule asserting the CTA is `start_value_map_real`) is intentionally dropped.
     // The live product emits supply_input/set_goal CTAs, not start_value_map_real
-    // (CTA contract drift — see the plan's decision D5). A later task replaces it
-    // with an R8 CTA-vocabulary rule. Always use mode: 'default' here.
-    const knownMerchants = csvSummary?.topMerchants.map((m) => m.description.toLowerCase()) ?? []
+    // (CTA contract drift — see the plan's decision D5). R8 now validates CTA
+    // vocabulary against the full allowed set. Always use mode: 'default' here.
+    // Pass BOTH the raw lowercased description and the normalised form: the Read's
+    // prose usually quotes the merchant as-it-appears, while clusters_referenced
+    // use the normalised key. Matching either avoids H8 false-fails from
+    // normalisation drift.
+    const knownMerchants =
+      txnCount >= MERCHANT_CITATION_MIN_TXNS
+        ? (csvSummary?.topMerchants.flatMap((m) => [
+            m.description.toLowerCase(),
+            normaliseMerchantDescription(m.description).toLowerCase(),
+          ]) ?? [])
+        : []
     for (const r of checkReadHardRules(content, { mode: 'default', knownMerchants })) {
       out.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
     }
