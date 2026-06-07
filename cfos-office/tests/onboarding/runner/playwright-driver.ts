@@ -239,6 +239,10 @@ async function runOnboarding(
     const insight = await pollFirstReadAssistantMessage(opts.admin, user.id, 150_000)
     if (insight) result.capturedInsight = insight
     else throw new Error('first_read assistant message did not arrive within 150s')
+    // Stamp lands a beat later in advanceStep('first_read_delivered'); wait so the DB
+    // snapshot in persona-runner sees onboarding_completed_at. Proceed on timeout so a
+    // genuine regression still surfaces as the assertion failure (not a driver crash).
+    await pollOnboardingComplete(opts.admin, user.id, 30_000)
   })
 }
 
@@ -405,6 +409,25 @@ async function submitStruggle(page: Page, persona: Persona): Promise<void> {
 }
 
 // ── DB-driven chat capture ─────────────────────────────────────────────────
+
+/**
+ * Poll until onboarding_completed_at is stamped (advanceStep runs a beat after the message).
+ * Returns true when stamped, false on timeout. Does NOT throw on timeout — a genuine
+ * regression surfaces as the DB-snapshot assertion failure, not a driver crash.
+ */
+async function pollOnboardingComplete(admin: SupabaseClient, userId: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const { data } = await admin
+      .from('user_profiles')
+      .select('onboarding_completed_at, onboarding_step')
+      .eq('id', userId)
+      .maybeSingle()
+    if (data?.onboarding_completed_at || data?.onboarding_step === 'first_read_delivered') return true
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  return false
+}
 
 /**
  * Poll the messages table for the first assistant message in the user's
