@@ -47,6 +47,8 @@ export interface DbStateSnapshot {
   assistantMessageContents: string[]
   /** recurring_expenses names for the user — checked for case-variant dupes (fix #3). */
   recurringNames: string[]
+  /** Number of goals seeded for the user — checked for goal persistence (Task 10). */
+  goalsCount: number
 }
 
 export interface PersonaRunResult {

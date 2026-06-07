@@ -75,6 +75,13 @@ export const truthTellerBalanced: Persona = {
       personalityId: 'truth_teller',
     },
     stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: '6-month safety net',
+      type: 'savings',
+      targetAmount: 15000,
+      currentAmount: 3000,
+      targetDate: '2027-06-01',
+    },
     dbAfterHandoff: {
       user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [30, 70] },

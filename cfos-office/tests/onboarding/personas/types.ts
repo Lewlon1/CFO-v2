@@ -77,7 +77,7 @@ export interface PersonaExpectations {
    */
   goal?: {
     name: string
-    type?: string
+    type?: 'debt_clearance' | 'savings' | 'investment' | 'general'
     targetAmount: number
     currentAmount?: number
     targetDate?: string

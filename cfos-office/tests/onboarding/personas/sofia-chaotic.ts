@@ -102,6 +102,12 @@ export const sofiaChaotic: Persona = {
       'confirm_done',
       'first_read',
     ],
+    goal: {
+      name: '3-month runway',
+      type: 'savings',
+      targetAmount: 9600,
+      currentAmount: 2000,
+    },
     dbAfterHandoff: {
       user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [30, 50] },

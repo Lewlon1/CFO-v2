@@ -3,13 +3,14 @@ import type { Persona } from '../personas/types'
 import type { DbStateSnapshot } from './types'
 
 export async function snapshotDbState(admin: SupabaseClient, userId: string): Promise<DbStateSnapshot> {
-  const [profileRes, portraitRes, progressRes, txnRes, msgRes, recurringRes] = await Promise.all([
+  const [profileRes, portraitRes, progressRes, txnRes, msgRes, recurringRes, goalsRes] = await Promise.all([
     admin.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
     admin.from('financial_portrait').select('*').eq('user_id', userId),
     admin.from('onboarding_progress').select('*').eq('user_id', userId).maybeSingle(),
     admin.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', userId),
     admin.from('messages').select('content').eq('user_id', userId).eq('role', 'assistant'),
     admin.from('recurring_expenses').select('name').eq('user_id', userId),
+    admin.from('goals').select('id', { count: 'exact', head: true }).eq('user_id', userId),
   ])
 
   return {
@@ -19,6 +20,7 @@ export async function snapshotDbState(admin: SupabaseClient, userId: string): Pr
     transactionCount: txnRes.count ?? 0,
     assistantMessageContents: (msgRes.data ?? []).map((m) => String((m as { content?: unknown }).content ?? '')),
     recurringNames: (recurringRes.data ?? []).map((r) => String((r as { name?: unknown }).name ?? '')),
+    goalsCount: goalsRes.count ?? 0,
   }
 }
 
@@ -99,6 +101,17 @@ export function assertDbState(persona: Persona, snapshot: DbStateSnapshot): stri
     const [min, max] = expected.transactions.countBetween
     if (snapshot.transactionCount < min || snapshot.transactionCount > max) {
       errors.push(`transactions.count: expected between ${min}-${max}, got ${snapshot.transactionCount}`)
+    }
+  }
+
+  // Goal persistence check — persona with goal expects ≥1 row; persona without expects 0.
+  if (persona.expectations.goal) {
+    if (snapshot.goalsCount < 1) {
+      errors.push(`goals: expected ≥1 row for goal-seeded persona, got ${snapshot.goalsCount}`)
+    }
+  } else {
+    if (snapshot.goalsCount > 0) {
+      errors.push(`goals: expected 0 rows for goal-less persona, got ${snapshot.goalsCount}`)
     }
   }
 

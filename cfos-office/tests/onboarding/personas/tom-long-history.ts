@@ -129,6 +129,12 @@ export const tomLongHistory: Persona = {
       'confirm_done',
       'first_read',
     ],
+    goal: {
+      name: 'Pension top-up',
+      type: 'investment',
+      targetAmount: 50000,
+      currentAmount: 9000,
+    },
     dbAfterHandoff: {
       user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       // 18 months: salary x18 + rent x18 + ISA x18 + groceries x78 + gym x18

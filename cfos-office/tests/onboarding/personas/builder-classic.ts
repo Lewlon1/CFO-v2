@@ -118,6 +118,13 @@ export const builderClassic: Persona = {
       personalityId: 'builder',
     },
     stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: 'Grow ISA pot',
+      type: 'investment',
+      targetAmount: 40000,
+      currentAmount: 12000,
+      targetDate: '2028-06-01',
+    },
     dbAfterHandoff: {
       user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [40, 80] },

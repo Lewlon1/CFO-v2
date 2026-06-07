@@ -100,6 +100,12 @@ export const drifterExpat: Persona = {
       personalityId: 'drifter',
     },
     stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: 'Move-home fund',
+      type: 'general',
+      targetAmount: 6000,
+      currentAmount: 1200,
+    },
     dbAfterHandoff: {
       // Value-first terminal: the Read is delivered and onboarding is stamped
       // complete. There is no archetype screen here — the archetype only exists

@@ -125,6 +125,13 @@ export const zaneSpain: Persona = {
       'confirm_done',
       'first_read',
     ],
+    goal: {
+      name: 'Entrada para piso',
+      type: 'savings',
+      targetAmount: 30000,
+      currentAmount: 5000,
+      targetDate: '2029-01-01',
+    },
     dbAfterHandoff: {
       user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [55, 80] },

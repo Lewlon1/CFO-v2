@@ -102,6 +102,13 @@ export const timeSaverExpert: Persona = {
       personalityId: 'builder',
     },
     stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: 'Max the ISA',
+      type: 'investment',
+      targetAmount: 20000,
+      currentAmount: 8898,
+      targetDate: '2026-12-31',
+    },
     dbAfterHandoff: {
       /* primary_currency collected post-onboarding in chat, not asserted here */
       user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
