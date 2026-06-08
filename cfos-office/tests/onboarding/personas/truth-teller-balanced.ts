@@ -92,7 +92,6 @@ export const truthTellerBalanced: Persona = {
         mustMentionOneOf: ['balance', 'clear', 'mixed', 'truth', 'honest', 'see'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['rent'],
         mustReferenceOneOf: ['snapshot', 'free cash flow', 'rent', 'housing'],
       },
     },

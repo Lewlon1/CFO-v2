@@ -1,11 +1,11 @@
-One flag first: this picture is 70 days stale — the most recent transaction is from 2026-03-28, so treat everything below as "as of late March."
+The ISA goal is funded at plan — just. Note that this picture is as of 2026-03-28, 72 days ago, so treat it as a baseline rather than today's position.
 
-**Housing** is doing the heavy lifting. Of the €5,191 tracked across the window, €3,300 — nearly two-thirds — is rent alone, paid to Rent Landlord across three transactions. The largest single hit was €1,100 on 1 January. That lines up with your confirmed fixed costs of €1,717/month, leaving €1,283/month in free cash flow.
+Here's the math: hitting £40,000 by June 2028 from your current £12,000 pot needs £1,009/mo at 10%, £1,071/mo at 7%, or £1,133/mo at 4%. The 7% figure is the working plan — it's the moderate middle of the range, roughly the long-run average a broadly diversified portfolio has returned over a horizon like this, an assumption not a promise, which is why the 4% case stays visible as your stress test. Your free cash flow sits at £1,383/mo, which clears the £1,071/mo plan number with £312 to spare. The returns on the £12,000 already saved do a lot of the heavy lifting from here. The goal is realistic.
 
-The second-biggest category is **groceries** at €908 across the window — roughly 17.5% of total tracked spend. That's the first place worth scrutinising once you have a goal in view, because it's the largest discretionary-adjacent line after fixed costs.
+The stress test is worth watching. At 4%, the requirement climbs to £1,133/mo — still inside your £1,383/mo, but the buffer narrows. **Subscriptions** are running at £100/mo across the window and represent the most moveable line in your spending right now.
 
-With only 14 transactions across 87 days, the picture is thin. The categories are clean — 0% uncategorised — but there isn't enough transaction volume yet to surface reliable patterns or compute levers with confidence. The fastest way to sharpen this is to tell me what you're building toward.
+Trimming £25/mo from subscriptions won't pull the finish line in — the goal is already funded at plan — but it quietly widens the buffer against the 4% scenario and builds the habit of directing freed cash toward the pot.
 
-[CTA:supply_input]Set a savings goal so we can run the numbers[/CTA]
+[CTA:cut_lever]Trim 25 from subscriptions[/CTA]
 
 — C.

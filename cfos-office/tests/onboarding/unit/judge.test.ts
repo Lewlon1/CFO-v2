@@ -89,7 +89,7 @@ describe('R4 minimal numbers', () => {
 
 describe('fixtures', () => {
   it('loads the captured corpus', () => {
-    expect(listReads().length).toBeGreaterThanOrEqual(18) // 25 fixtures: 10 captured + 8 gbp + 7 bad (loose lower bound)
+    expect(listReads().length).toBeGreaterThanOrEqual(17) // 10 captured + 7 bad (gbp files deleted; loose lower bound)
     expect(loadRead('zane-spain.captured')).toMatch(/— C\.\s*$/)
   })
 })
@@ -99,10 +99,12 @@ describe('R5 currency symbol', () => {
     evaluateHardRules(persona, 'insight', read, null).find((r) => r.ruleId === 'R5_currency_symbol')
 
   it('fails a GBP persona whose Read uses €', () => {
-    expect(r5(builderClassic, loadRead('builder-classic.captured'))?.passed).toBe(false)
+    // bad-euro-on-gbp fixture is an intentionally wrong-currency Read
+    expect(r5(builderClassic, loadRead('bad-euro-on-gbp'))?.passed).toBe(false)
   })
   it('passes a GBP persona whose Read uses £', () => {
-    expect(r5(builderClassic, loadRead('builder-classic.gbp'))?.passed).toBe(true)
+    // builder-classic.captured is the real live-run GBP Read (post corpus refresh)
+    expect(r5(builderClassic, loadRead('builder-classic.captured'))?.passed).toBe(true)
   })
   it('passes a EUR persona whose Read uses €', () => {
     expect(r5(zaneSpain, loadRead('zane-spain.captured'))?.passed).toBe(true)
@@ -127,22 +129,23 @@ describe('R6 goal-denial / R7 system-note', () => {
   })
 })
 
-// NOTE: normaliseMerchantDescription is imported in judge.ts (Step 3), NOT here —
-// these tests don't reference it directly, so don't add an unused import.
-
-describe('R8 CTA vocabulary + merchant threshold', () => {
+describe('R8 CTA vocabulary', () => {
   it('R8 passes a known CTA type (set_goal)', () => {
     const read = 'Body.\n\n[CTA:set_goal]Set a goal[/CTA]\n\n— C.'
+    expect(evaluateHardRules(builderClassic, 'insight', read, null).find((r) => r.ruleId === 'R8_cta_vocabulary')?.passed).toBe(true)
+  })
+  it('R8 passes the cut_lever CTA type (live goal-aware Reads)', () => {
+    const read = 'Body.\n\n[CTA:cut_lever]Trim £25 from subscriptions[/CTA]\n\n— C.'
     expect(evaluateHardRules(builderClassic, 'insight', read, null).find((r) => r.ruleId === 'R8_cta_vocabulary')?.passed).toBe(true)
   })
   it('R8 fails an unknown CTA type', () => {
     const read = 'Body.\n\n[CTA:teleport]Go[/CTA]\n\n— C.'
     expect(evaluateHardRules(builderClassic, 'insight', read, null).find((r) => r.ruleId === 'R8_cta_vocabulary')?.passed).toBe(false)
   })
-  it('does not emit H8_cites_known_merchant below the txn threshold', () => {
-    // aiko captured Read cites categories, not merchants; with <20 txns H8 must not run
+  it('H8_cites_known_merchant never fires (merchant-citation requirement dropped)', () => {
+    // checkReadHardRules is now called without knownMerchants — H8 is never triggered from the test.
     const aikoCsv = summariseCsv('Type,Started Date,Description,Amount,Currency,Balance\nCARD_PAYMENT,2026-01-01,Tesco,-10,GBP,0', 'GBP')
-    const rules = evaluateHardRules(builderClassic, 'insight', loadRead('aiko-low-transaction.gbp'), aikoCsv)
+    const rules = evaluateHardRules(builderClassic, 'insight', loadRead('aiko-low-transaction.captured'), aikoCsv)
     expect(rules.find((r) => r.ruleId === 'H8_cites_known_merchant')).toBeUndefined()
   })
 })
@@ -157,15 +160,11 @@ function csvFor(p: (typeof PERSONAS)[number]) {
 
 describe('golden corpus — good Reads pass every rule', () => {
   for (const p of PERSONAS) {
-    const fixture = p.profile.currency === 'EUR' ? `${p.id}.captured` : `${p.id}.gbp`
+    // All fixtures are now the real live-run Reads (Task 14 corpus refresh).
+    // Goal-aware Reads correctly reference their seeded goal, so R6 and R9 are
+    // evaluated against the full persona (goal-strip removed).
     it(`${p.id}: all hard rules pass on the good Read`, () => {
-      // Phase-1 fixtures were captured BEFORE goal seeding (Task 10), so several
-      // legitimately discuss the absence of a goal ("no goal to size against").
-      // Evaluate them goal-stripped so R6 (goal-denial) is exempt — those Reads
-      // predate goals. Task 14 refreshes the corpus with goal-aware Reads and
-      // switches this to the full persona (and adds a goal-reference assertion).
-      const phase1Persona = { ...p, expectations: { ...p.expectations, goal: undefined } }
-      const rules = evaluateHardRules(phase1Persona, 'insight', loadRead(fixture), csvFor(p))
+      const rules = evaluateHardRules(p, 'insight', loadRead(`${p.id}.captured`), csvFor(p))
       const failed = rules.filter((r) => !r.passed)
       expect(failed.map((f) => `${f.ruleId}:${f.detail ?? ''}`)).toEqual([])
     })

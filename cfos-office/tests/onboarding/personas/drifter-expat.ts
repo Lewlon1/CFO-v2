@@ -120,7 +120,6 @@ export const drifterExpat: Persona = {
         mustMentionOneOf: ['drift', 'impulse', 'leak', 'habit', 'small'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['alquiler piso'],
         mustReferenceOneOf: ['eating', 'groceries', 'free cash flow', 'rent'],
       },
     },

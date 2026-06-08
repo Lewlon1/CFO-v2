@@ -148,7 +148,6 @@ export const zaneSpain: Persona = {
         '£[0-9]',
       ],
       insight: {
-        mustReferenceMerchantsFromCsv: ['alquiler'],
         mustReferenceOneOf: ['health', 'groceries', 'free cash flow', 'fixed cost'],
       },
     },

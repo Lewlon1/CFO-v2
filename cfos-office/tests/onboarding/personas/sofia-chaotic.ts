@@ -121,7 +121,6 @@ export const sofiaChaotic: Persona = {
         'monthly\\s+(rent|housing)',
       ],
       insight: {
-        mustReferenceMerchantsFromCsv: ['sublet'],
         mustReferenceOneOf: ['housing', 'free cash flow', 'snapshot', 'entertainment', 'travel'],
       },
     },

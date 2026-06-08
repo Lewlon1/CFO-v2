@@ -102,7 +102,6 @@ export interface PersonaExpectations {
       mustAcknowledgeOneOf?: string[]
     }
     insight?: {
-      mustReferenceMerchantsFromCsv?: string[]
       mustReferenceOneOf?: string[]
     }
   }

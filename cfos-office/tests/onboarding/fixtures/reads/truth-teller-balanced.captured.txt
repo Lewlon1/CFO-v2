@@ -1,11 +1,13 @@
-The data here runs to 2026-03-28 — 70 days ago — so treat this as a snapshot, not a live picture.
+Heads up: this picture is 72 days old — the last transaction captured is 2026-03-28, so treat what follows as a snapshot of where things stood then, not today.
 
-As of that date, **housing** dominated everything: €2,700 out of €4,135 tracked, with rent as the single biggest merchant across three transactions. The largest individual hit was €900 on 1 January. The number that may surprise you: groceries at €750 — nearly one-in-five euros spent, second only to rent.
+On the goal: £15,000 safety net by 2027-06-01, with £3,000 already banked. That leaves £12,000 to go across roughly 14 months. Your free cash flow sits at £1,774/month — comfortably above the pace this goal needs. On a straight no-growth basis the monthly contribution required is around £857. You're running well ahead of that, which means the target is reachable without stretching, assuming spending holds.
 
-With only 9 transactions across 87 days, the picture is thin. There's enough to see the shape — fixed costs running €1,126 a month against €3,000 net income — but not enough to spot patterns in how the remaining €1,874 moves. Eating out (€210) and shopping (€126) are visible but too sparse to call a trend.
+The biggest drag in the data is **housing**, which accounts for £2,700 of the £4,135 tracked — 65.3% of total spend across the window. That's structural, not a lever, but it's worth holding in view as the baseline pressure on your cash flow.
 
-The most useful next step is connecting what you actually value to where the money lands. That starts with the Value Map — five minutes that turns this skeleton into a read with real levers.
+With only 8 transactions across 87 days the behavioural picture is thin. **Eating & drinking out** is the one discretionary category with enough signal: running at £73/month as of March.
 
-[CTA:supply_input]Open the Value Map and tag my categories[/CTA]
+Trimming £18/month there is the lever the data surfaces. It's modest on its own, but it's the cleanest cut available right now — and completing your Value Map would sharpen the picture considerably for the next Read.
+
+[CTA:cut_lever]Trim 18 from eating & drinking out[/CTA]
 
 — C.

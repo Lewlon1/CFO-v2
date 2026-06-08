@@ -1,11 +1,13 @@
-Heads up: this picture is 69 days old, last updated 2026-03-29, so treat it as a baseline rather than a live view.
+The data here runs to 2026-03-29 — 71 days ago — so treat these as a snapshot, not a live picture. That said, the shape is clear enough to act on.
 
-As of that date, **housing** was the dominant force — €2,850, over half of every euro tracked, driven entirely by Alquiler Piso across three rent payments. The largest single transaction was €950 on 1 March. That's expected. What's worth pausing on: **eating & drinking out** at €762 and **groceries** at €672 together account for more than a quarter of tracked spend — your food bill, in and out of the house, is running close to your second-biggest cost after rent.
+A target date for your Move-home fund is the one thing standing between you and knowing what this goal actually costs per month. You've saved €1,200 of €6,000 — €4,800 still to go — but without a date, there's no pace to set, no monthly number to hit, and no way to tell whether your current cash flow gets you there comfortably or tight.
 
-Free cash flow sits at €1,708 a month once fixed costs are covered. With 21 transactions across 88 days, the data is thin enough that patterns aren't fully established yet — but the shape is already readable: rent anchors everything, and food is the next real variable.
+On the spending side: rent (Alquiler Piso) accounts for €2,850 of the €5,382 tracked — more than half of everything. The next biggest line is **eating & drinking out** at €762 across the window, running at roughly €264 a month. That's the category with the most flex.
 
-No levers have been computed yet because there's no goal to size them against. The fastest way to change that is to tell me what you're working toward.
+19 transactions across 88 days is a thin base, so patterns aren't fully established yet — but the category split is already legible, and the free cash flow of €1,458/month is real headroom once the goal has a deadline to pull against.
 
-[CTA:supply_input]Set my first financial goal[/CTA]
+Set the date and the monthly pace calculates itself.
+
+[CTA:supply_input]Set a target date for Move-home fund[/CTA]
 
 — C.

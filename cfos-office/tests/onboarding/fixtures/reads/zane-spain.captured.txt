@@ -1,11 +1,13 @@
-Heads up: this picture is 69 days old (last transaction 29 March 2026), so treat it as a baseline rather than a live view.
+The picture here is as of 2026-03-29 — 71 days stale, so treat the numbers as a recent baseline, not a live feed.
 
-As of that date, **health** was the single biggest category — €2,565, nearly 56% of everything tracked. The largest merchant overall was **Alquiler — Calle Doctor Esquerdo** at €2,460 across 3 transactions, with the biggest single hit being €820 on 1 March. That rent figure sits inside the health category as classified, which is worth a second look — if that's a misclassification, the health number is overstated and the housing number is understated.
+**Entrada para piso** needs €25,000 more by 2029-01-01. That's roughly 33 months away. Your free cash flow sits at €1,309/month — enough to cover the gap in full if a meaningful share of it is consistently directed toward the goal. The math is on your side; the question is whether it's actually moving.
 
-**Groceries** came in at €894 (19.5% of tracked spend), making it the second-largest category. With only 15 transactions across 88 days, the picture is thin — patterns aren't established yet, so monthly rates are directional, not firm.
+Health spending dominated the 88-day window at €2,565 — 55.9% of all tracked spend. That's the single biggest drag on what could otherwise be accumulating toward the deposit. With only 13 transactions across the period, there isn't enough recurrence to read a firm pattern yet, but the weight of that category is worth watching as more data comes in.
 
-Free cash flow is €959/month against a fixed cost base of €2,041. That's the number to build from. Before sizing any lever, the most useful move is getting the Value Map filled in — knowing what you'd call a Leak versus a priority changes which of those categories deserves attention first.
+On utilities, Movistar Fusión at €58/month sits above the typical Spain range of €25–€35. No action required now, but worth a renegotiation conversation when the contract allows.
 
-[CTA:supply_input]Fill in my Value Map so you can flag what's a leak vs. a priority[/CTA]
+The computed lever is a €23/month trim on **eating & drinking out** (currently running €92/month). Small in isolation, but it's the cleanest, lowest-friction cut available right now.
+
+[CTA:cut_lever]Trim 23 from eating & drinking out[/CTA]
 
 — C.

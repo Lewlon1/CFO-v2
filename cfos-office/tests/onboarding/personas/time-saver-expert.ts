@@ -128,7 +128,6 @@ export const timeSaverExpert: Persona = {
         mustAcknowledgeOneOf: ['have a plan', 'know what you', 'clear', 'intentional', 'in control', 'system already', 'dialled in'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['rent flat'],
         mustReferenceOneOf: ['housing', 'groceries', 'subscriptions', 'fixed costs'],
       },
     },

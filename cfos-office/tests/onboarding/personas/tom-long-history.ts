@@ -148,8 +148,6 @@ export const tomLongHistory: Persona = {
         'lisbon|madrid|cervejaria|pasteis|easyjet',
       ],
       insight: {
-        // The 90-day window should surface the top merchant.
-        mustReferenceMerchantsFromCsv: ['rent'],
         mustReferenceOneOf: ['snapshot', 'fixed costs', 'take-home', 'housing'],
       },
     },

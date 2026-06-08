@@ -1,11 +1,11 @@
-The data here runs to 2026-03-28 — 70 days ago — so treat this as a snapshot, not a live picture.
+Heads up: this picture is 72 days old (last transaction 28 March 2026), so treat what follows as a snapshot, not a live view.
 
-Here's where the money went: **Housing & rent** consumed 61.1% of tracked spend, with Rent alone accounting for €2,340 across three transactions — the single largest merchant in the window. The biggest individual hit was €780 on 1 January. The number most likely to stop you: after rent and fixed costs, free cash flow lands at €213 a month.
+The goal needs £6,500 more to reach £8,000 by 1 January 2027 — that's roughly 8 months from the last data point. Free cash flow sits at £513 a month. If all of that reached the goal, you'd land at around £4,100 contributed over 8 months — short of the £6,500 remaining. The gap is real: at current flow, the January deadline is tight without either a pace increase or a lump sum.
 
-With only 10 transactions across 87 days, behavioural patterns aren't established yet — more data will sharpen this considerably. What's already clear is that fixed costs run at €2,787 against €3,000 net income, which leaves almost no room before discretionary spending begins to compress that €213 further.
+Fixed costs are running at £1,787 against £2,300 net income, which is where the squeeze comes from. Housing alone is £780 a month, and utilities and bills add another £669 — together that's the bulk of outgoings before groceries or anything discretionary.
 
-**Eating & drinking out** is the one genuinely flexible line visible right now — €54 in the window — but with no levers computed yet, the more useful move is filling in what you actually value and want to protect. The Value Map is the missing piece: it turns a spending snapshot into a plan.
+With only 9 transactions across the window, spending patterns aren't established enough to size a cut lever yet. The one move that sharpens the picture immediately is confirming whether any variable spend — groceries at £588 across the period, eating out at £54 — has room to compress. No lever magnitude was computed from this data, so the ask below is the right next step.
 
-[CTA:supply_input]Fill in my Value Map[/CTA]
+[CTA:supply_input]Add my recent transactions so we can size a real cut[/CTA]
 
 — C.

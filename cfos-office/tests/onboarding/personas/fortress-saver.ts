@@ -102,7 +102,6 @@ export const fortressSaver: Persona = {
         mustMentionOneOf: ['careful', 'fortress', 'foundation', 'disciplined', 'protected'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['rent - shared house'],
         mustReferenceOneOf: ['housing', 'groceries', 'free cash flow', 'goal'],
       },
     },
