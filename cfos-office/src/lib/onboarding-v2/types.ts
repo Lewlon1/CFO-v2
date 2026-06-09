@@ -58,25 +58,3 @@ export function isStartValueMapAction(
     (a as { type?: unknown }).type === 'start_value_map'
   )
 }
-
-export function isStartUploadAction(
-  a: unknown,
-): a is StartUploadAction {
-  return (
-    typeof a === 'object' &&
-    a !== null &&
-    'type' in a &&
-    (a as { type?: unknown }).type === 'start_upload'
-  )
-}
-
-export function isStartValueMapRealAction(
-  a: unknown,
-): a is StartValueMapRealAction {
-  return (
-    typeof a === 'object' &&
-    a !== null &&
-    'type' in a &&
-    (a as { type?: unknown }).type === 'start_value_map_real'
-  )
-}

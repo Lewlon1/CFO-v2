@@ -20,8 +20,6 @@
  * the long-standing contract in src/lib/format/currency.ts.
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
-
 const SYMBOLS: Record<string, string> = {
   GBP: '£',
   EUR: '€',
@@ -116,20 +114,4 @@ export function parseMoneyInput(raw: string): number | null {
   if (sanitised === '' || sanitised === '.') return null
   const value = Number(sanitised)
   return Number.isFinite(value) ? value : null
-}
-
-/**
- * Server-side helper for fetching the user's currency. Components should
- * receive currency via props/context — never call this from a render path.
- */
-export async function resolveUserCurrency(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<string> {
-  const { data } = await supabase
-    .from('user_profiles')
-    .select('primary_currency')
-    .eq('id', userId)
-    .single()
-  return ((data?.primary_currency as string | null) ?? 'EUR').toUpperCase()
 }

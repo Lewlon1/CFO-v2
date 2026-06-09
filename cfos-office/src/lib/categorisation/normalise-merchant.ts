@@ -83,6 +83,3 @@ export function normaliseMerchant(raw: string): string {
   // Check aliases
   return MERCHANT_ALIASES[normalised] ?? normalised
 }
-
-/** Alias for normaliseMerchant — used as match_value in value_category_rules */
-export const getMerchantKey = normaliseMerchant

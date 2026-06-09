@@ -215,10 +215,6 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
   },
 ] as const;
 
-export function templatesForPattern(patternId: string): ExperimentTemplate[] {
-  return EXPERIMENT_TEMPLATES.filter((t) => t.trigger_patterns.includes(patternId));
-}
-
 export function findTemplate(id: string): ExperimentTemplate | null {
   return EXPERIMENT_TEMPLATES.find((t) => t.id === id) ?? null;
 }

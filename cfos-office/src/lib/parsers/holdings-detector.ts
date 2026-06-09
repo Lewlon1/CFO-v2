@@ -141,17 +141,3 @@ export function detectHoldingsMapping(
 
   return hasIdentifier && hasPosition ? result : null
 }
-
-/**
- * True when auto-detection found enough fields that manual column mapping
- * is not needed. Requires (name OR ticker) AND value AND quantity.
- */
-export function isHoldingsMappingHighConfidence(
-  mapping: Record<string, HoldingsSemanticField>
-): boolean {
-  const fields = Object.values(mapping)
-  const hasIdentifier = fields.includes('name') || fields.includes('ticker')
-  const hasValue = fields.includes('value')
-  const hasQuantity = fields.includes('quantity')
-  return hasIdentifier && hasValue && hasQuantity
-}

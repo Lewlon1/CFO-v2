@@ -28,4 +28,3 @@ console.log(
 export const chatModel = bedrock(chatModelId)
 export const analysisModel = bedrock(chatModelId)
 export const utilityModel = bedrock(utilityModelId)
-export const opusModel = bedrock(opusModelId)

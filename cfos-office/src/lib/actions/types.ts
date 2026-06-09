@@ -26,14 +26,3 @@ export function isEmittedAction(value: unknown): value is EmittedAction {
   const t = (value as { type?: unknown }).type
   return typeof t === 'string' && (ACTION_TYPES as readonly string[]).includes(t)
 }
-
-export function findAction<T extends ActionType>(
-  actions: unknown,
-  type: T,
-): EmittedAction<T> | null {
-  if (!Array.isArray(actions)) return null
-  const match = actions.find(
-    (a): a is EmittedAction => isEmittedAction(a) && a.type === type,
-  )
-  return (match as EmittedAction<T>) ?? null
-}
