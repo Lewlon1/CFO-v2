@@ -137,7 +137,7 @@ export function DemoFlow({ initialName = '', initialCountry = null, isAuthentica
           currency: selectedCountry?.currency ?? 'GBP',
           results: exerciseResults,
           elapsed_seconds: elapsedSeconds,
-          session_id: savedSessionId,
+          session_token: session.sessionToken,
         }),
       })
 

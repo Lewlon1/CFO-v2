@@ -26,13 +26,20 @@ export async function POST(request: Request) {
   // Use service client to read demo_sessions (no RLS policy for authenticated users)
   const service = createServiceClient()
 
+  // Atomically claim the session: only the first account to link a given token
+  // wins. The `WHERE claimed_by_user_id IS NULL` predicate makes this a one-time
+  // ratchet — a second account (or a double-submit) matches zero rows and is
+  // treated as a no-op, so it cannot ingest someone else's Value Map.
   const { data: session, error: sessionError } = await service
     .from('demo_sessions')
-    .select('id, session_token, responses, ai_response_shown')
+    .update({ claimed_by_user_id: user.id, claimed_at: new Date().toISOString() })
     .eq('session_token', session_token)
+    .is('claimed_by_user_id', null)
+    .select('id, session_token, responses, ai_response_shown')
     .single()
 
   if (sessionError || !session) {
+    // No such token, or already claimed by another account / a prior call.
     return NextResponse.json({ success: true, linked: false })
   }
 

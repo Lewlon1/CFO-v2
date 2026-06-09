@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { checkRateLimit, ipRateLimitKey } from '@/lib/chat/rate-limit'
 
 interface SignupRequest {
   name: string
@@ -14,6 +15,14 @@ interface SignupRequest {
 
 export async function POST(req: Request) {
   try {
+    const limit = await checkRateLimit(ipRateLimitKey(req, 'demo-signup'), {
+      limit: 20,
+      windowMs: 10 * 60_000,
+    })
+    if (!limit.allowed) {
+      return Response.json({ error: 'Too many requests' }, { status: 429 })
+    }
+
     const body: SignupRequest = await req.json()
     const { name, email, country, personality, reading_text, results_json, resonance_rating, session_id, consent } = body
 
