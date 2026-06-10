@@ -7,6 +7,18 @@
 /** Minimum confidence for an unconfirmed value label to render anywhere. */
 export const VALUE_DISPLAY_CONFIDENCE_THRESHOLD = 0.6
 
+/** Minimum raw rule confidence (pre recency boost) for a value_category_rules
+ *  row to be applied to a transaction — at ingest, at re-score, and in the
+ *  backfill. Below this a rule is "still learning": it keeps accumulating
+ *  signals but asserts nothing. VM-2, provisional. */
+export const RULE_APPLICATION_MIN_CONFIDENCE = 0.5
+
+/** The "confident enough to cite/assert a value verdict in chat" line. Chat
+ *  tools and prompt-context builders treat an unconfirmed value label below
+ *  this as unsorted, never asserting it as Foundation/.../Leak. (VM-1
+ *  follow-up: previously hardcoded as 0.7 in each tool.) */
+export const VALUE_CHAT_CITATION_THRESHOLD = 0.7
+
 /** Ceiling for any value_confidence written by a category default. */
 export const DEFAULT_SOURCE_CONFIDENCE_CAP = 0.3
 

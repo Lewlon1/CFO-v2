@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { selectRetakeCandidates } from '@/lib/value-map/retake-candidates'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 import {
   persistRealValueClassifications,
   runMerchantLearning,
@@ -254,10 +255,18 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // 7. Trigger async learning — one processSignals+backfill per unique merchant,
-  //    then regenerate the archetype once every merchant's rules have settled.
+  // 7. Trigger async learning — one processSignals+backfill per unique merchant
+  //    (runMerchantLearning is the single reconciled persistence path), then one
+  //    full re-score (VM-2) so the refreshed rule set reaches ALL history,
+  //    including the category/global priors processSignals just moved, and
+  //    finally regenerate the archetype once every merchant's rules have settled.
   after(async () => {
     await runMerchantLearning(user.id, merchantsAffected)
+    try {
+      await rescoreValueCategories(user.id)
+    } catch (err) {
+      console.error('[retake learning] rescore failed:', err)
+    }
     try {
       await regenerateArchetype(supabase, user.id, 'retake_complete')
     } catch (err) {

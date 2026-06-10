@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { VALUE_CHAT_CITATION_THRESHOLD } from '@/lib/categorisation/value-config'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ToolContext } from './types'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
@@ -86,7 +87,7 @@ export async function fetchAndScoreReviewCandidates(
     )
     .eq('user_id', userId)
     .eq('value_confirmed_by_user', false)
-    .or('value_confidence.is.null,value_confidence.lt.0.7')
+    .or(`value_confidence.is.null,value_confidence.lt.${VALUE_CHAT_CITATION_THRESHOLD}`)
     .lt('amount', 0)
     .or(`category_id.is.null,category_id.not.in.${EXCLUDED_FROM_PL_PG_LIST}`)
     .order('value_confidence', { ascending: true, nullsFirst: true })

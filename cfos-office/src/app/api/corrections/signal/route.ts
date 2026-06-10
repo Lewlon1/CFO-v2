@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { getTimeContext } from '@/lib/utils/time-context'
 import { processSignals } from '@/lib/prediction/process-signals'
-import { backfillForMerchant } from '@/lib/prediction/backfill'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 
 const VALID_VALUES = ['foundation', 'investment', 'leak', 'burden', 'unsure']
 
@@ -74,7 +74,10 @@ export async function POST(req: NextRequest) {
   after(async () => {
     try {
       await processSignals(user.id, merchantClean)
-      await backfillForMerchant(user.id, merchantClean)
+      // VM-2: re-apply the (possibly changed) rule set retroactively. Full
+      // re-score, not merchant-scoped — processSignals may also have moved
+      // the category-level and global priors.
+      await rescoreValueCategories(user.id)
     } catch (err) {
       console.error('[learning-engine] processSignals failed:', err)
     }

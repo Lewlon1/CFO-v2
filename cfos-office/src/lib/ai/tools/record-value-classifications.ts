@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { ToolContext } from './types'
 import { applyValueClassification } from '@/lib/categorisation/value-classification'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 import { VCR_ON_CONFLICT, NONE_TIME_CONTEXT } from '@/lib/prediction/types'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -182,9 +183,10 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
         }
 
         // ── Mode 2: merchant-level rules ──
+        const rescoreRuleIds: string[] = []
         for (const c of merchantMode) {
           const normDesc = normaliseMerchant(c.merchant_pattern!)
-          const { error: ruleErr } = await ctx.supabase
+          const { data: ruleRows, error: ruleErr } = await ctx.supabase
             .from('value_category_rules')
             .upsert(
               {
@@ -200,6 +202,7 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
               },
               { onConflict: VCR_ON_CONFLICT }
             )
+            .select('id')
 
           if (ruleErr) {
             errors.push(`Failed to save rule for ${c.merchant_pattern}: ${ruleErr.message}`)
@@ -209,17 +212,23 @@ export function createRecordValueClassificationsTool(ctx: ToolContext) {
           merchantRulesCreated++
           merchantsLearned.add(c.merchant_pattern!)
 
-          // Also propagate the value to existing unconfirmed transactions if requested
           if (c.apply_to_similar !== false) {
-            const { data: propagatedRows } = await ctx.supabase
-              .from('transactions')
-              .update({ value_category: c.value_category, value_confidence: 0.8 })
-              .eq('user_id', ctx.userId)
-              .eq('value_confirmed_by_user', false)
-              .ilike('description', `%${normDesc}%`)
-              .select('id')
+            for (const r of ruleRows ?? []) rescoreRuleIds.push(r.id)
+          }
+        }
 
-            propagated += propagatedRows?.length ?? 0
+        // Propagate to existing unconfirmed transactions — one re-score scoped
+        // to the rules just written (VM-2). Shared matcher + normalisation;
+        // never fails the rule write itself.
+        if (rescoreRuleIds.length > 0) {
+          try {
+            const rescore = await rescoreValueCategories(ctx.userId, {
+              ruleIds: rescoreRuleIds,
+              supabase: ctx.supabase,
+            })
+            propagated += rescore.updated
+          } catch (err) {
+            console.error('[tool:record_value_classifications] rescore failed:', err)
           }
         }
 

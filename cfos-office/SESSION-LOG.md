@@ -82,7 +82,150 @@ fields, empty/invalid handling, `runMerchantLearning` fan-out + error swallow).
 - The deeper async rule-persistence gap (`processSignals` rules not always
   landing on the retake path) is mitigated — not closed — by the synchronous
   rule. Still worth its own investigation.
-=======
+
+---
+
+## VM-2 — Rule application engine v2 (2026-06-10)
+
+Branch/base: `claude/value-map-v2-7ox3hw` @ 426548d (contains VM-1; VM-1 gate
+`value-config.ts` present: PASS). All four Phase 0 hard stops passed.
+
+**Goal:** learned rules actually reach transactions — at ingest through the
+shared normaliser, retroactively on every rule create/strengthen, and on
+demand via `rescoreValueCategories(userId)` for VM-3's instant-payback moment.
+
+### Phase 0 findings
+
+- **Application sites:** TWO divergent matchers existed.
+  `prediction/predictor.ts:resolveValueCategory` (exact normalised match,
+  per-tier thresholds 0.15–0.30, recency boost) served the import pipeline's
+  main branch + `backfillForMerchant`; `value-categoriser.ts:assignValueCategory`
+  (SUBSTRING merchant match, NO thresholds, NO boost) served the upload
+  preview + the pipeline's preset-category branch. Two more drift writers:
+  `value-classification.ts` and `record-value-classifications.ts` propagated
+  via `ilike '%merchant%'` — the chat-tool variant didn't even set
+  `prediction_source` (0.8-confidence rows kept `category_default` provenance).
+- **Creation/strengthen sites:** `prediction/process-signals.ts` (learning
+  engine; called from `/api/corrections/signal` + `/api/value-map/personal`,
+  both followed by merchant-scoped `backfillForMerchant` — category/global
+  prior changes never propagated), `value-classification.ts` (direct upserts
+  @1.0/0.85), `record-value-classifications.ts` merchant mode (@0.9),
+  `link-session` VM seeding (category rules — **no retroactive application at
+  all**, the biggest gap given VM runs after upload in the value-first flow).
+- **Normalisation:** single shared `categorisation/normalise-merchant.ts`;
+  every rule writer normalises through it. **Joinability (0.7): 183/191
+  merchant-type rules (95.8%) match a same-user transaction through exact
+  normalised equality** — G2 pass; substring matching is legacy, not needed.
+  8 misses = 3 location-suffixed merchants (`walmart #3501 caguas pr`,
+  `econo super carolina #18`, `total 0451 carolina pr`) — VM-5 candidates.
+- **Rule semantics (0.9):** 201 staging rules — merchant 152 (avg conf .756),
+  merchant_time 39 (all .85, only weekday_late/weekend_evening), category 10
+  (avg .60). NO amount-band or global rules in data (code paths kept; band
+  semantics from writer: inclusive [low, high], null bound open, bands split
+  at midpoint). G3 pass.
+- **Baseline (0.8, staging, deleted_at IS NULL, 17,976 rows):**
+  category_default 17,589 (97.8%) / merchant_rule 237 (1.32%) /
+  user_confirmed 150. G4: no prod ref in code.
+
+### Changed
+
+- **NEW `categorisation/value-rule-matcher.ts`** — THE shared matcher
+  (`matchValueRule`): tier order merchant_time > merchant_amount > merchant >
+  category_time > category_amount > category > global; exact normalised
+  equality; highest confidence wins within a tier; single
+  `RULE_APPLICATION_MIN_CONFIDENCE` floor (0.5, raw conf pre-boost) replaces
+  the old per-tier thresholds (all sat below it); recency boost on output;
+  exports `RULE_MATCH_PREDICTION_SOURCE`. + unit tests (precedence, bands,
+  floor, normalisation parity, sentinel, boost).
+- **NEW `categorisation/value-rescore.ts`** — `rescoreValueCategories(userId,
+  {ruleIds?, supabase?})` with pure `planRescore` core (unit-tested: sacred
+  rule, leak-by-evidence, idempotency, scoping resolves against FULL rule
+  set). Only writes from rule matches — never re-applies defaults; skips
+  user_confirmed at plan AND write time; recomputes affected snapshots via
+  `refreshMonthlySnapshots`.
+- **Consolidation:** `resolveValueCategory` and `assignValueCategory` both
+  delegate to the matcher (substring matching + thresholdless application
+  removed); `prediction/backfill.ts` DELETED (superseded).
+- **Hooks:** corrections/signal + value-map/personal → full rescore after
+  processSignals (priors now propagate); `applyValueClassification` +
+  `record-value-classifications` merchant mode → scoped rescore (rule ids via
+  `.select('id')`), replacing the ilike propagation (fixes the missing
+  prediction_source); link-session seeding → fire-and-forget rescore in
+  `after()`. All best-effort: rule writes never fail on rescore failure.
+- **Constants (behaviour-preserving):** `VALUE_CHAT_CITATION_THRESHOLD = 0.7`
+  in value-config; migrated get-value-breakdown, get-value-review-queue,
+  context-builder (×2), retake-trigger.
+- **NEW `scripts/vm2-generate-rescore-backfill.ts`** — emits idempotent
+  backfill SQL by running the real planRescore over data dumps.
+
+### Backfill (staging): `vm2_rule_rescore_backfill_part1..4`
+
+Generated from real matcher output over 201 rules × 6,579 unconfirmed live
+rows (26 rule users). **Scanned 1,084 / updated 1,041** across 79 user-months
+(93 grouped UPDATEs + scoped snapshot recompute). Provenance before→after:
+merchant_rule **237 → 932**, category_rule **0 → 196** (rule-or-user sourced
+**2.2% → 7.1%** of active transactions); displayable (≥0.6 or confirmed)
+labels now 1,276. Sacred-rule checksum over all 150 `value_confirmed_by_user`
+rows identical pre/post (`dd3db509…`). Idempotency probe: re-running
+representative statements → 0 rows. Reconciliation (heavy user-month
+d65975d1/2026-03): snapshot buckets = live buckets, foundation 358.47 +
+unmapped 1,904.62 = 2,263.09.
+
+### Prod companion
+
+`supabase/manual/VM-2-prod-rescore.DO-NOT-APPLY.sql` (awaiting Lewis;
+deploy-first ordering; baseline + post-apply assertions included).
+
+### Deviations & why
+
+- **No new `matchValueRule`-from-scratch:** Phase 0 found `resolveValueCategory`
+  already 90% of the spec'd matcher; the new file is its extracted,
+  floor-governed core rather than a parallel implementation — one matcher,
+  as the session intends.
+- **Prod companion is a regeneration procedure, not identical statements:**
+  transactions store no normalised merchant and the normaliser is TS, so
+  set-based SQL would reimplement normalisation (G2 forbids). The staging
+  statements are row-targeted at staging UUIDs (no-ops on prod). The
+  companion documents regenerating with the same script + matcher against
+  prod dumps; semantics identical by construction.
+- **Migration applied in 4 named parts** (`_part1..4`) — 95KB exceeded a
+  single comfortable apply; statements unchanged.
+- **0.5 floor is a deliberate behaviour change at ingest:** 17 merchant +
+  1 category rules (conf .40–.49) stop applying (previously applied at tier
+  thresholds .15–.30). All were invisible behind the 0.6 display gate anyway.
+  Predictor tests updated accordingly.
+- **Verification grep #5 read literally still hits 0.7s in `src/lib`** —
+  archetype temperature, prompt weights, COVERAGE_FLOOR, ambiguity multiplier,
+  and suggest-value-recategorisation's `auto_category_confidence` check
+  (traditional-category confidence, different semantic — left). No
+  value-confidence citation floor remains hardcoded.
+
+### Lessons learned
+
+- The "two matchers" drift was invisible until the joinability test: substring
+  matching survived two sessions because the surfaces it served (preview,
+  preset branch) are rarely diffed against the predictor.
+- Generated, guard-wrapped SQL from the production matcher beats a SQL
+  reimplementation for backfills whose logic lives in TS — zero semantic
+  drift and idempotency comes free.
+
+### Follow-ups
+
+- 3 merchants whose rule match_values retain location suffixes match zero
+  transactions (8 rules) — VM-5 pulse targeting candidates; consider a
+  normaliser pass over `value_category_rules.match_value` on rule write.
+- 17+1 sub-floor rules (conf < 0.5) no longer apply and their previously
+  stamped rows keep stale low-confidence `merchant_rule` provenance (invisible
+  behind the display gate) — a future rescore sweep could downgrade orphaned
+  provenance explicitly.
+- `value_map_sessions`-linked seeding writes `confidence = r.confidence/5`;
+  a 2/5-confidence VM answer seeds a 0.4 rule that now never applies —
+  intended under the floor, but VM-3 should surface this in the retake design.
+- `suggest-value-recategorisation`'s `autoConfidence < 0.7` is a traditional-
+  category floor; if it should be tokenised it needs its own named constant.
+
+---
+
 ## VM-1 — Value honesty gate (2026-06-10)
 
 Branch: `claude/value-map-v2-uas9b3` @ eda279e (session-designated branch; the
