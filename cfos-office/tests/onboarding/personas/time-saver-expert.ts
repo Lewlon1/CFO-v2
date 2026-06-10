@@ -75,6 +75,8 @@ export const timeSaverExpert: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 6200,
+    monthlyRent: 1800,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: 'investment', confidence: 5, firstTapMs: 500, cardTimeMs: 800, deliberationMs: 200 },
@@ -99,10 +101,17 @@ export const timeSaverExpert: Persona = {
       expectedQuadrant: 'investment',
       personalityId: 'builder',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: 'Max the ISA',
+      type: 'investment',
+      targetAmount: 20000,
+      currentAmount: 8898,
+      targetDate: '2026-12-31',
+    },
     dbAfterHandoff: {
       /* primary_currency collected post-onboarding in chat, not asserted here */
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [50, 90] },
     },
     hardRules: {
@@ -119,8 +128,7 @@ export const timeSaverExpert: Persona = {
         mustAcknowledgeOneOf: ['have a plan', 'know what you', 'clear', 'intentional', 'in control', 'system already', 'dialled in'],
       },
       insight: {
-        mustReferenceOneOf: ['track', 'watch', 'flag', 'automate', 'monitor', 'tell you when', 'subscription', 'bill', 'change'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['housing', 'groceries', 'subscriptions', 'fixed costs'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

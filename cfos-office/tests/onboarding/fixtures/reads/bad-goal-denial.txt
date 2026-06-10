@@ -1,0 +1,5 @@
+You have no active goal yet, so there's nothing to measure against.
+
+[CTA:set_goal]Set a goal[/CTA]
+
+— C.

@@ -18,6 +18,7 @@ import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmp
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Input, Textarea } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Live-theme hook: re-renders when the global data-theme attribute flips, so
@@ -444,6 +445,23 @@ export function StyleguideClient() {
           <Input placeholder="Disabled" disabled />
           <Input placeholder="Invalid — aria-invalid" aria-invalid />
           <Textarea placeholder="Notes…" />
+        </div>
+
+        <Sub>Select — default (elevated surface) · base surface (className override) · disabled</Sub>
+        <div className="grid max-w-md grid-cols-1 gap-3">
+          <Select defaultValue="monthly">
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </Select>
+          <Select className="bg-bg-base" defaultValue="monthly">
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </Select>
+          <Select disabled defaultValue="monthly">
+            <option value="monthly">Disabled</option>
+          </Select>
         </div>
 
         <Sub>Still deferred (≥3-consumer bar not met this session)</Sub>

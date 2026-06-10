@@ -156,6 +156,36 @@ describe('reconcileFixedCosts', () => {
     const result = await reconcileFixedCosts(supabase, 'user-1')
     expect(result.totalFixedCostsMonthly).toBe(950)
   })
+
+  it('dedupes case-variant detected rows so they count once', async () => {
+    // "Supabase" and "supabase" are the same expense — the case-sensitive
+    // unique constraint lets both rows exist; counting both double-inflated
+    // fixed costs in calculate_monthly_budget and the First Read.
+    const supabase = buildStub({
+      profile: { monthly_rent: null, primary_currency: 'EUR' },
+      recurring: [
+        { name: 'Supabase', amount: 27.03, frequency: 'monthly', status: 'detected', category_id: 'subscriptions' },
+        { name: 'supabase', amount: 27.03, frequency: 'monthly', status: 'detected', category_id: 'subscriptions' },
+      ],
+    })
+    const result = await reconcileFixedCosts(supabase, 'user-1')
+    expect(result.totalFixedCostsMonthly).toBeCloseTo(27.03, 2)
+    expect(result.items.filter((i) => i.label.toLowerCase() === 'supabase')).toHaveLength(1)
+  })
+
+  it('treats "bimonthly" (no hyphen) as bi-monthly, not monthly, in the total', async () => {
+    // Writers disagree on spelling ('bi-monthly' vs 'bimonthly'); the unknown
+    // spelling previously fell back to 'monthly' and double-counted the amount.
+    const supabase = buildStub({
+      profile: { monthly_rent: null, primary_currency: 'EUR' },
+      recurring: [
+        { name: 'Renfe', amount: 63.65, frequency: 'bimonthly', status: 'detected', category_id: 'subscriptions' },
+      ],
+    })
+    const result = await reconcileFixedCosts(supabase, 'user-1')
+    // bi-monthly → /2 = 31.825; the pre-fix fallback wrongly treated it as monthly (63.65).
+    expect(result.totalFixedCostsMonthly).toBeCloseTo(31.83, 2)
+  })
 })
 
 // Silence the console.error path the helper takes on Supabase errors so the

@@ -664,17 +664,20 @@ the non-negotiable rule:
   Serif · Instrument Sans · Geist Mono; office subtree (`app/(office)/layout.tsx`) — DM Sans ·
   JetBrains Mono · Cormorant Garamond (briefing serif + "CFO's Office" wordmark).
 
-**Three drift-proofing prongs** (all run in [`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+**Drift-proofing prongs.** The first two run automatically in CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml) — `npm ci` → `typecheck` → `lint` →
+`knip` → `test`, on every push to `main` and every PR); the third is a manual dev surface:
 
 1. **ESLint guards** — `cfo/visual-token-guards` in `cfos-office/eslint.config.mjs` (colour +
-   radius bans, scoped to `src/**`).
-2. **knip** — `cfos-office/knip.json` gates unused-file + unused-dependency drift. (Unused
-   `exports`/`types`/`duplicates` checks are relaxed: those findings are Audit-Zero-verified
-   false positives — registry dispatch, named+default pairs, generated `supabase/types.ts`.
-   Tightening them is a follow-up requiring feature-code cleanup.)
+   radius bans, scoped to `src/**`). Enforced in CI via `npm run lint`.
+2. **knip** — `cfos-office/knip.json` gates unused-file + unused-dependency drift. Enforced in
+   CI via `npm run knip`. (Unused `exports`/`types`/`duplicates` checks are relaxed: those
+   findings are Audit-Zero-verified false positives — registry dispatch, named+default pairs,
+   generated `supabase/types.ts`. Tightening them is a follow-up requiring feature-code cleanup.)
 3. **`/styleguide`** — `cfos-office/src/app/styleguide/` (dev-only via `notFound()` in
    production) is the canonical visual-regression surface: every primitive, every state, both
-   themes. Snapshot testing is an optional later follow-up.
+   themes. **Manual / eyeball only — NOT run in CI** (automated snapshot testing is an optional
+   later follow-up).
 
 Documented exceptions (brand marks, html2canvas share-cards, the ChatSheet shadow, DB-coupled
 `CATEGORY_COLORS`, merchant-code/entity/test false positives, thin bar radii) carry a

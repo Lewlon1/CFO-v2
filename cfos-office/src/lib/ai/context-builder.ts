@@ -1278,6 +1278,11 @@ export async function buildSystemPrompt(
       // off. Empty unless this is a delivered-recompose first_read thread with a
       // significant ambiguous merchant and the beat not yet offered.
       await buildWhyBeatContext(userId, conversationType, conversationMetadata),
+      // Active goals + the no-goal guardrail. Previously omitted from the
+      // first_read branch, which left the CFO blind to a goal it had just
+      // created in the goal-chat — it denied the wedding goal and called the
+      // wrong tools. Same data + call signature as the general branch below.
+      buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
       buildToolUsageInstructions(),
       getPosturePromptFragment(profile),
     ].filter(Boolean);
@@ -2188,6 +2193,7 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **get_action_items**: "What's on my to-do list?" or "What should I be working on?"
 - **create_action_item**: When a conversation produces a concrete next step. Always confirm with the user before creating.
 - **create_goal**: "I want to save for X" / "Set a goal to save €Y" / any non-event savings target (emergency fund, house deposit, big purchase, etc.). Confirm goal name, target amount, and optional deadline with the user, then call. For trips, weddings, gifts, or other time-bound events, use plan_event instead.
+- **compute_goal_pace**: "Am I on track for [goal]?" / "How much a month for the wedding?" / "How long will it take?" — returns the monthly amount needed, months remaining, and on-track status from the system. Omit goal_id to use the user's primary active goal (you do NOT need a UUID). NEVER tell the user a goal doesn't exist without first calling this or checking the "Active goals" section — they may have set it earlier in the same flow.
 - **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" / "What if I had kids?" / "What if I changed careers?" / "How would my investments grow?" All 6 scenario types are available. All calculations are server-side.
 - **plan_event**: "Help me plan a trip" / "I need to budget for my sister's wedding" / "I want to plan a gift for X" — create a budget, funding plan, and savings goal for any time-bound spending occasion. Pass kind (travel | celebration | gift | other) to disambiguate. Call this AFTER collecting destination/occasion, dates, style, and companions, and AFTER researching real costs. All funding calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.

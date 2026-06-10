@@ -6,6 +6,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { recomputeIfStale } from '@/lib/goals/recompute'
 import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
+import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
@@ -126,6 +127,28 @@ export default async function OfficeLayout({ children }: { children: React.React
     ?? user.email?.split('@')[0]
     ?? null
 
+  // Active goal for the upload-beat bridge (so the CFO can acknowledge it by
+  // name before asking for statements). Only queried at the upload entry steps.
+  let onboardingGoal: OnboardingGoalSummary | null = null
+  if (onboardingStep === 'upload_pending' || onboardingStep === 'essentials_done') {
+    const { data: activeGoal } = await supabase
+      .from('goals')
+      .select('name, target_amount, currency')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (activeGoal?.name) {
+      onboardingGoal = {
+        name: activeGoal.name,
+        targetAmount: activeGoal.target_amount ?? null,
+        currency: activeGoal.currency ?? currency,
+      }
+    }
+  }
+
   // Once-per-session goal recompute. Runs fire-and-forget after the response
   // is sent so it never blocks render. 30-minute TTL gate (in recomputeIfStale)
   // is well within the "up to one session's staleness is acceptable"
@@ -183,6 +206,7 @@ export default async function OfficeLayout({ children }: { children: React.React
         initialSheetOpen={goalBeatActive || onboardingBeatActive || needsEntryStruggle}
         onboardingStep={onboardingStep}
         needsEntryStruggle={needsEntryStruggle}
+        onboardingGoal={onboardingGoal}
       >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />

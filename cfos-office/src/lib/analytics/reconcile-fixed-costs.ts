@@ -92,12 +92,48 @@ function isAmountBandMatch(aMonthly: number, bMonthly: number): boolean {
   return diff / denom <= AMOUNT_BAND
 }
 
+// Writers disagree on cadence spelling (recurring-detector emits 'bi-monthly';
+// the dashboard summary route + bills/normalise emit 'bimonthly'). Map the known
+// no-hyphen / synonym variants onto the canonical ladder so the same merchant
+// can't be valued at a different monthly equivalent depending on which writer
+// last touched it. Unknown strings still fall back to 'monthly'.
+const CADENCE_ALIASES: Record<string, Cadence> = {
+  bimonthly: 'bi-monthly',
+  'bi monthly': 'bi-monthly',
+  biweekly: 'bi-weekly',
+  'bi weekly': 'bi-weekly',
+  fortnightly: 'bi-weekly',
+  yearly: 'annual',
+  annually: 'annual',
+}
+
 function normaliseCadence(raw: string | null | undefined): Cadence {
-  const c = (raw ?? 'monthly').toLowerCase()
+  const c = (raw ?? 'monthly').toLowerCase().trim()
   if ((CADENCE_LADDER as readonly string[]).includes(c)) return c as Cadence
+  if (CADENCE_ALIASES[c]) return CADENCE_ALIASES[c]
   // Defensive: detector may emit 'irregular' for sparse clusters — treat as
   // monthly for total purposes (they won't have qualified anyway).
   return 'monthly'
+}
+
+/**
+ * Collapse case-variant duplicate recurring rows (e.g. "Supabase" + "supabase")
+ * by lower(name), keeping the first occurrence. recurring_expenses has a
+ * case-SENSITIVE unique constraint, so two writers can insert the same merchant
+ * under different casing; summing both double-inflates fixed costs. The durable
+ * fix is a case-insensitive constraint + a single writer — this read-side guard
+ * protects every reconcile consumer in the meantime.
+ */
+export function dedupeRecurringByName<T extends { name?: string | null }>(rows: T[]): T[] {
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const r of rows) {
+    const key = (r.name ?? '').trim().toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(r)
+  }
+  return out
 }
 
 /**
@@ -166,7 +202,7 @@ export async function reconcileFixedCosts(
     bill_subtype: BillSubtype | null
     category_id: string | null
   }
-  const detectedSlots: DetectedSlot[] = (recurringRes.data ?? []).map((r) => {
+  const detectedSlots: DetectedSlot[] = dedupeRecurringByName(recurringRes.data ?? []).map((r) => {
     const cadence = normaliseCadence(r.frequency as string)
     const amount = Number(r.amount)
     return {

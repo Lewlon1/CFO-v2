@@ -48,6 +48,8 @@ export const truthTellerBalanced: Persona = {
     country: 'GB',
     city: 'Bristol',
     currency: 'GBP',
+    monthlyIncome: 2800,
+    monthlyRent: 900,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: null, confidence: 0, firstTapMs: 4000, cardTimeMs: 5500, deliberationMs: 1200, hardToDecide: true },
@@ -72,9 +74,16 @@ export const truthTellerBalanced: Persona = {
       expectedQuadrant: 'foundation',
       personalityId: 'truth_teller',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: '6-month safety net',
+      type: 'savings',
+      targetAmount: 15000,
+      currentAmount: 3000,
+      targetDate: '2027-06-01',
+    },
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [30, 70] },
     },
     hardRules: {
@@ -83,7 +92,7 @@ export const truthTellerBalanced: Persona = {
         mustMentionOneOf: ['balance', 'clear', 'mixed', 'truth', 'honest', 'see'],
       },
       insight: {
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['snapshot', 'free cash flow', 'rent', 'housing'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

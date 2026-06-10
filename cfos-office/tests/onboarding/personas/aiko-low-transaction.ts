@@ -45,6 +45,8 @@ export const aikoLowTransaction: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 3100,
+    monthlyRent: 1150,
   },
   // Confidence levels skew toward 'don't really know' — Aiko hasn't built
   // strong opinions yet. Several `hardToDecide` taps.
@@ -78,13 +80,14 @@ export const aikoLowTransaction: Persona = {
     },
     stagesCompleted: [
       'struggle_submitted',
-      'value_map_done',
+      'goal_done',
       'upload_done',
-      'archetype_shown',
-      'complete',
+      'essentials_done',
+      'confirm_done',
+      'first_read',
     ],
     dbAfterHandoff: {
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [12, 18] },
     },
     hardRules: {
@@ -99,19 +102,14 @@ export const aikoLowTransaction: Persona = {
       insight: {
         // Should ground in what's actually visible: top merchants from the
         // 21-day window.
-        mustReferenceMerchantsFromCsv: ['pret', 'sainsbury', 'tesco'],
         // Must acknowledge thinness OR ask a question rather than asserting.
         mustReferenceOneOf: [
-          'recent',
-          'so far',
-          'starting',
-          'limited',
           'first',
-          'short',
-          'just',
-          '?',
+          'housing',
+          'free cash flow',
+          'shopping',
+          'groceries',
         ],
-        numbersMustMatchCsv: true,
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

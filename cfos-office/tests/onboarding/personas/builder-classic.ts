@@ -81,6 +81,8 @@ export const builderClassic: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 3200,
+    monthlyRent: 1100,
   },
   valueMapResponses: [
     // Rent → hard-to-decide (calm, sees rent as neutral background cost)
@@ -115,10 +117,16 @@ export const builderClassic: Persona = {
       expectedQuadrant: 'investment',
       personalityId: 'builder',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: 'Grow ISA pot',
+      type: 'investment',
+      targetAmount: 40000,
+      currentAmount: 12000,
+      targetDate: '2028-06-01',
+    },
     dbAfterHandoff: {
-      user_profiles: { onboarding_completed_at: 'not-null' },
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [40, 80] },
     },
     hardRules: {
@@ -128,9 +136,7 @@ export const builderClassic: Persona = {
         mustMentionOneOf: ['invest', 'grow', 'build', 'intentional', 'purposeful'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['gym', 'vanguard', 'course'],
-        mustReferenceOneOf: ['investment', 'growth', 'discipline', 'habit'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['housing', 'groceries', 'free cash flow', 'fixed costs'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

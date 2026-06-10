@@ -33,6 +33,8 @@ export async function getClusterBehaviour(params: {
    * than re-querying per cluster. When omitted, it's fetched here.
    */
   dataWindowEnd?: string | null;
+  /** ISO currency code for the summary line (e.g. 'EUR', 'GBP'). Defaults to EUR. */
+  currency?: string;
 }): Promise<ClusterBehaviour> {
   const supabase = params.supabase ?? createServiceClient();
   const requestedWindow = params.windowDays ?? DEFAULT_WINDOW_DAYS;
@@ -113,7 +115,7 @@ export async function getClusterBehaviour(params: {
     lifecycle,
   } as Omit<ClusterBehaviour, 'summary'>;
 
-  return { ...base, summary: composeSummary(base) };
+  return { ...base, summary: composeSummary(base, params.currency ?? 'EUR') };
 }
 
 export type { ClusterBehaviour, ClusterType } from './types';
