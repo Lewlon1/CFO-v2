@@ -4,7 +4,6 @@ import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { recomputeIfStale } from '@/lib/goals/recompute'
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 
@@ -61,14 +60,12 @@ export default async function OfficeLayout({ children }: { children: React.React
   // If the user is mid-Marcus-journey (post-goal-beat), bounce them back to
   // the appropriate onboarding-v2 step. Without this, a Marcus user could
   // navigate manually to /office and skip the value-map / upload / archetype.
-  // Session 32 (B) — under the layered-read flag, `upload_done` redirects to
-  // the parallel `/onboarding-v2/first-read` route; the layered-terminal
-  // state `first_read_shown` also bounces back to that route. Users stamped
-  // `archetype_shown` (i.e. mid-flow on the old surface) continue to bounce
-  // there regardless of flag state.
+  // Session 32 (B) — `upload_done` redirects to `/onboarding-v2/first-read`;
+  // the layered-terminal state `first_read_shown` also bounces back to that
+  // route. Users stamped `archetype_shown` (i.e. mid-flow on the old surface)
+  // continue to bounce there.
   const onboardingStep = (profile?.onboarding_step as string | null) ?? null
   const isMarcus = profile?.entry_struggle === 'dont_know'
-  const layered = isLayeredReadEnabled()
   // Mid-goal-beat: the user landed here to talk to the CFO, not to browse the
   // office. Drive the sheet open on the first paint so the office home never
   // flashes behind it while the GoalBeatWatcher/ChatOpenerTrigger effects run.
@@ -97,7 +94,7 @@ export default async function OfficeLayout({ children }: { children: React.React
       redirect('/onboarding-v2/value-map')
     }
     if (onboardingStep === 'value_map_done') redirect('/onboarding-v2/upload')
-    if (onboardingStep === 'upload_done') redirect(layered ? '/onboarding-v2/first-read' : '/onboarding-v2/archetype')
+    if (onboardingStep === 'upload_done') redirect('/onboarding-v2/first-read')
     if (onboardingStep === 'archetype_shown') redirect('/onboarding-v2/archetype')
     if (onboardingStep === 'first_read_shown') redirect('/onboarding-v2/first-read')
   }

@@ -79,6 +79,8 @@ Two formatters with the same name and different behaviour is the same "third sou
 
 ## 3. Retained legacy — dead only when the kill-switches retire
 
+> **EXECUTED 2026-06-10** — both kill-switches retired and the legacy paths below removed (see `docs/decisions/2026-06-10-legacy-onboarding-removal-plan.md`). Kept for the historical record.
+
 **Nothing here is dead today.** Both gates are default-ON with env-var escape hatches that CLAUDE.md explicitly designates as runtime rollback. This is the inventory for the already-planned removal session.
 
 ### 3.1 `isLayeredReadEnabled()` false-branches (`LAYERED_READ_DISABLED=true`)

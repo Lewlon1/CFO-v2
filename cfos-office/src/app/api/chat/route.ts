@@ -22,7 +22,6 @@ import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-c
 import { quickClassifyDecline } from '@/lib/onboarding-v2/value-map-decline-quickcheck';
 import { quickClassifyGoalDeferral } from '@/lib/onboarding-v2/goal-deferral-quickcheck';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
-import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { showInternalQANotes } from '@/lib/features/qa-notes';
 import { detectValueSaveHallucination } from '@/lib/ai/value-save-guard';
 import {
@@ -38,7 +37,6 @@ import {
 } from '@/lib/ai/insight-validator';
 import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
 import { sanitisePersona } from '@/lib/ai/persona-sanitiser';
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 import { extractAndStoreSignals } from '@/lib/analytics/chat-signals';
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types';
 
@@ -230,7 +228,7 @@ export async function POST(req: Request) {
       // message and store in chat_signals. Fire-and-forget via after().
       // Pattern matching is cheap; LLM fallback (Haiku) only fires when patterns
       // miss or are low-confidence. Failures are swallowed.
-      if (isLayeredReadEnabled() && insertedMessage?.id) {
+      if (insertedMessage?.id) {
         const persistedMessageId = insertedMessage.id as string;
         after(async () => {
           try {
@@ -400,7 +398,6 @@ export async function POST(req: Request) {
   // Burn the window now so turn 2+ won't re-offer it — fire-and-forget; the
   // framing rule itself handles "drop it if the user deflects".
   if (
-    isLayeredReadEnabled() &&
     conversationType === 'first_read' &&
     conversationMetadata?.first_read_metadata_recomposed &&
     !conversationMetadata?.why_beat_offered &&
@@ -945,8 +942,8 @@ export async function POST(req: Request) {
         // ── end hallucination guard ──────────────────────────────────────
 
         // ── V2 chat-intelligence validators (Phase 6) ────────────────────
-        // For wave-1/wave-1.5 cohort users on first_read conversations,
-        // run four deterministic guards on the LLM output:
+        // For first_read conversations, run four deterministic guards on
+        // the LLM output:
         //   - citation grounding (numbers + merchants → tool result/brief)
         //   - projection grounding (any /year, /month, "saved" framing →
         //     propose_experiment tool result)
@@ -956,9 +953,7 @@ export async function POST(req: Request) {
         // When the first three fire, a short server-side correction is
         // appended to the persisted message body and a single user_events
         // row is logged. Bad chips are stripped from the [OPTIONS] block.
-        const v2Enabled = isChatIntelligenceV2Enabled(profileForChat);
         if (
-          v2Enabled &&
           conversationType === 'first_read' &&
           textContent
         ) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveUserCurrency } from '../insight-engine';
+import { resolveUserCurrency } from '../resolve-user-currency';
 
 describe('resolveUserCurrency', () => {
   it('GB country with EUR profile (schema default) -> GBP (override)', () => {

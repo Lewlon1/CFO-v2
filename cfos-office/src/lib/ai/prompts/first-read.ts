@@ -2,7 +2,7 @@
  * Composition prompt for the layered first Read.
  *
  * The first Read is the single piece of writing the user sees when they finish
- * onboarding under the layered-read flag. It must reference the user's actual
+ * onboarding. It must reference the user's actual
  * top merchants, cite specific behavioural features (trend, recurrence, time
  * pattern, lifecycle, amount profile), and where stated intent (Value Map) and
  * behaviour diverge, point it out factually.

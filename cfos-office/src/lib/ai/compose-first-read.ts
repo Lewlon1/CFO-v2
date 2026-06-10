@@ -25,7 +25,7 @@ import {
   reconcileFixedCosts,
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
-import { resolveUserCurrency } from '@/lib/analytics/insight-engine';
+import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
   selectHookCandidates,

@@ -1,5 +1,4 @@
 import type { OnboardingStep } from './types'
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 
 /**
  * Resolve where the user should be in the onboarding-v2 journey.
@@ -26,10 +25,9 @@ import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
  * - Goal set/skipped (legacy, pre-essentials_done) → /onboarding-v2/value-map.
  *   Users mid-flow before this change get the old behavior so nobody is
  *   stranded.
- * - Mid-value-map journey (value_map / upload / archetype-or-first-read) →
- *   mapped route. Session 32 (B) added the parallel `/onboarding-v2/first-read`
- *   route for layered-read users; the routing fork is gated by
- *   isLayeredReadEnabled().
+ * - Mid-value-map journey (value_map / upload / first-read) → mapped route.
+ *   Session 32 (B) added the `/onboarding-v2/first-read` route; users stamped
+ *   `archetype_shown` mid-flow on the old surface still route to archetype.
  * - Complete → /office.
  */
 export function resumeRoute(
@@ -39,8 +37,6 @@ export function resumeRoute(
   if (!entryStruggle) return '/onboarding-v2'
 
   const isMarcus = entryStruggle === 'dont_know'
-  const layered = isLayeredReadEnabled()
-  const postUploadRoute = layered ? '/onboarding-v2/first-read' : '/onboarding-v2/archetype'
 
   switch (step) {
     case null:
@@ -74,11 +70,11 @@ export function resumeRoute(
     case 'value_map_done':
       return '/onboarding-v2/upload'
     case 'upload_done':
-      return postUploadRoute
+      return '/onboarding-v2/first-read'
     case 'archetype_shown':
-      // A user stamped 'archetype_shown' was in the non-layered flow at the
-      // time of stamping. Route them back to the archetype page even if the
-      // flag is now on — they're mid-flow on the old surface.
+      // A user stamped 'archetype_shown' was in the pre-layered flow at the
+      // time of stamping. Route them back to the archetype page — they're
+      // mid-flow on the old surface.
       return '/onboarding-v2/archetype'
     case 'first_read_shown':
       // Session 32 (B) — layered terminal state. Route back if mid-flow.

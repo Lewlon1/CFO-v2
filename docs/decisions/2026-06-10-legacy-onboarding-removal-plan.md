@@ -1,6 +1,6 @@
 # Removal plan — legacy onboarding processes (pre-layered path + V1 narration)
 > Drafted: 2026-06-10 | Branch: `claude/dead-redundant-code-analysis-ojnldr` | Baseline: `b5ae57d` (post-#67 merge)
-> Status: **PLANNED — blocked on Phase 0 go/no-go.** Companion to `docs/audits/2026-06-09-dead-redundant-code.md` §3.
+> Status: **EXECUTED 2026-06-10** (single PR, per Lewis's call; Phase 0 data gates verified against prod, Vercel env check left with Lewis). Companion to `docs/audits/2026-06-09-dead-redundant-code.md` §3.
 
 ## Scope
 
@@ -28,9 +28,16 @@ one, then sweep the inner generation and its dependency cascade.
   `archetype_shown`, `first_read_shown`) in `lib/onboarding-v2/resume.ts` and
   `IN_SHEET_BEAT_STEPS` — mid-flow users must not strand. Revisit only after a
   DB check shows zero users on these stamps.
-- `pattern-detectors.ts`, `insight-types.ts`, `experiments/{templates,scoring}.ts`,
-  `income-signal.ts` — shared with the live chat-intelligence tools
-  (`find-outliers`, `propose-experiment`, etc.). Verified live importers; they stay.
+- `pattern-detectors.ts`, `insight-types.ts`, `experiments/{templates,scoring}.ts` —
+  shared with the live chat-intelligence tools (`find-outliers`,
+  `propose-experiment`, etc.). Verified live importers; they stay.
+  (Execution note: `income-signal.ts` was on this keep-list but turned out to
+  have insight-engine as its ONLY production caller — the other references were
+  comments — so it was removed with the engine, along with the orphaned
+  `BLOCKED_AT_FIRST_INSIGHT` / `INCOME_SIGNAL_THRESHOLD` consts and the
+  never-set `requires_income_signal` template field. The v1 Gap rendering
+  (`TheGapClient.tsx` + `GapCard`/`ProvenanceLine`) also fell out as a cascade
+  of inlining the chat-intelligence gate on the-gap page.)
 - `merchant_aggregates` MV, `wow_events` table, Value Map surfaces — live.
 
 ---
