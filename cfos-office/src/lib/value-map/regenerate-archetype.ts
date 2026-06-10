@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateText } from 'ai'
 import { bedrock, chatModelId } from '@/lib/ai/provider'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
+import { isValueMapV2Enabled } from '@/lib/value-map/flags'
 import {
   buildRegenerationPrompt,
   getRegenerationFallback,
@@ -47,6 +48,11 @@ export async function regenerateArchetype(
   userId: string,
   trigger: RegenerationTrigger,
 ): Promise<RegenerationResult | null> {
+  // VM-4: under VALUE_MAP_V2 the deterministic taxonomy owns archetype
+  // identity — free-form regeneration must not run. Callers already
+  // tolerate null (no-archetype outcome). Flag OFF: behaves as before.
+  if (isValueMapV2Enabled()) return null
+
   const startTime = Date.now()
 
   try {

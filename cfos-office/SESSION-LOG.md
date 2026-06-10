@@ -83,6 +83,45 @@ fields, empty/invalid handling, `runMerchantLearning` fan-out + error swallow).
   landing on the retake path) is mitigated — not closed — by the synchronous
   rule. Still worth its own investigation.
 =======
+=======
+## VM-4 — Archetype v2: taxonomy + reveal + provenance (2026-06-10)
+
+Branch: `claude/value-map-v2-7ox3hw` (canonical, post-VM-FF) @ 64fd2fe, merged origin/main (already up to date). Base gate: PASS (`select-candidates.ts`, `value-rescore.ts`, `POST /api/value-map/onboarding` all present).
+
+**Phase 0:** Reveal slot exactly as VM-3 documented — `onboarding-v2-flow.tsx` state machine between 'saving' and 'payback' (comment markers in both flow and payback-screen). Bedrock pattern: `lib/ai/provider.ts` (`createAmazonBedrock` + `eu.` profiles, Sonnet via `chatModel`); prompt convention: co-located `*-prompt.ts` with builder + fallback (e.g. `regenerate-archetype-prompt.ts`). Legacy free-form sites: `/api/onboarding/generate-archetype` (resume surface), `regenerateArchetype()` (retake), `/api/value-map/reveal` (Opus reading — fed RAW telemetry into its prompt; now gated). Plan surface: `/office/goals/page.tsx` — reachable, Phase 7 SHIPPED (no soft fallback needed). Constitution: `CFO-CONSTITUTION.md` v1.5 at repo root, read before prompt work.
+
+**Pinned v1 constants (verbatim from staging, 2026-06-10):**
+- Base rates (n=793 answered cards): foundation 0.4628 (367) | investment 0.2900 (230) | burden 0.1702 (135) | leak 0.0769 (61)
+- Certainty medians (85 sessions ≥6 cards): avg confidence 3.0000 | hard rate 0.0000 | median deliberation 1208.5ms; spreads (stddev_pop): 0.1934 | 0.0000 | 477.8
+- Deliberation bands: p33 = 914ms | p66 = 1483ms
+
+**Legacy session cross-distribution (83 sessions ≥6 answered cards — the prompt's "35" undercounted; actuals: anchor 31, builder 13, fortress 39):**
+
+| legacy → v1 | Builder | Scout | Fortress | Nester | Negotiator | Restless | Editor | Drifter | fallback |
+|---|---|---|---|---|---|---|---|---|---|
+| builder (13) | 9 | 2 | — | — | 1 | 1 | — | — | — |
+| fortress (39) | 12 | 1 | 5 | 4 | 2 | — | 9 | 3 | 3 |
+| anchor (31) | 4 | 4 | 1 | 5 | 4 | 2 | 4 | 6 | 1 |
+
+Sanity read: `builder` skews growth hard (11/13) — expectation met. `fortress` does NOT skew security (9/39) — expected by construction once base rates are in play: foundation's 46% base rate means foundation-heavy sorting rarely *over-indexes* foundation; the legacy label rewarded absolute share. `anchor` scatters, as predicted. Not force-mapped; reported as found.
+
+**Migration:** `072_vm4_taxonomy_columns` applied to staging (qlbhvlssksnrhsleadzn) — four nullable columns on `value_map_sessions`. Prod companion `supabase/manual/VM-4-prod-columns.DO-NOT-APPLY.sql` awaiting Lewis.
+
+**Tension detectors in fixtures:** D1 ×4 (incl. priority-over-D2 case), D2 ×1, none ×4. Dorcas simulation: D1 fires (candor-stated vs foundation-observed).
+
+**Deviations & why:**
+- Plan doc "Part 7" (locked spec + four approved seed readings) is NOT in the repo. Taxonomy rules/names/thresholds were fully specified in the session prompt and implemented verbatim; the four few-shot seed readings were authored fresh against CFO-CONSTITUTION v1.5 — Lewis to swap in the approved texts if they differ.
+- The reading generation lives in a sibling endpoint `POST /api/value-map/reading` rather than inline in `/api/value-map/onboarding`, so name + receipt + tension render instantly from the save response and only the reading streams in behind a shimmer. Still exactly one generation call per reveal; the unnamed-fallback cell never calls the LLM.
+- "Went back and forth" band dropped per spec (mind-changes not captured; not faked).
+- The 0.7 query's "35 legacy sessions" is actually 83 on staging — ran over all of them.
+- Dorcas end-to-end ran as a committed module-level pipeline simulation (`vm4-dorcas-simulation.test.ts`: classify → receipt → tension → payback-to-the-cent → reveal payload + CTA/frame flavour) plus the mocked-Bedrock-failure test; a live staging UI walkthrough needs AWS creds + a running app, which this container lacks.
+
+**Lessons learned:** Base-rate normalisation inverts intuitions formed on absolute shares — any future taxonomy version must re-pin constants AND re-run the legacy cross-distribution before trusting family names. Degenerate spreads (hard_to_decide stddev 0) need explicit guards in any z-composite.
+
+**Follow-ups:** VM-4b family-led goal resequencing | Read Layer-2 async recompose (never in the reveal's critical path) | shift narratives at retake time | prod columns + flag decision at final merge.
+
+---
+
 ## VM-FF (2026-06-10): claude/value-map-v2-7ox3hw fast-forwarded to VM-3 tip ff52c51
 
 Canonical VM branch = `claude/value-map-v2-7ox3hw`.

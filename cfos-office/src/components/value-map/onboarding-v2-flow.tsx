@@ -4,10 +4,12 @@
 //
 // Slim, fully deterministic flow (zero LLM calls anywhere on this path):
 //
-//   intro → exercise → saving → payback → CTA (/office/goals)
-//                              ↑
-//        VM-4 INSERTION SLOT: the archetype reveal inserts a 'reveal' step
-//        here, between 'saving' and 'payback' (see payback-screen.tsx).
+//   intro → exercise → saving → reveal → payback → CTA (/office/goals)
+//
+// VM-4: the archetype reveal occupies its documented slot between 'saving'
+// and 'payback'. The save response carries the computed reveal payload
+// (name, receipt, tension); if classification failed or is absent the flow
+// falls straight through to payback exactly as before.
 //
 // Skippable at session start and on every card ("Later"): skipping writes no
 // rules and triggers no re-score — it stamps the terminal onboarding step and
@@ -24,6 +26,7 @@ import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { CfoThinking } from '@/components/brand/CfoThinking'
 import { ValueMapCard } from './value-map-card'
 import { PaybackScreen } from './payback-screen'
+import { ArchetypeReveal } from './archetype-reveal'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { skipValueMapV2 } from '@/app/onboarding-v2/value-map/v2-actions'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
@@ -36,8 +39,9 @@ import {
 } from '@/lib/value-map/copy'
 import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import type { PaybackSummary } from '@/lib/value-map/payback'
+import type { RevealPayload } from '@/lib/value-map/reveal'
 
-type FlowStep = 'intro' | 'exercise' | 'saving' | 'payback'
+type FlowStep = 'intro' | 'exercise' | 'saving' | 'reveal' | 'payback'
 
 interface OnboardingValueMapV2Props {
   cards: ValueMapTransaction[]
@@ -49,6 +53,7 @@ export function OnboardingValueMapV2({ cards, currency }: OnboardingValueMapV2Pr
   const trackEvent = useTrackEvent()
   const [step, setStep] = useState<FlowStep>('intro')
   const [payback, setPayback] = useState<PaybackSummary | null>(null)
+  const [reveal, setReveal] = useState<RevealPayload | null>(null)
   // Re-entry guards (refs, not state — a second fire racing in the same
   // render cycle must see the latched value).
   const saveInFlight = useRef(false)
@@ -104,7 +109,9 @@ export function OnboardingValueMapV2({ cards, currency }: OnboardingValueMapV2Pr
           console.error('[value-map-v2] advanceStep failed', err)
         })
         setPayback((body?.payback as PaybackSummary | null) ?? null)
-        setStep('payback')
+        const revealPayload = (body?.reveal as RevealPayload | null) ?? null
+        setReveal(revealPayload)
+        setStep(revealPayload ? 'reveal' : 'payback')
       } catch (err) {
         console.error('[value-map-v2] save failed', err)
         // Don't strand the user: stamp terminal and show the no-numbers
@@ -170,8 +177,19 @@ export function OnboardingValueMapV2({ cards, currency }: OnboardingValueMapV2Pr
     )
   }
 
+  if (step === 'reveal' && reveal) {
+    return <ArchetypeReveal reveal={reveal} onContinue={() => setStep('payback')} />
+  }
+
   // step === 'payback'
-  return <PaybackScreen payback={payback} currency={currency} onContinue={handleContinue} />
+  return (
+    <PaybackScreen
+      payback={payback}
+      currency={currency}
+      family={reveal?.family ?? null}
+      onContinue={handleContinue}
+    />
+  )
 }
 
 function SkipLink({ onSkip }: { onSkip: () => void }) {

@@ -10,6 +10,7 @@ import {
   type ArchetypeResult,
 } from '@/lib/onboarding/archetype-prompt'
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
+import { isValueMapV2Enabled } from '@/lib/value-map/flags'
 import type { ValueMapResult } from '@/lib/value-map/types'
 
 const BEDROCK_MODEL = chatModelId
@@ -127,7 +128,14 @@ export async function POST(req: Request) {
   let archetype: ArchetypeResult | null = null
   let usedFallback = false
 
-  try {
+  // VM-4: under VALUE_MAP_V2 the deterministic taxonomy owns archetype
+  // identity — the legacy free-form LLM naming must not run. Resume-surface
+  // users get the curated static archetype for their personality type;
+  // flag OFF, this path is byte-identical to before.
+  if (isValueMapV2Enabled()) {
+    archetype = getFallbackArchetype(personalityType)
+    usedFallback = true
+  } else try {
     const result = await Promise.race([
       generateText({
         model: bedrock(BEDROCK_MODEL),
