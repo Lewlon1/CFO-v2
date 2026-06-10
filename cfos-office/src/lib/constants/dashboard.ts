@@ -54,6 +54,15 @@ export const VALUE_COLORS: Record<
     label: 'Unsure',
     description: 'Not yet classified',
   },
+  // VM-1: low-evidence labels aggregate under 'unmapped' (neutral). 'unsure'
+  // is kept for pre-VM-1 snapshots.
+  unmapped: {
+    bg: 'bg-value-unsure/10',
+    text: 'text-value-unsure',
+    border: 'border-value-unsure/20',
+    label: 'Unmapped',
+    description: 'Not yet classified',
+  },
 }
 
 /**

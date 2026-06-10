@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ValueCategoryRule, Category } from '@/lib/parsers/types'
 import { getTimeContext } from '@/lib/utils/time-context'
+import { gateDefaultEmission } from '@/lib/categorisation/value-config'
 import type { PredictionResult, ValueCategoryType } from './types'
 import { NONE_TIME_CONTEXT } from './types'
 
@@ -121,13 +122,15 @@ export function resolveValueCategory(
     }
   }
 
-  // Tier 8: category default
+  // Tier 8: category default — gated (VM-1): never emits 'leak', confidence
+  // capped at DEFAULT_SOURCE_CONFIDENCE_CAP.
   if (categoryId) {
     const cat = categories.find((c) => c.id === categoryId)
     if (cat?.default_value_category) {
+      const gated = gateDefaultEmission(cat.default_value_category, 0.15)
       return {
-        value_category: cat.default_value_category as ValueCategoryType,
-        confidence: 0.15,
+        value_category: gated.valueCategory,
+        confidence: gated.confidence,
         source: 'category_default',
       }
     }

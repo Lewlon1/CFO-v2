@@ -33,6 +33,7 @@ export function ValuesTrendChart({ months }: Props) {
         investment: 0,
         leak: 0,
         burden: 0,
+        unmapped: 0,
       }
     }
     return {
@@ -41,6 +42,10 @@ export function ValuesTrendChart({ months }: Props) {
       investment: Math.round(((vc.investment ?? 0) / total) * 100),
       leak: Math.round(((vc.leak ?? 0) / total) * 100),
       burden: Math.round(((vc.burden ?? 0) / total) * 100),
+      // VM-1: low-evidence spend plots as a neutral band so the stacked
+      // proportions don't overstate the labelled share. Pre-VM-1 snapshots
+      // carry 'unsure'; new ones carry 'unmapped'.
+      unmapped: Math.round((((vc.unmapped ?? 0) + (vc.unsure ?? 0)) / total) * 100),
     }
   })
 
@@ -80,6 +85,7 @@ export function ValuesTrendChart({ months }: Props) {
           <Area type="monotone" dataKey="investment" stackId="1" fill={valueCategories.investment.color} stroke={valueCategories.investment.color} fillOpacity={0.7} />
           <Area type="monotone" dataKey="burden" stackId="1" fill={valueCategories.burden.color} stroke={valueCategories.burden.color} fillOpacity={0.7} />
           <Area type="monotone" dataKey="leak" stackId="1" fill={valueCategories.leak.color} stroke={valueCategories.leak.color} fillOpacity={0.7} />
+          <Area type="monotone" dataKey="unmapped" stackId="1" fill={valueCategories.unsure.color} stroke={valueCategories.unsure.color} fillOpacity={0.4} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

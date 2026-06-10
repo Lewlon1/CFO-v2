@@ -11,6 +11,8 @@ const VC_FILL: Record<string, string> = {
   leak: valueCategories.leak.color,
   burden: valueCategories.burden.color,
   unsure: valueCategories.unsure.color,
+  // VM-1: low-evidence labels aggregate under 'unmapped' (neutral).
+  unmapped: valueCategories.unsure.color,
 }
 
 type Props = {
@@ -20,7 +22,7 @@ type Props = {
 }
 
 export function ValuesDonut({ breakdown, totalSpending, currency = 'EUR' }: Props) {
-  const order = ['foundation', 'investment', 'leak', 'burden', 'unsure']
+  const order = ['foundation', 'investment', 'leak', 'burden', 'unsure', 'unmapped']
   const data = order
     .filter(vc => breakdown[vc] && breakdown[vc].amount > 0)
     .map(vc => ({

@@ -17,6 +17,9 @@ const VALUE_CONFIG = {
   // Phase 3b: unsure dropped its bespoke amber for the canonical value-unsure
   // token (grey) so it matches the rest of the app's unsure read.
   unsure: { color: valueCategories.unsure.color, label: 'Unsure', desc: 'Not yet classified' },
+  // VM-1: low-evidence labels aggregate under 'unmapped' (neutral) instead of
+  // asserting a value judgement. 'unsure' is kept for pre-VM-1 snapshots.
+  unmapped: { color: valueCategories.unsure.color, label: 'Unmapped', desc: 'Not yet classified' },
 } as const
 
 type VCKey = keyof typeof VALUE_CONFIG
@@ -89,7 +92,7 @@ export function OfficeValuesBreakdown() {
   }
 
   const vcData = summary.spending_by_value_category
-  const valueOrder: VCKey[] = ['foundation', 'investment', 'leak', 'burden', 'unsure']
+  const valueOrder: VCKey[] = ['foundation', 'investment', 'leak', 'burden', 'unsure', 'unmapped']
   const segments = valueOrder
     .map(key => ({ key, pct: vcData[key]?.pct ?? 0, amount: vcData[key]?.amount ?? 0 }))
     .filter(s => s.pct > 0)
@@ -102,7 +105,9 @@ export function OfficeValuesBreakdown() {
   const leakData = vcData['leak']
   const hasLeaks = leakData && leakData.amount > 0
 
-  const unsureData = vcData['unsure']
+  // New snapshots bucket low-evidence spend under 'unmapped'; pre-VM-1
+  // snapshots still carry 'unsure'.
+  const unsureData = vcData['unmapped'] ?? vcData['unsure']
   const hasUnsure = unsureData && unsureData.amount > 0
 
   // Month selector
