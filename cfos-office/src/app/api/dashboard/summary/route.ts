@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   isValueDisplayable,
   UNMAPPED_BUCKET,
+  ALIGNMENT_DISPLAY_MIN_CONFIDENCE,
 } from '@/lib/categorisation/value-config'
 import {
   isNeutralCategory,
@@ -10,6 +11,8 @@ import {
   UNCATEGORISED_CATEGORY_ID,
 } from '@/lib/analytics/categories'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
+import { alignmentFromValueBuckets } from '@/lib/value-map/alignment'
+import { isValueMapV2Enabled } from '@/lib/value-map/flags'
 
 type FrequencyResult = { frequency: string; estimated: boolean; monthly_equivalent: number }
 
@@ -76,6 +79,28 @@ export type ReviewStatus = {
   conversation_id: string | null
 }
 
+// VM-5 — Alignment Score block. Present only when VALUE_MAP_V2 is on
+// (server-side env), so flag-off responses are byte-identical. Always
+// anchored to the user's latest snapshot month — it's a trend headline,
+// not a month view.
+export type AlignmentMonth = {
+  month: string
+  /** Score for the month, 0–100. Null = no score OR below the honesty
+   *  floor for that month — renders as a gap, never a zero. */
+  pct: number | null
+}
+
+export type AlignmentSummary = {
+  /** Null when the latest month is below the honesty floor (or has no
+   *  ratio) — render the calibrating state instead of a number. */
+  current: { pct: number; confidence: number } | null
+  /** The exact €/month still unmapped (a money fact — always allowed).
+   *  Populated only when current is null. */
+  calibrating: { unmapped_monthly: number } | null
+  /** Up to 6 most recent snapshot months, ascending. */
+  history: AlignmentMonth[]
+}
+
 export type DashboardSummary = {
   month: string
   total_income: number
@@ -91,6 +116,7 @@ export type DashboardSummary = {
   recurring: { items: RecurringItem[]; monthly_total: number }
   available_months: string[]
   review_status: ReviewStatus
+  alignment?: AlignmentSummary
 }
 
 export async function GET(req: NextRequest) {
@@ -103,7 +129,7 @@ export async function GET(req: NextRequest) {
   // Get all available months
   const { data: snapshots } = await supabase
     .from('monthly_snapshots')
-    .select('month, total_income, total_spending, surplus_deficit, transaction_count, avg_transaction_size, largest_transaction, largest_transaction_desc, vs_previous_month_pct, spending_by_category, spending_by_value_category, reviewed_at, review_conversation_id')
+    .select('month, total_income, total_spending, surplus_deficit, transaction_count, avg_transaction_size, largest_transaction, largest_transaction_desc, vs_previous_month_pct, spending_by_category, spending_by_value_category, reviewed_at, review_conversation_id, aligned_spend_pct, alignment_confidence')
     .eq('user_id', user.id)
     .order('month', { ascending: false })
 
@@ -347,6 +373,46 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // VM-5 — alignment block, flag-gated server-side so flag-off responses
+  // are byte-identical. The honesty gate applies per month: a score below
+  // the display floor is withheld (null), the same rule the chat context
+  // builder enforces. Calibrating € derives from the same v1 arithmetic
+  // (eligible − displayable) as the stored score.
+  let alignment: AlignmentSummary | undefined
+  if (isValueMapV2Enabled()) {
+    const displayableScore = (s: { aligned_spend_pct: number | null; alignment_confidence: number | null }): number | null =>
+      s.aligned_spend_pct != null &&
+      Number(s.alignment_confidence ?? 0) >= ALIGNMENT_DISPLAY_MIN_CONFIDENCE
+        ? Number(s.aligned_spend_pct)
+        : null
+
+    const latest = snapshots[0]
+    const history: AlignmentMonth[] = snapshots
+      .slice(0, 6)
+      .reverse()
+      .map((s) => ({ month: s.month, pct: displayableScore(s) }))
+
+    const currentPct = displayableScore(latest)
+    let calibrating: AlignmentSummary['calibrating'] = null
+    if (currentPct == null) {
+      const { components } = alignmentFromValueBuckets(
+        (latest.spending_by_value_category ?? {}) as Record<string, number>,
+      )
+      calibrating = {
+        unmapped_monthly: Math.round((components.eligible - components.displayable) * 100) / 100,
+      }
+    }
+
+    alignment = {
+      current:
+        currentPct != null
+          ? { pct: currentPct, confidence: Number(latest.alignment_confidence) }
+          : null,
+      calibrating,
+      history,
+    }
+  }
+
   const result: DashboardSummary = {
     month: snapshot.month,
     total_income: snapshot.total_income ?? 0,
@@ -366,6 +432,7 @@ export async function GET(req: NextRequest) {
       reviewed_at: snapshot.reviewed_at ?? null,
       conversation_id: snapshot.review_conversation_id ?? null,
     },
+    ...(alignment ? { alignment } : {}),
   }
 
   return NextResponse.json(result)

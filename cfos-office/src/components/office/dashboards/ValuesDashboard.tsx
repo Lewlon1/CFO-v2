@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
+import { AlignmentTile } from './AlignmentTile'
 import { Briefing } from './Briefing'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
@@ -61,6 +62,12 @@ export function ValuesDashboard({
       <Briefing accentColor={ACCENT}>
         {buildBriefing(archetype, gaps)}
       </Briefing>
+
+      {/* VM-5 — present only when the server flag is on (the API omits the
+          field flag-off, so this renders nothing and the page is unchanged). */}
+      {summary?.alignment && (
+        <AlignmentTile alignment={summary.alignment} currency={currency} />
+      )}
 
       {archetype?.name && (
         <ArchetypeCard archetype={archetype} profileCompleteness={profileCompleteness} />

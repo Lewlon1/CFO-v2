@@ -30,62 +30,75 @@ export interface ReadingFacts {
   tensionLine: string
 }
 
-// Few-shots — the four seed readings (Builder / Nester / Negotiator /
-// Drifter), showing ONLY the reading segment. Each demonstrates the register
-// rule for its cell: certain asserts and sharpens, exploring names what is
-// unresolved.
+// Few-shots — the four approved seed readings (Builder / Nester / Negotiator /
+// Drifter), approved 2026-06-10. The `reading` fields carry the approved
+// READING segments verbatim (VM-5 swap, closing VM-4 finding 2); the approved
+// receipt and tension beats are trimmed into the facts block because those
+// render deterministically and separately. Each cell demonstrates its register
+// rule: certain asserts and sharpens, exploring names what is unresolved.
+//
+// Facts-block adaptations (structure-forced, not voice changes):
+// - Receipt headlines recast into the pinned buildReceiptLines shape; ratio
+//   phrases come from the pinned ratioPhrase mapping for the example's counts
+//   (Builder: 5 of 11 → ratio 1.57 → 'more than most people'; the approved
+//   beat's 'about twice what most people put there' implies a ratio ≥1.6 the
+//   counts don't reach).
+// - Band clauses recast into the bandSummaryClause shape, counts consistent
+//   with the approved beats ('quick on nearly all' / 'several took real
+//   thought, two hard to call' / 'no hesitation' / 'a few took some thought').
+// - Tension beats kept verbatim from the approved texts.
 const SEED_READINGS: ReadonlyArray<{ facts: ReadingFacts; reading: string }> = [
   {
     facts: {
       family: 'growth',
       certainty: 'certain',
       displayName: 'The Builder',
-      receiptHeadline: 'You sorted 10 transactions. 5 went to Investment — about twice the typical rate.',
-      receiptBands: '7 quick calls, 2 considered, 1 took real thought.',
+      receiptHeadline: 'You sorted 11 transactions. 5 went to Investment — more than most people.',
+      receiptBands: '9 quick calls, 2 considered.',
       tensionLine:
-        'No contradiction in the data. Your sorting and your spending point the same way: forward. The question is only pace.',
+        'One thing doesn’t fit: the category you protected hardest in the sort is the one that’s been shrinking in your actual spending for three months.',
     },
     reading:
-      'You sort money by what it gets you later, and you barely hesitated doing it. That kind of clarity about direction is rare — most people protect first and build with what’s left. Your numbers should be working as deliberately as you do.',
+      'Money, for you, is a tool with a direction: spending that builds something gets a fast yes, spending that just maintains gets tolerated. You’re not frugal. You’re selective.',
   },
   {
     facts: {
       family: 'security',
       certainty: 'exploring',
       displayName: 'The Nester',
-      receiptHeadline: 'You sorted 9 transactions. 6 went to Foundation — more than most people.',
-      receiptBands: '3 quick calls, 4 considered, 2 took real thought. 2 you flagged as hard to call.',
+      receiptHeadline: 'You sorted 10 transactions. 6 went to Foundation — more than most people.',
+      receiptBands: '3 quick calls, 4 considered, 3 took real thought. 2 you flagged as hard to call.',
       tensionLine:
-        'Nothing contradicts the picture yet. What’s still open is what "enough protection" looks like for you — that line hasn’t been drawn.',
+        'Your transactions back the instinct: almost everything funds the base. The open question is what the base is for.',
     },
     reading:
-      'You build the nest first — most of what you sorted is the ground you stand on. But several of those calls took real thought, which says the line between "this protects me" and "this just feels safe" isn’t settled yet. That line is worth drawing on purpose, not by habit.',
+      'The base matters most: home, stability, the things that keep life running. What’s less settled is where the line sits — some of what you called essential, you hesitated over. That’s not indecision; it’s a map still being drawn.',
   },
   {
     facts: {
       family: 'agency',
       certainty: 'certain',
       displayName: 'The Negotiator',
-      receiptHeadline: 'You sorted 10 transactions. 4 went to Burden — several times the typical rate.',
+      receiptHeadline: 'You sorted 10 transactions. 4 went to Burden — about twice the typical rate.',
       receiptBands: '8 quick calls, 2 considered.',
       tensionLine:
-        'No contradiction in the data. You know exactly which costs you resent — that list is a negotiation agenda, not a complaint.',
+        'Three of those four haven’t changed price in over a year — the longest-standing prices anywhere in your fixed costs.',
     },
     reading:
-      'You called out the costs you resent without blinking — fast, certain, no second-guessing. That’s not grievance, it’s leverage: you already know exactly where the terms are wrong. The work now is renegotiating them, one by one.',
+      'You know exactly which costs you resent: necessary, paid on time, and quietly negotiable. That clarity is leverage.',
   },
   {
     facts: {
       family: 'candor',
       certainty: 'exploring',
       displayName: 'The Drifter',
-      receiptHeadline: 'You sorted 8 transactions. 3 went to Leak — several times the typical rate.',
-      receiptBands: '2 quick calls, 3 considered, 3 took real thought. 1 you flagged as hard to call.',
+      receiptHeadline: 'You sorted 9 transactions. 3 went to Leak — several times the typical rate.',
+      receiptBands: '4 quick calls, 3 considered, 2 took real thought.',
       tensionLine:
-        'Nothing contradicts the picture yet. What’s unresolved is which leaks you’d genuinely cut and which you’d quietly keep — both are allowed.',
+        'Those three add up to €112 a month, and two of them you marked as spending you’d cut.',
     },
     reading:
-      'You admitted more waste than most people will, and you slowed down over the calls that mattered. The honesty is there; what drifts is the follow-through — naming a leak and deciding about it are different acts. The deciding is the part we do together.',
+      'That’s rare honesty: you can look at your own spending and name what isn’t earning its place. What’s not yet clear is what you’d want instead.',
   },
 ]
 
