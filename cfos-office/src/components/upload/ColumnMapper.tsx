@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Select } from '@/components/ui/Select'
 import { SEMANTIC_FIELD_LABELS } from '@/lib/csv/column-detector'
 import type { SemanticField } from '@/lib/csv/column-detector'
 
@@ -42,17 +43,17 @@ export function ColumnMapper({ headers, autoMapping, onConfirm, onCancel }: Prop
             <span className="w-40 truncate text-sm font-mono text-muted-foreground shrink-0">
               {header}
             </span>
-            <select
+            <Select
               value={mapping[header] ?? 'skip'}
               onChange={(e) => setMapping({ ...mapping, [header]: e.target.value })}
-              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              className="flex-1"
             >
               {SEMANTIC_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>
                   {SEMANTIC_FIELD_LABELS[opt]}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         ))}
       </div>

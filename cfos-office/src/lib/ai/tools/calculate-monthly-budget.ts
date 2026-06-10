@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
-import { toMonthlyEquivalent } from './helpers';
+import { reconcileFixedCosts } from '@/lib/analytics/reconcile-fixed-costs';
 
 export function createCalculateMonthlyBudgetTool(ctx: ToolContext) {
   return {
@@ -17,7 +17,7 @@ export function createCalculateMonthlyBudgetTool(ctx: ToolContext) {
         // Fetch profile for income data
         const { data: profile, error: profileError } = await ctx.supabase
           .from('user_profiles')
-          .select('net_monthly_income, gross_salary, partner_monthly_contribution, monthly_rent')
+          .select('net_monthly_income, gross_salary, partner_monthly_contribution')
           .eq('id', ctx.userId)
           .single();
 
@@ -37,21 +37,24 @@ export function createCalculateMonthlyBudgetTool(ctx: ToolContext) {
           };
         }
 
-        // Fetch recurring expenses
-        const { data: recurring } = await ctx.supabase
-          .from('recurring_expenses')
-          .select('name, provider, amount, currency, frequency')
-          .eq('user_id', ctx.userId);
-
-        const fixedItems = (recurring || []).map((r) => ({
-          name: r.name,
-          provider: r.provider || null,
-          amount: Number(r.amount),
-          frequency: r.frequency,
-          monthly_equivalent: Math.round(toMonthlyEquivalent(Number(r.amount), r.frequency) * 100) / 100,
-        }));
-
-        const totalFixedCosts = fixedItems.reduce((sum, item) => sum + item.monthly_equivalent, 0);
+        // Fixed costs: use the canonical reconcile — the same source the First
+        // Read's free-cash-flow headline derives from — so "fixed costs" means
+        // ONE thing app-wide. This INCLUDES rent (a profile field the old path
+        // fetched but never summed), excludes dismissed rows, and dedupes
+        // declared/detected + case-variant duplicates. The old path summed
+        // recurring_expenses raw and omitted rent, which is exactly why this
+        // tool's surplus (€446) couldn't reconcile with the Read's free cash
+        // flow (€1,233 = income − rent − bills).
+        const reconciled = await reconcileFixedCosts(ctx.supabase, ctx.userId);
+        const totalFixedCosts = reconciled.totalFixedCostsMonthly;
+        const fixedItems = reconciled.items
+          .filter((item) => !item.superseded)
+          .map((item) => ({
+            name: item.label,
+            amount: item.amount,
+            frequency: item.cadence,
+            monthly_equivalent: Math.round(item.monthly_equivalent * 100) / 100,
+          }));
 
         const partnerContribution =
           include_partner_contribution !== false && profile?.partner_monthly_contribution

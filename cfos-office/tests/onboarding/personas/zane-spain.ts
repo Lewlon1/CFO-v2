@@ -91,6 +91,8 @@ export const zaneSpain: Persona = {
     country: 'ES',
     city: 'Madrid',
     currency: 'EUR',
+    monthlyIncome: 2350,
+    monthlyRent: 820,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: 'foundation', confidence: 5, firstTapMs: 1100, cardTimeMs: 1600, deliberationMs: 400 },
@@ -117,13 +119,21 @@ export const zaneSpain: Persona = {
     },
     stagesCompleted: [
       'struggle_submitted',
-      'value_map_done',
+      'goal_done',
       'upload_done',
-      'archetype_shown',
-      'complete',
+      'essentials_done',
+      'confirm_done',
+      'first_read',
     ],
+    goal: {
+      name: 'Entrada para piso',
+      type: 'savings',
+      targetAmount: 30000,
+      currentAmount: 5000,
+      targetDate: '2029-01-01',
+    },
     dbAfterHandoff: {
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [55, 80] },
     },
     hardRules: {
@@ -138,9 +148,7 @@ export const zaneSpain: Persona = {
         '£[0-9]',
       ],
       insight: {
-        mustReferenceMerchantsFromCsv: ['mercadona', 'endesa', 'movistar'],
-        mustReferenceOneOf: ['€', 'eur', 'every two months', 'bi-monthly', 'mercadona', 'madrid'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['health', 'groceries', 'free cash flow', 'fixed cost'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

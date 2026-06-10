@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { ToolContext } from './types';
 import { monthsBetween } from '@/lib/goals/pace';
 import { requiredMonthlyBand } from '@/lib/finance/compound-growth';
+import { getPrimaryGoal } from '@/lib/goals/primary-goal';
 
 // Returns the pre-computed pace for a goal (monthly required saving, months
 // remaining, on-track flag). The CFO calls this instead of dividing target by
@@ -19,18 +20,32 @@ export function createComputeGoalPaceTool(ctx: ToolContext) {
       goal_id: z
         .string()
         .uuid()
+        .optional()
         .describe(
-          "The UUID of the goal to compute pace for. If the user references a goal by name, resolve the UUID from their active goals first.",
+          "Optional. The UUID of a specific goal. Omit it for the user's primary active goal — the system resolves it server-side. You do not need to know or look up a goal's UUID to answer a pace question about their (usually only) goal.",
         ),
     }),
-    execute: async ({ goal_id }: { goal_id: string }) => {
+    execute: async ({ goal_id }: { goal_id?: string }) => {
       try {
+        // Resolve the goal. With no id, use the canonical primary-active-goal
+        // signal (getPrimaryGoal) so the CFO can answer "what's my goal pace?"
+        // without ever being handed a UUID — the gap that made it deny goals it
+        // had just created.
+        let resolvedId = goal_id;
+        if (!resolvedId) {
+          const primary = await getPrimaryGoal(ctx.supabase, ctx.userId);
+          if (!primary) {
+            return { error: 'No active goal is set up for this user yet.' };
+          }
+          resolvedId = primary.id;
+        }
+
         const { data: goal, error } = await ctx.supabase
           .from('goals')
           .select(
             'id, name, type, target_amount, current_amount, target_date, monthly_required_saving, on_track, currency, status',
           )
-          .eq('id', goal_id)
+          .eq('id', resolvedId)
           .eq('user_id', ctx.userId)
           .is('deleted_at', null)
           .maybeSingle();

@@ -73,6 +73,8 @@ export const drifterExpat: Persona = {
     country: 'ES',
     city: 'Barcelona',
     currency: 'EUR',
+    monthlyIncome: 2700,
+    monthlyRent: 950,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: null, confidence: 0, firstTapMs: 5500, cardTimeMs: 7200, deliberationMs: 1500, hardToDecide: true },
@@ -97,10 +99,18 @@ export const drifterExpat: Persona = {
       expectedQuadrant: 'leak',
       personalityId: 'drifter',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: 'Move-home fund',
+      type: 'general',
+      targetAmount: 6000,
+      currentAmount: 1200,
+    },
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
-      financial_portrait: { archetype_name: 'exists' },
+      // Value-first terminal: the Read is delivered and onboarding is stamped
+      // complete. There is no archetype screen here — the archetype only exists
+      // if the user takes the optional post-Read Value Map.
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [70, 120] },
     },
     hardRules: {
@@ -110,9 +120,7 @@ export const drifterExpat: Persona = {
         mustMentionOneOf: ['drift', 'impulse', 'leak', 'habit', 'small'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['glovo', 'deliveroo', 'netflix', 'hbo', 'disney', 'subscription'],
-        mustReferenceOneOf: ['subscription', 'dining', 'delivery', 'leak'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['eating', 'groceries', 'free cash flow', 'rent'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

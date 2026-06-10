@@ -1,5 +1,75 @@
 # Onboarding Test Suite — Smoke-Run Findings
 
+> **Historical (pre-value-first).** These findings are from 2026-04-20, before the
+> suite was rewritten for the value-first in-sheet flow (2026-06-06). The
+> chat-first personas referenced below (`skip-value-map`, `skip-csv-upload`) have
+> since been removed, and the Marcus/value-map-first/archetype path no longer
+> exists. Bug #3 (teardown FK on `llm_usage_log`) is still open. Kept for context.
+
+## RESOLVED — judge recalibration + real-bug fixes (2026-06-08)
+
+The 2026-06-06 baseline (**Functional 8/10, Visual 10/10, judge 0/10, accuracy 3.7**)
+is fixed. After the recalibration (spec/plan in
+`docs/superpowers/{specs,plans}/2026-06-07-onboarding-judge-recalibration*`), two
+judged Staging runs show **Functional 10/10, Visual 10/10, judge 9–10/10**, Likert
+warmth 4.8 · accuracy 4.7–5.0 · on-brand 4.6 · persona-fit 4.3 · actionability 4.6.
+
+What the 0/10 actually was (diagnosed from the captured Reads, not assumed):
+
+- **Dominant judge bug:** the deterministic rules were grading the message *wrapper
+  object* (`JSON.stringify({content,…})`), so the signoff/last-sentence rules failed
+  all 10. Fixed by unwrapping to the content string + extracting a pure, offline-
+  testable `evaluateHardRules`.
+- **Two REAL product/harness bugs the judge correctly surfaced (now fixed):**
+  (1) the value-first Read rendered `€` for every GBP user — `getFinancialFacts`
+  defaulted `primary_currency||'EUR'`; now resolves via `resolveUserCurrency`
+  (country/transactions). (2) personas fed a default 3000 income contradicting their
+  CSV; now realistic CSV-derived income/rent, and the driver seeds `country`.
+- **Rule recalibration for the value-first format:** minimal currency-anchored R4
+  (income-aware egregious floor; accepts goal target/current/remaining); R5
+  currency-symbol-matches-persona; R6 goal-denial (goal personas only); R7
+  system-note; R8 CTA-vocabulary (incl. the real `cut_lever` type); R9
+  goal-reference; the merchant-citation rule (old R3 + the test's use of H8) was
+  **dropped** — invalidated by live evidence (good goal-aware Reads lead with
+  goal/levers/categories; the LLM L2 accuracy=5.0 confirms grounding). `read-judge.ts`
+  H7/H8 are unchanged (the prod wow-cron still uses them).
+- **Coverage added:** goals seeded on 8/10 personas (all four valid `type`s;
+  fortress + aiko kept goal-less to test the prompt path) — goal-awareness, goal-pace,
+  and goal-denial are now exercised. An **offline golden corpus**
+  (`tests/onboarding/unit/judge.test.ts` + `fixtures/reads/`, built from the real
+  captured Reads) pins every deterministic rule's verdict in `npm run test` — judge
+  calibration no longer needs a Staging run.
+
+Original three items: **(1) `onboarding_completed_at` race — FIXED** (driver now polls
+the stamp after the Read; sofia + zane pass). **(2) judge stale — FIXED** (recalibrated
+above). **(3) teardown FK — see Bug #3 below, partially fixed.**
+
+### Remaining follow-ups (none block the suite as a gate)
+
+- **Product voice slip — `worth knowing`.** The confirmatory re-run caught
+  `sofia-chaotic` on `H7_voice_no_banned` ("That's worth knowing…") — a deliberately
+  banned reflexive-CFO phrase (`insight-validator.ts`). This is the gate working
+  correctly; it points at a *product* gap: the composition occasionally emits a banned
+  phrase that `validateVoice` flags but isn't stripping/regenerating. Stochastic
+  (run-to-run), so the e2e judge board will occasionally show 9/10 on a voice catch —
+  that's correct behaviour, not a judge defect.
+- **Bug #3 (teardown FK) not fully resolved.** Adding `llm_usage_log` to the per-user
+  teardown reduced but did not eliminate the `deleteUser … Database error` noise —
+  at least one more public table FK-references the user without `ON DELETE CASCADE`.
+  Non-blocking (the end-of-run + next-run pre-clean sweep handles orphans). Identify the
+  remaining table(s) and add to `USER_DATA_TABLES_BY_USER_ID` / `_BY_PROFILE_ID`.
+- **CTA contract drift.** CLAUDE.md/onboarding docs say the value-first Read closes on
+  `[CTA:start_value_map_real]`; the live product emits `supply_input` / `set_goal` /
+  `cut_lever`. R8 now accepts the real vocabulary; confirm the intended CTA and update
+  the docs (or treat the value-map hook CTA as a product gap).
+- **Transaction-undercount observation.** Some Reads report a low transaction count
+  (e.g. "15 transactions") vs the ~60 imported — likely a spending-picture window or a
+  count source; the LLM judged magnitudes accurate, so out of scope here. Investigate
+  the picture-window separately.
+- **`transactions.currency` defaults to `'EUR'`.** The product currency fix resolves via
+  country/transactions; for real users the country path carries it when the importer
+  doesn't persist a real per-row currency. Confirm real signups set `country`/currency.
+
 These are surfacing from smoke tests against CFO Staging on 2026-04-20. Not bugs in the suite — bugs and observations in the **onboarding flow** itself that the suite correctly identified.
 
 ## Bugs to investigate

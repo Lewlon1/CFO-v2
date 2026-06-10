@@ -60,6 +60,8 @@ export const anchorDebt: Persona = {
     country: 'GB',
     city: 'Leeds',
     currency: 'GBP',
+    monthlyIncome: 2300,
+    monthlyRent: 780,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: null, confidence: 0, firstTapMs: 3800, cardTimeMs: 5100, deliberationMs: 1300, hardToDecide: true },
@@ -84,10 +86,17 @@ export const anchorDebt: Persona = {
       expectedQuadrant: 'burden',
       personalityId: 'anchor',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
+    goal: {
+      name: 'Clear credit card',
+      type: 'debt_clearance',
+      targetAmount: 8000,
+      currentAmount: 1500,
+      targetDate: '2027-01-01',
+    },
     dbAfterHandoff: {
       /* primary_currency collected post-onboarding in chat, not asserted here */
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [40, 70] },
     },
     hardRules: {
@@ -102,9 +111,7 @@ export const anchorDebt: Persona = {
         mustMentionOneOf: ['weight', 'burden', 'anchor', 'carrying', 'heavy'],
       },
       insight: {
-        mustReferenceMerchantsFromCsv: ['credit', 'loan', 'finance'],
-        mustReferenceOneOf: ['debt', 'refinance', 'reduce', 'priority'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['housing', 'free cash flow', 'fixed costs', 'eating'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

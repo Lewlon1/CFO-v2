@@ -11,19 +11,22 @@ afterEach(() => {
 });
 
 describe('showInternalQANotes', () => {
-  it('suppresses notes in production', () => {
+  it('suppresses notes by default in production', () => {
     (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
     delete process.env.SHOW_QA_NOTES;
     expect(showInternalQANotes()).toBe(false);
   });
 
-  it('shows notes outside production (dev/staging/test)', () => {
+  // Regression: notes previously showed in any non-production env, which leaked
+  // the "(System note: …)" diagnostic to real testers on staging (NODE_ENV
+  // !== 'production'). Default is now off everywhere unless explicitly forced.
+  it('suppresses notes by default outside production (incl. staging)', () => {
     (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
     delete process.env.SHOW_QA_NOTES;
-    expect(showInternalQANotes()).toBe(true);
+    expect(showInternalQANotes()).toBe(false);
   });
 
-  it('forces notes on in production when SHOW_QA_NOTES=true', () => {
+  it('shows notes only when explicitly forced via SHOW_QA_NOTES=true', () => {
     (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
     process.env.SHOW_QA_NOTES = 'true';
     expect(showInternalQANotes()).toBe(true);

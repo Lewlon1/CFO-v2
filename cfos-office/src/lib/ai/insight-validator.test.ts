@@ -5,6 +5,7 @@ import {
   validateNarrative,
   validateLength,
   appendCorrection,
+  stripValidatorNote,
   DEFAULT_BODY_WORD_CAP,
 } from './insight-validator';
 import type { QuotableFact } from '@/lib/analytics/insight-types';
@@ -212,5 +213,45 @@ describe('appendCorrection — length_violation', () => {
     });
     expect(out).toContain('1 voice phrase');
     expect(out).toContain('body length 200 words');
+  });
+});
+
+describe('stripValidatorNote', () => {
+  it('round-trips appendCorrection: removes an appended System note + its separator', () => {
+    const body = 'Your free cash flow is the number to watch.';
+    const withNote = appendCorrection(body, {
+      unmatched_citations: { numbers: ['1233', '677', '556'], merchants: [] },
+      unmatched_projections: ['saved 200/year'],
+    });
+    expect(withNote).toContain('System note'); // precondition: a note was appended
+    expect(stripValidatorNote(withNote)).toBe(body);
+  });
+
+  it('removes a model-echoed passive-voice note (no "I flagged")', () => {
+    const echoed =
+      'Same group, same trip?\n\n[OPTIONS]\n- Yes\n- No\n[/OPTIONS]\n\n---\n\n' +
+      '_(System note: 2 issues flagged in this message. 3 numbers not grounded in tool output, 1 projection not backed by an experiment.)_';
+    expect(stripValidatorNote(echoed)).toBe(
+      'Same group, same trip?\n\n[OPTIONS]\n- Yes\n- No\n[/OPTIONS]',
+    );
+  });
+
+  it('removes a length-violation note containing inner parentheses', () => {
+    const withNote =
+      'Body.\n\n---\n\n_(System note: I flagged 1 issue in this message. body length 225 words (cap 180).)_';
+    expect(stripValidatorNote(withNote)).toBe('Body.');
+  });
+
+  it('leaves a clean message with a legitimate horizontal rule untouched', () => {
+    const clean = 'Part one.\n\n---\n\nPart two.';
+    expect(stripValidatorNote(clean)).toBe(clean);
+  });
+
+  it('returns clean messages unchanged', () => {
+    expect(stripValidatorNote('Nothing to strip here.')).toBe('Nothing to strip here.');
+  });
+
+  it('handles the empty string', () => {
+    expect(stripValidatorNote('')).toBe('');
   });
 });

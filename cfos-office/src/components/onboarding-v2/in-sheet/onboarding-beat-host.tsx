@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { OnboardingStep } from '@/lib/onboarding-v2/types'
+import type { OnboardingStep, OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
 import { useChatContext } from '@/components/chat/ChatProvider'
 import { CfoThinking } from '@/components/brand/CfoThinking'
@@ -13,6 +13,7 @@ import { ConfirmBeatBlock } from './confirm-beat-block'
 type Props = {
   step: OnboardingStep | null
   currency: string
+  goal: OnboardingGoalSummary | null
 }
 
 /**
@@ -23,7 +24,7 @@ type Props = {
  * off reuses the proven ?chat=open&conversationId mechanism (ChatOpenerTrigger)
  * so the composed Read loads into the same sheet.
  */
-export function OnboardingBeatHost({ step, currency }: Props) {
+export function OnboardingBeatHost({ step, currency, goal }: Props) {
   const router = useRouter()
   const { openSheet, loadConversation } = useChatContext()
   const readTriggeredRef = useRef(false)
@@ -115,6 +116,7 @@ export function OnboardingBeatHost({ step, currency }: Props) {
   if (step === 'upload_pending' || step === 'essentials_done') {
     return (
       <UploadBeatBlock
+        goal={goal}
         onImported={() => {}}
         onDone={() => {
           void advanceStep('upload_processing')

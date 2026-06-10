@@ -4,8 +4,6 @@ import { fortressSaver } from './fortress-saver'
 import { truthTellerBalanced } from './truth-teller-balanced'
 import { drifterExpat } from './drifter-expat'
 import { anchorDebt } from './anchor-debt'
-import { skipValueMap } from './skip-value-map'
-import { skipCsvUpload } from './skip-csv-upload'
 import { timeSaverExpert } from './time-saver-expert'
 import { aikoLowTransaction } from './aiko-low-transaction'
 import { sofiaChaotic } from './sofia-chaotic'
@@ -18,8 +16,6 @@ export const PERSONAS: readonly Persona[] = [
   truthTellerBalanced,
   drifterExpat,
   anchorDebt,
-  skipValueMap,
-  skipCsvUpload,
   timeSaverExpert,
   // Session 32 (C) — first-Read calibration personas. Each targets a
   // failure mode the existing suite didn't cover. See

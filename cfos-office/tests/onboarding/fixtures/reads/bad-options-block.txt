@@ -1,0 +1,8 @@
+Here is your picture. £1,100 on housing.
+
+[OPTIONS]
+- A
+- B
+[/OPTIONS]
+
+— C.

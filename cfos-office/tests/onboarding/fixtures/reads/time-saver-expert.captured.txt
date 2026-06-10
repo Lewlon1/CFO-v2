@@ -1,0 +1,11 @@
+The ISA goal is funded at plan — note that the data here is 72 days stale (last transaction 28 March 2026), so treat these figures as a snapshot, not a live read.
+
+Here's where the math lands: maxing the ISA to £20,000 by 31 December needs £1,738/mo at 10%, £1,772/mo at 7%, or £1,805/mo at 4%. The 7% figure is the working number — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this, an assumption not a promise, which is why the 4% case stays visible as the stress test. Your free cash flow of £2,850/mo covers even the 4% stress case with room to spare. The goal is funded. The question now is whether you want to get there sooner or build a buffer against the conservative case.
+
+Two things worth naming. First, the £8,898 already saved does significant heavy lifting here — compounding on that existing pot is a meaningful part of why the monthly ask is well below a flat split. Second, with only 10 transactions across 87 days, the behavioural picture is thin; **subscriptions** are the one cluster with enough signal, running at £126/month as of the snapshot.
+
+Trimming £31/month from subscriptions won't move the deadline, but it tightens the plan against the 4% stress case and frees margin you control directly.
+
+[CTA:cut_lever]Trim £31 from subscriptions[/CTA]
+
+— C.

@@ -90,6 +90,8 @@ export const tomLongHistory: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 4000,
+    monthlyRent: 1420,
   },
   // Tom is "builder"-shape: investment ≥ 35% of decided. Rent is
   // hard-to-decide (he sees it as background noise after 18 months of paying
@@ -121,13 +123,20 @@ export const tomLongHistory: Persona = {
     },
     stagesCompleted: [
       'struggle_submitted',
-      'value_map_done',
+      'goal_done',
       'upload_done',
-      'archetype_shown',
-      'complete',
+      'essentials_done',
+      'confirm_done',
+      'first_read',
     ],
+    goal: {
+      name: 'Pension top-up',
+      type: 'investment',
+      targetAmount: 50000,
+      currentAmount: 9000,
+    },
     dbAfterHandoff: {
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       // 18 months: salary x18 + rent x18 + ISA x18 + groceries x78 + gym x18
       // + Netflix x18 + Spotify x18 + utility x18 + holidays + dishoom/foyles
       transactions: { countBetween: [200, 280] },
@@ -139,10 +148,7 @@ export const tomLongHistory: Persona = {
         'lisbon|madrid|cervejaria|pasteis|easyjet',
       ],
       insight: {
-        // The 90-day window should surface recent regulars.
-        mustReferenceMerchantsFromCsv: ['waitrose', 'isa', 'savings', 'dishoom', 'puregym', 'netflix', 'spotify'],
-        mustReferenceOneOf: ['90', 'three months', 'recent', 'last', 'steady', 'consistent', 'savings'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['snapshot', 'fixed costs', 'take-home', 'housing'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

@@ -5,6 +5,18 @@ import type { Persona } from '../personas/types'
 import type { CsvSummary } from './csv-summariser'
 import type { JudgeOutput, HardRuleResult, LikertResult } from './types'
 
+// ── Content unwrap ───────────────────────────────────────────────────────────
+
+/** Unwrap the captured insight (a message wrapper `{content}`) to its content string. */
+export function readContent(cfoOutput: unknown): string {
+  if (typeof cfoOutput === 'string') return cfoOutput
+  if (cfoOutput && typeof cfoOutput === 'object' && 'content' in cfoOutput) {
+    const c = (cfoOutput as { content?: unknown }).content
+    if (typeof c === 'string') return c
+  }
+  return JSON.stringify(cfoOutput)
+}
+
 // ── Hard-rule pre-checks (deterministic, run before the LLM) ────────────────
 
 function checkBannedWords(text: string, banned: string[] | undefined): HardRuleResult {
@@ -48,36 +60,92 @@ function checkMustMentionOneOf(text: string, candidates: string[] | undefined, r
   }
 }
 
-function extractNumbers(text: string): number[] {
-  const matches = text.match(/-?\d+(?:\.\d+)?/g) ?? []
-  return matches.map(Number).filter((n) => Number.isFinite(n))
+/** Currency-anchored money tokens only: £/€/$ then digits with optional thousands commas/decimals. */
+function extractMoneyTokens(text: string): number[] {
+  const re = /[£€$]\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)/g
+  const out: number[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const n = Number(m[1].replace(/,/g, ''))
+    if (Number.isFinite(n)) out.push(n)
+  }
+  return out
 }
 
-function checkNumbersMatchCsv(text: string, csvSummary: CsvSummary | null): HardRuleResult {
-  if (!csvSummary) return { ruleId: 'R4_numbers_match_csv', passed: true }
-  const quoted = extractNumbers(text)
-  const allowed = new Set([...csvSummary.allNumbersMentioned])
+function checkMinimalNumbers(text: string, csv: CsvSummary | null, extraPlausible: number[] = []): HardRuleResult {
+  if (!csv) return { ruleId: 'R4_numbers_match_csv', passed: true }
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const plausible = [
+    ...csv.allNumbersMentioned,
+    ...csv.topMerchants.map((m) => round2(m.total)),
+    round2(csv.incomeTotal),
+    round2(csv.spendingTotal),
+    ...extraPlausible,
+  ]
+  const within = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, b * 0.01)
   const violations: number[] = []
-  for (const n of quoted) {
-    if (n < 10) continue
-    if (n === Math.round(csvSummary.spendingTotal * 100) / 100) continue
-    if (n === Math.round(csvSummary.incomeTotal * 100) / 100) continue
-    // Tolerate rounding: match if n matches any csv number within 1% or ±1 currency unit
-    let ok = false
-    for (const num of allowed) {
-      if (num === n) { ok = true; break }
-      if (Math.abs(num - n) < Math.max(1, num * 0.01)) { ok = true; break }
-    }
-    if (!ok) violations.push(n)
+  // Egregious floor: income-aware so legitimately-quoted monthly income / free
+  // cash flow (which can exceed a low total tracked spend) are not false-flagged.
+  // Only figures far above the larger of total spend or total income are caught.
+  const egregiousFloor = Math.max(csv.spendingTotal, csv.incomeTotal) * 1.5
+  for (const n of extractMoneyTokens(text)) {
+    const ok = plausible.some((p) => within(n, p))
+    if (!ok && n > egregiousFloor) violations.push(n)
   }
-  if (violations.length > 0) {
-    return {
-      ruleId: 'R4_numbers_match_csv',
-      passed: false,
-      detail: `Numbers not found in CSV: ${violations.slice(0, 5).join(', ')}`,
+  return violations.length
+    ? { ruleId: 'R4_numbers_match_csv', passed: false, detail: `Implausible money figure(s) exceeding egregious floor: ${violations.slice(0, 5).join(', ')}` }
+    : { ruleId: 'R4_numbers_match_csv', passed: true }
+}
+
+const CURRENCY_SYMBOL: Record<string, string> = { GBP: '£', EUR: '€', USD: '$' }
+const ALL_SYMBOLS = ['£', '€', '$']
+
+function checkCurrencySymbol(text: string, persona: Persona): HardRuleResult {
+  const expected = CURRENCY_SYMBOL[(persona.profile.currency ?? '').toUpperCase()]
+  if (!expected) return { ruleId: 'R5_currency_symbol', passed: true } // unknown currency — skip
+  for (const sym of ALL_SYMBOLS) {
+    if (sym !== expected && text.includes(sym)) {
+      return { ruleId: 'R5_currency_symbol', passed: false, detail: `foreign symbol "${sym}" present, expected "${expected}"` }
     }
   }
-  return { ruleId: 'R4_numbers_match_csv', passed: true }
+  const quotesMoney = /\d{2,}/.test(text)
+  if (quotesMoney && !text.includes(expected)) {
+    return { ruleId: 'R5_currency_symbol', passed: false, detail: `expected symbol "${expected}" not found` }
+  }
+  return { ruleId: 'R5_currency_symbol', passed: true }
+}
+
+const GOAL_DENIAL_RE: RegExp[] = [
+  /\bno (active )?goal\b/i,
+  /\bdon'?t have (a|any) goal\b/i,
+  /\bwithout a goal\b/i,
+  /\bhaven'?t set (a|any) goal\b/i,
+  /\bno goal (attached|set|on file)\b/i,
+]
+
+function checkGoalDenial(text: string, persona: Persona): HardRuleResult {
+  if (!persona.expectations.goal) return { ruleId: 'R6_no_goal_denial', passed: true }
+  const hit = GOAL_DENIAL_RE.find((re) => re.test(text))
+  return hit
+    ? { ruleId: 'R6_no_goal_denial', passed: false, detail: `goal-denial phrase matched ${hit}` }
+    : { ruleId: 'R6_no_goal_denial', passed: true }
+}
+
+function checkSystemNoteLeak(text: string): HardRuleResult {
+  return /\(System note:/i.test(text)
+    ? { ruleId: 'R7_no_system_note', passed: false, detail: 'leaked "(System note: …)" QA diagnostic' }
+    : { ruleId: 'R7_no_system_note', passed: true }
+}
+
+const ALLOWED_CTA_TYPES = ['supply_input', 'set_goal', 'start_value_map_real', 'cut_lever']
+
+function checkCtaVocabulary(text: string): HardRuleResult {
+  const types = [...text.matchAll(/\[CTA:([a-z_]+)\]/gi)].map((m) => m[1].toLowerCase())
+  if (types.length === 0) return { ruleId: 'R8_cta_vocabulary', passed: true } // H3 handles "missing CTA"
+  const bad = types.filter((t) => !ALLOWED_CTA_TYPES.includes(t))
+  return bad.length
+    ? { ruleId: 'R8_cta_vocabulary', passed: false, detail: `unknown CTA type(s): ${bad.join(', ')}` }
+    : { ruleId: 'R8_cta_vocabulary', passed: true }
 }
 
 // ── LLM judge for subjective dimensions ─────────────────────────────────────
@@ -133,13 +201,13 @@ function buildPersonaBlock(persona: Persona): string {
 async function callLlmJudge(
   persona: Persona,
   outputType: 'archetype' | 'insight',
-  cfoOutput: unknown,
+  content: string,
   csvSummary: CsvSummary | null,
 ): Promise<{ likert: LikertResult[]; raw: unknown; modelId: string }> {
   const prompt = JUDGE_PROMPT_TEMPLATE
     .replace('{persona_block}', buildPersonaBlock(persona))
     .replace('{output_type}', outputType)
-    .replace('{cfo_output}', JSON.stringify(cfoOutput, null, 2))
+    .replace('{cfo_output}', content)
     .replace('{csv_summary}', csvSummary?.asText() ?? 'No CSV uploaded for this persona.')
 
   const { text } = await generateText({
@@ -169,6 +237,66 @@ async function callLlmJudge(
   return { likert, raw: parsed, modelId: utilityModelId }
 }
 
+// ── Pure deterministic hard-rule evaluator ────────────────────────────────
+
+export function evaluateHardRules(
+  persona: Persona,
+  outputType: 'archetype' | 'insight',
+  content: string,
+  csvSummary: CsvSummary | null,
+): HardRuleResult[] {
+  const rules = persona.expectations.hardRules
+  const out: HardRuleResult[] = []
+  out.push(checkBannedWords(content, rules?.bannedWords))
+  out.push(checkBannedPatterns(content, rules?.bannedPatterns))
+  out.push(checkSystemNoteLeak(content))
+  out.push(checkGoalDenial(content, persona))
+
+  if (outputType === 'archetype') {
+    out.push(checkMustMentionOneOf(content, rules?.archetype?.mustMentionOneOf, 'R2_archetype_mentions_one_of'))
+    out.push(checkMustMentionOneOf(content, rules?.archetype?.mustAcknowledgeOneOf, 'R2b_archetype_acknowledges_one_of'))
+    if (rules?.archetype?.mustReferenceQuadrant) {
+      out.push(checkMustMentionOneOf(content, [rules.archetype.mustReferenceQuadrant], 'R2c_archetype_references_quadrant'))
+    }
+  } else {
+    out.push(checkCurrencySymbol(content, persona))
+    out.push(checkCtaVocabulary(content))
+    out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
+    // R4: include goal figures (target, current, remaining) as plausible amounts so
+    // goal-aware Reads that quote the goal math don't false-fail.
+    const g = persona.expectations.goal
+    const goalAmounts = g
+      ? [g.targetAmount, g.currentAmount ?? 0, g.targetAmount - (g.currentAmount ?? 0)].filter((n) => n > 0)
+      : []
+    out.push(checkMinimalNumbers(content, csvSummary, goalAmounts))
+    // NOTE: the retired `isValueFirst` detection (mode 'value_first' → the H3b
+    // rule asserting the CTA is `start_value_map_real`) is intentionally dropped.
+    // The live product emits supply_input/set_goal/cut_lever CTAs, not start_value_map_real
+    // (CTA contract drift — see the plan's decision D5). R8 now validates CTA
+    // vocabulary against the full allowed set. Always use mode: 'default' here.
+    // H8 (merchant citation) is NOT invoked from the test: goal-aware Reads lead
+    // with goal/levers/categories and don't reliably cite individual merchants.
+    // H8 stays in src/lib/ai/read-judge.ts for the prod cron — we just stop calling it here.
+    for (const r of checkReadHardRules(content, { mode: 'default' })) {
+      out.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
+    }
+    // R9: goal-aware Reads must reference the goal (by name, target amount, or /goal/i).
+    if (g) {
+      const lower = content.toLowerCase()
+      const goalReferenced =
+        (g.name && lower.includes(g.name.toLowerCase())) ||
+        content.includes(String(g.targetAmount)) ||
+        /goal/i.test(content)
+      out.push({
+        ruleId: 'R9_goal_reference',
+        passed: goalReferenced,
+        detail: goalReferenced ? undefined : `goal not referenced (name="${g.name}", target=${g.targetAmount})`,
+      })
+    }
+  }
+  return out
+}
+
 // ── Public entry point ─────────────────────────────────────────────────────
 
 export async function judgeOutput(
@@ -177,44 +305,15 @@ export async function judgeOutput(
   cfoOutput: unknown,
   csvSummary: CsvSummary | null,
 ): Promise<JudgeOutput> {
-  const text = typeof cfoOutput === 'string' ? cfoOutput : JSON.stringify(cfoOutput)
-  const rules = persona.expectations.hardRules
+  const content = readContent(cfoOutput)
 
-  const hardRules: HardRuleResult[] = []
-  hardRules.push(checkBannedWords(text, rules?.bannedWords))
-  hardRules.push(checkBannedPatterns(text, rules?.bannedPatterns))
-
-  if (outputType === 'archetype') {
-    hardRules.push(checkMustMentionOneOf(text, rules?.archetype?.mustMentionOneOf, 'R2_archetype_mentions_one_of'))
-    hardRules.push(checkMustMentionOneOf(text, rules?.archetype?.mustAcknowledgeOneOf, 'R2b_archetype_acknowledges_one_of'))
-    if (rules?.archetype?.mustReferenceQuadrant) {
-      hardRules.push(checkMustMentionOneOf(text, [rules.archetype.mustReferenceQuadrant], 'R2c_archetype_references_quadrant'))
-    }
-  } else {
-    hardRules.push(checkMustMentionOneOf(text, rules?.insight?.mustReferenceMerchantsFromCsv, 'R3_insight_references_csv_merchants'))
-    hardRules.push(checkMustMentionOneOf(text, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
-    if (rules?.insight?.numbersMustMatchCsv) {
-      hardRules.push(checkNumbersMatchCsv(text, csvSummary))
-    }
-    // Current-Read format/voice contract (250-word cap, single [CTA], no
-    // [OPTIONS] chips, no question-back close, "— C." signoff). Calibrated to
-    // the live composition prompt, not the retired first-insight format. The
-    // value-first close (start_value_map_real CTA) is detected from the text.
-    const isValueFirst = /\[CTA:start_value_map_real\]/i.test(text)
-    const knownMerchants = csvSummary?.topMerchants.map((m) => m.description.toLowerCase()) ?? []
-    for (const r of checkReadHardRules(text, {
-      mode: isValueFirst ? 'value_first' : 'default',
-      knownMerchants,
-    })) {
-      hardRules.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
-    }
-  }
+  const hardRules: HardRuleResult[] = evaluateHardRules(persona, outputType, content, csvSummary)
 
   let likert: LikertResult[] = []
   let raw: unknown = null
   let modelId = utilityModelId
   try {
-    const judged = await callLlmJudge(persona, outputType, cfoOutput, csvSummary)
+    const judged = await callLlmJudge(persona, outputType, content, csvSummary)
     likert = judged.likert
     raw = judged.raw
     modelId = judged.modelId
@@ -222,12 +321,5 @@ export async function judgeOutput(
     hardRules.push({ ruleId: 'R0_judge_call_succeeded', passed: false, detail: String(e) })
   }
 
-  return {
-    outputType,
-    modelId,
-    timestamp: new Date().toISOString(),
-    hardRules,
-    likert,
-    raw,
-  }
+  return { outputType, modelId, timestamp: new Date().toISOString(), hardRules, likert, raw }
 }

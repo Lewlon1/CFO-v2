@@ -4,11 +4,12 @@
 //
 // These are dev-time diagnostics, NOT product copy — see appendCorrection in
 // lib/ai/insight-validator.ts ("not a user-facing UI"). They leaked to
-// production users (S-user-journey), so they are now suppressed in prod and
-// kept only in non-production, or when explicitly forced via SHOW_QA_NOTES=true
-// (e.g. eyeballing staging). Telemetry (user_events) fires regardless of this
-// gate — only the user-visible text is conditional.
+// production users once (S-user-journey) and then again to real testers on
+// STAGING, because the old gate showed them in any non-production env
+// (NODE_ENV !== 'production'). The default is now OFF everywhere — they appear
+// only when explicitly forced via SHOW_QA_NOTES=true (e.g. a local dev session).
+// Telemetry (user_events) fires regardless of this gate — only the user-visible
+// text is conditional.
 export function showInternalQANotes(): boolean {
-  if (process.env.SHOW_QA_NOTES === 'true') return true;
-  return process.env.NODE_ENV !== 'production';
+  return process.env.SHOW_QA_NOTES === 'true';
 }

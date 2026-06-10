@@ -63,6 +63,8 @@ export const fortressSaver: Persona = {
     country: 'GB',
     city: 'Manchester',
     currency: 'GBP',
+    monthlyIncome: 2650,
+    monthlyRent: 650,
   },
   valueMapResponses: [
     { cardId: 'vm-rent', quadrant: 'foundation', confidence: 5, firstTapMs: 600, cardTimeMs: 900, deliberationMs: 200 },
@@ -87,10 +89,10 @@ export const fortressSaver: Persona = {
       expectedQuadrant: 'foundation',
       personalityId: 'fortress',
     },
-    stagesCompleted: ['struggle_submitted', 'value_map_done', 'upload_done', 'archetype_shown', 'complete'],
+    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
     dbAfterHandoff: {
       /* primary_currency collected post-onboarding in chat, not asserted here */
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [30, 70] },
     },
     hardRules: {
@@ -100,8 +102,7 @@ export const fortressSaver: Persona = {
         mustMentionOneOf: ['careful', 'fortress', 'foundation', 'disciplined', 'protected'],
       },
       insight: {
-        mustReferenceOneOf: ['savings', 'foundation', 'stable', 'buffer'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['housing', 'groceries', 'free cash flow', 'goal'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
