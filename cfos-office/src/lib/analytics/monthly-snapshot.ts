@@ -14,6 +14,7 @@ import { detectIncomeShape } from './income-shape'
 import { computeCashFlowAggregates } from './cashflow-aggregates'
 import { detectPosture } from './posture'
 import { reconcileFixedCosts } from './reconcile-fixed-costs'
+import { alignmentFromValueBuckets } from '@/lib/value-map/alignment'
 
 type SnapshotTxn = {
   amount: number | string
@@ -215,6 +216,12 @@ async function refreshOneMonth(
       ? ((totalSpending - prevSnap.total_spending) / prevSnap.total_spending) * 100
       : null
 
+  // VM-5: alignment is derived from the same bucket record persisted below,
+  // so the stored score can never disagree with the jsonb other surfaces
+  // render. Written unconditionally (no flag gate) — the columns are inert
+  // until a VALUE_MAP_V2 surface reads them.
+  const alignment = alignmentFromValueBuckets(spendingByValueCategory)
+
   await supabase.from('monthly_snapshots').upsert(
     {
       user_id: userId,
@@ -229,6 +236,9 @@ async function refreshOneMonth(
       largest_transaction: Math.round(largestTxn * 100) / 100,
       largest_transaction_desc: largestTxnDesc || null,
       vs_previous_month_pct: vsPrevPct ? Math.round(vsPrevPct * 10) / 10 : null,
+      aligned_spend_pct: alignment.alignedSpendPct,
+      alignment_confidence: alignment.alignmentConfidence,
+      alignment_version: alignment.version,
     },
     { onConflict: 'user_id,month' }
   )

@@ -28,6 +28,15 @@ export const SUPPRESSED_DEFAULT_CONFIDENCE = 0.1
 /** Bucket key for non-displayable spend in spending_by_value_category. */
 export const UNMAPPED_BUCKET = 'unmapped'
 
+/** VM-5 — Alignment Score honesty floor. The score (and any chat citation of
+ *  it) renders ONLY when alignment_confidence (displayable share of eligible
+ *  spend) is at or above this. Below it, surfaces show the calibrating state
+ *  with the exact unmapped € — never a percentage. Provisional pending real
+ *  coverage data; recalibration is a value change here, never a per-surface
+ *  override. Phase-0 reality check (2026-06-10, staging): best post-VM-3
+ *  persona coverage was 0.19, so current test users render calibrating. */
+export const ALIGNMENT_DISPLAY_MIN_CONFIDENCE = 0.4
+
 // ── VM-3: post-Read Value Map card session ────────────────────────────────
 
 /** Target card count for the post-Read Value Map session. Selection clamps
