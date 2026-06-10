@@ -73,7 +73,7 @@ describe('resolveValueCategory', () => {
 
   it('falls through to category rule when no merchant rule exists', () => {
     const rules = [
-      rule({ match_type: 'category', match_value: 'groceries', value_category: 'foundation', confidence: 0.40 }),
+      rule({ match_type: 'category', match_value: 'groceries', value_category: 'foundation', confidence: 0.55 }),
     ]
     const result = resolveValueCategory(rules, categories, 'unknown_shop', 'groceries', 10, new Date('2026-01-06T12:00:00'))
     expect(result.value_category).toBe('foundation')
@@ -82,7 +82,7 @@ describe('resolveValueCategory', () => {
 
   it('falls through to global prior when no category rule exists', () => {
     const rules = [
-      rule({ match_type: 'global', match_value: '__global__', value_category: 'foundation', confidence: 0.30 }),
+      rule({ match_type: 'global', match_value: '__global__', value_category: 'foundation', confidence: 0.55 }),
     ]
     const result = resolveValueCategory(rules, categories, 'unknown', null, 10, new Date('2026-01-06T12:00:00'))
     expect(result.value_category).toBe('foundation')
@@ -103,14 +103,23 @@ describe('resolveValueCategory', () => {
     expect(result.source).toBe('none')
   })
 
-  it('skips rules below confidence threshold', () => {
+  it('skips rules below the application floor (RULE_APPLICATION_MIN_CONFIDENCE)', () => {
     const rules = [
-      rule({ match_type: 'merchant', value_category: 'leak', confidence: 0.20 }), // below 0.25 threshold
-      rule({ match_type: 'category', match_value: 'groceries', value_category: 'foundation', confidence: 0.40 }),
+      rule({ match_type: 'merchant', value_category: 'leak', confidence: 0.45 }), // below 0.5 floor
+      rule({ match_type: 'category', match_value: 'groceries', value_category: 'foundation', confidence: 0.55 }),
     ]
     const result = resolveValueCategory(rules, categories, 'tesco', 'groceries', 10, new Date('2026-01-06T12:00:00'))
     expect(result.value_category).toBe('foundation')
     expect(result.source).toBe('category')
+  })
+
+  it('falls to the gated category default when every rule is below the floor', () => {
+    const rules = [
+      rule({ match_type: 'merchant', value_category: 'leak', confidence: 0.45 }),
+    ]
+    const result = resolveValueCategory(rules, categories, 'tesco', 'groceries', 10, new Date('2026-01-06T12:00:00'))
+    expect(result.source).toBe('category_default')
+    expect(result.value_category).toBe('foundation')
   })
 
   it('applies recency boost for recent rules', () => {

@@ -1,3 +1,4 @@
+import { VALUE_CHAT_CITATION_THRESHOLD } from '@/lib/categorisation/value-config'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { selectRetakeCandidates } from './retake-candidates'
 
@@ -76,7 +77,7 @@ export async function shouldTriggerRetake(
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
     .eq('value_confirmed_by_user', false)
-    .lt('value_confidence', 0.7)
+    .lt('value_confidence', VALUE_CHAT_CITATION_THRESHOLD)
     .gte('date', windowStart.toISOString())
     .lt('amount', 0)
 

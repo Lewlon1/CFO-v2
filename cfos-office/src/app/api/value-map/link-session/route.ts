@@ -7,7 +7,8 @@
 // Both profile_id and user_id reference auth.users.id — same UUID.
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
@@ -151,6 +152,18 @@ export async function POST(request: Request) {
 
     if (rulesError) {
       console.error('[link-session] value_category_rules seed error:', rulesError)
+    } else {
+      // VM-2: apply the seeded rules retroactively. Usually a no-op at
+      // signup-link time (no transactions yet), but when the Value Map is
+      // linked after an import the seeded category rules must reach the
+      // existing history. Fire-and-forget — linking never fails on re-score.
+      after(async () => {
+        try {
+          await rescoreValueCategories(user.id)
+        } catch (err) {
+          console.error('[link-session] rescore failed:', err)
+        }
+      })
     }
   }
 

@@ -13,6 +13,7 @@ import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
 import { createServiceClient } from '@/lib/supabase/service';
+import { VALUE_CHAT_CITATION_THRESHOLD } from '@/lib/categorisation/value-config';
 import {
   pickSignificantAmbiguousMerchant,
   type SignificantMerchant,
@@ -1929,7 +1930,7 @@ async function getValueCheckinNudgeContext(
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('value_confirmed_by_user', false)
-      .or('value_confidence.is.null,value_confidence.lt.0.7')
+      .or(`value_confidence.is.null,value_confidence.lt.${VALUE_CHAT_CITATION_THRESHOLD}`)
       .lt('amount', 0)
 
     if (error) return ''
@@ -2071,7 +2072,7 @@ async function getValueMappingContext(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (t: any) =>
         !t.value_confirmed_by_user &&
-        (t.value_confidence === null || Number(t.value_confidence) < 0.7)
+        (t.value_confidence === null || Number(t.value_confidence) < VALUE_CHAT_CITATION_THRESHOLD)
     ).length
     const reviewed = total - unreviewed
     const percentReviewed = Math.round((reviewed / total) * 100)

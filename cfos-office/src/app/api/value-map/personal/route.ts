@@ -4,7 +4,7 @@ import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { getTimeContext } from '@/lib/utils/time-context'
 import { selectRetakeCandidates } from '@/lib/value-map/retake-candidates'
 import { processSignals } from '@/lib/prediction/process-signals'
-import { backfillForMerchant } from '@/lib/prediction/backfill'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 import { regenerateArchetype } from '@/lib/value-map/regenerate-archetype'
 import {
   refreshMonthlySnapshots,
@@ -294,16 +294,22 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // 9. Trigger async learning — one processSignals+backfill per unique merchant
+  // 9. Trigger async learning — processSignals per unique merchant, then one
+  // full re-score (VM-2) so the refreshed rule set reaches ALL history,
+  // including the category/global priors processSignals just moved.
   const uniqueMerchants = [...new Set(signalRows.map((s) => s.merchant_clean))]
   after(async () => {
     for (const merchant of uniqueMerchants) {
       try {
         await processSignals(user.id, merchant)
-        await backfillForMerchant(user.id, merchant)
       } catch (err) {
         console.error(`[retake learning] ${merchant} failed:`, err)
       }
+    }
+    try {
+      await rescoreValueCategories(user.id)
+    } catch (err) {
+      console.error('[retake learning] rescore failed:', err)
     }
     // After all merchants processed, regenerate archetype
     try {
