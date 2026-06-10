@@ -37,6 +37,14 @@ export type OnboardingStep =
   | 'value_map_offered'
   | 'complete'
 
+/** Minimal active-goal summary threaded into the upload beat so the CFO can
+ *  acknowledge the goal by name before asking for statements. */
+export type OnboardingGoalSummary = {
+  name: string
+  targetAmount: number | null
+  currency: string
+}
+
 export type StartValueMapAction = { type: 'start_value_map' }
 export type StartUploadAction = { type: 'start_upload' }
 export type StartValueMapRealAction = { type: 'start_value_map_real' }
