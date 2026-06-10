@@ -168,35 +168,3 @@ export const NUDGE_RULES: Record<NudgeType, NudgeRule> = {
     evaluation_schedule: 'daily',
   },
 };
-
-export const NUDGE_ICONS: Record<NudgeType, string> = {
-  payday_savings: '💰',
-  budget_alert: '⚠️',
-  bill_due: '📄',
-  contract_expiry: '📋',
-  monthly_review: '📊',
-  action_item_reminder: '☑️',
-  upload_reminder: '📤',
-  spending_spike: '📈',
-  goal_milestone: '🎯',
-  value_map_retake: '🧭',
-};
-
-export const NUDGE_LABELS: Record<NudgeType, string> = {
-  payday_savings: 'Payday savings reminders',
-  budget_alert: 'Budget alerts',
-  bill_due: 'Bill due reminders',
-  contract_expiry: 'Contract expiry alerts',
-  monthly_review: 'Monthly review prompts',
-  action_item_reminder: 'Action item reminders',
-  upload_reminder: 'Upload reminders',
-  spending_spike: 'Spending spike alerts',
-  goal_milestone: 'Goal milestone celebrations',
-  value_map_retake: 'Value Map retake suggestions',
-};
-
-export const PRIORITY_ORDER: Record<NudgePriority, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-};

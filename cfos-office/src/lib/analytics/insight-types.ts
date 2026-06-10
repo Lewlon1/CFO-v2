@@ -26,19 +26,6 @@ export type DataDependency =
   | 'income'
   | 'goals';
 
-// Patterns whose dependencies are blocked at first-insight time are skipped
-// even if the data exists. We keep 'income' blocked because we never have
-// reliable income at first insight. 'goals' used to be blocked too, but we
-// now surface a user's stated intent (entry_struggle / goals row) so
-// goal-aware patterns can run when there's something to anchor to.
-export const BLOCKED_AT_FIRST_INSIGHT: DataDependency[] = ['income'];
-
-// Minimum confidence from computeIncomeSignal() before we advertise
-// 'income_signal' as an available dependency. Below this, downstream
-// experiment templates and pattern detectors that rely on income cadence
-// stay off rather than firing on noise.
-export const INCOME_SIGNAL_THRESHOLD = 0.7;
-
 export interface PatternResult {
   id: string;
   score: number;

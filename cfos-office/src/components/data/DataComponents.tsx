@@ -116,68 +116,6 @@ export function FilterPills({ options, activeId, onChange }: FilterPillsProps) {
 }
 
 // ============================================================
-// ProvenanceLine
-// ============================================================
-interface ProvenanceLineProps {
-  text: string
-}
-
-export function ProvenanceLine({ text }: ProvenanceLineProps) {
-  return (
-    <div className="font-data text-[7px] text-text-ghost flex items-center gap-[3px] mt-1">
-      <div className="w-[3px] h-[3px] rounded-full bg-card" />
-      {text}
-    </div>
-  )
-}
-
-// ============================================================
-// GapCard
-// ============================================================
-interface GapCardProps {
-  belief: string
-  reality: string
-  status: 'aligned' | 'gap' | 'eliminated' | 'partial'
-}
-
-// Phase 3b: status palette onto theme-reactive tokens. bg = 12% tint, cardBg =
-// 2% tint via color-mix; both reactive to the semantic token in either theme.
-const statusToken: Record<GapCardProps['status'], string> = {
-  aligned:    'var(--positive)',
-  gap:        'var(--negative)',
-  eliminated: 'var(--positive)',
-  partial:    'var(--accent-gold)',
-}
-
-export function GapCard({ belief, reality, status }: GapCardProps) {
-  const token = statusToken[status]
-  const s = {
-    bg: `color-mix(in oklab, ${token} 12%, transparent)`,
-    color: token,
-    cardBg: `color-mix(in oklab, ${token} 2%, transparent)`,
-  }
-  return (
-    <div
-      className="rounded-control p-3 mb-2"
-      style={{ backgroundColor: s.cardBg, border: '1px solid var(--border-subtle)' }}
-    >
-      <div className="text-[11px] text-text-secondary mb-[5px] leading-[1.5]">
-        {belief}
-      </div>
-      <div className="text-[12px] leading-[1.55] text-foreground">
-        {reality}
-      </div>
-      <span
-        className="font-data text-[7px] px-[7px] py-[3px] rounded tracking-[0.06em] uppercase inline-block mt-1.5"
-        style={{ backgroundColor: s.bg, color: s.color }}
-      >
-        {status}
-      </span>
-    </div>
-  )
-}
-
-// ============================================================
 // SectionTitle
 // ============================================================
 export function SectionTitle({ children }: { children: React.ReactNode }) {

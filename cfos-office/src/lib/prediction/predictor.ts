@@ -152,23 +152,3 @@ export async function loadUserRules(
 
   return (data ?? []) as ValueCategoryRule[]
 }
-
-/**
- * Convenience wrapper — loads rules from DB, then resolves.
- * Use for single predictions (e.g. backfill). For batch, use loadUserRules + resolveValueCategory.
- */
-export async function predictValueCategory(
-  supabase: SupabaseClient,
-  userId: string,
-  merchantClean: string,
-  categoryId: string | null,
-  amount: number,
-  transactionTime: Date
-): Promise<PredictionResult> {
-  const [rules, { data: catData }] = await Promise.all([
-    loadUserRules(supabase, userId),
-    supabase.from('categories').select('id, name, tier, icon, color, examples, default_value_category').eq('is_active', true),
-  ])
-  const categories = (catData ?? []) as Category[]
-  return resolveValueCategory(rules, categories, merchantClean, categoryId, amount, transactionTime)
-}

@@ -43,15 +43,14 @@ import { createRecordExperimentOutcomeTool } from './record-experiment-outcome';
 import { createListActiveExperimentsTool } from './list-active-experiments';
 // Structured action emission — replaces the legacy <ACTION:…> text-token mechanism.
 import { createEmitActionTool } from './emit-action';
-// Session 32 (A) — Layer 3 + Layer 4 tools (flag-gated).
+// Session 32 (A) — Layer 3 + Layer 4 tools.
 import { createGetClusterBehaviourTool } from './get-cluster-behaviour';
 import { createGetConversationSignalsTool } from './get-conversation-signals';
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 
 export type { ToolContext } from './types';
 
 export function createToolbox(ctx: ToolContext) {
-  const base = {
+  return {
     get_spending_summary: createGetSpendingSummaryTool(ctx),
     compare_months: createCompareMonthsTool(ctx),
     get_value_breakdown: createGetValueBreakdownTool(ctx),
@@ -96,13 +95,7 @@ export function createToolbox(ctx: ToolContext) {
     list_active_experiments: createListActiveExperimentsTool(ctx),
     // Structured action emission
     emit_action: createEmitActionTool(ctx),
-  };
-
-  if (!isLayeredReadEnabled()) return base;
-
-  // Session 32 (A) — Layer 3 / Layer 4 tools, active only under the layered-read flag.
-  return {
-    ...base,
+    // Session 32 (A) — Layer 3 / Layer 4 tools.
     get_cluster_behaviour: createGetClusterBehaviourTool(ctx),
     get_conversation_signals: createGetConversationSignalsTool(ctx),
   };

@@ -44,14 +44,6 @@ export interface ExperimentTemplate {
   effort: EffortBand;
   reach: ReachBand;
   measurability: Measurability;
-  /**
-   * When true, the proposal layer should skip this template if the user's
-   * income signal confidence (computeIncomeSignal) is below
-   * INCOME_SIGNAL_THRESHOLD. No current template sets this — the field
-   * exists so future income-cadence-dependent templates can opt in without
-   * a schema change.
-   */
-  requires_income_signal?: boolean;
 }
 
 export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
@@ -214,10 +206,6 @@ export const EXPERIMENT_TEMPLATES: readonly ExperimentTemplate[] = [
     measurability: 'self_report_clear',
   },
 ] as const;
-
-export function templatesForPattern(patternId: string): ExperimentTemplate[] {
-  return EXPERIMENT_TEMPLATES.filter((t) => t.trigger_patterns.includes(patternId));
-}
 
 export function findTemplate(id: string): ExperimentTemplate | null {
   return EXPERIMENT_TEMPLATES.find((t) => t.id === id) ?? null;

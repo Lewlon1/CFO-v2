@@ -10,8 +10,7 @@ import { resolve } from 'node:path'
  * source.
  *
  * Note: this asserts on the SOURCE FILE rather than the rendered prompt
- * because getConversationInstructions is private. The runtime correctness
- * check happens in scripts/compare-first-insight.ts during verification.
+ * because getConversationInstructions is private.
  */
 describe('opener prompts — no greet/welcome instructions', () => {
   const source = readFileSync(
@@ -29,15 +28,5 @@ describe('opener prompts — no greet/welcome instructions', () => {
     // narrow — looks for it inside template literals only.)
     const promptStringMatches = source.match(/`[^`]*\bWelcome\b[^`]*`/g) ?? []
     expect(promptStringMatches).toEqual([])
-  })
-
-  it('v1 buildFirstInsightContext opener forbids greeting explicitly', () => {
-    // Session 28 amendment: Marcus (wave-1) saw "Welcome, Marcus." because the
-    // v1 first-insight context only said "Open by acknowledging the goal".
-    // The opener line in buildFirstInsightContext must explicitly forbid greeting.
-    expect(source).not.toMatch(/lines\.push\(\s*['"]\- Open by acknowledging the goal/)
-    // And the replacement line must include the explicit ban.
-    expect(source).toMatch(/Acknowledge the goal naturally/)
-    expect(source).toMatch(/Do NOT greet, welcome, or address the user by name/)
   })
 })

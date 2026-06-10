@@ -30,10 +30,6 @@ export function isSpendRow(amount: number | string, catId: string | null | undef
   return Number(amount) < 0 && !isNeutralCategory(catId) && catId !== INCOME_CATEGORY_ID
 }
 
-export function isRefundRow(amount: number | string, catId: string | null | undefined): boolean {
-  return Number(amount) > 0 && !isNeutralCategory(catId) && catId !== INCOME_CATEGORY_ID
-}
-
 // True for any row that should affect the spending breakdown (outflow or refund) on a real category.
 export function affectsSpendingBreakdown(catId: string | null | undefined): boolean {
   return !!catId && !isNeutralCategory(catId) && catId !== INCOME_CATEGORY_ID

@@ -185,9 +185,14 @@ NEXT_PUBLIC_APP_URL=
 
 ### Feature flags
 
-Active branch-scoped flags:
-
-- **`isLayeredReadEnabled()`** in [cfos-office/src/lib/feature-flags/layered-read.ts](cfos-office/src/lib/feature-flags/layered-read.ts) — **default-ON since #55**: returns `true` unless `LAYERED_READ_DISABLED=true` (a runtime kill-switch). Gates the layered Read tools (`get_cluster_behaviour`, `get_conversation_signals`), the layered system-prompt section, the `chat_signals` extractor hook, and the value-first onboarding sequence. The `!isLayeredReadEnabled()` branches + the legacy `computeFirstInsight` path are retained as rollback and slated for removal once the layered flow is proven in prod.
+None active. The two legacy kill-switches (`LAYERED_READ_DISABLED` for the
+pre-layered onboarding path, `CHAT_INTELLIGENCE_V2_FORCE=0` for the V1
+deterministic-narration first read) were retired and their false-branches
+removed per `docs/decisions/2026-06-10-legacy-onboarding-removal-plan.md`.
+The layered Read tools (`get_cluster_behaviour`, `get_conversation_signals`),
+the layered system-prompt section, the `chat_signals` extractor hook, and the
+value-first onboarding sequence are unconditional. Rollback is now `git revert`
+of the removal PR, not an env flip.
 
 ---
 
@@ -271,7 +276,7 @@ Two paths can set the completion timestamp:
 
 The timestamp is a one-way ratchet (the UPDATE is gated by `.is('onboarding_completed_at', null)`). The Value Map is not mandatory for completion; users who skip it complete via the Read.
 
-**Layered-read flag / kill-switch.** The value-first layered Read is on by default (`isLayeredReadEnabled()` in `lib/feature-flags/layered-read.ts` returns true). Set `LAYERED_READ_DISABLED=true` (env / Vercel) to instantly revert every user to the legacy pre-layered onboarding with no redeploy — kept as a runtime rollback through the first live cohort. The dead pre-layered path is slated for removal in a follow-up once the layered flow is proven in prod. Going live requires migrations `062`–`069` applied in the target environment.
+**No kill-switch.** The value-first layered Read is the only onboarding flow; the pre-layered path and its `LAYERED_READ_DISABLED` kill-switch were removed after the first live cohort proved the flow (see `docs/decisions/2026-06-10-legacy-onboarding-removal-plan.md`). Migrations `062`–`069` are a hard requirement in every environment. Users stamped `archetype_shown` (old surface) still resume to `/onboarding-v2/archetype`.
 
 ### The CFO Persona
 

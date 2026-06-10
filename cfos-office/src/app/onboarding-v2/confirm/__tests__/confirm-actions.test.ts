@@ -13,7 +13,11 @@ vi.mock('@/lib/supabase/server', () => ({
       const b: Record<string, unknown> = {}
       Object.assign(b, {
         select: () => b,
-        eq: () => b,
+        eq: (col: string, val: unknown) => {
+          calls.push({ table, method: 'eq', col, vals: val })
+          return b
+        },
+        neq: () => b,
         in: (col: string, vals: unknown) => {
           calls.push({ table, method: 'in', col, vals })
           return b
@@ -65,6 +69,7 @@ describe('confirmFixedCosts — batched ConfirmPayload commit', () => {
     const result = await confirmFixedCosts({
       declaredDismissals: ['Old Gym'],
       detectedDismissals: ['netflix'],
+      bankedEdits: [],
       acceptedCandidates: [{ name: 'tmb', amount: 45.5, cadence: 'monthly', bill_subtype: null }],
       skippedCandidates: [{ name: 'shell', amount: 37, cadence: 'monthly' }],
       declaredLines: [{ label: 'Electricity', amount: 90, cadence: 'bi-monthly', bill_subtype: 'electricity' }],
@@ -102,10 +107,56 @@ describe('confirmFixedCosts — batched ConfirmPayload commit', () => {
     expect(order).toEqual(['sync', 'advance'])
   })
 
+  it('persists banked-row corrections per source: rent, declared, detected', async () => {
+    await confirmFixedCosts({
+      declaredDismissals: [],
+      detectedDismissals: [],
+      bankedEdits: [
+        { label: 'Housing', source: 'rent', amount: 1100, cadence: 'monthly', bill_subtype: null },
+        { label: 'Gym', source: 'declared', amount: 35, cadence: 'monthly', bill_subtype: null },
+        { label: 'claude.ai', source: 'detected', amount: 23, cadence: 'monthly', bill_subtype: null },
+      ],
+      acceptedCandidates: [],
+      skippedCandidates: [],
+      declaredLines: [],
+    })
+
+    // Rent edit → user_profiles.monthly_rent (monthly equivalent).
+    expect(find('user_profiles', 'update')[0]?.value).toMatchObject({ monthly_rent: 1100 })
+
+    // Declared edit → in-place update on user_declared_fixed_costs.
+    const declaredUpdates = find('user_declared_fixed_costs', 'update')
+    expect(declaredUpdates[0]?.value).toMatchObject({ amount: 35, cadence: 'monthly' })
+    expect(
+      find('user_declared_fixed_costs', 'eq').some((c) => c.col === 'label' && c.vals === 'Gym'),
+    ).toBe(true)
+
+    // Detected edit → recurring row dismissed AND corrected values re-declared
+    // as a confirmed banked_edit row (so reconcile can never double-count).
+    expect(find('recurring_expenses', 'update')[0]?.value).toMatchObject({ status: 'dismissed' })
+    expect(
+      find('recurring_expenses', 'in').some(
+        (c) => c.col === 'name' && JSON.stringify(c.vals) === JSON.stringify(['claude.ai']),
+      ),
+    ).toBe(true)
+    const inserted = find('user_declared_fixed_costs', 'insert')[0]?.value as Array<Record<string, unknown>>
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0]).toMatchObject({
+      label: 'claude.ai',
+      amount: 23,
+      cadence: 'monthly',
+      status: 'confirmed',
+      source: 'banked_edit',
+    })
+
+    expect(order).toEqual(['sync', 'advance'])
+  })
+
   it('writes nothing extra when every list is empty, but still syncs, advances, and routes', async () => {
     const result = await confirmFixedCosts({
       declaredDismissals: [],
       detectedDismissals: [],
+      bankedEdits: [],
       acceptedCandidates: [],
       skippedCandidates: [],
       declaredLines: [],
