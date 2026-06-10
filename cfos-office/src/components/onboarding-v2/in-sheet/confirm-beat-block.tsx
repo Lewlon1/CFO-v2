@@ -7,7 +7,7 @@ import type { CoverageLine } from '@/lib/analytics/category-coverage'
 import type { BillSubtype } from '@/lib/analytics/benchmark/types'
 import { formatCurrency } from '@/lib/format/currency'
 import { monthlyEq, keyToBillSubtype } from '@/components/onboarding-v2/fixed-cost-display'
-import { ConfirmFixedCosts, bankedKey } from '@/components/onboarding-v2/confirm-fixed-costs'
+import { ConfirmFixedCosts, bankedKey, type BankedEdit } from '@/components/onboarding-v2/confirm-fixed-costs'
 import { CandidateBills, type CandidateDecision } from '@/components/onboarding-v2/candidate-bills'
 import {
   MissingCosts,
@@ -77,8 +77,9 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
 
   const visibleItems = useMemo(() => items.filter((i) => !i.superseded), [items])
 
-  // Section 1 — dropped banked rows.
+  // Section 1 — dropped banked rows + per-row amount/cadence corrections.
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set())
+  const [bankedEdits, setBankedEdits] = useState<Record<string, BankedEdit>>({})
 
   // Section 2 — per-candidate decision; high-confidence defaults to counted.
   const [candidateState, setCandidateState] = useState<Record<string, CandidateDecision>>(() =>
@@ -115,6 +116,9 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
       return next
     })
   }
+  function setBankedEdit(key: string, next: BankedEdit) {
+    setBankedEdits((prev) => ({ ...prev, [key]: next }))
+  }
   function patchCandidate(name: string, patch: Partial<CandidateDecision>) {
     setCandidateState((prev) => ({ ...prev, [name]: { ...prev[name], ...patch } }))
   }
@@ -128,7 +132,10 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
   const liveTotal = useMemo(() => {
     let sum = 0
     visibleItems.forEach((item, idx) => {
-      if (!dismissed.has(bankedKey(item, idx))) sum += item.monthly_equivalent
+      const key = bankedKey(item, idx)
+      if (dismissed.has(key)) return
+      const edit = bankedEdits[key]
+      sum += edit ? monthlyEq(edit.amount, edit.cadence) : item.monthly_equivalent
     })
     for (const c of candidates) {
       const d = candidateState[c.name]
@@ -138,7 +145,7 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
       if (d.included) sum += monthlyEq(Number.parseFloat(d.amount) || 0, d.cadence)
     }
     return sum
-  }, [visibleItems, dismissed, candidates, candidateState, captured])
+  }, [visibleItems, dismissed, bankedEdits, candidates, candidateState, captured])
 
   function handleContinue() {
     if (pending) return
@@ -150,6 +157,30 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
           if (!dismissed.has(bankedKey(item, idx))) return
           if (item.source === 'declared') declaredDismissals.push(item.label)
           else if (item.source === 'detected') detectedDismissals.push(item.label)
+        })
+
+        // Banked rows the user corrected (and kept) — no-op edits are filtered
+        // so untouched rows never round-trip.
+        const bankedEditLines: Array<{
+          label: string
+          source: 'rent' | 'declared' | 'detected'
+          amount: number
+          cadence: Cadence
+          bill_subtype: BillSubtype | null
+        }> = []
+        visibleItems.forEach((item, idx) => {
+          const key = bankedKey(item, idx)
+          if (dismissed.has(key)) return
+          const edit = bankedEdits[key]
+          if (!edit || !(edit.amount > 0)) return
+          if (edit.amount === item.amount && edit.cadence === item.cadence) return
+          bankedEditLines.push({
+            label: item.label,
+            source: item.source,
+            amount: edit.amount,
+            cadence: edit.cadence,
+            bill_subtype: item.bill_subtype,
+          })
         })
 
         const acceptedCandidates = candidates
@@ -180,6 +211,7 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
         await confirmFixedCosts({
           declaredDismissals,
           detectedDismissals,
+          bankedEdits: bankedEditLines,
           acceptedCandidates,
           skippedCandidates,
           declaredLines,
@@ -208,6 +240,8 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
           items={visibleItems}
           dismissed={dismissed}
           onToggle={toggleDismissed}
+          edits={bankedEdits}
+          onEdit={setBankedEdit}
           currency={currency}
         />
 

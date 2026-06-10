@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
 import { syncTotalFixedCosts } from '@/lib/analytics/monthly-snapshot'
+import { monthlyEquivalent } from '@/lib/analytics/recurring-detector'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 import type { Cadence } from '@/lib/analytics/reconcile-fixed-costs'
 import type { BillSubtype } from '@/lib/analytics/benchmark/types'
@@ -22,6 +23,23 @@ export type ConfirmPayload = {
   declaredDismissals: string[]
   /** Section-1 detected rows the user dropped → recurring_expenses dismissed (matched on name). */
   detectedDismissals: string[]
+  /**
+   * Section-1 banked rows the user corrected (amount and/or cadence) and kept.
+   * Persistence depends on where the row came from:
+   *   - rent     → user_profiles.monthly_rent (cadence is locked to monthly in the UI)
+   *   - declared → user_declared_fixed_costs updated in place (matched on label)
+   *   - detected → the recurring_expenses row is dismissed and the corrected
+   *     values become a confirmed declaration (source='banked_edit'). An
+   *     in-place update would be clobbered by the next detector run, and an
+   *     edit outside the ±10% reconcile band would otherwise double-count.
+   */
+  bankedEdits: Array<{
+    label: string
+    source: 'rent' | 'declared' | 'detected'
+    amount: number
+    cadence: Cadence
+    bill_subtype: BillSubtype | null
+  }>
   /** "Worth a look" candidates the user counted → confirmed declared rows. */
   acceptedCandidates: Array<{
     name: string
@@ -76,8 +94,49 @@ export async function confirmFixedCosts(payload: ConfirmPayload): Promise<{ redi
       .in('label', payload.declaredDismissals)
   }
 
-  // 2. Accepted candidates + captured gap/utility lines → confirmed declared costs.
+  // 1c. Banked edits — user-corrected amount/cadence on rows already counted.
+  const rentEdit = payload.bankedEdits.find((e) => e.source === 'rent')
+  if (rentEdit) {
+    await supabase
+      .from('user_profiles')
+      .update({ monthly_rent: monthlyEquivalent(rentEdit.amount, rentEdit.cadence) })
+      .eq('id', user.id)
+  }
+  for (const e of payload.bankedEdits) {
+    if (e.source !== 'declared') continue
+    // Note: if the edit moves outside the ±10% band of a detected row this
+    // declaration previously matched, that detected row resurfaces as its own
+    // line on the next reconcile — correct, since the user's claim no longer
+    // explains the detected cluster.
+    await supabase
+      .from('user_declared_fixed_costs')
+      .update({ amount: e.amount, cadence: e.cadence })
+      .eq('user_id', user.id)
+      .eq('label', e.label)
+      .neq('status', 'dismissed')
+  }
+  const detectedEdits = payload.bankedEdits.filter((e) => e.source === 'detected')
+  if (detectedEdits.length > 0) {
+    await supabase
+      .from('recurring_expenses')
+      .update({ status: 'dismissed' })
+      .eq('user_id', user.id)
+      .in('name', detectedEdits.map((e) => e.label))
+  }
+
+  // 2. Accepted candidates + captured gap/utility lines + corrected detected
+  //    rows → confirmed declared costs.
   const declaredRows = [
+    ...detectedEdits.map((e) => ({
+      user_id: user.id,
+      label: e.label,
+      amount: e.amount,
+      cadence: e.cadence,
+      bill_subtype: e.bill_subtype,
+      status: 'confirmed',
+      source: 'banked_edit',
+      currency,
+    })),
     ...payload.acceptedCandidates.map((c) => ({
       user_id: user.id,
       label: c.name,

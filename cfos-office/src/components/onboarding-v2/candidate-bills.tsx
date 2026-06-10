@@ -14,8 +14,9 @@ export type CandidateDecision = { counted: boolean; amount: number; cadence: Cad
  * Bridges the number-typed decision amount to the string-first CurrencyInput.
  * Holds its own display string (seeded from the initial number) so partial
  * entries like "5." edit smoothly, and pushes the parsed number to the parent.
+ * Shared with the banked-row editor in confirm-fixed-costs.tsx.
  */
-function BillAmountInput({
+export function BillAmountInput({
   currency,
   amount,
   onAmount,
