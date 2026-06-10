@@ -9,6 +9,15 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## VM-FF (2026-06-10): claude/value-map-v2-7ox3hw fast-forwarded to VM-3 tip ff52c51
+
+Canonical VM branch = `claude/value-map-v2-7ox3hw`.
+`claude/value-map-v2-post-read-s033w0` is now redundant; delete at
+final-merge cleanup. All future VM sessions base here (artifact gates
+still apply).
+
+---
+
 ## VM-2 — Rule application engine v2 (2026-06-10)
 
 Branch/base: `claude/value-map-v2-7ox3hw` @ 426548d (contains VM-1; VM-1 gate
