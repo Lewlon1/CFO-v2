@@ -5,13 +5,10 @@
 // /api/value-map/onboarding response (RescoreResult + reconciliation query).
 // Nothing here is estimated, narrated, or LLM-generated.
 //
-// ─────────────────────────────────────────────────────────────────────────
-// VM-4 INSERTION SLOT: the archetype reveal slots BEFORE this screen.
-// OnboardingValueMapV2 (onboarding-v2-flow.tsx) sequences
-//   exercise → saving → [VM-4 reveal goes here] → payback → CTA.
-// When VM-4 lands, it inserts a 'reveal' step between 'saving' and 'payback'
-// in that component's state machine; this screen and its props stay as-is.
-// ─────────────────────────────────────────────────────────────────────────
+// VM-4: the archetype reveal renders before this screen (the 'reveal' step
+// in onboarding-v2-flow.tsx). The numbers here are untouched; the only VM-4
+// delta is the CTA label, which takes the deterministic family flavour when
+// a family was assigned and stays neutral otherwise.
 
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -26,14 +23,27 @@ import {
 } from '@/lib/value-map/copy'
 import type { PaybackSummary } from '@/lib/value-map/payback'
 import type { ValueQuadrant } from '@/lib/value-map/types'
+import {
+  FAMILY_PAYBACK_CTA,
+  type ArchetypeFamily,
+} from '@/lib/value-map/taxonomy-config'
 
 interface PaybackScreenProps {
   payback: PaybackSummary | null
   currency: string
+  /** VM-4: assigned archetype family — flavours the CTA label only. */
+  family?: string | null
   onContinue: () => void
 }
 
-export function PaybackScreen({ payback, currency, onContinue }: PaybackScreenProps) {
+function ctaLabel(family: string | null | undefined): string {
+  if (family && family in FAMILY_PAYBACK_CTA) {
+    return FAMILY_PAYBACK_CTA[family as ArchetypeFamily]
+  }
+  return VM3_PAYBACK_CTA
+}
+
+export function PaybackScreen({ payback, currency, family, onContinue }: PaybackScreenProps) {
   // No payback data (save failed downstream of the session write) — thank the
   // user without inventing numbers.
   if (!payback || payback.mappedTransactions === 0) {
@@ -46,7 +56,7 @@ export function PaybackScreen({ payback, currency, onContinue }: PaybackScreenPr
             Your answers are saved and working through your history.
           </p>
         </div>
-        <ContinueButton onContinue={onContinue} />
+        <ContinueButton label={ctaLabel(family)} onContinue={onContinue} />
       </div>
     )
   }
@@ -112,18 +122,18 @@ export function PaybackScreen({ payback, currency, onContinue }: PaybackScreenPr
         )}
       </div>
 
-      <ContinueButton onContinue={onContinue} />
+      <ContinueButton label={ctaLabel(family)} onContinue={onContinue} />
     </div>
   )
 }
 
-function ContinueButton({ onContinue }: { onContinue: () => void }) {
+function ContinueButton({ label, onContinue }: { label: string; onContinue: () => void }) {
   return (
     <Button
       onClick={onContinue}
       className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 py-5 text-base min-h-11 mt-2"
     >
-      {VM3_PAYBACK_CTA}
+      {label}
       <ArrowRight className="ml-2 h-4 w-4" />
     </Button>
   )

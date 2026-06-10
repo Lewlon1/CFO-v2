@@ -11,6 +11,14 @@ import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { computePaybackForUser } from '@/lib/value-map/payback'
 import { isValueMapV2Enabled } from '@/lib/value-map/flags'
+import { classifyArchetype, type AnsweredCard } from '@/lib/value-map/classify-archetype'
+import {
+  detectTension,
+  gatherTensionInputs,
+  type ProtectedMerchant,
+} from '@/lib/value-map/tension-detector'
+import { buildReceiptLines, type TensionLine } from '@/lib/value-map/receipt-templates'
+import type { RevealPayload } from '@/lib/value-map/reveal'
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 
@@ -158,11 +166,16 @@ export async function POST(req: NextRequest) {
   }
 
   if (actionable.length === 0) {
+    // All-unsure session: still classify (deterministic fallback cell) so the
+    // session row carries taxonomy data and the reveal shows the honest
+    // "still reading you" state.
+    const reveal = await classifyAndPersist(supabase, user.id, session.id, [], [])
     return NextResponse.json({
       success: true,
       session_id: session.id,
       classified: 0,
       payback: null,
+      reveal,
     })
   }
 
@@ -249,6 +262,29 @@ export async function POST(req: NextRequest) {
     actionable.length,
   )
 
+  // 8b. VM-4 — deterministic archetype classification + tension. Runs AFTER
+  //     the awaited re-score so the stated–observed detector reads the
+  //     post-rescore value labels. Persisted server-side regardless of
+  //     whether the client renders the reveal.
+  const answeredCards: AnsweredCard[] = actionable.map((r) => ({
+    quadrant: r.quadrant,
+    confidence: r.confidence ?? 3,
+    hardToDecide: r.hard_to_decide ?? false,
+    deliberationMs: r.deliberation_ms ?? null,
+  }))
+  const protectedMerchants: ProtectedMerchant[] = actionable.flatMap((r) => {
+    if (r.quadrant !== 'foundation' && r.quadrant !== 'investment') return []
+    const merchant = normaliseMerchant(txnMap.get(r.transaction_id)?.description ?? '')
+    return merchant ? [{ merchant, quadrant: r.quadrant }] : []
+  })
+  const reveal = await classifyAndPersist(
+    supabase,
+    user.id,
+    session.id,
+    answeredCards,
+    protectedMerchants,
+  )
+
   // 9. Observability event.
   void supabase.from('user_events').insert({
     profile_id: user.id,
@@ -269,5 +305,71 @@ export async function POST(req: NextRequest) {
     classified: actionable.length,
     rescore,
     payback,
+    reveal,
   })
+}
+
+// ── VM-4 reveal payload ──────────────────────────────────────────────────────
+
+/**
+ * Classify the session deterministically, detect the tension, persist both
+ * onto the session row, and shape the payload the reveal renders from.
+ * Failure-tolerant: a null return means the client skips the reveal step —
+ * the save itself never fails on classification.
+ */
+async function classifyAndPersist(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  sessionId: string,
+  answeredCards: AnsweredCard[],
+  protectedMerchants: ProtectedMerchant[],
+): Promise<RevealPayload | null> {
+  try {
+    const classification = classifyArchetype(answeredCards)
+
+    let tension: TensionLine | null = null
+    let receiptHeadline: string | null = null
+    let receiptBands: string | null = null
+    if (classification.family && classification.certainty) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('primary_currency')
+        .eq('id', userId)
+        .single()
+      const currency = (profile?.primary_currency as string | null) ?? 'GBP'
+      const inputs = await gatherTensionInputs(supabase, userId, protectedMerchants, currency)
+      tension = detectTension(classification.family, classification.certainty, inputs)
+      const lines = buildReceiptLines(classification.family, classification.receipt)
+      receiptHeadline = lines.headline
+      receiptBands = lines.bands
+    }
+
+    const { error } = await supabase
+      .from('value_map_sessions')
+      .update({
+        taxonomy_version: classification.taxonomyVersion,
+        family: classification.family,
+        certainty_state: classification.certainty,
+        classification_receipt: { ...classification.receipt, tension },
+      })
+      .eq('id', sessionId)
+      .eq('profile_id', userId)
+    if (error) {
+      console.error('[value-map/onboarding] classification persist failed:', error)
+    }
+
+    return {
+      sessionId,
+      family: classification.family,
+      certainty: classification.certainty,
+      displayName: classification.displayName,
+      usedFallback: classification.usedFallback,
+      receiptHeadline,
+      receiptBands,
+      tensionLine: tension?.line ?? null,
+    }
+  } catch (err) {
+    console.error('[value-map/onboarding] classification failed:', err)
+    return null
+  }
 }
