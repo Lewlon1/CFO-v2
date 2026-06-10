@@ -35,6 +35,9 @@ export function ValuePill({ category: initialCategory, displayable = true, onCha
   return (
     <button
       onClick={cycle}
+      aria-label={
+        showUnmapped ? 'Unmapped — tap to tell C. once.' : `Value: ${cat.label}. Tap to change.`
+      }
       className="font-data text-[8px] px-2 py-[3px] rounded tracking-[0.03em] cursor-pointer mt-[3px] active:opacity-80 transition-opacity"
       style={
         showUnmapped
@@ -50,7 +53,9 @@ export function ValuePill({ category: initialCategory, displayable = true, onCha
             }
       }
     >
-      {showUnmapped ? 'unmapped' : cat.label}
+      {/* VM-3 (VM-1 follow-up): the unmapped chip carries the invite — one
+          tap starts the correction cycle, i.e. telling C. once. */}
+      {showUnmapped ? 'unmapped — tap to tell C. once' : cat.label}
     </button>
   )
 }

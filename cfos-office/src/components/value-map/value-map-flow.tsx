@@ -25,6 +25,7 @@ import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 import { categoriseTransaction, type MerchantMapping } from '@/lib/categorisation/categorise-transaction'
+import { cardConvictionToRuleConfidence } from '@/lib/categorisation/value-config'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { aiCategoriseBatch } from '@/lib/categorisation/ai-categorise'
 
@@ -619,7 +620,8 @@ export function ValueMapFlow({
                 match_type: 'category',
                 match_value: card.category_id!,
                 value_category: r.quadrant,
-                confidence: r.confidence / 5,
+                // VM-3: shared conviction→confidence map (legacy /5 retired)
+                confidence: cardConvictionToRuleConfidence(r.confidence),
                 source: 'value_map',
                 last_signal_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
@@ -627,6 +629,12 @@ export function ValueMapFlow({
             }
 
             // Non-category sample cards and any stray real cards don't seed here.
+            // Real-transaction merchant rules are owned by the server path
+            // (/api/value-map/classify -> persistRealValueClassifications).
+            // VM-3 originally seeded them from the browser here too; that is the
+            // exact dual-write the 2026-06-16 "one persistence path" session
+            // removed (client upsert had no correction_signals, no learning
+            // pipeline, no hard confirm, and keyed the merchant differently).
             return []
           })
 

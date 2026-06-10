@@ -158,3 +158,34 @@ export function buildGapSketchCopy(country: string): GapSketchCopy {
 }
 
 export const GAP_SKETCH_FOOTNOTE = 'Your version uses your real numbers.'
+
+// ── VM-3: post-Read card session (real transactions) ─────────────────────────
+// Constitution check: short declarative sentences, no service-desk register,
+// no hype. The session asks the one question the Read can't answer alone.
+
+export const VM3_INTRO_HEADING = 'Your call on each of these' as const
+
+export const VM3_INTRO_BODY =
+  "The Read showed what your money does. It can't know what it's for — that part is yours. Sort these and every answer reaches the matching transactions across your whole history." as const
+
+export const VM3_INTRO_CTA = 'Start sorting' as const
+
+/** Skip affordance — shown at session start and on every card. */
+export const VM3_SKIP_LABEL = 'Later' as const
+
+export const VM3_SAVING_LABELS: readonly string[] = [
+  'Carrying your answers through your history…',
+  'Re-reading every matching transaction…',
+] as const
+
+export const VM3_PAYBACK_HEADING = 'That just paid off' as const
+
+/** Renders as: "{answers} answers. {mapped} transactions mapped." */
+export function vm3PaybackSummaryLine(answers: number, mapped: number): string {
+  return `${answers} answer${answers === 1 ? '' : 's'}. ${mapped} transaction${mapped === 1 ? '' : 's'} mapped.`
+}
+
+/** Renders as: "{amount} a month now carries your values." */
+export const VM3_PAYBACK_MONTHLY_SUFFIX = 'a month now carries your values.' as const
+
+export const VM3_PAYBACK_CTA = 'On to your goals' as const

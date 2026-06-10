@@ -13,6 +13,7 @@ import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
+import { cardConvictionToRuleConfidence } from '@/lib/categorisation/value-config'
 
 export async function POST(request: Request) {
   const { session_token } = await request.json()
@@ -146,7 +147,9 @@ export async function POST(request: Request) {
         match_type: 'category' as const,
         match_value: card.category_id!,
         value_category: r.quadrant,
-        confidence: r.confidence / 5, // Convert 1-5 scale to 0-1
+        // VM-3: conviction → confidence via the shared map (legacy /5 scale
+        // produced sub-floor rules for conviction 1–2). Old rows untouched.
+        confidence: cardConvictionToRuleConfidence(r.confidence),
         source: 'value_map',
         last_signal_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

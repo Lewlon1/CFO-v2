@@ -28,6 +28,40 @@ export const SUPPRESSED_DEFAULT_CONFIDENCE = 0.1
 /** Bucket key for non-displayable spend in spending_by_value_category. */
 export const UNMAPPED_BUCKET = 'unmapped'
 
+// ── VM-3: post-Read Value Map card session ────────────────────────────────
+
+/** Target card count for the post-Read Value Map session. Selection clamps
+ *  the served count to the 8–12 range by candidate availability. */
+export const ONBOARDING_CARD_COUNT = 10
+
+/** Fewer viable candidates than this → defer the card session entirely
+ *  (log, set the chat-offer columns, route on). */
+export const MIN_VIABLE_CANDIDATES = 6
+
+/** Card conviction (1–5) → rule confidence. DESIGN-LOCKED PROPERTY:
+ *  every explicit answer ≥ display gate (0.6) AND ≥ application floor (0.5).
+ *  Conviction modulates how easily later signals override, never visibility.
+ *
+ *  Replaces the legacy `confidence / 5` mapping, whose low half (1→0.2, 2→0.4)
+ *  produced rules below the application floor — an explicit answer that
+ *  asserted nothing. Existing rule rows are NOT retro-edited; the VM-2
+ *  application floor already keeps sub-floor legacy rows inert. */
+export const CARD_CONF_TO_RULE_CONF: Record<1 | 2 | 3 | 4 | 5, number> = {
+  1: 0.62,
+  2: 0.7,
+  3: 0.78,
+  4: 0.86,
+  5: 0.94,
+}
+
+/** Safe accessor over CARD_CONF_TO_RULE_CONF — clamps out-of-range conviction
+ *  values (telemetry uses 0 for hard_to_decide; those never seed rules, but
+ *  every write site goes through this guard anyway). */
+export function cardConvictionToRuleConfidence(conviction: number): number {
+  const clamped = Math.min(5, Math.max(1, Math.round(conviction))) as 1 | 2 | 3 | 4 | 5
+  return CARD_CONF_TO_RULE_CONF[clamped]
+}
+
 /** 'no_idea' is retired — collapsed into 'unsure'. The Postgres enum value
  *  remains (non-destructive) but MUST never be written again. */
 export type ValueCategory = 'foundation' | 'burden' | 'investment' | 'leak' | 'unsure'

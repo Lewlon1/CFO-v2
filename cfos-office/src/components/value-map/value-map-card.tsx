@@ -26,6 +26,10 @@ interface ValueMapCardProps {
   currency: string
   onComplete: (results: ValueMapResult[]) => void
   onTransactionResult?: (result: ValueMapResult, index: number, total: number) => void
+  /** VM-3: after a leak/burden pick, ask the one-tap cut-intent question
+   *  ("Would you cut this?" / "Would you change this if it were easy?") and
+   *  carry the answer on the result as cut_intent. Off for legacy flows. */
+  askCutIntent?: boolean
 }
 
 type CardState = 'visible' | 'exiting' | 'feedback' | 'entering'
@@ -69,7 +73,7 @@ function ConfidenceDots({
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function ValueMapCard({ transactions, currency, onComplete, onTransactionResult }: ValueMapCardProps) {
+export function ValueMapCard({ transactions, currency, onComplete, onTransactionResult, askCutIntent = false }: ValueMapCardProps) {
   const trackEvent = useTrackEvent()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [results, setResults] = useState<ValueMapResult[]>([])
@@ -79,6 +83,8 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
   // Select-then-confirm state
   const [selectedQuadrant, setSelectedQuadrant] = useState<ValueQuadrant | null>(null)
   const [confidence, setConfidence] = useState(3)
+  // VM-3 cut-intent answer for the current card (null = not asked / unanswered)
+  const [cutIntent, setCutIntent] = useState<boolean | null>(null)
 
   // Engagement gate state
   const [canTap, setCanTap] = useState(false)
@@ -116,6 +122,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
     setCanTap(false)
     setSelectedQuadrant(null)
     setConfidence(3)
+    setCutIntent(null)
 
     // Reset timing
     cardShownAt.current = Date.now()
@@ -167,6 +174,8 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
       }
 
       setSelectedQuadrant(quadrant)
+      // Changing quadrant invalidates a previous cut-intent answer.
+      setCutIntent(null)
     },
     [cardState, canTap],
   )
@@ -176,6 +185,9 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
   // eslint-disable-next-line react-hooks/preserve-manual-memoization -- compiler can't preserve this useCallback; it mutates timing refs, schedules a feedback timer, and fires onComplete/onTransactionResult with closure-captured values — keep explicit memoization
   const handleConfirm = useCallback(() => {
     if (!selectedQuadrant || cardState !== 'visible') return
+    const wantsCutIntent =
+      askCutIntent && (selectedQuadrant === 'leak' || selectedQuadrant === 'burden')
+    if (wantsCutIntent && cutIntent === null) return // one-tap answer required
 
     const now = Date.now()
     const result: ValueMapResult = {
@@ -188,6 +200,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
       card_time_ms: now - cardShownAt.current,
       deliberation_ms: now - (firstTapAt.current ?? now),
       hard_to_decide: false,
+      cut_intent: wantsCutIntent ? cutIntent : null,
     }
 
     trackEvent('value_map_tap', 'behavioural', {
@@ -240,7 +253,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
         advanceToNext()
       }, FEEDBACK_DURATION)
     }, CARD_TRANSITION)
-  }, [selectedQuadrant, cardState, tx, results, currency, confidence, currentIndex, total, onComplete, onTransactionResult, advanceToNext])
+  }, [selectedQuadrant, cardState, tx, results, currency, confidence, cutIntent, askCutIntent, currentIndex, total, onComplete, onTransactionResult, advanceToNext])
 
   // ── Hard to decide (escape hatch) ──────────────────────────────────────────
 
@@ -301,6 +314,7 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
     setFeedbackText('')
     setSelectedQuadrant(null)
     setConfidence(3)
+    setCutIntent(null)
     setCardState('visible')
 
     // Timing refs will be reset by the currentIndex effect
@@ -544,8 +558,40 @@ export function ValueMapCard({ transactions, currency, onComplete, onTransaction
       {cardState === 'visible' && selectedQuadrant && (
         <div className="px-4 pb-2 flex flex-col items-center gap-4 animate-value-feedback">
           <ConfidenceDots value={confidence} onChange={setConfidence} />
+          {askCutIntent && (selectedQuadrant === 'leak' || selectedQuadrant === 'burden') && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-xs text-text-secondary">
+                {selectedQuadrant === 'leak'
+                  ? 'Would you cut this?'
+                  : 'Would you change this if it were easy?'}
+              </span>
+              <div className="flex items-center gap-2">
+                {([true, false] as const).map((answer) => (
+                  <button
+                    key={String(answer)}
+                    type="button"
+                    onClick={() => setCutIntent(answer)}
+                    className={cn(
+                      'min-h-[44px] min-w-[88px] rounded-pill border px-5 text-sm font-medium transition-all duration-150',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      cutIntent === answer
+                        ? 'border-accent-gold bg-accent-gold/10 text-text-primary'
+                        : 'border-[var(--border-subtle)] text-text-secondary hover:text-text-primary',
+                    )}
+                  >
+                    {answer ? 'Yes' : 'No'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <Button
             onClick={handleConfirm}
+            disabled={
+              askCutIntent &&
+              (selectedQuadrant === 'leak' || selectedQuadrant === 'burden') &&
+              cutIntent === null
+            }
             className="w-full max-w-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-5 text-base"
           >
             Next
