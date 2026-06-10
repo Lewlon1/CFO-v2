@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import {
+  isValueDisplayable,
+  UNMAPPED_BUCKET,
+} from '@/lib/categorisation/value-config'
+import {
   isNeutralCategory,
   INCOME_CATEGORY_ID,
   UNCATEGORISED_CATEGORY_ID,
@@ -142,7 +146,7 @@ export async function GET(req: NextRequest) {
   // their category in the breakdown. Neutral / income categories are excluded server-side.
   const { data: txns } = await supabase
     .from('transactions')
-    .select('category_id, value_category, amount, description')
+    .select('category_id, value_category, value_confidence, value_confirmed_by_user, amount, description')
     .eq('user_id', user.id)
     .gte('date', monthStart)
     .lt('date', nextMonth)
@@ -159,7 +163,9 @@ export async function GET(req: NextRequest) {
     const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
     catCounts[cid] = (catCounts[cid] ?? 0) + 1
 
-    const vc = txn.value_category ?? 'unsure'
+    // VM-1 honesty gate — must mirror the snapshot writer's bucketing so the
+    // enrichment counts line up with the spending_by_value_category jsonb.
+    const vc = isValueDisplayable(txn) ? (txn.value_category as string) : UNMAPPED_BUCKET
     vcCounts[vc] = (vcCounts[vc] ?? 0) + 1
 
     if (!vcCatBreakdown[vc]) vcCatBreakdown[vc] = {}

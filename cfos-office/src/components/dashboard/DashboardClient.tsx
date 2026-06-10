@@ -123,11 +123,15 @@ export function DashboardClient({ hasData }: Props) {
     router.push(`/transactions?value_category=${vc}&month=${month}`)
   }
 
-  const unsureCount = summary.spending_by_value_category?.unsure?.count ?? 0
+  // VM-1: new snapshots bucket low-evidence spend under 'unmapped';
+  // pre-VM-1 snapshots still carry 'unsure'.
+  const unsureCount =
+    (summary.spending_by_value_category?.unmapped?.count ??
+      summary.spending_by_value_category?.unsure?.count) ?? 0
 
   // Check if values view has meaningful data
   const hasValues = Object.entries(summary.spending_by_value_category)
-    .some(([key, val]) => key !== 'unsure' && val.amount > 0)
+    .some(([key, val]) => key !== 'unsure' && key !== 'unmapped' && val.amount > 0)
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">

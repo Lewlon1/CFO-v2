@@ -7,6 +7,10 @@ import {
 } from './context-signals'
 import { getTimeContext } from '@/lib/utils/time-context'
 import { NONE_TIME_CONTEXT } from '@/lib/prediction/types'
+import {
+  emittableDefaultCategory,
+  gateDefaultEmission,
+} from './value-config'
 
 export type ValueCatResult = {
   valueCategory: string
@@ -70,13 +74,12 @@ export function assignValueCategory(
     : null
 
   // ── Tier 1: Recurring essentials (confidence 0.9) ──────────────────
-  if (
-    signals?.is_recurring &&
-    ambiguity === 'low' &&
-    category?.default_value_category
-  ) {
+  // Only foundation/burden/investment defaults qualify — a 'leak' default
+  // must never be auto-asserted, recurring or not (VM-1).
+  const recurringDefault = emittableDefaultCategory(category?.default_value_category)
+  if (signals?.is_recurring && ambiguity === 'low' && recurringDefault) {
     return {
-      valueCategory: category.default_value_category,
+      valueCategory: recurringDefault,
       confidence: 0.9,
       source: 'recurring_essential',
     }
@@ -195,9 +198,16 @@ export function assignValueCategory(
       }
     }
 
+    // VM-1 gate: defaults never emit 'leak' (→ unsure @ 0.1) and are capped
+    // at DEFAULT_SOURCE_CONFIDENCE_CAP — a category lookup is a weak prior,
+    // not evidence.
+    const gated = gateDefaultEmission(
+      category.default_value_category,
+      Math.round(adjusted * 100) / 100
+    )
     return {
-      valueCategory: category.default_value_category,
-      confidence: Math.round(adjusted * 100) / 100,
+      valueCategory: gated.valueCategory,
+      confidence: gated.confidence,
       source: 'category_default',
     }
   }

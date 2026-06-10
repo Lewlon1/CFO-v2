@@ -82,6 +82,131 @@ fields, empty/invalid handling, `runMerchantLearning` fan-out + error swallow).
 - The deeper async rule-persistence gap (`processSignals` rules not always
   landing on the retake path) is mitigated — not closed — by the synchronous
   rule. Still worth its own investigation.
+=======
+## VM-1 — Value honesty gate (2026-06-10)
+
+Branch: `claude/value-map-v2-uas9b3` @ eda279e (session-designated branch; the
+prompt named `claude/value-map-v2` but the harness pinned this one)
+
+**Goal:** no value label renders anywhere without real evidence; nothing is
+ever auto-labelled `leak`; `no_idea` retired.
+
+### Phase 0 findings
+
+- **Default map (G1):** lives in DB `categories.default_value_category`
+  (seeded by migration 003). Four categories defaulted to `leak`
+  (eat_drinking_out, subscriptions, shopping, entertainment); **`travel`
+  still defaulted to `no_idea` on staging** — migration 050 cleaned data rows
+  but missed the `categories` column, making it the live writer behind 384
+  fresh `no_idea` transactions. The `no_idea`→`unsure` code rename itself was
+  already done in v2.2 (25 files); only stragglers remained
+  (`scripts/seed-test-user.ts`, one test fixture).
+- **Snapshots vs live (G3):** all Values dashboards (office + web) read
+  `monthly_snapshots.spending_by_value_category` via `/api/dashboard/summary`
+  (which re-scans transactions only to enrich counts/top-categories) and
+  `/api/dashboard/trends`. Callable recompute exists
+  (`refreshMonthlySnapshots`, TS). Per-transaction labels render in exactly
+  one place: office transactions list → `TransactionRow` → `ValuePill`
+  (the page select omitted `value_confidence`/`value_confirmed_by_user`).
+  Chat tools (`get-value-breakdown`, `get-value-review-queue`,
+  `suggest-value-recategorisation`) already gate at their own hardcoded 0.7.
+- **Enum columns (0.7):** `transactions.value_category`,
+  `correction_signals.value_category`, `value_category_rules.value_category`,
+  **plus `categories.default_value_category`** (not in the prompt's expected
+  list — covered in the migration since 0.7 governs).
+- **Baseline (staging, deleted_at IS NULL):** category_default → foundation
+  5,885 / unsure 5,627 / **leak 5,146** / no_idea 384 / investment 364 /
+  burden 183; merchant_rule → foundation 194 / investment 30 / burden 12 /
+  leak 1; user_confirmed → 150 total. Unconfirmed category_default rows:
+  17,589 at avg confidence 0.128, **max 0.8**.
+- **G4:** prod ref `iccelmjenljanqrhhzdv` appears only in docs/manual SQL —
+  no code writers. Zero prod writes this session.
+
+### Changed
+
+- **NEW `src/lib/categorisation/value-config.ts`** — single source of truth:
+  `VALUE_DISPLAY_CONFIDENCE_THRESHOLD = 0.6`,
+  `DEFAULT_SOURCE_CONFIDENCE_CAP = 0.3`, `isValueDisplayable()`,
+  `emittableDefaultCategory()`, `gateDefaultEmission()` (+ unit tests).
+- **Write paths:** `value-categoriser.ts` (Tier 5 defaults gated: never leak,
+  capped 0.3; Tier 1 recurring-essential leak-guarded),
+  `prediction/predictor.ts` (Tier 8 gated — flows through `backfill.ts`),
+  `upload/pipeline.ts` (recurring-essential branch leak-guarded).
+- **Snapshot computation:** `analytics/monthly-snapshot.ts` — non-displayable
+  rows bucket under `unmapped` in `spending_by_value_category`; select now
+  pulls `value_confidence`/`value_confirmed_by_user`.
+- **Display gating:** office transactions page select + client route through
+  `isValueDisplayable`; `ValuePill` gained a neutral "unmapped" chip state
+  (tappable — cycles from `unsure`, posts to the existing
+  `/api/corrections/signal` flow); `summary/route.ts` enrichment mirrors the
+  gate; `unmapped` bucket added to `ValuesSection`, `OfficeValuesBreakdown`,
+  `ValuesDashboard`, `ValuesDonut`, `ValuesTrendChart` (neutral band),
+  `DashboardClient`/`UnsureQueue` count, `constants/dashboard.ts`
+  VALUE_COLORS. All use the existing `value-unsure` grey token — no new hex.
+- `seed-test-user.ts` no_idea→unmapped; `get-transactions.test.ts` negative
+  probe no_idea→'wasteful' (test still asserts unknown values are rejected).
+
+### Migration applied (staging): `vm1_value_honesty_remap`
+
+Rows affected: no_idea→unsure **384** (transactions) / **0**
+(correction_signals) / **0** (value_category_rules) / **1** (categories:
+travel); unconfirmed default leak→unsure@0.1 **5,146**; confidence cap ≤0.3
+over all 17,589 unconfirmed category_default rows. Post-migration: zero
+no_idea anywhere, zero unconfirmed default leaks, max default confidence 0.3.
+Remaining `leak` rows are all evidence-backed (19 user_confirmed +
+1 merchant_rule @0.7+). Snapshots: 298 recomputed with the gate (one-off SQL
+mirroring `aggregateMonthSpending` — see deviations); 9 orphaned snapshots had
+their `no_idea` JSONB key folded into `unsure`.
+
+### Prod companion
+
+`supabase/manual/VM-1-prod-remap.DO-NOT-APPLY.sql` (awaiting Lewis; includes
+the snapshot recompute + post-apply assertions; prod may lack
+correction_signals — noted in header).
+
+### Deviations from prompt & why
+
+- Branch is `claude/value-map-v2-uas9b3`, not `claude/value-map-v2` — the
+  session harness pinned the suffixed branch and forbids pushing elsewhere.
+- Staging snapshot recompute ran as one-off SQL replicating
+  `aggregateMonthSpending`'s value bucketing instead of calling the TS
+  function — no staging service-role credentials exist in this environment.
+  Verified: recomputed buckets reconcile with live transactions; 64/298
+  snapshots were *already* internally stale pre-session (stored
+  `total_spending` drifted from stored `spending_by_category` too — churned
+  test users); the TS refresh trues those up on each user's next ingest.
+- UI spot-check as Dorcas/Carlos not performed — no staging env credentials
+  in the container to run the app against. Covered by unit tests (gating,
+  bucketing) + SQL assertions instead.
+- `no_idea` grep still hits comments, the defensive gating tests, and
+  generated `supabase/types.ts` (DB enum intentionally retains the value) —
+  zero writers remain.
+
+### Lessons learned
+
+- Migration 050's rename missed `categories.default_value_category` because
+  the 0.7-style information_schema sweep wasn't run then — "cover every
+  column using the enum" beats "cover the tables the prompt names".
+- 142 of 440 staging snapshots are orphans (user/month with no transactions)
+  that no recompute can reach; 141 still carry stale pre-gate `leak` buckets.
+  Mostly churned test users; harmless but worth a cleanup pass someday.
+
+### Follow-ups created
+
+- **VM-3:** "Unmapped" invite microcopy; the Read renders no per-transaction
+  value labels today (context-builder only surfaces `value_category_rules`
+  memory + snapshot aggregates), so no Read gating needed — but
+  `review-context.ts` prompt breakdowns now include an `unmapped` line the
+  Read/review prompts should learn to speak to.
+- Chat tools' hardcoded 0.7 assertion floors (`get-value-breakdown`,
+  `get-value-review-queue`, `retake-trigger`) should import from
+  `value-config.ts` — left untouched this session (chat behaviour change,
+  out of scope).
+- `DashboardClient`/`UnsureQueue` still link to `/transactions?...` which has
+  no route under the office app — pre-existing dead link, surfaced while
+  wiring the unmapped count.
+- Drop the `no_idea` enum value once prod remap is applied (deferred since
+  v2.2).
 
 ---
 

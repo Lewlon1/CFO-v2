@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  isValueDisplayable,
+  UNMAPPED_BUCKET,
+} from '@/lib/categorisation/value-config'
+import {
   INCOME_CATEGORY_ID,
   UNCATEGORISED_CATEGORY_ID,
   isIncomeRow,
@@ -15,6 +19,8 @@ type SnapshotTxn = {
   amount: number | string
   category_id: string | null
   value_category: string | null
+  value_confidence: number | null
+  value_confirmed_by_user: boolean | null
   description: string
 }
 
@@ -71,7 +77,12 @@ export function aggregateMonthSpending(txns: SnapshotTxn[]): MonthAggregate {
     const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
     const delta = -Number(txn.amount) // outflow → +ve, refund → -ve
     spendingByCategory[cid] = (spendingByCategory[cid] ?? 0) + delta
-    const vc = txn.value_category ?? 'unsure'
+    // VM-1 honesty gate: only user-confirmed or high-confidence value labels
+    // count toward a value bucket; everything else (low-confidence defaults,
+    // 'unsure', legacy 'no_idea') aggregates under 'unmapped'.
+    const vc = isValueDisplayable(txn)
+      ? (txn.value_category as string)
+      : UNMAPPED_BUCKET
     spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + delta
 
     if (isSpendRow(txn.amount, txn.category_id) || (Number(txn.amount) < 0 && !txn.category_id)) {
@@ -220,7 +231,7 @@ async function refreshOneMonth(
 
   const { data: txns, error: txnsError } = await supabase
     .from('transactions')
-    .select('amount, category_id, value_category, description')
+    .select('amount, category_id, value_category, value_confidence, value_confirmed_by_user, description')
     .eq('user_id', userId)
     .gte('date', monthStart)
     .lt('date', nextMonth)

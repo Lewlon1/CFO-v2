@@ -26,7 +26,7 @@ export default async function TransactionsPage() {
       .eq('is_active', true),
     supabase
       .from('transactions')
-      .select('id, date, description, amount, currency, category_id, value_category')
+      .select('id, date, description, amount, currency, category_id, value_category, value_confidence, value_confirmed_by_user')
       .eq('user_id', user.id)
       .order('date', { ascending: false })
       .limit(1000),
