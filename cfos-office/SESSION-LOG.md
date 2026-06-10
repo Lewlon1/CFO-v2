@@ -82,6 +82,13 @@ fields, empty/invalid handling, `runMerchantLearning` fan-out + error swallow).
 - The deeper async rule-persistence gap (`processSignals` rules not always
   landing on the retake path) is mitigated — not closed — by the synchronous
   rule. Still worth its own investigation.
+=======
+## VM-FF (2026-06-10): claude/value-map-v2-7ox3hw fast-forwarded to VM-3 tip ff52c51
+
+Canonical VM branch = `claude/value-map-v2-7ox3hw`.
+`claude/value-map-v2-post-read-s033w0` is now redundant; delete at
+final-merge cleanup. All future VM sessions base here (artifact gates
+still apply).
 
 ---
 
