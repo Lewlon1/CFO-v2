@@ -4192,3 +4192,60 @@ Bedrock page. `RATE_VERSION = '2026-07-B1'`.
   confirm the four rates against the eu-west-1 Bedrock pricing page.
 
 ### Next: B2 (Session 34 + action-item-reminder prod fix ride-along)
+=======
+## VM-3 — Post-Read Value Map flow (2026-06-10)
+Branch: `claude/value-map-v2-post-read-s033w0` @ base 01c0f03 (base gate: PASS — `value-rescore.ts` + `value-rule-matcher.ts` present). Harness note: this session's remote environment designates `claude/value-map-v2-post-read-s033w0`; it carries the identical VM-1+VM-2 tip as `claude/value-map-v2-7ox3hw` (same sha 01c0f03), so all VM work continues linearly. Merge into the VM line is a fast-forward.
+
+### Phase 0 findings
+- **Onboarding terminus / Read reachability:** the Read IS reachable and a post-Read Value Map surface already exists at `/onboarding-v2/value-map` (first-read CTA `[CTA:start_value_map_real]` → `?hook=1`). VM-3 therefore UPGRADED that surface rather than inserting a new one — no soft-fallback entries needed.
+- **Flag mechanism:** no registry; repo convention is env-var switches (retired `LAYERED_READ_DISABLED` pattern). New flag: `VALUE_MAP_V2=1` (`src/lib/value-map/flags.ts`), server-checked, default OFF.
+- **Hook path (G2):** canonical server pipeline = `/api/value-map/personal` POST. The legacy onboarding mode wrote a bespoke CLIENT-side path in `value-map-flow.tsx` (rules at `/5` confidence, metadata-only txn updates, no rescore) — exactly the parallel-path failure G2 guards against; VM-3's new route replaces it for the flagged flow.
+- **Session-type semantics (0.7):** `type='onboarding'` + `is_real_data=true` confirmed on staging (22 rows) — used for the new session writes.
+- **Candidate counts (0.8):** Dorcas 83 low-confidence merchants, Carlos 40 — both ≫ MIN_VIABLE (6).
+- **Legacy confidence (0.9):** `value_map` rules 0.40–0.80 (avg 0.60) — `/5` scale confirmed at two write sites (`value-map-flow.tsx`, `link-session/route.ts`).
+- **Constitution file:** `CFO-CONSTITUTION.md` (repo root). All new copy (intro, payback, cut-intent questions, unmapped-chip invite) written to §2 voice: declarative, no service-desk register, no hype.
+
+### Entry wiring chosen
+**Post-Read insertion** — the existing `/onboarding-v2/value-map` page branches on the flag: flag ON selects candidates via the new deterministic selector (seeded with the First Read's promised hook merchants) and renders the v2 flow; below MIN_VIABLE it defers (chat-offer column armed, `advanceStep('complete')`, route to /office). Flag OFF leaves the legacy value-first flow byte-identical.
+
+### Changed
+- `lib/categorisation/value-config.ts` (+test) — `ONBOARDING_CARD_COUNT`, `MIN_VIABLE_CANDIDATES`, `CARD_CONF_TO_RULE_CONF` + `cardConvictionToRuleConfidence()` clamp accessor.
+- `lib/value-map/select-candidates.ts` (NEW, +tests) — deterministic selector: `score = normalisedMonthlySpend × recurrenceBoost × (1 − currentValueConfidence)`; exclusions (user-confirmed merchants all-history, merchant rules ≥ application floor, income/transfer/debt/savings categories); 1 card/merchant, ≤3/category; 8–12 clamp; `seedMerchants` for hook continuity; `materialiseCandidateCards`. VM-5 reuses this.
+- `lib/value-map/payback.ts` (NEW, +tests) — pure `computePayback` + paged IO: mapped txns of answered merchants (displayable only), monthly = total / distinct months, quadrant split. Reconcilable to the cent.
+- `app/api/value-map/onboarding/route.ts` (NEW) — the VM-3 pipeline: session (`type='onboarding'`, `is_real_data=true`, `trigger_reason='value_first_onboarding'`) → result rows (telemetry + `cut_intent` to DB only) → merchant rules at mapped confidence (`source='value_map_personal'`) → exemplars `user_confirmed` → AWAITED `rescoreValueCategories` → exemplar-month snapshot refresh → payback. Flag-guarded (404 when off). Zero LLM imports.
+- `components/value-map/value-map-card.tsx` — additive `askCutIntent` prop: one-tap Yes/No after leak ("Would you cut this?") / burden ("Would you change this if it were easy?"), required before Next in this mode; resets on quadrant change/undo. Legacy modes unchanged.
+- `components/value-map/onboarding-v2-flow.tsx` (NEW) — intro → exercise → saving → payback; "Later" skip at start + per-card; re-entry latched by refs.
+- `components/value-map/payback-screen.tsx` (NEW) — renders verbatim from the route response; quadrant split bar; CTA → `/office/goals`.
+- `app/onboarding-v2/value-map/v2-actions.ts` (NEW) — graceful skip: `value_map_offered_in_chat=true`, step `complete`, permissive completion check; no rules, no rescore.
+- `app/onboarding-v2/value-map/page.tsx` + `value-map-orchestrator.tsx` — flag branch wiring.
+- `lib/value-map/types.ts` — `ValueMapResult.cut_intent?: boolean | null`.
+- `lib/value-map/copy.ts` — VM3_* copy block.
+- `components/data/ValuePill.tsx` — unmapped chip invite: "unmapped — tap to tell C. once" (+aria-label). NOT flag-gated: the tap-to-correct behaviour it invites pre-exists VM-3.
+
+### Confidence mapping
+Legacy `/5` scale migrated at BOTH write sites (`value-map-flow.tsx` ×2, `link-session/route.ts`) onto `cardConvictionToRuleConfidence`. Old rows untouched — VM-2's application floor keeps sub-floor legacy rows inert.
+
+### VM-4 insertion slot
+`components/value-map/onboarding-v2-flow.tsx` state machine: the reveal inserts a `'reveal'` step between `'saving'` and `'payback'`. Documented in comment blocks in both `onboarding-v2-flow.tsx` and `payback-screen.tsx`.
+
+### Schema delta
+None. `value_map_sessions` / `value_map_results` already carry everything (`cut_intent`, timing columns, `type`, `is_real_data`) — confirmed via information_schema on staging. Zero prod access all session.
+
+### Deviations & why
+- `selectValueMapCandidates(supabase, userId, n?, opts?)` instead of the spec's `(userId, n?)` — repo convention passes the client explicitly (cf. select-cards, retake-candidates); `opts.seedMerchants` added so the hook merchants the First Read promised stay in the card set (they pass through the same exclusions).
+- No `correction_signals` / `processSignals` on this path: the spec's Phase-4 pipeline is rule-at-mapped-confidence + exemplar confirm + rescore. Running `processSignals` here would overwrite the conviction-mapped confidences with learned ones, defeating `CARD_CONF_TO_RULE_CONF`.
+- The legacy `recompose-first-read` call (Bedrock, 15–45s) does NOT fire on the flagged path — the zero-LLM constraint forbids it from this flow's completion handler. Where the Layer-2 follow-up Read lands is a VM-4 decision.
+- Live HTTP end-to-end against staging not run (no staging credentials in this remote env). Substituted: a simulation driving the REAL production functions (`chooseCandidates` → mapping → `planRescore` → `computePayback`) over Dorcas's/Carlos's real staging rows (fetched read-only). Dorcas: 10 cards, 9 answers → 26 rescore updates, 35 txns mapped, €1,139.28/mo, payback reconciled to the cent against an independent aggregate; "I just told you" check passed for every answered merchant. Carlos: 10 cards, EUR exemplars. The full DB-write path needs one live staging run with `VALUE_MAP_V2=1` before merge.
+
+### Verification
+`tsc --noEmit` clean · eslint 0 errors · knip clean · `next build` clean · vitest 1216/1216 (32 new). Grep proofs: no LLM/Bedrock/demo imports in any new file; timing fields appear only in capture/POST paths, never in render output. Flag OFF: page branch dormant, route 404s, diff leaves legacy flow byte-identical. DO-NOT-TOUCH list untouched (`/demo`, archetype/judge/Read internals, `value-rescore.ts`/`value-rule-matcher.ts` consumed not modified, zero references to the prod project ref).
+
+### Lessons learned
+- The "bespoke parallel write path" G2 warned about already existed (legacy onboarding mode writing rules client-side at `/5`). The audit-first discipline caught that VM-3's real job was consolidation, not greenfield.
+- Null-category rows are kept as candidates by design (mirrors `fetchAndScoreReviewCandidates`), which means uncategorised transfer-like rows can surface as cards (Carlos: "EVO BANCO INVERSION TRANSFER"). Not a selector bug — a Layer-1 categorisation-coverage issue (already the top follow-up from Session 32).
+
+### Follow-ups
+- One live staging run of the full flow (`VALUE_MAP_V2=1`) exercising the route's DB writes before the merge decision.
+- VM-4: archetype reveal into the documented slot; decide where the Layer-2 recompose lands for v2 completions.
+- Payback copy may want constitution refinement once seen on-device.
+- Per-card mid-session persistence (true resume) if abandonment telemetry warrants it.
