@@ -9,6 +9,11 @@ import {
   buildRealTransactionsFromHooks,
 } from '@/lib/value-map/hook-transactions'
 import { selectValueMapCards } from '@/lib/value-map/select-cards'
+import {
+  selectValueMapCandidates,
+  materialiseCandidateCards,
+} from '@/lib/value-map/select-candidates'
+import { isValueMapV2Enabled } from '@/lib/value-map/flags'
 import type { ValueMapTransaction } from '@/lib/value-map/types'
 import { ValueMapOrchestrator } from './value-map-orchestrator'
 
@@ -58,6 +63,55 @@ export default async function OnboardingV2ValueMapPage({
   }
 
   const currency = (profile?.primary_currency as string | null) ?? 'GBP'
+
+  // ── VM-3 (flag: VALUE_MAP_V2) — post-Read card session on the user's own
+  // transactions. Candidate selection is deterministic (spend × recurrence ×
+  // uncertainty), seeded with the hook merchants the First Read promised.
+  // Below MIN_VIABLE_CANDIDATES the flow defers: chat-offer columns armed,
+  // user routed on, nothing written. Flag OFF → the legacy value-first flow
+  // below runs unchanged.
+  if (isValueMapV2Enabled()) {
+    const svc = createServiceClient()
+    const hooks = (await getHookCandidatesForUser(supabase, user.id)) ?? []
+    const selection = await selectValueMapCandidates(svc, user.id, undefined, {
+      seedMerchants: hooks.map((h) => h.cluster_id),
+    })
+    if (selection.ok) {
+      const cards = await materialiseCandidateCards(svc, selection.candidates, currency)
+      if (cards.length > 0) {
+        // Stamp value_map_offered so a refresh keeps the user here (same
+        // race-tolerant double-advance as the legacy path below).
+        const terminalSteps = new Set(['value_map_offered', 'archetype_shown', 'complete'])
+        if (!terminalSteps.has(step ?? '')) {
+          if (step !== 'first_read_delivered') {
+            await advanceStep('first_read_delivered').catch((err) => {
+              console.error('[value-map.page] advanceStep(first_read_delivered) failed', err)
+            })
+          }
+          await advanceStep('value_map_offered').catch((err) => {
+            console.error('[value-map.page] advanceStep(value_map_offered) failed', err)
+          })
+        }
+        return <ValueMapOrchestrator currency={currency} v2 v2Cards={cards} />
+      }
+    }
+    // Defer: too few viable candidates (or materialisation came up empty).
+    // Arm the chat-offer column so the CFO can invite later; stamp terminal.
+    console.warn('[value-map.page] VM-3 deferred — falling through to /office', {
+      userId: user.id,
+      ok: selection.ok,
+      reason: selection.ok ? 'no_cards' : selection.reason,
+    })
+    await supabase
+      .from('user_profiles')
+      .update({ value_map_offered_in_chat: true })
+      .eq('id', user.id)
+    // advanceStep also fires the permissive completion check.
+    await advanceStep('complete').catch((err) => {
+      console.error('[value-map.page] advanceStep(complete) failed', err)
+    })
+    redirect('/office')
+  }
 
   // Value-first flow: load the hook candidates the First Read just named
   // and turn them into real transaction cards so the user maps the EXACT

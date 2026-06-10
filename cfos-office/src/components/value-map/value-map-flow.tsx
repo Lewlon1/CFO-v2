@@ -25,6 +25,7 @@ import type { ValueMapTransaction, ValueMapResult } from '@/lib/value-map/types'
 import { createClient } from '@/lib/supabase/client'
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 import { categoriseTransaction, type MerchantMapping } from '@/lib/categorisation/categorise-transaction'
+import { cardConvictionToRuleConfidence } from '@/lib/categorisation/value-config'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { aiCategoriseBatch } from '@/lib/categorisation/ai-categorise'
 
@@ -576,7 +577,8 @@ export function ValueMapFlow({
                 match_type: 'category',
                 match_value: card.category_id!,
                 value_category: r.quadrant,
-                confidence: r.confidence / 5,
+                // VM-3: shared conviction→confidence map (legacy /5 retired)
+                confidence: cardConvictionToRuleConfidence(r.confidence),
                 source: 'value_map',
                 last_signal_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
@@ -590,7 +592,8 @@ export function ValueMapFlow({
               match_type: 'merchant',
               match_value: r.merchant.toLowerCase(),
               value_category: r.quadrant,
-              confidence: r.confidence / 5,
+              // VM-3: shared conviction→confidence map (legacy /5 retired)
+              confidence: cardConvictionToRuleConfidence(r.confidence),
               source: 'value_map_personal',
               last_signal_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),

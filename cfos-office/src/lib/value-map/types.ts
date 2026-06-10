@@ -34,6 +34,10 @@ export interface ValueMapResult {
   card_time_ms: number           // ms from card shown to confirm/skip
   deliberation_ms: number        // gap between first tap and confirm
   hard_to_decide?: boolean
+  // VM-3: answered only when the card asks (leak → "Would you cut this?",
+  // burden → "Would you change this if it were easy?"). Null/undefined when
+  // the question never showed (foundation/investment/unsure, or legacy flows).
+  cut_intent?: boolean | null
 }
 
 export type MoneyPersonality =

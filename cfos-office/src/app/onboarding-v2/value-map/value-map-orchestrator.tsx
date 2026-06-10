@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ValueMapFlow } from '@/components/value-map/value-map-flow'
+import { OnboardingValueMapV2 } from '@/components/value-map/onboarding-v2-flow'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
 import type { ValueMapTransaction } from '@/lib/value-map/types'
 
@@ -37,11 +38,17 @@ export function ValueMapOrchestrator({
   postReadOptIn = false,
   realTransactions,
   valueFirst = false,
+  v2 = false,
+  v2Cards,
 }: {
   currency: string
   postReadOptIn?: boolean
   realTransactions?: ValueMapTransaction[]
   valueFirst?: boolean
+  /** VM-3 (flag VALUE_MAP_V2): render the deterministic post-Read card
+   *  session (cards → pipeline → payback) instead of the legacy flow. */
+  v2?: boolean
+  v2Cards?: ValueMapTransaction[]
 }) {
   const router = useRouter()
   const [isCompleting, setIsCompleting] = useState(false)
@@ -95,6 +102,20 @@ export function ValueMapOrchestrator({
     // No `inFlight.current = false` — by this point we've pushed a route and
     // the orchestrator is on its way out.
   }, [valueFirst, postReadOptIn, router])
+
+  // VM-3: the v2 flow owns its whole lifecycle (cards, save pipeline,
+  // payback, skip) — bypass the legacy completion handler entirely. Note the
+  // legacy recompose-first-read call does NOT fire on this path: the v2 flow
+  // is LLM-free end to end; the Layer-2 follow-up surface is VM-4 scope.
+  if (v2) {
+    return (
+      <div className="min-h-dvh flex flex-col bg-bg-base">
+        <div className="flex-1 flex flex-col max-w-[430px] mx-auto w-full">
+          <OnboardingValueMapV2 cards={v2Cards ?? []} currency={currency} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-dvh flex flex-col bg-bg-base">

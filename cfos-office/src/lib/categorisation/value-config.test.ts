@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   VALUE_DISPLAY_CONFIDENCE_THRESHOLD,
+  RULE_APPLICATION_MIN_CONFIDENCE,
   DEFAULT_SOURCE_CONFIDENCE_CAP,
   SUPPRESSED_DEFAULT_CONFIDENCE,
+  CARD_CONF_TO_RULE_CONF,
+  cardConvictionToRuleConfidence,
   isValueDisplayable,
   emittableDefaultCategory,
   gateDefaultEmission,
@@ -88,5 +91,40 @@ describe('gateDefaultEmission', () => {
       valueCategory: 'unsure',
       confidence: SUPPRESSED_DEFAULT_CONFIDENCE,
     })
+  })
+})
+
+describe('CARD_CONF_TO_RULE_CONF (VM-3)', () => {
+  it('every explicit answer clears the display gate AND the application floor', () => {
+    // Design-locked property: conviction modulates how easily later signals
+    // override, never visibility.
+    for (const conviction of [1, 2, 3, 4, 5] as const) {
+      const conf = CARD_CONF_TO_RULE_CONF[conviction]
+      expect(conf).toBeGreaterThanOrEqual(VALUE_DISPLAY_CONFIDENCE_THRESHOLD)
+      expect(conf).toBeGreaterThanOrEqual(RULE_APPLICATION_MIN_CONFIDENCE)
+      expect(conf).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('is strictly monotonic in conviction', () => {
+    expect(CARD_CONF_TO_RULE_CONF[1]).toBeLessThan(CARD_CONF_TO_RULE_CONF[2])
+    expect(CARD_CONF_TO_RULE_CONF[2]).toBeLessThan(CARD_CONF_TO_RULE_CONF[3])
+    expect(CARD_CONF_TO_RULE_CONF[3]).toBeLessThan(CARD_CONF_TO_RULE_CONF[4])
+    expect(CARD_CONF_TO_RULE_CONF[4]).toBeLessThan(CARD_CONF_TO_RULE_CONF[5])
+  })
+})
+
+describe('cardConvictionToRuleConfidence (VM-3)', () => {
+  it('maps in-range convictions through the table', () => {
+    expect(cardConvictionToRuleConfidence(1)).toBe(CARD_CONF_TO_RULE_CONF[1])
+    expect(cardConvictionToRuleConfidence(3)).toBe(CARD_CONF_TO_RULE_CONF[3])
+    expect(cardConvictionToRuleConfidence(5)).toBe(CARD_CONF_TO_RULE_CONF[5])
+  })
+
+  it('clamps out-of-range values (telemetry 0, overshoot, fractions)', () => {
+    expect(cardConvictionToRuleConfidence(0)).toBe(CARD_CONF_TO_RULE_CONF[1])
+    expect(cardConvictionToRuleConfidence(-3)).toBe(CARD_CONF_TO_RULE_CONF[1])
+    expect(cardConvictionToRuleConfidence(9)).toBe(CARD_CONF_TO_RULE_CONF[5])
+    expect(cardConvictionToRuleConfidence(2.6)).toBe(CARD_CONF_TO_RULE_CONF[3])
   })
 })
