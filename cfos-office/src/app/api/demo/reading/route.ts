@@ -4,6 +4,7 @@ import { calculatePersonality } from '@/lib/value-map/personalities'
 import { generateObservations } from '@/lib/value-map/observations'
 import { createServiceClient } from '@/lib/supabase/service'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
+import { checkRateLimit, ipRateLimitKey } from '@/lib/chat/rate-limit'
 import type { ValueMapResult, ValueMapTransaction } from '@/lib/value-map/types'
 
 export const maxDuration = 20
@@ -169,7 +170,7 @@ interface ReadingRequest {
   currency: string
   results: ValueMapResult[]
   elapsed_seconds: number
-  session_id?: string
+  session_token?: string
 }
 
 // ── Deterministic fallback reading ──────────────────────────────────────────
@@ -289,8 +290,27 @@ async function tryGenerateReading(userMessage: string): Promise<{
 
 export async function POST(req: Request) {
   try {
+    // Unauthenticated endpoint that invokes Opus → Sonnet. Rate-limit by IP to
+    // cap cost-amplification abuse. A legitimate visitor generates one reading
+    // per completed Value Map; 15 / 10 min leaves room for honest retries.
+    const limit = await checkRateLimit(ipRateLimitKey(req, 'demo-reading'), {
+      limit: 15,
+      windowMs: 10 * 60_000,
+    })
+    if (!limit.allowed) {
+      return Response.json(
+        { error: 'Too many requests. Try again shortly.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((limit.resetAt.getTime() - Date.now()) / 1000)),
+          },
+        },
+      )
+    }
+
     const body: ReadingRequest = await req.json()
-    const { name, country, currency, results, elapsed_seconds, session_id } = body
+    const { name, country, currency, results, elapsed_seconds, session_token } = body
 
     if (!results || results.length === 0) {
       return Response.json({ error: 'No results provided' }, { status: 400 })
@@ -359,13 +379,14 @@ ${JSON.stringify(stats, null, 2)}`
 
     const observations = generateObservations(results, txForObservations)
 
-    // Update session with AI response (fire-and-forget)
-    if (session_id) {
+    // Update session with AI response (fire-and-forget). Keyed on the secret
+    // session_token the client holds, not the enumerable row id.
+    if (session_token) {
       const supabase = createServiceClient()
       supabase
         .from('demo_sessions')
         .update({ ai_response_shown: reading })
-        .eq('id', session_id)
+        .eq('session_token', session_token)
         .then(({ error }) => {
           if (error) console.error('[demo/reading] Session update error:', error)
         })

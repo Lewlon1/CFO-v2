@@ -283,7 +283,7 @@ export function DemoReveal({ reading, personality, userName, country, results, f
             fetch('/api/demo/session', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ session_id: sessionId, ai_response_rating: rating }),
+              body: JSON.stringify({ session_token: sessionId, ai_response_rating: rating }),
             }).catch(() => {})
           }
         }} />
