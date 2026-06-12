@@ -75,3 +75,92 @@ Location: `cfos-office/src/lib/chat/folder-prompts.ts` (consumed by `FolderEmpty
 - What does the last 3 months look like net?
 - Am I deploying capital well?
 - What would a 3-month income gap look like?
+
+## Estimates-first onboarding (OB) — door, composite, goal
+
+**STATUS: first pass — Lewis to refine. Default goal targets PROVISIONAL (OB plan open item #1).**
+
+Flagged for Lewis judgement (strings shipped as-is pending a call):
+- candor fallback reflection — "most people lie about that one" is a population-claim genre ("most people…") the voice doesn't otherwise use; keep or soften.
+- growth fallback reflection — "the office's favourite kind of problem" leans cute; keep or flatten.
+
+Maintenance note: the growth persona's in-sketch dates (October 2028 / August) go stale ~mid-2028 — the bullets need a config-version bump then.
+
+All strings pinned at config version v1. Locations: `cfos-office/src/lib/onboarding-v2/door/door-config.ts`, `cfos-office/src/lib/onboarding-v2/composite/composite-config.ts`, `cfos-office/src/lib/onboarding-v2/goal-config.ts`. Voice guards (no advice/advise, no archetype, no internal family names user-visible, no exclamation marks, no emoji) are enforced by `cfos-office/src/lib/onboarding-v2/onboarding-copy-voice.test.ts` — a copy edit that trips them is a test failure, and any copy change is a NEW config version, never an edit to v1.
+
+The four families (growth / security / agency / candor) are internal ids only — never shown to users. They are deliberately separate from the value-map archetype taxonomy despite the matching names.
+
+### Door chips (approved prototype, verbatim)
+
+| Family | Chip |
+|---|---|
+| growth | Saving for something big — want it sooner |
+| security | The overdraft keeps winning |
+| agency | Income comes in lumps — months don't match |
+| candor | Honestly? I've stopped looking |
+
+### Fallback reflections (shown when the LLM line fails validation)
+
+| Family | Reflection |
+|---|---|
+| growth | Something big with a date on it — the office's favourite kind of problem. |
+| security | The overdraft, then. Let's call it what it is. |
+| agency | Lumpy in, steady out — a timing problem just walked in. |
+| candor | Stopped looking is honest — most people lie about that one. |
+
+### Composite card chrome
+
+- Heading: `Someone in your situation`
+- Honesty label (binding product decision — the sketch is named as a sketch): `"{name}" is a sketch, not a client — a composite drawn to match situations like yours.`
+- Relate chips: `Spot on` · `Close enough` · `Not really me`
+- Truer-line prompt: `One line — what would make your version truer?`
+- Truer-line placeholder: `e.g. 'mine's worse since the rent went up'`
+
+### Composite personas (GB shown; ES swaps £→€, Deliveroo→Glovo, Octopus→Iberdrola; same figures)
+
+**growth — Callum, 31, Leeds (ES: Carlos, 31, Madrid)**
+- Saving £50,000 for a place — £18,400 in, on track for October 2028 at today's pace.
+- The locked-in part of the month holds steady at £1,340. Nothing wasted there.
+- 41 Deliveroo orders in 90 days — £486, two-thirds of them after 9pm on weeknights.
+- The kind of move that fixes it: plan half those orders ahead — £81 a month back, and the place lands in August instead.
+
+**security — Dorcas, 34, Bristol (ES: Lucía, 34, Valencia)**
+- In the overdraft the same three days every month — the 25th to the 27th.
+- £31 a month goes on fees. Never more than £180 spare at any point in 90 days.
+- Five bills go out just before payday. A calendar problem, not a spending one.
+- The kind of move that fixes it: shift two payment dates — the dip vanishes, £372 a year back.
+
+**agency — Theo, 29, Manchester (ES: Marta, 29, Barcelona)**
+- Three invoices averaging £2,900 — but the gaps between them ran 9 to 47 days.
+- Spending is the steady one: £1,940 a month, barely moves.
+- Two tight squeezes in 90 days, both pure timing. Each froze new work for a week.
+- The kind of move that fixes it: pay yourself £2,100 on the 1st from a holding pot — the bumps stay in the pot.
+
+**candor — Priya, 36, London (ES: Andrés, 36, Sevilla)**
+- 14 quiet price rises absorbed in a year — £43 a month added without a single decision made.
+- Statement opened twice in six months. The creep costs £516 a year.
+- Subscriptions up £19, Octopus up £14, the gym up £10 — none refused, none accepted either.
+- The kind of move that fixes it: re-decide the top three — about £29 a month back, and the habit of deciding with it.
+
+### Inferred goals
+
+| Family | Label | Noun | Default target (GB/ES — PROVISIONAL) |
+|---|---|---|---|
+| growth | getting the deposit together | the deposit | 20,000 / 20,000 |
+| security | escaping the overdraft | the exit pot | 1,000 / 1,000 |
+| agency | smoothing the months | the buffer | 2,500 / 2,500 |
+| candor | getting clarity back | the pot | 1,000 / 1,000 |
+
+### Deadline options
+
+- In 3 months (3)
+- Within 6 months (6)
+- Within 2 years (24)
+- No deadline — just direction (null)
+
+### Alt-goal escape hatch (one per family, in family order)
+
+- A house deposit → growth
+- Escape the overdraft → security
+- Make the months match → agency
+- Stop money disappearing → candor

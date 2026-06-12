@@ -1,0 +1,126 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:40:03.916Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "186/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": " to change that is to tell me where you'd be willing to cut."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "ruleId": "R9_goal_reference",
+      "passed": true
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 4,
+      "reason": "Conversational opener ('Heads up') and casual sign-off ('— C.') create approachability, though the middle section leans slightly clinical."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures check against source data: £6,500 gap, £722/month target, £513 free cash flow, £780 housing, and transaction count/date range all verified."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids preachy language and uses concrete math ('roughly 9 months', 'gap of £209'), though the closing CTA leans slightly toward directive rather than pure observation."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Directly addresses the debt-heavy anchor archetype by naming fixed-cost compression and credit card repayment as the core constraint, though could lean harder into the burden-quadrant psychology."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "Clear next step (fill Value Map to identify trade-offs) and specific blocker identified (fixed costs), but stops short of suggesting which categories might be most realistic to cut given the thin transaction history."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 4,
+      "reason": "Conversational opener ('Heads up') and casual sign-off ('— C.') create approachability, though the middle section leans slightly clinical."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures check against source data: £6,500 gap, £722/month target, £513 free cash flow, £780 housing, and transaction count/date range all verified."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids preachy language and uses concrete math ('roughly 9 months', 'gap of £209'), though the closing CTA leans slightly toward directive rather than pure observation."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Directly addresses the debt-heavy anchor archetype by naming fixed-cost compression and credit card repayment as the core constraint, though could lean harder into the burden-quadrant psychology."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "Clear next step (fill Value Map to identify trade-offs) and specific blocker identified (fixed costs), but stops short of suggesting which categories might be most realistic to cut given the thin transaction history."
+    }
+  }
+}

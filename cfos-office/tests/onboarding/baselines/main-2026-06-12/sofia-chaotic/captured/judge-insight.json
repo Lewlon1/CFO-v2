@@ -1,0 +1,126 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:41:17.988Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "173/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "That one input is what unlocks the goal math entirely."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "ruleId": "R9_goal_reference",
+      "passed": true
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 4,
+      "reason": "Conversational and direct ('that's the line with the most room to move'), with a light touch of personality ('— C.'), though slightly more clinical than a true smart friend would be."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures check against source data: £2,180 housing (£820 + £680 + £680), £540 entertainment (Brand New Conference), £743 fixed costs derivable, £8,690 income and £4,489 spend both match."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids preachy language and uses concrete comparisons ('nearly half', 'roughly £198 a month'), though the closing CTA feels slightly more templated than the rest of the voice."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Recognizes the chaotic freelancer pattern (variable income, multiple subletting addresses, travel/entertainment spend) and flags the data sparsity issue, but could lean harder into the 'leak' quadrant diagnosis."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "Clearly identifies the missing input (target date) that unlocks next steps, and flags entertainment as the highest-leverage lever, though stops short of suggesting what to do with that insight."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 4,
+      "reason": "Conversational and direct ('that's the line with the most room to move'), with a light touch of personality ('— C.'), though slightly more clinical than a true smart friend would be."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures check against source data: £2,180 housing (£820 + £680 + £680), £540 entertainment (Brand New Conference), £743 fixed costs derivable, £8,690 income and £4,489 spend both match."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids preachy language and uses concrete comparisons ('nearly half', 'roughly £198 a month'), though the closing CTA feels slightly more templated than the rest of the voice."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Recognizes the chaotic freelancer pattern (variable income, multiple subletting addresses, travel/entertainment spend) and flags the data sparsity issue, but could lean harder into the 'leak' quadrant diagnosis."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "Clearly identifies the missing input (target date) that unlocks next steps, and flags entertainment as the highest-leverage lever, though stops short of suggesting what to do with that insight."
+    }
+  }
+}

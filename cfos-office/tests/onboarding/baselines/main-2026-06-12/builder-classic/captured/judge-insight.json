@@ -1,0 +1,126 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:37:44.637Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "205/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "io — every extra pound above £1,133/mo is stress-test cover."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "ruleId": "R9_goal_reference",
+      "passed": true
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational opener ('Heads up'), casual sign-off ('— C.'), and phrases like 'heavy lifting' and 'the question now isn't' create genuine smart-friend rapport without condescension."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures check against source data: £1,383/mo FCF (9600 income − 6691 spend ÷ 3 months), £12,000 ISA balance implied by context, subscriptions totalling ~£100/mo (Masterclass £180/yr + Coursera £39/mo + PureGym £30/mo ≈ £100/mo), and no invented merchants or numbers."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids prescriptive 'you should' language and uses concrete comparisons (stress-test scenarios, compounding math); minor deduction because 'the question now isn't whether' edges slightly toward rhetorical framing rather than pure CFO observation."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Speaks directly to a Builder's investment mindset (compounding, stress-testing, buffer-building) and acknowledges the specific ISA goal; could be slightly more personalized to their learning/development interests (Masterclass, Coursera, Waterstones visible in data)."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "Clear CTA with specific lever (trim £25/mo from subscriptions) and explicit rationale (widens stress-test cushion); slightly weaker because the impact is framed as immaterial to arrival date, which may reduce urgency for some users."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational opener ('Heads up'), casual sign-off ('— C.'), and phrases like 'heavy lifting' and 'the question now isn't' create genuine smart-friend rapport without condescension."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures check against source data: £1,383/mo FCF (9600 income − 6691 spend ÷ 3 months), £12,000 ISA balance implied by context, subscriptions totalling ~£100/mo (Masterclass £180/yr + Coursera £39/mo + PureGym £30/mo ≈ £100/mo), and no invented merchants or numbers."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids prescriptive 'you should' language and uses concrete comparisons (stress-test scenarios, compounding math); minor deduction because 'the question now isn't whether' edges slightly toward rhetorical framing rather than pure CFO observation."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Speaks directly to a Builder's investment mindset (compounding, stress-testing, buffer-building) and acknowledges the specific ISA goal; could be slightly more personalized to their learning/development interests (Masterclass, Coursera, Waterstones visible in data)."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "Clear CTA with specific lever (trim £25/mo from subscriptions) and explicit rationale (widens stress-test cushion); slightly weaker because the impact is framed as immaterial to arrival date, which may reduce urgency for some users."
+    }
+  }
+}
