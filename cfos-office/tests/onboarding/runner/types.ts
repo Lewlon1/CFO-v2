@@ -14,8 +14,12 @@ export interface LikertResult {
   reason: string
 }
 
+/** Which Read a JudgeOutput grades — the estimate Read (always composed) or the
+ *  reality-check Read (statement-check personas only). */
+export type ReadKind = 'estimate_read' | 'reality_check_read'
+
 export interface JudgeOutput {
-  outputType: 'archetype' | 'insight'
+  outputType: ReadKind
   modelId: string
   timestamp: string
   hardRules: HardRuleResult[]
@@ -42,12 +46,14 @@ export interface DbStateSnapshot {
   user_profiles: Record<string, unknown> | null
   financial_portrait: Record<string, unknown>[] | null
   onboarding_progress: Record<string, unknown> | null
+  /** The estimates-first sketch + verification row (bands, verdicts, derived, verification). */
+  onboarding_estimates: Record<string, unknown> | null
   transactionCount: number
   /** Content of every assistant message for the user — checked for leaked QA notes (fix #2). */
   assistantMessageContents: string[]
   /** recurring_expenses names for the user — checked for case-variant dupes (fix #3). */
   recurringNames: string[]
-  /** Number of goals seeded for the user — checked for goal persistence (Task 10). */
+  /** Number of goals for the user — the estimate goal beat creates exactly one. */
   goalsCount: number
 }
 
@@ -68,12 +74,12 @@ export interface PersonaRunResult {
   stages: CapturedStage[]
   consoleErrors: string[]
   captured: {
-    archetype?: unknown
-    insight?: unknown
+    estimateRead?: unknown
+    realityCheckRead?: unknown
   }
   judge: {
-    archetype?: JudgeOutput
-    insight?: JudgeOutput
+    estimateRead?: JudgeOutput
+    realityCheckRead?: JudgeOutput
   }
   hardRuleFailures: string[]
   likertMeans: Record<string, number>

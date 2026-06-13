@@ -3,20 +3,23 @@ import type { Persona } from '../personas/types'
 import type { DbStateSnapshot } from './types'
 
 export async function snapshotDbState(admin: SupabaseClient, userId: string): Promise<DbStateSnapshot> {
-  const [profileRes, portraitRes, progressRes, txnRes, msgRes, recurringRes, goalsRes] = await Promise.all([
-    admin.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
-    admin.from('financial_portrait').select('*').eq('user_id', userId),
-    admin.from('onboarding_progress').select('*').eq('user_id', userId).maybeSingle(),
-    admin.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-    admin.from('messages').select('content').eq('user_id', userId).eq('role', 'assistant'),
-    admin.from('recurring_expenses').select('name').eq('user_id', userId),
-    admin.from('goals').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-  ])
+  const [profileRes, portraitRes, progressRes, estimatesRes, txnRes, msgRes, recurringRes, goalsRes] =
+    await Promise.all([
+      admin.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
+      admin.from('financial_portrait').select('*').eq('user_id', userId),
+      admin.from('onboarding_progress').select('*').eq('user_id', userId).maybeSingle(),
+      admin.from('onboarding_estimates').select('*').eq('user_id', userId).maybeSingle(),
+      admin.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+      admin.from('messages').select('content').eq('user_id', userId).eq('role', 'assistant'),
+      admin.from('recurring_expenses').select('name').eq('user_id', userId),
+      admin.from('goals').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    ])
 
   return {
     user_profiles: profileRes.data ?? null,
     financial_portrait: portraitRes.data ?? null,
     onboarding_progress: progressRes.data ?? null,
+    onboarding_estimates: estimatesRes.data ?? null,
     transactionCount: txnRes.count ?? 0,
     assistantMessageContents: (msgRes.data ?? []).map((m) => String((m as { content?: unknown }).content ?? '')),
     recurringNames: (recurringRes.data ?? []).map((r) => String((r as { name?: unknown }).name ?? '')),
@@ -56,13 +59,68 @@ export function assertNoCaseDupRecurringNames(names: string[]): string[] {
     : []
 }
 
+// ── onboarding_estimates verification invariant (check personas) ─────────────
+
+interface VerificationBand {
+  state?: string
+}
+interface VerificationJson {
+  engine_version?: string
+  bands?: Record<string, VerificationBand>
+}
+
+/**
+ * A statement-check persona's onboarding_estimates.verification must be populated
+ * by the reality-check route: engine_version 'v1' and at least one band whose
+ * actual was found (state 'verified'). Mirrors toVerificationJson in
+ * src/lib/onboarding-v2/estimates/deltas.ts.
+ */
+export function assertVerificationPopulated(estimates: Record<string, unknown> | null): string[] {
+  const verification = (estimates?.verification ?? null) as VerificationJson | null
+  if (!verification || Object.keys(verification).length === 0) {
+    return ['onboarding_estimates.verification: expected populated, got empty']
+  }
+  const errors: string[] = []
+  if (verification.engine_version !== 'v1') {
+    errors.push(
+      `onboarding_estimates.verification.engine_version: expected 'v1', got ${JSON.stringify(verification.engine_version)}`,
+    )
+  }
+  const verifiedCount = Object.values(verification.bands ?? {}).filter((b) => b?.state === 'verified').length
+  if (verifiedCount < 1) {
+    errors.push(`onboarding_estimates.verification: expected ≥1 verified band, got ${verifiedCount}`)
+  }
+  return errors
+}
+
+const BAND_COLUMNS = ['housing_band', 'subs_band', 'bills_band', 'food_out_band', 'save_reach_band'] as const
+const VERDICT_KEYS = ['subscriptions', 'food_out', 'drift'] as const
+
 export function assertDbState(persona: Persona, snapshot: DbStateSnapshot): string[] {
   const errors: string[] = []
   const expected = persona.expectations.dbAfterHandoff
+  const isCheck = persona.expectations.runStatementCheck
+  const prof = (snapshot.user_profiles ?? {}) as Record<string, unknown>
 
+  // ── Terminal onboarding state ──────────────────────────────────────────────
+  // The estimate Read stamps onboarding_completed_at (the completion gate) for
+  // every persona; the one-way ratchet never clears it.
+  if (prof.onboarding_completed_at == null) {
+    errors.push('user_profiles.onboarding_completed_at: expected not-null, got null')
+  }
+  // Non-check personas terminate on first_read_delivered (the estimate Read);
+  // check personas walk on to reality_check_delivered.
+  const expectedStep = isCheck ? 'reality_check_delivered' : 'first_read_delivered'
+  if (prof.onboarding_step !== expectedStep) {
+    errors.push(
+      `user_profiles.onboarding_step: expected ${expectedStep}, got ${JSON.stringify(prof.onboarding_step)}`,
+    )
+  }
+
+  // Any persona-declared user_profiles overrides (beyond the terminal invariants).
   if (expected.user_profiles) {
     for (const [key, want] of Object.entries(expected.user_profiles)) {
-      const got = (snapshot.user_profiles ?? {})[key]
+      const got = prof[key]
       if (want === 'not-null') {
         if (got == null) errors.push(`user_profiles.${key}: expected not-null, got null`)
       } else if (got !== want) {
@@ -71,51 +129,55 @@ export function assertDbState(persona: Persona, snapshot: DbStateSnapshot): stri
     }
   }
 
-  if (expected.financial_portrait) {
-    const portrait = snapshot.financial_portrait ?? []
-    for (const [key, want] of Object.entries(expected.financial_portrait)) {
-      if (want === 'exists') {
-        const has = portrait.some((p) => p.trait_key === key)
-        if (!has) errors.push(`financial_portrait.${key}: expected to exist`)
-      } else {
-        const row = portrait.find((p) => p.trait_key === key)
-        if (!row || row.trait_value !== want) {
-          errors.push(`financial_portrait.${key}: expected trait_value=${JSON.stringify(want)}, got ${JSON.stringify(row?.trait_value)}`)
-        }
-      }
-    }
-  }
-
-  if (expected.onboarding_progress) {
-    for (const [key, want] of Object.entries(expected.onboarding_progress)) {
-      const got = (snapshot.onboarding_progress ?? {})[key]
-      if (want === 'not-null') {
-        if (got == null) errors.push(`onboarding_progress.${key}: expected not-null, got null`)
-      } else if (got !== want) {
-        errors.push(`onboarding_progress.${key}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`)
-      }
-    }
-  }
-
-  if (expected.transactions?.countBetween) {
-    const [min, max] = expected.transactions.countBetween
-    if (snapshot.transactionCount < min || snapshot.transactionCount > max) {
-      errors.push(`transactions.count: expected between ${min}-${max}, got ${snapshot.transactionCount}`)
-    }
-  }
-
-  // Goal persistence check — persona with goal expects ≥1 row; persona without expects 0.
-  if (persona.expectations.goal) {
-    if (snapshot.goalsCount < 1) {
-      errors.push(`goals: expected ≥1 row for goal-seeded persona, got ${snapshot.goalsCount}`)
-    }
+  // ── onboarding_estimates: the sketch the Read was built from ────────────────
+  const est = snapshot.onboarding_estimates
+  if (!est) {
+    errors.push('onboarding_estimates: expected a row, got none')
   } else {
-    if (snapshot.goalsCount > 0) {
-      errors.push(`goals: expected 0 rows for goal-less persona, got ${snapshot.goalsCount}`)
+    const missingBands = BAND_COLUMNS.filter((c) => est[c] == null)
+    if (missingBands.length) {
+      errors.push(`onboarding_estimates: missing band(s): ${missingBands.join(', ')}`)
+    }
+    if (est.income_monthly == null) {
+      errors.push('onboarding_estimates.income_monthly: expected not-null')
+    }
+    if (est.top_value == null) {
+      errors.push('onboarding_estimates.top_value: expected not-null')
+    }
+    const verdicts = (est.verdicts ?? {}) as Record<string, unknown>
+    const missingV = VERDICT_KEYS.filter((k) => verdicts[k] == null)
+    if (missingV.length) {
+      errors.push(`onboarding_estimates.verdicts: missing ${missingV.join(', ')}`)
+    }
+    // Check personas: the reality-check route must have written verification.
+    if (isCheck) {
+      errors.push(...assertVerificationPopulated(est))
     }
   }
 
-  // Universal fix invariants — apply to every persona regardless of expectations.
+  // ── Goal persistence — the estimate goal beat creates exactly one ──────────
+  if (snapshot.goalsCount < 1) {
+    errors.push(`goals: expected ≥1 row (the goal beat creates one), got ${snapshot.goalsCount}`)
+  }
+
+  // ── Transactions ────────────────────────────────────────────────────────
+  // Non-check personas never upload, so they hold zero transactions; check
+  // personas import their statement (use the persona's countBetween, else ≥1).
+  if (isCheck) {
+    const range = expected.transactions?.countBetween
+    if (range) {
+      const [min, max] = range
+      if (snapshot.transactionCount < min || snapshot.transactionCount > max) {
+        errors.push(`transactions.count: expected between ${min}-${max}, got ${snapshot.transactionCount}`)
+      }
+    } else if (snapshot.transactionCount < 1) {
+      errors.push(`transactions.count: expected ≥1 after the statement-check import, got ${snapshot.transactionCount}`)
+    }
+  } else if (snapshot.transactionCount !== 0) {
+    errors.push(`transactions.count: expected 0 for a non-check persona (no upload), got ${snapshot.transactionCount}`)
+  }
+
+  // ── Universal fix invariants — apply to every persona ──────────────────────
   errors.push(...assertNoValidatorNoteLeak(snapshot.assistantMessageContents))
   errors.push(...assertNoCaseDupRecurringNames(snapshot.recurringNames))
 

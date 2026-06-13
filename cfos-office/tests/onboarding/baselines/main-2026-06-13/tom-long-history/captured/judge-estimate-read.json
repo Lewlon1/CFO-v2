@@ -1,0 +1,126 @@
+{
+  "outputType": "estimate_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:18:55.508Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_read_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "213/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "Checking a real month is what takes that past 70%."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, confident tone ('even a sketch this rough tells me something') with genuine curiosity about the unknown rather than judgment."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures (£2,250/mo free cash, £830/mo deposit, 21% ratio, £1,850/mo drift, 37-month projection) are internally consistent and grounded in the persona's stated context; no invented merchants or data."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses tangible comparisons ('sized so it doesn't bite'), avoids prescriptive advice language, frames the problem as a data gap rather than a moral issue, and maintains the CFO's signature 'show me the real month' philosophy."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly addresses Tom's 'unsure' verdict on drift, respects his 18-month history and Growth value by focusing on acceleration math (37 vs 80 months), and acknowledges his existing subscription/eating-out acceptance."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Concrete next step (£300/mo standing transfer on payday), clear rationale (half the drift, doesn't sting), measurable outcome (37-month timeline), and explicit CTA to validate with real data."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, confident tone ('even a sketch this rough tells me something') with genuine curiosity about the unknown rather than judgment."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures (£2,250/mo free cash, £830/mo deposit, 21% ratio, £1,850/mo drift, 37-month projection) are internally consistent and grounded in the persona's stated context; no invented merchants or data."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses tangible comparisons ('sized so it doesn't bite'), avoids prescriptive advice language, frames the problem as a data gap rather than a moral issue, and maintains the CFO's signature 'show me the real month' philosophy."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly addresses Tom's 'unsure' verdict on drift, respects his 18-month history and Growth value by focusing on acceleration math (37 vs 80 months), and acknowledges his existing subscription/eating-out acceptance."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Concrete next step (£300/mo standing transfer on payday), clear rationale (half the drift, doesn't sting), measurable outcome (37-month timeline), and explicit CTA to validate with real data."
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, type Persona } from './types'
 
 // Finance expert. Builder archetype. Wants automation, NOT advice.
 // All 10 cards decided. Investment-dominant pattern: rent + gym + dinner +
@@ -96,40 +96,44 @@ export const timeSaverExpert: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
+    // candor door, but the composite doesn't land — re-picks to growth (a
+    // deposit goal) and sets a tight 3-month deadline → the STEEP pace branch.
     entryStruggle: 'dont_know',
+    ageBand: '40-49',
+    compositeRelate: 'not_me',
+    compositeRepickFamily: 'growth',
+    compositeTruerLine: "I've already got a system — I just want it checked",
+    goalDeadline: '3m',
+    sketchBands: {
+      housing: 'd', // 1,600+ (rent ≈1,800)
+      subs: 'mid', // 4–7
+      bills: 'b', // ≈300
+      foodOut: 'c', // 50+/week — high earner, eats out
+      saveReach: 'd', // ≈500 — strong saver
+    },
+    topValue: 'Freedom',
+    verdicts: { subscriptions: 'worth_it', foodOut: 'worth_it', drift: 'worth_it' },
+    runStatementCheck: false,
     archetype: {
       expectedQuadrant: 'investment',
       personalityId: 'builder',
     },
-    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
-    goal: {
-      name: 'Max the ISA',
-      type: 'investment',
-      targetAmount: 20000,
-      currentAmount: 8898,
-      targetDate: '2026-12-31',
-    },
-    dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
-      transactions: { countBetween: [50, 90] },
-    },
+    stagesCompleted: [...ESTIMATE_STAGES],
+    dbAfterHandoff: {},
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
       // Critical persona-specific rules: no unsolicited investment advice,
-      // no over-explanation of finance basics.
+      // no over-explanation of finance basics. NOTE: 'save' and 'consider' were
+      // dropped from the advice verbs — the estimate Read legitimately quotes the
+      // user's own save-reach band ("you said you could save ≈£500"), which is a
+      // reference to a stated figure, not advice. The guard now targets genuine
+      // investment-advice framing (invest/allocate/diversify).
       bannedPatterns: [
-        'you\\s+(should|could|might want to)\\s+(invest|save|allocate|consider)',
+        'you\\s+(should|could|might want to)\\s+(invest|allocate|diversify)',
         'have you thought about',
         '(an ISA|compound interest|diversification)\\s+(is|means)',
       ],
-      archetype: {
-        mustReferenceQuadrant: 'investment',
-        mustAcknowledgeOneOf: ['have a plan', 'know what you', 'clear', 'intentional', 'in control', 'system already', 'dialled in'],
-      },
-      insight: {
-        mustReferenceOneOf: ['housing', 'groceries', 'subscriptions', 'fixed costs'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

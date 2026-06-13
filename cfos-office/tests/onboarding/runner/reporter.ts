@@ -38,8 +38,8 @@ function personaSection(p: PersonaRunResult, outputRoot: string): string {
     .join('')
 
   const hardRules = [
-    ...(p.judge.archetype?.hardRules ?? []).map((r) => ({ ...r, type: 'archetype' })),
-    ...(p.judge.insight?.hardRules ?? []).map((r) => ({ ...r, type: 'insight' })),
+    ...(p.judge.estimateRead?.hardRules ?? []).map((r) => ({ ...r, type: 'estimate' })),
+    ...(p.judge.realityCheckRead?.hardRules ?? []).map((r) => ({ ...r, type: 'reality' })),
   ]
   const hardRulesHtml = hardRules.map((r) =>
     `<li class="${r.passed ? 'pass' : 'fail'}">[${r.type}] ${escapeHtml(r.ruleId)}${r.detail ? ` — ${escapeHtml(r.detail)}` : ''}</li>`
@@ -85,8 +85,8 @@ function personaSection(p: PersonaRunResult, outputRoot: string): string {
   <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody>${likertRows || '<tr><td colspan="2">—</td></tr>'}</tbody></table>
   ${likertDetails.length ? `<details><summary>Per-dimension reasons</summary><ul>${likertDetails.join('')}</ul></details>` : ''}
   <h3>Captured</h3>
-  <details><summary>Archetype JSON</summary><pre>${escapeHtml(JSON.stringify(p.captured.archetype ?? null, null, 2))}</pre></details>
-  <details><summary>Insight JSON</summary><pre>${escapeHtml(JSON.stringify(p.captured.insight ?? null, null, 2))}</pre></details>
+  <details><summary>Estimate Read JSON</summary><pre>${escapeHtml(JSON.stringify(p.captured.estimateRead ?? null, null, 2))}</pre></details>
+  <details><summary>Reality-check Read JSON</summary><pre>${escapeHtml(JSON.stringify(p.captured.realityCheckRead ?? null, null, 2))}</pre></details>
   <details><summary>DB state after handoff</summary><pre>${escapeHtml(JSON.stringify(p.dbState ?? null, null, 2))}</pre></details>
   ${funcErrorsHtml}
   ${consoleHtml}

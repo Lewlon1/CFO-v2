@@ -1,13 +1,15 @@
-The data here runs to 2026-03-27 — 73 days ago — so treat these as a recent snapshot, not live figures.
+This is your sketch, not your statement — but even a sketch this rough tells me something useful.
 
-A target date is the one thing standing between you and knowing exactly how hard to push on the runway goal. Without it, the math can't tell you whether you need to save aggressively over six months or gently over eighteen. Everything else is secondary to that.
+After your ≈£940 fixed base, you have ≈£1,960/mo moving freely. The buffer needs ≈£420/mo to hit ≈£2,500 by December 2026 — that's ≈14% of take-home, and the gap isn't the problem. The problem is that your could-save sits at ≈£0/mo right now, so none of that free cash is being directed anywhere with intention.
 
-On the snapshot itself: **housing** dominates at £2,180 — nearly half of all tracked spend across the window. The single biggest hit inside that is a £820 payment to Sublet — Bermondsey on 4 February, which alone accounts for 18% of everything tracked. **Entertainment** is running at roughly £198/month, which is the next clearest lever.
+The one move: set a standing transfer of ≈£150/mo on payday. Not the full ≈£420 yet — just the habit. Starting is the lever here, not optimising.
 
-With only 8 transactions across 83 days, the picture is thin. The spending shape is readable — housing, then entertainment at £540, travel at £495, shopping at £479 — but behavioural patterns across merchants aren't established yet. More data will sharpen this considerably.
+You called your ≈£1,680/mo of drift a leak. That's the figure that deserves the most scrutiny, because it's free cash that's neither eating out nor saving — it's just disappearing. A real month says whether that's a pattern, a few big one-offs, or something else entirely. Right now, it's just a gap with a label on it.
 
-You're £7,600 short of the £9,600 target, starting from £2,000 saved. Free cash flow is sitting at £2,157/month on a trailing average — but income is variable and swings month to month, so the pace you can sustain depends on when you need to land.
+Checking a real month does two things: it swaps every ≈ for an actual number — estimate against reality, side by side — and it opens the half of the picture that's still completely empty: timing, recurring charges, what spikes and when. Estimates can't see any of that.
 
-[CTA:supply_input]Set a target date for 3-month runway[/CTA]
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

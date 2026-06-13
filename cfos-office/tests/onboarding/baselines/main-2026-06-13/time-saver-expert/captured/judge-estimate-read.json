@@ -1,0 +1,126 @@
+{
+  "outputType": "estimate_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:16:52.592Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_read_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "217/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "Checking a real month is what takes that past 70%."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, confident tone ('even a sketch this rough tells me something') with genuine curiosity about the user's spending patterns rather than judgment."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures are internally consistent (£4,050 free cash, £6,670 deposit need, £3,270 drift, £2,150 fixed base) and derived logically from the estimate; no external data hallucinated."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses tangible comparisons ('108% of take-home'), avoids prescriptive advice language, frames drift as potentially 'worth it' rather than wasteful, and stays grounded in observable mechanics."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly acknowledges the user's stated value (freedom) and verdicts (subscriptions/eating_out/drift worth it), then uses that to reframe the real question as visibility rather than restriction."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Concrete next step (£300/mo standing transfer, 25-month timeline) paired with clear diagnostic move (check a real month to swap estimates for actuals and surface hidden patterns)."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, confident tone ('even a sketch this rough tells me something') with genuine curiosity about the user's spending patterns rather than judgment."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures are internally consistent (£4,050 free cash, £6,670 deposit need, £3,270 drift, £2,150 fixed base) and derived logically from the estimate; no external data hallucinated."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses tangible comparisons ('108% of take-home'), avoids prescriptive advice language, frames drift as potentially 'worth it' rather than wasteful, and stays grounded in observable mechanics."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly acknowledges the user's stated value (freedom) and verdicts (subscriptions/eating_out/drift worth it), then uses that to reframe the real question as visibility rather than restriction."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Concrete next step (£300/mo standing transfer, 25-month timeline) paired with clear diagnostic move (check a real month to swap estimates for actuals and surface hidden patterns)."
+    }
+  }
+}

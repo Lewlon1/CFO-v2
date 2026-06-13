@@ -1,0 +1,122 @@
+{
+  "outputType": "reality_check_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:16:24.193Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "249/300 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "patterns mean to you, and that's what the Value Map settles."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "The tone is conversational and peer-like ('The real number was €838 — €738 higher than the guess'), with genuine curiosity about what patterns mean to the user rather than judgment."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures check against source data: €838 unspent (€8100 income − €5666.88 spending − €1596 fixed = €838.12), subscriptions €45 (Movistar €135/3 months ≈ €45), eating out €264 (Bar Mut €138 + Cerveceria €122 + Deliveroo €126 + Glovo €114 − some overlap = ~€264), housing €950/month (€2850/3), bills €150 (Endesa €187/3 + Naturgy €163/2 ≈ €150)."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids prescriptive language and uses concrete deltas ('€738 higher than the guess'), but the closing 'what these patterns *mean* to you' edges slightly toward coaching language rather than pure observation."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Acknowledges the expat context (Barcelona merchants, EUR currency) and respects the 'Experiences' value by framing eating out and gym as real line items rather than waste, though could lean harder into why this matters for a drifter."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "Clear next step (start_value_map_real CTA) and concrete insight (€838 vs €100 gap reveals hidden cash), but stops short of naming what to do with the surplus or which patterns to interrogate first."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "The tone is conversational and peer-like ('The real number was €838 — €738 higher than the guess'), with genuine curiosity about what patterns mean to the user rather than judgment."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures check against source data: €838 unspent (€8100 income − €5666.88 spending − €1596 fixed = €838.12), subscriptions €45 (Movistar €135/3 months ≈ €45), eating out €264 (Bar Mut €138 + Cerveceria €122 + Deliveroo €126 + Glovo €114 − some overlap = ~€264), housing €950/month (€2850/3), bills €150 (Endesa €187/3 + Naturgy €163/2 ≈ €150)."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids prescriptive language and uses concrete deltas ('€738 higher than the guess'), but the closing 'what these patterns *mean* to you' edges slightly toward coaching language rather than pure observation."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Acknowledges the expat context (Barcelona merchants, EUR currency) and respects the 'Experiences' value by framing eating out and gym as real line items rather than waste, though could lean harder into why this matters for a drifter."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "Clear next step (start_value_map_real CTA) and concrete insight (€838 vs €100 gap reveals hidden cash), but stops short of naming what to do with the surplus or which patterns to interrogate first."
+    }
+  }
+}

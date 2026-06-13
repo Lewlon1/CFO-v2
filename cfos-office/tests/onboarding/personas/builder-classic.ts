@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, type Persona } from './types'
 
 // Builder: investment >= 35%. Strategy: rent marked hard-to-decide (calm,
 // neutral), most discretionary spend reframed as investment in growth/
@@ -112,32 +112,30 @@ export const builderClassic: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
-    entryStruggle: 'dont_know',
+    // growth door ("saving for something big, want it sooner").
+    entryStruggle: 'wealth',
+    ageBand: '30-39',
+    compositeRelate: 'spot_on',
+    goalDeadline: '2y',
+    sketchBands: {
+      housing: 'b', // 800–1,200 (rent ≈1,100)
+      subs: 'low', // Spotify + iCloud → 0–3
+      bills: 'a', // Octopus + Thames + BT ≈ 150
+      foodOut: 'b', // 20–50/week — measured dining
+      saveReach: 'c', // ≈250 — a deliberate saver
+    },
+    topValue: 'Growth',
+    verdicts: { subscriptions: 'worth_it', foodOut: 'worth_it', drift: 'unsure' },
+    runStatementCheck: false,
     archetype: {
       expectedQuadrant: 'investment',
       personalityId: 'builder',
     },
-    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
-    goal: {
-      name: 'Grow ISA pot',
-      type: 'investment',
-      targetAmount: 40000,
-      currentAmount: 12000,
-      targetDate: '2028-06-01',
-    },
-    dbAfterHandoff: {
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
-      transactions: { countBetween: [40, 80] },
-    },
+    stagesCompleted: [...ESTIMATE_STAGES],
+    dbAfterHandoff: {},
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
-      archetype: {
-        mustReferenceQuadrant: 'investment',
-        mustMentionOneOf: ['invest', 'grow', 'build', 'intentional', 'purposeful'],
-      },
-      insight: {
-        mustReferenceOneOf: ['housing', 'groceries', 'free cash flow', 'fixed costs'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, CHECK_STAGES, type Persona } from './types'
 
 // Drifter: leak >= 25%. Barcelona expat, EUR. Lewis-flavoured profile.
 // rent → hard_to_decide. Remaining: 494.50
@@ -94,33 +94,36 @@ export const drifterExpat: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
+    // candor door ("I've stopped looking") — the drifter's leak-heavy month.
     entryStruggle: 'dont_know',
+    ageBand: '30-39',
+    compositeRelate: 'close',
+    compositeTruerLine: "mine's worse since the rent went up",
+    goalDeadline: '6m',
+    sketchBands: {
+      housing: 'b', // 800–1,200 → midpoint 1000 (rent ≈950)
+      subs: 'mid', // Netflix + Spotify + HBO + Disney → 4–7
+      bills: 'a', // electricity + internet ≈ 150
+      foodOut: 'c', // 50+/week — the leak signature
+      saveReach: 'b', // ≈100 — saves little
+    },
+    topValue: 'Experiences',
+    verdicts: { subscriptions: 'leak', foodOut: 'worth_it', drift: 'unsure' },
+    runStatementCheck: true,
+    // Value Map archetype expectation drives ONLY the personality-engine unit test.
     archetype: {
       expectedQuadrant: 'leak',
       personalityId: 'drifter',
     },
-    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
-    goal: {
-      name: 'Move-home fund',
-      type: 'general',
-      targetAmount: 6000,
-      currentAmount: 1200,
-    },
+    stagesCompleted: [...ESTIMATE_STAGES, ...CHECK_STAGES],
     dbAfterHandoff: {
-      // Value-first terminal: the Read is delivered and onboarding is stamped
-      // complete. There is no archetype screen here — the archetype only exists
-      // if the user takes the optional post-Read Value Map.
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
+      // Statement-check import (≈90 days of Q1 2026 transactions).
       transactions: { countBetween: [70, 120] },
     },
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
-      archetype: {
-        mustReferenceQuadrant: 'leak',
-        mustMentionOneOf: ['drift', 'impulse', 'leak', 'habit', 'small'],
-      },
-      insight: {
-        mustReferenceOneOf: ['eating', 'groceries', 'free cash flow', 'rent'],
+      read: {
+        mustReferenceOneOf: ['free cash', 'subscriptions', 'eating', 'save', 'drift'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

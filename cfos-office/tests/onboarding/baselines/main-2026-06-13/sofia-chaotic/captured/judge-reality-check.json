@@ -1,0 +1,122 @@
+{
+  "outputType": "reality_check_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:18:29.534Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "256/300 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "patterns mean to you, and that's what the Value Map settles."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "The tone is conversational and collaborative ('The sharpest miss cuts in your favour'), using casual phrasing ('the sketch was more cautious than reality') that feels like a smart friend reviewing numbers together rather than delivering a verdict."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures are grounded in the source data: £1,254 swing, £280 vs £55 eating out, £2,897/mo income, £63/mo fixed costs, £2,837/mo free cash flow, and the 8 transactions / 83 days framing all check out against the CSV."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses tangible comparisons ('£1,254 swing'), avoids prescriptive language, and frames findings as observations ('the sketch implied') rather than recommendations, staying true to CFO's diagnostic voice."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Directly addresses Sofia's chaotic freelancer reality (variable income swings, freedom-focused values) and acknowledges the thin pattern layer, though could have explicitly called out the luxury/travel spending (Selfridges, Paris hotel, Eurostar) against her stated 'freedom' value."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "Clear next step via CTA (start Value Map), and the insight that she has £2,837/mo free cash vs her £0 assumption is concrete and reorients her position, though the output stops short of naming what to do with that surplus."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "The tone is conversational and collaborative ('The sharpest miss cuts in your favour'), using casual phrasing ('the sketch was more cautious than reality') that feels like a smart friend reviewing numbers together rather than delivering a verdict."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures are grounded in the source data: £1,254 swing, £280 vs £55 eating out, £2,897/mo income, £63/mo fixed costs, £2,837/mo free cash flow, and the 8 transactions / 83 days framing all check out against the CSV."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses tangible comparisons ('£1,254 swing'), avoids prescriptive language, and frames findings as observations ('the sketch implied') rather than recommendations, staying true to CFO's diagnostic voice."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Directly addresses Sofia's chaotic freelancer reality (variable income swings, freedom-focused values) and acknowledges the thin pattern layer, though could have explicitly called out the luxury/travel spending (Selfridges, Paris hotel, Eurostar) against her stated 'freedom' value."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "Clear next step via CTA (start Value Map), and the insight that she has £2,837/mo free cash vs her £0 assumption is concrete and reorients her position, though the output stops short of naming what to do with that surplus."
+    }
+  }
+}

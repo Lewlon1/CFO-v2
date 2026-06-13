@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, type Persona } from './types'
 
 // Tom — Long history (Session 32 C, persona expansion).
 //
@@ -116,40 +116,30 @@ export const tomLongHistory: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
-    entryStruggle: 'dont_know',
+    // growth door — an established earner topping up the pot over the long run.
+    entryStruggle: 'wealth',
+    ageBand: '50+',
+    compositeRelate: 'spot_on',
+    goalDeadline: '2y',
+    sketchBands: {
+      housing: 'c', // 1,200–1,600 (rent ≈1,420)
+      subs: 'mid', // 4–7
+      bills: 'b', // ≈300
+      foodOut: 'b', // 20–50/week
+      saveReach: 'c', // ≈250 — steady saver
+    },
+    topValue: 'Growth',
+    verdicts: { subscriptions: 'worth_it', foodOut: 'worth_it', drift: 'unsure' },
+    runStatementCheck: false,
     archetype: {
       expectedQuadrant: 'investment',
       personalityId: 'builder',
     },
-    stagesCompleted: [
-      'struggle_submitted',
-      'goal_done',
-      'upload_done',
-      'essentials_done',
-      'confirm_done',
-      'first_read',
-    ],
-    goal: {
-      name: 'Pension top-up',
-      type: 'investment',
-      targetAmount: 50000,
-      currentAmount: 9000,
-    },
-    dbAfterHandoff: {
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
-      // 18 months: salary x18 + rent x18 + ISA x18 + groceries x78 + gym x18
-      // + Netflix x18 + Spotify x18 + utility x18 + holidays + dishoom/foyles
-      transactions: { countBetween: [200, 280] },
-    },
+    stagesCompleted: [...ESTIMATE_STAGES],
+    dbAfterHandoff: {},
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
-      bannedPatterns: [
-        // Failure mode: the 90-day window broken / leak from 2024 holidays.
-        'lisbon|madrid|cervejaria|pasteis|easyjet',
-      ],
-      insight: {
-        mustReferenceOneOf: ['snapshot', 'fixed costs', 'take-home', 'housing'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

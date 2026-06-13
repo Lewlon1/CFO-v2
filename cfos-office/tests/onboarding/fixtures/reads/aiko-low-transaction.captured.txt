@@ -1,11 +1,15 @@
-One important caveat up front: this picture is built on 21 days of transactions last seen on 2026-03-28 — 72 days ago — so treat it as a March snapshot, not a live view.
+This is your sketch, not your statement — but even a sketch this rough tells me something useful.
 
-That said, here's where your money went in March. Of £1,554 tracked, £1,150 — nearly three quarters — was a single rent payment on 9 March. After that, **shopping** took £185 and **groceries** £131, which together account for most of what's left. The line most likely to surprise you: eating and drinking out was just £22 for the month, which is unusually low and worth questioning — it may mean some of that spend is hiding inside shopping or simply wasn't captured.
+After your ≈£1,170 fixed base, you have ≈£1,930 free each month. Your pot target is ≈£1,000 with no deadline, so right now it's a direction, not a race — but the numbers say you can move toward it faster than you probably think.
 
-With only 11 transactions across 21 days, the picture is thin. There's not enough history yet to spot patterns, flag anything as recurring, or know whether March was a typical month or an outlier.
+The move: set up a standing transfer of ≈£300 on payday. That's sized at roughly half your ≈£1,770 of unexplained drift, so it won't bite. At that pace the pot lands in ≈3 months. Without it, on your ≈£100 could-save estimate, you're looking at ≈10 months. That gap is the whole point of doing this now, not later — and for someone who named security as what matters, earlier is better.
 
-Free cash flow on file is £1,950 against your £3,100 income — but without a goal or a Value Map, there's no target to size that against yet. The fastest way to make this useful is to tell me what you're building toward.
+You called your ≈£1,770 of drift unsure. That's the right instinct. A real month says whether it's genuine spending, money already going somewhere you've forgotten, or just noise in the estimate.
 
-[CTA:supply_input]Set my first financial goal[/CTA]
+That's also what checking adds across the board: every ≈ swaps for a real number, estimate against reality, side by side. And the habits half of the picture — timing, patterns, what's recurring — is still completely empty. Estimates can't see it. Only real transactions can.
+
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

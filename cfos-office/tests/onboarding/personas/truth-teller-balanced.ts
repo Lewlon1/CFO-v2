@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, type Persona } from './types'
 
 // Truth Teller: no threshold tripped, falls through to default.
 // rent + electricity → hard_to_decide. Remaining: 62+45+18.50+42+11+29+85+35 = 327.50
@@ -69,31 +69,30 @@ export const truthTellerBalanced: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
+    // candor door — the balanced, clear-eyed read of a middling month.
     entryStruggle: 'dont_know',
+    ageBand: '30-39',
+    compositeRelate: 'close',
+    goalDeadline: '6m',
+    sketchBands: {
+      housing: 'b', // 800–1,200 (rent ≈900)
+      subs: 'mid', // 4–7
+      bills: 'b', // ≈300
+      foodOut: 'b', // 20–50/week
+      saveReach: 'b', // ≈100
+    },
+    topValue: 'Family',
+    verdicts: { subscriptions: 'unsure', foodOut: 'worth_it', drift: 'unsure' },
+    runStatementCheck: false,
     archetype: {
       expectedQuadrant: 'foundation',
       personalityId: 'truth_teller',
     },
-    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
-    goal: {
-      name: '6-month safety net',
-      type: 'savings',
-      targetAmount: 15000,
-      currentAmount: 3000,
-      targetDate: '2027-06-01',
-    },
-    dbAfterHandoff: {
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
-      transactions: { countBetween: [30, 70] },
-    },
+    stagesCompleted: [...ESTIMATE_STAGES],
+    dbAfterHandoff: {},
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
-      archetype: {
-        mustMentionOneOf: ['balance', 'clear', 'mixed', 'truth', 'honest', 'see'],
-      },
-      insight: {
-        mustReferenceOneOf: ['snapshot', 'free cash flow', 'rent', 'housing'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

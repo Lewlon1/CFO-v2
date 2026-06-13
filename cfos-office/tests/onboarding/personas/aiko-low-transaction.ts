@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, type Persona } from './types'
 
 // Aiko — Sparse data (Session 32 C, persona expansion).
 //
@@ -68,49 +68,40 @@ export const aikoLowTransaction: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
+    // candor door — a young user just starting out, no deadline yet (direction).
     entryStruggle: 'dont_know',
+    ageBand: '18-29',
+    compositeRelate: 'close',
+    goalDeadline: 'none',
+    sketchBands: {
+      housing: 'b', // 800–1,200 (rent ≈1,150)
+      subs: 'low', // few subs
+      bills: 'a', // ≈150
+      foodOut: 'a', // <20/week
+      saveReach: 'b', // ≈100 — starting out
+    },
+    topValue: 'Security',
+    verdicts: { subscriptions: 'unsure', foodOut: 'unsure', drift: 'unsure' },
+    runStatementCheck: false,
     archetype: {
-      // Rent + groceries marked foundation dominate the decided pot (gym +
-      // clothes are hard-to-decide), pushing foundation% past the 50%
-      // fortress threshold. The persona's *narrative* purpose is sparse-data
-      // testing (see hardRules.insight.mustReferenceOneOf), not archetype
-      // shape — the Value Map score lands where rent's £950 sends it.
+      // The Value Map score lands on foundation (rent + groceries dominate the
+      // decided pot). This drives ONLY the personality-engine unit test.
       expectedQuadrant: 'foundation',
       personalityId: 'fortress',
     },
-    stagesCompleted: [
-      'struggle_submitted',
-      'goal_done',
-      'upload_done',
-      'essentials_done',
-      'confirm_done',
-      'first_read',
-    ],
-    dbAfterHandoff: {
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
-      transactions: { countBetween: [12, 18] },
-    },
+    stagesCompleted: [...ESTIMATE_STAGES],
+    dbAfterHandoff: {},
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
       bannedPatterns: [
-        // Confident pattern claims are the failure mode for sparse data.
+        // The estimate Read must not invent observed patterns — there are no
+        // transactions behind it, only band sketches.
         'every\\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)',
         'climb(ing|ed)',
         'trend(ing)?',
         '(rising|falling|growing|shrinking)\\s+(steadily|consistently)',
       ],
-      insight: {
-        // Should ground in what's actually visible: top merchants from the
-        // 21-day window.
-        // Must acknowledge thinness OR ask a question rather than asserting.
-        mustReferenceOneOf: [
-          'first',
-          'housing',
-          'free cash flow',
-          'shopping',
-          'groceries',
-        ],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

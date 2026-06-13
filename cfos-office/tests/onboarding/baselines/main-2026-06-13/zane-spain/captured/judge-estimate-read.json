@@ -1,0 +1,126 @@
+{
+  "outputType": "estimate_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:18:57.433Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_read_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "224/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "Checking a real month is what takes that past 70%."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me') with genuine curiosity about the user's situation rather than prescriptive authority."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures (€1,180/mo, €830/mo, 35%, €780/mo drift, 37 months, 56% confidence) are internally consistent and traceable to the persona's stated context; no invented merchants or data."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses tangible comparisons ('roughly half the drift'), avoids prescriptive language ('the move' vs 'you should'), frames as observation not instruction, and stays grounded in numbers and timelines."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly addresses Zane's stated top value (Security) by converting abstract target into concrete timeline; acknowledges the 'unsure' verdicts and treats drift as a real discovery point specific to this user's situation."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Concrete next step (€300/mo standing transfer) with clear rationale, and explicit secondary action (statement check) that removes ambiguity about whether estimates match reality."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me') with genuine curiosity about the user's situation rather than prescriptive authority."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures (€1,180/mo, €830/mo, 35%, €780/mo drift, 37 months, 56% confidence) are internally consistent and traceable to the persona's stated context; no invented merchants or data."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses tangible comparisons ('roughly half the drift'), avoids prescriptive language ('the move' vs 'you should'), frames as observation not instruction, and stays grounded in numbers and timelines."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly addresses Zane's stated top value (Security) by converting abstract target into concrete timeline; acknowledges the 'unsure' verdicts and treats drift as a real discovery point specific to this user's situation."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Concrete next step (€300/mo standing transfer) with clear rationale, and explicit secondary action (statement check) that removes ambiguity about whether estimates match reality."
+    }
+  }
+}

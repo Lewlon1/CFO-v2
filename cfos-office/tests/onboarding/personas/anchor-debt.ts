@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, CHECK_STAGES, type Persona } from './types'
 
 // Anchor: burden >= 30%. Debt-heavy profile.
 // rent → hard_to_decide. Remaining: 494.50
@@ -81,22 +81,28 @@ export const anchorDebt: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
-    entryStruggle: 'dont_know',
+    // security door ("the overdraft keeps winning") — debt-heavy, walks the
+    // statement-check so the reality-check Read can size the real fixed costs.
+    entryStruggle: 'debt',
+    ageBand: '30-39',
+    compositeRelate: 'spot_on',
+    goalDeadline: '2y',
+    sketchBands: {
+      housing: 'a', // <800 (rent ≈780)
+      subs: 'mid', // 4–7
+      bills: 'b', // ≈300
+      foodOut: 'b', // 20–50/week
+      saveReach: 'a', // nothing yet — the squeeze
+    },
+    topValue: 'Security',
+    verdicts: { subscriptions: 'leak', foodOut: 'leak', drift: 'leak' },
+    runStatementCheck: true,
     archetype: {
       expectedQuadrant: 'burden',
       personalityId: 'anchor',
     },
-    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
-    goal: {
-      name: 'Clear credit card',
-      type: 'debt_clearance',
-      targetAmount: 8000,
-      currentAmount: 1500,
-      targetDate: '2027-01-01',
-    },
+    stagesCompleted: [...ESTIMATE_STAGES, ...CHECK_STAGES],
     dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [40, 70] },
     },
     hardRules: {
@@ -106,13 +112,7 @@ export const anchorDebt: Persona = {
         'simply',
         'discipline|willpower',
       ],
-      archetype: {
-        mustReferenceQuadrant: 'burden',
-        mustMentionOneOf: ['weight', 'burden', 'anchor', 'carrying', 'heavy'],
-      },
-      insight: {
-        mustReferenceOneOf: ['housing', 'free cash flow', 'fixed costs', 'eating'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },
