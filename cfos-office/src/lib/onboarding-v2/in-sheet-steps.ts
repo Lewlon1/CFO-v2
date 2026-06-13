@@ -31,6 +31,8 @@ export const IN_SHEET_BEAT_STEPS: ReadonlySet<string> = new Set<OnboardingStep>(
   'check_upload_pending',
   'check_processing',
   'check_confirm_pending',
+  // Terminal-in-flight while the reality-check Read composes (host effect).
+  'check_confirm_done',
 ])
 
 /** Steps whose beat is hosted by the estimates-first host (estimate-beat-host),

@@ -59,11 +59,25 @@ export type ConfirmPayload = {
 }
 
 /**
- * Persist the confirm screen's decisions, refresh
- * monthly_snapshots.total_fixed_costs to match the new committed set, stamp
- * details_confirmed, and route to the First Read.
+ * Persist the confirm screen's decisions and refresh
+ * monthly_snapshots.total_fixed_costs to match the new committed set.
+ *
+ * `mode` controls the terminal step:
+ *   - 'onboarding' (default) — the value-first flow. Stamps `details_confirmed`
+ *     (which fires the value-first first Read via OnboardingBeatHost's effect)
+ *     and routes to the First Read.
+ *   - 'check' — the OB-3 statement-check mission. The reconcile/persist (steps
+ *     1–4) still runs because it verifies housing/bills against the real month,
+ *     but it MUST NOT pass through `details_confirmed`: that step triggers the
+ *     legacy value-first Read (POST /api/insights/post-upload). The check flow
+ *     stays on `check_confirm_pending`; the host's onConfirmed fires the
+ *     reality-check Read instead. (See OB-3-HANDOFF: the details_confirmed gotcha.)
  */
-export async function confirmFixedCosts(payload: ConfirmPayload): Promise<{ redirectTo: string }> {
+export async function confirmFixedCosts(
+  payload: ConfirmPayload,
+  opts: { mode?: 'onboarding' | 'check' } = {},
+): Promise<{ redirectTo: string }> {
+  const mode = opts.mode ?? 'onboarding'
   const supabase = await createClient()
   const {
     data: { user },
@@ -179,10 +193,20 @@ export async function confirmFixedCosts(payload: ConfirmPayload): Promise<{ redi
     )
   }
 
-  // 4. Recompute total against the new state, then advance + route to the Read.
+  // 4. Recompute total against the new state. The advance differs by mode: the
+  //    onboarding flow stamps details_confirmed (→ value-first Read); the check
+  //    mission deliberately does NOT, so the host fires the reality-check Read.
   await syncTotalFixedCosts(supabase, user.id).catch((err) => {
     console.error('[confirmFixedCosts] syncTotalFixedCosts failed', err)
   })
+  if (mode === 'check') {
+    // Advance to check_confirm_done — NOT details_confirmed (that triggers the
+    // legacy value-first Read). The distinct step makes the commit atomic with
+    // the advance, so a refresh mid-compose resumes the (idempotent) reality-
+    // check trigger rather than re-rendering the confirm beat and double-inserting.
+    await advanceStep('check_confirm_done' satisfies OnboardingStep)
+    return { redirectTo: '/office' }
+  }
   await advanceStep('details_confirmed' satisfies OnboardingStep)
   return { redirectTo: '/onboarding-v2/first-read' }
 }

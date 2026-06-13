@@ -53,6 +53,7 @@ vi.mock('@/lib/analytics/monthly-snapshot', () => ({
 }))
 
 import { confirmFixedCosts } from '../confirm-actions'
+import { advanceStep } from '@/app/onboarding-v2/actions-step'
 
 function find(table: string, method: string) {
   return calls.filter((c) => c.table === table && c.method === method)
@@ -149,6 +150,44 @@ describe('confirmFixedCosts — batched ConfirmPayload commit', () => {
       source: 'banked_edit',
     })
 
+    expect(order).toEqual(['sync', 'advance'])
+  })
+
+  it('default mode advances to details_confirmed (the value-first Read trigger)', async () => {
+    await confirmFixedCosts({
+      declaredDismissals: [],
+      detectedDismissals: [],
+      bankedEdits: [],
+      acceptedCandidates: [],
+      skippedCandidates: [],
+      declaredLines: [],
+    })
+    expect(vi.mocked(advanceStep)).toHaveBeenCalledWith('details_confirmed')
+    expect(vi.mocked(advanceStep)).not.toHaveBeenCalledWith('check_confirm_done')
+  })
+
+  it("check mode advances to check_confirm_done — never details_confirmed — and routes to /office", async () => {
+    // The OB-3 gotcha: details_confirmed triggers the legacy value-first Read.
+    // The statement-check mission must reconcile (sync the total) WITHOUT it, so
+    // the host fires the reality-check Read instead.
+    const result = await confirmFixedCosts(
+      {
+        declaredDismissals: [],
+        detectedDismissals: [],
+        bankedEdits: [],
+        acceptedCandidates: [{ name: 'tmb', amount: 45.5, cadence: 'monthly', bill_subtype: null }],
+        skippedCandidates: [],
+        declaredLines: [],
+      },
+      { mode: 'check' },
+    )
+
+    expect(result.redirectTo).toBe('/office')
+    expect(vi.mocked(advanceStep)).toHaveBeenCalledWith('check_confirm_done')
+    expect(vi.mocked(advanceStep)).not.toHaveBeenCalledWith('details_confirmed')
+    // The reconcile still runs (it verifies housing/bills against the real
+    // month) and the total is synced BEFORE the advance.
+    expect(find('user_declared_fixed_costs', 'insert')[0]?.value).toHaveLength(1)
     expect(order).toEqual(['sync', 'advance'])
   })
 

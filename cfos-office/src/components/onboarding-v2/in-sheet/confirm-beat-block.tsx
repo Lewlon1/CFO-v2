@@ -28,8 +28,17 @@ type ConfirmData = {
 }
 
 type Props = {
-  /** Fires after confirmFixedCosts commits (step is now details_confirmed). */
+  /** Fires after confirmFixedCosts commits. In 'onboarding' mode the step is now
+   *  details_confirmed; in 'check' mode the step is unchanged and the host fires
+   *  the reality-check Read. */
   onConfirmed: () => void
+  /**
+   * 'onboarding' (default) — value-first confirm; stamps details_confirmed.
+   * 'check' — OB-3 statement-check mission; the commit deliberately does NOT
+   * advance to details_confirmed (that would trigger the legacy value-first
+   * Read). See confirm-actions.ts.
+   */
+  mode?: 'onboarding' | 'check'
 }
 
 /**
@@ -39,7 +48,7 @@ type Props = {
  * (so it can run inside the chat sheet) and calls onConfirmed instead of
  * router.push. All editing is local state — nothing persists until "Continue".
  */
-export function ConfirmBeatBlock({ onConfirmed }: Props) {
+export function ConfirmBeatBlock({ onConfirmed, mode = 'onboarding' }: Props) {
   const [data, setData] = useState<ConfirmData | null>(null)
   const [loadError, setLoadError] = useState(false)
 
@@ -68,11 +77,20 @@ export function ConfirmBeatBlock({ onConfirmed }: Props) {
   }
   if (!data) return <CfoThinking variant="block" />
 
-  return <ConfirmBeatInner data={data} onConfirmed={onConfirmed} />
+  return <ConfirmBeatInner data={data} onConfirmed={onConfirmed} mode={mode} />
 }
 
-function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirmed: () => void }) {
+function ConfirmBeatInner({
+  data,
+  onConfirmed,
+  mode,
+}: {
+  data: ConfirmData
+  onConfirmed: () => void
+  mode: 'onboarding' | 'check'
+}) {
   const { items, variable, candidates, coverage, currency } = data
+  const isCheck = mode === 'check'
   const [pending, startTransition] = useTransition()
 
   const visibleItems = useMemo(() => items.filter((i) => !i.superseded), [items])
@@ -208,14 +226,17 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
             }
           })
 
-        await confirmFixedCosts({
-          declaredDismissals,
-          detectedDismissals,
-          bankedEdits: bankedEditLines,
-          acceptedCandidates,
-          skippedCandidates,
-          declaredLines,
-        })
+        await confirmFixedCosts(
+          {
+            declaredDismissals,
+            detectedDismissals,
+            bankedEdits: bankedEditLines,
+            acceptedCandidates,
+            skippedCandidates,
+            declaredLines,
+          },
+          { mode },
+        )
         onConfirmed()
       } catch (err) {
         console.error('[confirm-beat-block] commit failed', err)
@@ -231,8 +252,9 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
             Your fixed costs
           </h2>
           <p className="text-sm text-text-secondary leading-snug">
-            What goes out every month no matter what. Get this right and the
-            picture that follows is yours, not a guess.
+            {isCheck
+              ? 'What goes out every month no matter what. Get this right and the check against your sketch is true to the pound.'
+              : 'What goes out every month no matter what. Get this right and the picture that follows is yours, not a guess.'}
           </p>
         </div>
 
@@ -299,7 +321,11 @@ function ConfirmBeatInner({ data, onConfirmed }: { data: ConfirmData; onConfirme
             onClick={handleContinue}
             className="w-full min-h-[44px] rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-medium px-4 py-3 disabled:opacity-40 transition-colors"
           >
-            {pending ? 'Saving…' : 'Looks right — show me the picture'}
+            {pending
+              ? 'Saving…'
+              : isCheck
+                ? 'Looks right — check it against my sketch'
+                : 'Looks right — show me the picture'}
           </button>
         </div>
       </div>

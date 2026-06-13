@@ -89,6 +89,7 @@ export default async function OfficeLayout({ children }: { children: React.React
     'check_upload_pending',
     'check_processing',
     'check_confirm_pending',
+    'check_confirm_done',
   ])
 
   // Estimates-first onboarding (OB-2): brand-new users and every legacy

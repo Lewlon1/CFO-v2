@@ -64,25 +64,41 @@ export async function POST() {
   // the merchant exclusion list).
   const prevMeta = (conversation.metadata as Record<string, unknown> | null) ?? {}
   const frMeta = (prevMeta.first_read_metadata as FirstReadMetaShape | undefined) ?? {}
+  // Reality-check Read (OB-3) — present when the user ran the statement-check
+  // mission before the Value Map. BOTH prior Reads count as already-said, so the
+  // recompose doesn't re-explain merchants/hooks either of them already named.
+  const rcMeta = (prevMeta.reality_check_metadata as FirstReadMetaShape | undefined) ?? {}
 
-  const { data: priorMsg } = await svc
+  // The repeated-opening probe uses the MOST RECENT assistant message — the
+  // reality-check Read when one exists, else the estimate/first Read (the only
+  // message in the legacy value-first path).
+  const { data: latestMsg } = await svc
     .from('messages')
     .select('content, created_at')
     .eq('conversation_id', conversation.id)
     .eq('role', 'assistant')
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  const hookCandidates =
-    frMeta.hook_candidates ??
-    (prevMeta.hook_candidates as HookCandidate[] | undefined) ??
-    null
-  const hookMerchantsUsed = (hookCandidates ?? [])
-    .map((h) => h.label || h.cluster_id)
-    .filter((s): s is string => Boolean(s))
+  const hookCandidates: HookCandidate[] = [
+    ...(frMeta.hook_candidates ?? []),
+    ...(rcMeta.hook_candidates ?? []),
+    ...((prevMeta.hook_candidates as HookCandidate[] | undefined) ?? []),
+  ]
+  const hookMerchantsUsed = Array.from(
+    new Set(
+      hookCandidates
+        .map((h) => h.label || h.cluster_id)
+        .filter((s): s is string => Boolean(s)),
+    ),
+  )
   const merchantsAlreadyNamed = Array.from(
-    new Set([...(frMeta.clusters_referenced ?? []), ...hookMerchantsUsed]),
+    new Set([
+      ...(frMeta.clusters_referenced ?? []),
+      ...(rcMeta.clusters_referenced ?? []),
+      ...hookMerchantsUsed,
+    ]),
   )
 
   const priorReadSummary: PriorReadSummary = {
@@ -90,7 +106,7 @@ export async function POST() {
     goalStatedAsReveal: true,
     merchantsAlreadyNamed,
     hookMerchantsUsed,
-    firstSentence: priorMsg?.content ? firstSentence(priorMsg.content as string) : null,
+    firstSentence: latestMsg?.content ? firstSentence(latestMsg.content as string) : null,
   }
 
   // The merchant keys the Value Map actually presented (Phase 1 selection),

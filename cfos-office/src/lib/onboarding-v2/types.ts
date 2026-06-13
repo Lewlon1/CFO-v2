@@ -46,6 +46,12 @@ export type OnboardingStep =
   | 'check_upload_pending'
   | 'check_processing'
   | 'check_confirm_pending'
+  // Fixed costs committed against the real month (NOT details_confirmed — that
+  // would trigger the legacy value-first Read). Terminal-in-flight: the host's
+  // effect composes the reality-check Read and advances to reality_check_delivered.
+  // Distinct step so a refresh mid-compose resumes the (idempotent) Read trigger
+  // instead of re-rendering the confirm beat and double-inserting fixed costs.
+  | 'check_confirm_done'
   | 'reality_check_delivered'
   | 'archetype_shown'
   // Session 32 (B) — terminal step for users in the layered-read flow.
