@@ -23,6 +23,30 @@ export type OnboardingStep =
   | 'value_map_started'
   | 'value_map_done'
   | 'upload_done'
+  // ── Estimates-first flow (OB-2). Chat-first, no-statement onboarding: the
+  // user sketches their month from band taps and the completion gate moves to
+  // the estimate Read. Each step is an in-sheet beat (see in-sheet-steps.ts /
+  // estimate-beat-host.tsx). The DB column is freeform text, so these are
+  // type-only additions — no migration. Steps run in this order:
+  //   door → context → composite → goal → income → sketch → verdicts →
+  //   read_pending → first_read_delivered (REUSED — stamps completion).
+  | 'estimate_door'
+  | 'estimate_context'
+  | 'estimate_composite'
+  | 'estimate_goal'
+  | 'estimate_income'
+  | 'estimate_sketch'
+  | 'estimate_verdicts'
+  // Read composing/handoff in flight; the estimate-read route delivers and
+  // advances to 'first_read_delivered' (the existing completion terminal).
+  | 'estimate_read_pending'
+  // ── Post-completion statement-check mission (OB-3). Optional accuracy pass:
+  // one month of statements verifies the estimates. Reuses the upload/confirm
+  // beats; the reality-check Read leads with estimate-vs-reality deltas.
+  | 'check_upload_pending'
+  | 'check_processing'
+  | 'check_confirm_pending'
+  | 'reality_check_delivered'
   | 'archetype_shown'
   // Session 32 (B) — terminal step for users in the layered-read flow.
   // Parallel to 'archetype_shown'. The DB column is freeform text with no
@@ -48,12 +72,16 @@ export type OnboardingGoalSummary = {
 export type StartValueMapAction = { type: 'start_value_map' }
 export type StartUploadAction = { type: 'start_upload' }
 export type StartValueMapRealAction = { type: 'start_value_map_real' }
+/** Estimate Read close (OB-2): hands the user into the optional statement-check
+ *  mission that verifies their estimates against a real month. */
+export type StartStatementCheckAction = { type: 'start_statement_check' }
 export type CreateActionItemAction = { id: string; title: string }
 
 export type MessageAction =
   | StartValueMapAction
   | StartUploadAction
   | StartValueMapRealAction
+  | StartStatementCheckAction
   | CreateActionItemAction
 
 export function isStartValueMapAction(

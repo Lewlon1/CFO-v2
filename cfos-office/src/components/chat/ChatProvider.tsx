@@ -15,6 +15,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
+import type { EstimateOnboardingContext } from '@/lib/onboarding-v2/estimate-context'
 import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
 import {
   buildLabelRecapTrigger,
@@ -90,6 +91,9 @@ interface ChatContextValue {
   /** Active goal during the upload beat, threaded from the office layout so the
    *  bridge intro can acknowledge it by name. Null off-beat or on the skip path. */
   onboardingGoal: OnboardingGoalSummary | null
+  /** Estimates-first onboarding bundle (OB-2): the knows-you score + the data
+   *  the estimate beats render from. Null when the user isn't in that flow. */
+  estimateOnboarding: EstimateOnboardingContext | null
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -125,9 +129,11 @@ interface ChatProviderProps {
   needsEntryStruggle?: boolean
   /** Active goal during the upload beat (see ChatContextValue). */
   onboardingGoal?: OnboardingGoalSummary | null
+  /** Estimates-first onboarding bundle (OB-2). */
+  estimateOnboarding?: EstimateOnboardingContext | null
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, estimateOnboarding = null }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -566,6 +572,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     onboardingStep,
     needsEntryStruggle,
     onboardingGoal,
+    estimateOnboarding,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>

@@ -26,7 +26,7 @@ type Props = {
  */
 export function OnboardingBeatHost({ step, currency, goal }: Props) {
   const router = useRouter()
-  const { openSheet, loadConversation } = useChatContext()
+  const { openSheet, loadConversation, closeSheet } = useChatContext()
   const readTriggeredRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -144,6 +144,40 @@ export function OnboardingBeatHost({ step, currency, goal }: Props) {
     // confirmFixedCosts advances to details_confirmed; refresh lets the
     // details_confirmed branch above trigger the Read.
     return <ConfirmBeatBlock onConfirmed={() => router.refresh()} />
+  }
+
+  if (
+    step === 'check_upload_pending' ||
+    step === 'check_processing' ||
+    step === 'check_confirm_pending'
+  ) {
+    // OB-3 builds the statement-check mission (upload → confirm → reality-check
+    // Read) on these steps. Until it lands, the user is ALREADY fully onboarded
+    // (the estimate Read stamped completion). Show an honest interim and return
+    // them to the office rather than stranding them on the Read loader.
+    return (
+      <div className="px-4 py-8 text-center">
+        <p className="mb-2 font-serif text-[20px] text-text-primary">You&apos;re all set.</p>
+        <p className="mb-6 text-sm text-text-secondary leading-snug">
+          The statement check that turns your estimates into the real picture is coming
+          shortly. For now, everything&apos;s ready in your office.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            void advanceStep('complete')
+              .then(() => {
+                closeSheet()
+                router.refresh()
+              })
+              .catch((err) => console.error('[onboarding-beat-host] check return failed', err))
+          }}
+          className="min-h-11 px-5 rounded-control bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-medium transition-colors"
+        >
+          Back to my office
+        </button>
+      </div>
+    )
   }
 
   // details_confirmed — Read composing/handoff in flight.

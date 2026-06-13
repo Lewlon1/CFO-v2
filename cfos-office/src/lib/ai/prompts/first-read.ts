@@ -91,8 +91,8 @@ export type FirstReadMetadata = {
   levers_offered: string[];
   /** The field the supply_input blocker named, or null when no blocker existed. */
   blocker_field: string | null;
-  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta. */
-  mode?: 'default' | 'value_first' | 'value_first_recompose';
+  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta; 'estimate_first' is the pre-statement estimate Read (OB-2), composed by compose-estimate-read.ts from band estimates, not transactions. */
+  mode?: 'default' | 'value_first' | 'value_first_recompose' | 'estimate_first';
   /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
   hook_candidates?: HookCandidate[] | null;
   /** Which LEAD recipe drove this Read (visibility | target | control | open), or null pre-change. */
@@ -103,6 +103,10 @@ export type FirstReadMetadata = {
   is_recompose?: boolean;
   /** Probe: does the recompose's first sentence string-match the prior Read's first sentence (should be false on a well-formed delta). */
   repeated_opening?: boolean;
+  /** OB-2 estimate Read: the deterministic "C. knows you · n%" score this Read was composed under. Logged for the judge; the single sanctioned user-visible number. */
+  knows_you_pct?: number;
+  /** OB-2 estimate Read: which derive() action branch the Read led its ONE ACTION on. */
+  estimate_action_branch?: string;
 };
 
 export type FirstReadComposeOutput = {

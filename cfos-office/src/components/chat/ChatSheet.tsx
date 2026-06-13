@@ -12,7 +12,9 @@ import { CHAT_SUBJECTS, getFolderChatMeta, type FolderKey } from '@/lib/chat/fol
 import type { PostureProfile } from '@/lib/analytics/posture-helpers'
 import { OnboardingBeatHost } from '@/components/onboarding-v2/in-sheet/onboarding-beat-host'
 import { StruggleBeatBlock } from '@/components/onboarding-v2/in-sheet/struggle-beat-block'
-import { IN_SHEET_BEAT_STEPS } from '@/lib/onboarding-v2/in-sheet-steps'
+import { EstimateBeatHost } from '@/components/onboarding-v2/in-sheet/estimate/estimate-beat-host'
+import { KnowsYouMeter } from '@/components/onboarding-v2/in-sheet/estimate/knows-you-meter'
+import { IN_SHEET_BEAT_STEPS, isEstimateBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 
 export function ChatSheet() {
@@ -39,9 +41,15 @@ export function ChatSheet() {
     onboardingStep,
     needsEntryStruggle,
     onboardingGoal,
+    estimateOnboarding,
   } = useChatContext()
 
-  const onboardingBeatActive = IN_SHEET_BEAT_STEPS.has(onboardingStep ?? '')
+  // Estimates-first beats take precedence: their steps are also in
+  // IN_SHEET_BEAT_STEPS, so check the estimate family first.
+  const estimateBeatActive =
+    estimateOnboarding != null && isEstimateBeatStep(onboardingStep ?? '')
+  const onboardingBeatActive =
+    !estimateBeatActive && IN_SHEET_BEAT_STEPS.has(onboardingStep ?? '')
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [showConversations, setShowConversations] = useState(false)
@@ -222,9 +230,14 @@ export function ChatSheet() {
           </button>
         </div>
 
-        {/* Status line */}
+        {/* Status line — the knows-you meter during estimates-first onboarding,
+            otherwise the standing presence line. */}
         <div className="flex items-center gap-3 px-4 pt-1 pb-2.5 bg-bg-base border-b border-border-medium">
-          <span className="text-[13px] text-text-secondary flex-1">Your CFO is online</span>
+          {estimateBeatActive && estimateOnboarding ? (
+            <KnowsYouMeter knowsYou={estimateOnboarding.knowsYou} />
+          ) : (
+            <span className="text-[13px] text-text-secondary flex-1">Your CFO is online</span>
+          )}
         </div>
 
         {/* Content */}
@@ -233,6 +246,14 @@ export function ChatSheet() {
             conversations={conversations}
             onBack={() => setShowConversations(false)}
           />
+        ) : estimateBeatActive && estimateOnboarding ? (
+          // Estimates-first onboarding beats (door → … → read handoff).
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <EstimateBeatHost
+              step={onboardingStep as OnboardingStep}
+              context={estimateOnboarding}
+            />
+          </div>
         ) : needsEntryStruggle ? (
           // Folded entry beat — the CFO's "what brought you in?" opening,
           // in-sheet instead of a full-page screen.
