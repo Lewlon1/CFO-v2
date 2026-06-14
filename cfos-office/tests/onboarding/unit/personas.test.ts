@@ -26,11 +26,11 @@ describe('persona income/rent realism', () => {
 })
 
 describe('goal coverage + variance', () => {
-  const GOAL_PERSONAS = ['builder-classic', 'time-saver-expert', 'tom-long-history', 'truth-teller-balanced', 'sofia-chaotic', 'zane-spain', 'anchor-debt', 'drifter-expat']
+  const GOAL_PERSONAS = ['builder-classic', 'time-saver-expert', 'tom-long-history', 'truth-teller-balanced', 'sofia-chaotic', 'zane-spain', 'anchor-debt', 'drifter-expat', 'skip-upload-declared']
   const NO_GOAL_PERSONAS = ['fortress-saver', 'aiko-low-transaction']
   const VALID_TYPES = ['debt_clearance', 'savings', 'investment', 'general'] as const
 
-  it('exactly 8 personas carry a goal', () => {
+  it('exactly 9 personas carry a goal', () => {
     const withGoal = ALL.filter((p) => p.expectations.goal)
     expect(withGoal.map((p) => p.id).sort()).toEqual([...GOAL_PERSONAS].sort())
   })
@@ -51,7 +51,7 @@ describe('goal coverage + variance', () => {
     })
   }
 
-  it('all 4 goal types are represented across the 8 goal personas', () => {
+  it('all 4 goal types are represented across the 9 goal personas', () => {
     const types = GOAL_PERSONAS.map((id) => ALL.find((x) => x.id === id)!.expectations.goal!.type)
     for (const t of VALID_TYPES) {
       expect(types).toContain(t)

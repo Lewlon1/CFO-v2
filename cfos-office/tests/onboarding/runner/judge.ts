@@ -137,7 +137,7 @@ function checkSystemNoteLeak(text: string): HardRuleResult {
     : { ruleId: 'R7_no_system_note', passed: true }
 }
 
-const ALLOWED_CTA_TYPES = ['supply_input', 'set_goal', 'start_value_map_real', 'cut_lever']
+const ALLOWED_CTA_TYPES = ['supply_input', 'set_goal', 'start_value_map_real', 'cut_lever', 'start_statement_upload']
 
 function checkCtaVocabulary(text: string): HardRuleResult {
   const types = [...text.matchAll(/\[CTA:([a-z_]+)\]/gi)].map((m) => m[1].toLowerCase())
