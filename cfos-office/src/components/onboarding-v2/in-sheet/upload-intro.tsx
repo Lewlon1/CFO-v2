@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { CfoThinking } from '@/components/brand/CfoThinking'
 import { formatMoney } from '@/lib/utils/money'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
+import { skipUploadToEssentials } from '@/app/onboarding-v2/skip-upload-actions'
 
 type Props = {
   /** Active goal, or null on the skip/defer path. */
@@ -22,13 +24,14 @@ const DWELL_REDUCED_MS = 600
  * Trust-building bridge between the goal beat and the statement-upload ask.
  * Instead of snapping straight from the goal chat to the uploader, the CFO
  * acknowledges the goal by name, says *why* the statements matter, shows a brief
- * "preparing" beat, then hands off to the uploader. Auto-advances (no required
- * click) so the deterministic flow — and the headless onboarding tests — keep
- * moving; a tap shortcuts the wait.
+ * "preparing" beat, then hands off to the uploader. Advancing is now an explicit
+ * tap — 'Continue' proceeds to the uploader, or 'I don't have a statement handy'
+ * skips upload and advances straight to the income/rent beat.
  */
 export function UploadIntro({ goal, onContinue }: Props) {
   const [showPreparing, setShowPreparing] = useState(false)
   const doneRef = useRef(false)
+  const router = useRouter()
 
   const advance = () => {
     if (doneRef.current) return
@@ -42,13 +45,9 @@ export function UploadIntro({ goal, onContinue }: Props) {
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const dwell = reduced ? DWELL_REDUCED_MS : DWELL_MS
     const prep = setTimeout(() => setShowPreparing(true), Math.min(900, dwell / 2))
-    const go = setTimeout(advance, dwell)
     return () => {
       clearTimeout(prep)
-      clearTimeout(go)
     }
-    // onContinue is stable for the beat's lifetime; advance closes over a ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -88,13 +87,31 @@ export function UploadIntro({ goal, onContinue }: Props) {
 
       {showPreparing && <CfoThinking label="Getting ready to read your statements…" />}
 
-      <button
-        type="button"
-        onClick={advance}
-        className="text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary"
-      >
-        Continue
-      </button>
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={advance}
+          className="text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary"
+        >
+          Continue
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (doneRef.current) return
+            doneRef.current = true
+            void skipUploadToEssentials()
+              .then(() => router.refresh())
+              .catch((err) => {
+                doneRef.current = false
+                console.error('[upload-intro] skip-upload failed', err)
+              })
+          }}
+          className="text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary"
+        >
+          I don&apos;t have a statement handy
+        </button>
+      </div>
     </div>
   )
 }
