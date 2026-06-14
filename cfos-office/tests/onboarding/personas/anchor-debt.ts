@@ -107,11 +107,12 @@ export const anchorDebt: Persona = {
     },
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
-      bannedPatterns: [
-        'just\\s+(need|have)\\s+to',
-        'simply',
-        'discipline|willpower',
-      ],
+      // Lecturing / minimising — wrong in either Read.
+      bannedPatterns: ['just\\s+(need|have)\\s+to'],
+      // Behavioural / willpower claims: unfounded in the no-transactions estimate
+      // Read, but legitimate once the statement check backs them — so they are
+      // scoped to the estimate Read only (not the reality-check Read).
+      estimateOnlyBannedPatterns: ['simply', 'discipline|willpower'],
       read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

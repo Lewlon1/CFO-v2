@@ -191,7 +191,14 @@ export interface PersonaExpectations {
   }
   hardRules?: {
     bannedWords?: string[]
+    /** Patterns banned in BOTH Reads (e.g. false-order trend claims, lecturing). */
     bannedPatterns?: string[]
+    /**
+     * Patterns banned in the estimate Read ONLY — behavioural / willpower claims
+     * that are unfounded with no transactions yet legitimate once real data backs
+     * them in the reality-check Read. Applied when outputType === 'estimate_read'.
+     */
+    estimateOnlyBannedPatterns?: string[]
     /** Terms the Read must reference at least one of (grounding check). */
     read?: {
       mustReferenceOneOf?: string[]

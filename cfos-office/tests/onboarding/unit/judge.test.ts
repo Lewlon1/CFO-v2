@@ -3,6 +3,7 @@ import { readContent, evaluateHardRules } from '../runner/judge'
 import { summariseCsv } from '../runner/csv-summariser'
 import { builderClassic } from '../personas/builder-classic'
 import { zaneSpain } from '../personas/zane-spain'
+import { anchorDebt } from '../personas/anchor-debt'
 import { loadRead, listReads } from '../fixtures'
 import { getPersona } from '../personas'
 import type { ReadKind } from '../runner/types'
@@ -156,6 +157,30 @@ describe('R8b CTA matches the Read type', () => {
     // checkReadHardRules is called without knownMerchants — H8 is never triggered.
     const rules = evaluateHardRules(builderClassic, 'estimate_read', loadRead('builder-classic.captured'), null)
     expect(rules.find((r) => r.ruleId === 'H8_cites_known_merchant')).toBeUndefined()
+  })
+})
+
+describe('R1c estimate-only banned patterns', () => {
+  // anchor-debt scopes behavioural / willpower bans to the estimate Read only: with
+  // no transactions a "discipline" claim is unfounded, but the reality-check Read may
+  // legitimately cite it once the statement backs it. The both-Reads bannedPatterns
+  // ("just need to" lecturing) still apply to BOTH.
+  const find = (kind: ReadKind, read: string, ruleId: string) =>
+    evaluateHardRules(anchorDebt, kind, read, null).find((r) => r.ruleId === ruleId)
+
+  it('fails R1c on the estimate Read for a behavioural pattern', () => {
+    const read = 'You simply need a plan.\n\n[CTA:start_statement_check]Check[/CTA]\n\n— C.'
+    expect(find('estimate_read', read, 'R1c_no_estimate_only_patterns')?.passed).toBe(false)
+  })
+
+  it('does NOT apply R1c to the reality-check Read', () => {
+    const read = 'The discipline is already there — the margin proves it.\n\n[CTA:start_value_map_real]VM[/CTA]\n\n— C.'
+    expect(find('reality_check_read', read, 'R1c_no_estimate_only_patterns')).toBeUndefined()
+  })
+
+  it('still enforces both-Read bannedPatterns on the reality-check Read', () => {
+    const read = 'You just need to cut back.\n\n[CTA:start_value_map_real]VM[/CTA]\n\n— C.'
+    expect(find('reality_check_read', read, 'R1b_no_banned_patterns')?.passed).toBe(false)
   })
 })
 

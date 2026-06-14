@@ -39,19 +39,23 @@ function checkBannedWords(text: string, banned: string[] | undefined): HardRuleR
   return { ruleId: 'R1_no_banned_words', passed: true }
 }
 
-function checkBannedPatterns(text: string, patterns: string[] | undefined): HardRuleResult {
-  if (!patterns?.length) return { ruleId: 'R1b_no_banned_patterns', passed: true }
+function checkBannedPatterns(
+  text: string,
+  patterns: string[] | undefined,
+  ruleId = 'R1b_no_banned_patterns',
+): HardRuleResult {
+  if (!patterns?.length) return { ruleId, passed: true }
   for (const src of patterns) {
     const re = new RegExp(src, 'i')
     if (re.test(text)) {
       return {
-        ruleId: 'R1b_no_banned_patterns',
+        ruleId,
         passed: false,
         detail: `Matches banned pattern: /${src}/i`,
       }
     }
   }
-  return { ruleId: 'R1b_no_banned_patterns', passed: true }
+  return { ruleId, passed: true }
 }
 
 function checkMustMentionOneOf(text: string, candidates: string[] | undefined, ruleId: string): HardRuleResult {
@@ -282,7 +286,10 @@ export function evaluateHardRules(
   const rules = persona.expectations.hardRules
   const out: HardRuleResult[] = []
 
-  // Universal voice / safety checks (apply to both Reads).
+  // Universal voice / safety checks (apply to both Reads). bannedPatterns here are
+  // the both-Reads ones (e.g. false-order trend claims, lecturing); behavioural /
+  // willpower patterns that are only illegitimate without transactions live in
+  // estimateOnlyBannedPatterns and are applied in the estimate-Read block below.
   out.push(checkBannedWords(content, rules?.bannedWords))
   out.push(checkBannedPatterns(content, rules?.bannedPatterns))
   out.push(checkSystemNoteLeak(content))
@@ -298,6 +305,12 @@ export function evaluateHardRules(
   // the deltas it cites + the CSV-anchored R4 below, so it skips this.
   if (outputType === 'estimate_read') {
     out.push(checkMustMentionOneOf(content, rules?.read?.mustReferenceOneOf, 'R3b_read_mentions_one_of'))
+    // Behavioural / willpower claims are unfounded in the no-transactions estimate
+    // Read, but legitimate once real data backs them in the reality-check Read — so
+    // these patterns are scoped to the estimate Read only (see anchor-debt).
+    out.push(
+      checkBannedPatterns(content, rules?.estimateOnlyBannedPatterns, 'R1c_no_estimate_only_patterns'),
+    )
   }
 
   // R4: numeric grounding. For the estimate Read the runner passes csvSummary=null
