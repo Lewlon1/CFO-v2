@@ -38,8 +38,21 @@ export async function POST(req: Request) {
     .select('onboarding_step')
     .eq('id', user.id)
     .maybeSingle()
+
+  // Skip-upload path: a user who reached details_confirmed with NO imported
+  // transactions gets the declared-numbers Read (income + fixed costs → free
+  // cash + goal pace) instead of the transaction-based value_first Read. A
+  // later upload flips this true and the next compose runs value_first.
+  const { count: txnCount } = await supabase
+    .from('transactions')
+    .select('id', { head: true, count: 'exact' })
+    .eq('user_id', user.id)
+  const hasTxns = (txnCount ?? 0) > 0
+
   const mode: ComposeFirstReadMode =
-    stepProfile?.onboarding_step === 'details_confirmed' ? 'value_first' : 'default'
+    stepProfile?.onboarding_step === 'details_confirmed'
+      ? (hasTxns ? 'value_first' : 'declared')
+      : 'default'
   return handleLayeredFirstRead({ supabase, userId: user.id, importBatchId, mode })
 }
 
