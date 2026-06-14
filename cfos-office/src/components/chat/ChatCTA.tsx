@@ -39,6 +39,23 @@ export function ChatCTA({ type, label, onAction }: Props) {
     )
   }
 
+  // Declared-Read close — soft pull to upload a real statement. Routes to the
+  // post-onboarding cash-flow upload surface.
+  if (type === 'start_statement_upload') {
+    return (
+      <div className="mt-3 px-3">
+        <Link
+          href="/office/cash-flow/upload"
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl
+                     bg-primary text-primary-foreground text-sm font-semibold
+                     hover:opacity-90 transition-opacity min-h-11"
+        >
+          {label}
+        </Link>
+      </div>
+    )
+  }
+
   // New surfaces from the first Read's actionability close. Tap → send the
   // label as the user's next reply, so the CFO can pick up the missing input.
   if (ACTION_TYPES.has(type) && onAction) {

@@ -42,7 +42,9 @@ import {
   FIRST_READ_SYSTEM_PROMPT,
   FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST,
   FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
+  FIRST_READ_SYSTEM_PROMPT_DECLARED,
   buildFirstReadUserPrompt,
+  buildDeclaredUserPrompt,
   type FirstReadComposeOutput,
   type FirstReadMetadata,
   type PriorReadSummary,
@@ -56,7 +58,7 @@ const MAX_OUTPUT_TOKENS = 700;
 
 const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
 
-export type ComposeFirstReadMode = 'default' | 'value_first' | 'value_first_recompose';
+export type ComposeFirstReadMode = 'default' | 'value_first' | 'value_first_recompose' | 'declared';
 
 export type { PriorReadSummary };
 
@@ -72,6 +74,10 @@ export async function composeFirstRead(params: {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
   const isRecompose = mode === 'value_first_recompose';
+
+  if (mode === 'declared') {
+    return composeDeclaredRead(supabase, params.userId);
+  }
 
   const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
@@ -463,6 +469,89 @@ export function buildGoalSummary(
   }
 
   return lines.join('\n');
+}
+
+export interface DeclaredReadFacts {
+  income: number
+  totalFixedCosts: number
+  freeCash: number
+  goalName: string | null
+  monthlyRequiredSaving: number | null
+  percentOfIncome: number | null
+  currency: string
+}
+
+export function buildDeclaredFacts(input: {
+  income: number
+  totalFixedCosts: number
+  goal: { name: string; monthlyRequiredSaving: number | null } | null
+  currency: string
+}): DeclaredReadFacts {
+  const freeCash = Math.max(0, input.income - input.totalFixedCosts)
+  const mrs = input.goal?.monthlyRequiredSaving ?? null
+  const percentOfIncome =
+    mrs != null && input.income > 0 ? Math.round((mrs / input.income) * 100) : null
+  return {
+    income: input.income,
+    totalFixedCosts: input.totalFixedCosts,
+    freeCash,
+    goalName: input.goal?.name ?? null,
+    monthlyRequiredSaving: mrs,
+    percentOfIncome,
+    currency: input.currency,
+  }
+}
+
+/**
+ * Declared-numbers Read (skip-upload path). The user reached details_confirmed
+ * without importing any transactions, so there is no Layer-1/Layer-3 data to
+ * compose from. This Read stands entirely on the figures they declared —
+ * income + fixed costs → free cash, plus goal pace — and closes by inviting a
+ * real 3-month statement upload to sharpen it. See plan G4.
+ */
+async function composeDeclaredRead(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<FirstReadComposeOutput> {
+  const [facts, goalRow] = await Promise.all([
+    getFinancialFacts(supabase, userId),
+    getActiveGoal(supabase, userId),
+  ]);
+
+  const declaredFacts = buildDeclaredFacts({
+    income: facts.net_monthly_income ?? 0,
+    totalFixedCosts: facts.total_fixed_costs ?? 0,
+    goal: goalRow
+      ? { name: goalRow.name, monthlyRequiredSaving: goalRow.monthly_required_saving }
+      : null,
+    currency: facts.currency,
+  });
+
+  const result = await generateText({
+    model: bedrock(COMPOSE_MODEL),
+    system: FIRST_READ_SYSTEM_PROMPT_DECLARED,
+    messages: [{ role: 'user', content: buildDeclaredUserPrompt(declaredFacts) }],
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    temperature: 0.5,
+    abortSignal: AbortSignal.timeout(20_000),
+  });
+
+  const metadata: FirstReadMetadata = {
+    layers_used: ['declared'],
+    features_cited: [],
+    gap_present: false,
+    clusters_referenced: [],
+    levers_offered: [],
+    blocker_field: null,
+    mode: 'declared',
+    hook_candidates: null,
+    read_recipe: null,
+    breakdown_cited: false,
+    is_recompose: false,
+    repeated_opening: false,
+  };
+
+  return { composedMessage: result.text.trim(), metadata };
 }
 
 /**

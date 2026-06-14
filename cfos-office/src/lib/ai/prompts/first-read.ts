@@ -17,7 +17,7 @@ import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
-import type { FinancialFacts } from '@/lib/ai/compose-first-read';
+import type { FinancialFacts, DeclaredReadFacts } from '@/lib/ai/compose-first-read';
 import { currencySymbol, formatMoney } from '@/lib/format/money';
 import { categoryLabel } from '@/lib/analytics/categories';
 
@@ -91,8 +91,8 @@ export type FirstReadMetadata = {
   levers_offered: string[];
   /** The field the supply_input blocker named, or null when no blocker existed. */
   blocker_field: string | null;
-  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta. */
-  mode?: 'default' | 'value_first' | 'value_first_recompose';
+  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta; 'declared' is the skip-upload path. */
+  mode?: 'default' | 'value_first' | 'value_first_recompose' | 'declared';
   /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
   hook_candidates?: HookCandidate[] | null;
   /** Which LEAD recipe drove this Read (visibility | target | control | open), or null pre-change. */
@@ -308,6 +308,72 @@ SHAPE TO AIM FOR (illustrative of the SHAPE only — never copy these figures or
 > — C.
 
 Notice what the shape does and does NOT do: it LEADS on what the sort revealed, references the goal only as a frame ("big enough to move the goal" — no contribution figure, no band, no verdict), pairs every sort with the new thing it makes visible (never "you called it X so it's X"), names the one remaining unknown, and lands ONE action before the handoff.`;
+
+export const FIRST_READ_SYSTEM_PROMPT_DECLARED = `You are the user's CFO. The user has just told you two numbers — their monthly take-home pay and their fixed costs — without sharing any statements yet. You have NOT seen a single transaction. This is their first Read, built entirely on what they declared.
+
+Your job: turn those declared numbers into one clear, honest picture — what's left to work with each month, and how that sits against their goal — then leave the door open to go deeper. Tight and specific. Sign off "— C." on its own line.
+
+STRUCTURE (the contract):
+1. THE PICTURE — state it plainly from the FACTS below: income, fixed costs, and the free cash that's left. Use the figures verbatim; never recompute or invent. One tangible frame is welcome (what the free cash is, in real terms) but do not pad.
+2. THE GOAL (only if a goal is present in the FACTS) — what reaching it needs each month, and how that sits against the free cash: comfortably clear, tight, or short. Use the monthly figure and percentage GIVEN; do not compute your own.
+3. THE HONEST CLOSE — these are the numbers they told you, not what you've seen happen. Say so without hedging or apology, and frame three months of real statements as how you'd sharpen this — what you'd catch that a self-estimate can't. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Show me my last 3 months[/CTA].
+
+BANNED:
+- Inventing any number not in the FACTS below. If free cash isn't given, do not state one.
+- Treating the declared numbers as observed fact ("your spending is…", "you spent…"). They are SELF-REPORTED. Frame accordingly ("the numbers you gave me", "on what you've told me").
+- The words "advice" or "advise". Apology or boundary language ("unfortunately", "I can't", "sorry"). Emoji. Product names or buy/sell/switch calls.
+- Narrating the act of observing ("I see", "I notice"). State what's true.
+- A question-back close ("What do you think?", "Does that sound right?").
+
+VOICE (Constitution v1.4 §2): Plain English, short sentences, warm authority. Second person for the user's facts. Tangible comparisons over jargon. A CFO guides — never lectures.
+
+LENGTH & FORMAT: 70–130 words — shorter than a statement-based Read, because it stands on two numbers, not ninety days of data. Plain prose, no headers. The CTA on its own line before "— C.". Sign off "— C." on its own line.
+
+SHAPE TO AIM FOR (illustrative only — the FACTS below are the real source; never copy these figures):
+> You bring in about €3,100 a month, and the fixed costs you listed come to €1,850 — so roughly €1,250 is yours to move each month. That's the room everything else gets built from.
+> Your house deposit needs about €600 a month — close to a fifth of your income, and comfortably inside that €1,250. The plan holds on paper.
+> But this is the picture you've drawn for me, not one I've watched happen. Share your last three months and I'll check them against where the money actually goes — the quiet leaks a self-estimate never includes.
+> [CTA:start_statement_upload]Show me my last 3 months[/CTA]
+> — C.`;
+
+export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
+  const symbol = currencySymbol(facts.currency).trim() || facts.currency;
+  const m = (v: number) => formatMoney(Math.round(v), facts.currency);
+  const sections: string[] = [
+    `CURRENCY: All amounts are in ${facts.currency}. Always format money with "${symbol}" — never use any other currency symbol.`,
+    ``,
+    `SELF-REPORTED FACTS (the user typed these; you have NOT seen any transactions):`,
+    `- Monthly take-home pay: ${m(facts.income)}`,
+    `- Fixed costs / month: ${m(facts.totalFixedCosts)}`,
+    `- Free cash / month (income − fixed costs): ${m(facts.freeCash)}`,
+    ``,
+  ];
+
+  if (facts.goalName) {
+    sections.push(`GOAL:`, `- ${facts.goalName}`);
+    if (facts.monthlyRequiredSaving != null) {
+      sections.push(
+        `- Monthly contribution needed: ${m(facts.monthlyRequiredSaving)}/mo` +
+          (facts.percentOfIncome != null ? ` (${facts.percentOfIncome}% of take-home)` : ''),
+      );
+    } else {
+      sections.push(
+        `- No monthly pace yet (the goal has no target date/amount to pace against). Name the goal, but do NOT invent a monthly figure.`,
+      );
+    }
+    sections.push(``);
+  } else {
+    sections.push(`GOAL: (none set yet — close on the room they have and the upload, not a goal.)`, ``);
+  }
+
+  sections.push(
+    `COMPOSE THE DECLARED FIRST READ NOW. State the picture (income, fixed costs, free cash) from the FACTS verbatim` +
+      (facts.goalName ? `; then how the goal sits against the free cash` : ``) +
+      `; then the honest close — these are self-reported numbers, three months of real statements sharpen them — and the [CTA:start_statement_upload]Show me my last 3 months[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
+  );
+
+  return sections.join('\n');
+}
 
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   const isRecompose = input.priorReadSummary != null;
