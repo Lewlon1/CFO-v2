@@ -11,12 +11,12 @@ import { skipUploadToEssentials } from '@/app/onboarding-v2/skip-upload-actions'
 type Props = {
   /** Active goal, or null on the skip/defer path. */
   goal: OnboardingGoalSummary | null
-  /** Called once the bridge is done — auto-fires after the dwell, or on tap. */
+  /** Called when the user taps Continue to proceed to the uploader. */
   onContinue: () => void
 }
 
-// The bridge dwell. Kept well under the test driver's 30s wait for the file
-// input (which only mounts in the upload phase, so the driver waits this out).
+// Controls the delay before the "Getting ready…" indicator appears — not an
+// auto-advance. Reduced-motion users get a shorter delay.
 const DWELL_MS = 2800
 const DWELL_REDUCED_MS = 600
 
