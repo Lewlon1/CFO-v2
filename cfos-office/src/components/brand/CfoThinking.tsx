@@ -20,7 +20,14 @@ interface CfoThinkingProps {
   className?: string
 }
 
-const DEFAULT_LABEL = 'Your CFO is working on this\u2026'
+// Rotated through when a caller passes neither `label` nor `labels`, so every
+// bare <CfoThinking /> feels alive on longer waits the way the main chat does.
+const DEFAULT_LABELS = [
+  'Your CFO is working on this\u2026',
+  'Reading the numbers\u2026',
+  'Lining up the picture\u2026',
+  'Almost there\u2026',
+] as const
 const ROTATION_MS = 2400
 
 export function CfoThinking({
@@ -32,7 +39,11 @@ export function CfoThinking({
   className,
 }: CfoThinkingProps) {
   const list: readonly string[] =
-    labels && labels.length > 0 ? labels : [label ?? DEFAULT_LABEL]
+    labels && labels.length > 0
+      ? labels
+      : label != null
+        ? [label]
+        : DEFAULT_LABELS
   const [index, setIndex] = useState(0)
 
   useEffect(() => {

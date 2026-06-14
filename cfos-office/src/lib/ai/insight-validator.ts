@@ -686,3 +686,21 @@ export function appendCorrection(
   const summary = issues.join(', ');
   return `${textContent}\n\n---\n\n_(System note: I flagged ${count} issue${count === 1 ? '' : 's'} in this message. ${summary}.)_`;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// stripValidatorNote — inverse of appendCorrection. Removes the internal QA
+// "(System note: …)" diagnostic from a message body. Used to scrub the note out
+// of conversation history before it is re-fed to the model: a persisted note
+// otherwise teaches the model the pattern and it *fabricates* its own fake notes
+// on later turns (an echo loop, confirmed in staging on turns where no validator
+// even fired). Matches both the appended first-person form ("I flagged N…") and
+// the model-echoed passive form ("N issues flagged…").
+// ─────────────────────────────────────────────────────────────────────────────
+export function stripValidatorNote(text: string): string {
+  if (!text) return text;
+  const withoutNote = text.replace(/_\(System note:[^\n]*?\)_/g, '');
+  if (withoutNote === text) return text; // no note present — leave untouched
+  // Removing the note leaves a dangling "\n\n---\n\n" separator from the
+  // appended form; trim it and any resulting trailing whitespace.
+  return withoutNote.replace(/\n{2,}-{3,}[ \t\n]*$/g, '').replace(/[ \t\n]+$/g, '');
+}

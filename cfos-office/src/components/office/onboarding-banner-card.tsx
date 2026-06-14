@@ -60,7 +60,7 @@ export function OnboardingBannerCard({ variant }: { variant: Variant }) {
       <button
         type="button"
         onClick={handleClick}
-        className="shrink-0 transition-colors min-h-10 px-3.5 py-2 rounded-lg bg-foreground text-background font-sans text-[13px] font-medium"
+        className="shrink-0 transition-colors min-h-10 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 font-sans text-[13px] font-medium"
       >
         {cta}
       </button>

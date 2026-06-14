@@ -58,7 +58,8 @@ export async function createTestUser(
 // the Supabase Auth admin endpoint surfaces a noisy generic 500 even though
 // the auth.users row eventually goes away via the auth.* cascades. Explicit
 // tear-down makes the operation deterministic and the cleanup log quiet.
-const USER_DATA_TABLES_BY_USER_ID = [
+export const USER_DATA_TABLES_BY_USER_ID = [
+  'llm_usage_log',
   'value_category_rules',
   'financial_portrait',
   'goals',

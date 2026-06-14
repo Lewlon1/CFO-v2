@@ -1,0 +1,11 @@
+The ISA goal is funded at plan — just. Note that this picture is as of 2026-03-28, 72 days ago, so treat it as a baseline rather than today's position.
+
+Here's the math: hitting £40,000 by June 2028 from your current £12,000 pot needs £1,009/mo at 10%, £1,071/mo at 7%, or £1,133/mo at 4%. The 7% figure is the working plan — it's the moderate middle of the range, roughly the long-run average a broadly diversified portfolio has returned over a horizon like this, an assumption not a promise, which is why the 4% case stays visible as your stress test. Your free cash flow sits at £1,383/mo, which clears the £1,071/mo plan number with £312 to spare. The returns on the £12,000 already saved do a lot of the heavy lifting from here. The goal is realistic.
+
+The stress test is worth watching. At 4%, the requirement climbs to £1,133/mo — still inside your £1,383/mo, but the buffer narrows. **Subscriptions** are running at £100/mo across the window and represent the most moveable line in your spending right now.
+
+Trimming £25/mo from subscriptions won't pull the finish line in — the goal is already funded at plan — but it quietly widens the buffer against the 4% scenario and builds the habit of directing freed cash toward the pot.
+
+[CTA:cut_lever]Trim 25 from subscriptions[/CTA]
+
+— C.

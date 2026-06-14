@@ -22,7 +22,6 @@ import { classifyValueMapDecline } from '@/lib/onboarding-v2/value-map-decline-c
 import { quickClassifyDecline } from '@/lib/onboarding-v2/value-map-decline-quickcheck';
 import { quickClassifyGoalDeferral } from '@/lib/onboarding-v2/goal-deferral-quickcheck';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
-import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { showInternalQANotes } from '@/lib/features/qa-notes';
 import { detectValueSaveHallucination } from '@/lib/ai/value-save-guard';
 import {
@@ -33,11 +32,11 @@ import {
   validateChips,
   validateLength,
   appendCorrection,
+  stripValidatorNote,
   type ToolResultLike,
 } from '@/lib/ai/insight-validator';
 import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
 import { sanitisePersona } from '@/lib/ai/persona-sanitiser';
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 import { extractAndStoreSignals } from '@/lib/analytics/chat-signals';
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types';
 
@@ -229,7 +228,7 @@ export async function POST(req: Request) {
       // message and store in chat_signals. Fire-and-forget via after().
       // Pattern matching is cheap; LLM fallback (Haiku) only fires when patterns
       // miss or are low-confidence. Failures are swallowed.
-      if (isLayeredReadEnabled() && insertedMessage?.id) {
+      if (insertedMessage?.id) {
         const persistedMessageId = insertedMessage.id as string;
         after(async () => {
           try {
@@ -277,7 +276,7 @@ export async function POST(req: Request) {
 
   // Goal-chat stall handler. The prompt-side "draft on next turn" rule is the
   // primary mechanism; this is a safety net for the case where the model
-  // doesn't comply. After 5 user turns in `onboarding_goal_chat` without an
+  // doesn't comply. After 7 user turns in `onboarding_goal_chat` without an
   // active goal, the onboarding state advances to `goal_chat_tentative` and a
   // transient system note tells the CFO to acknowledge and stop. Value-first
   // flow: the next screen handles income / rent — do NOT collect them here.
@@ -317,7 +316,7 @@ export async function POST(req: Request) {
       !lastUserTextForDeferral.startsWith('[System:') &&
       quickClassifyGoalDeferral(lastUserTextForDeferral) === 'deferred';
 
-    if (((userTurnCount ?? 0) >= 5 || deferredGoal) && (goalCount ?? 0) === 0) {
+    if (((userTurnCount ?? 0) >= 7 || deferredGoal) && (goalCount ?? 0) === 0) {
       const existingProgress =
         profileForChat.onboarding_progress && typeof profileForChat.onboarding_progress === 'object'
           ? (profileForChat.onboarding_progress as Record<string, unknown>)
@@ -334,14 +333,15 @@ export async function POST(req: Request) {
         .eq('id', user.id);
 
       stallSystemNote =
-        '[SYSTEM] The user is moving on without a confirmed goal. ' +
-        'Acknowledge that briefly — a goal can come later — and say you are about to ' +
-        'look at their transactions so the picture gets specific. Do NOT ask another ' +
-        'goal-related question. Do NOT call any tools. Do NOT ask for income, rent, ' +
-        'or any other number — those are collected on the next screen, not here. ' +
-        'Do NOT tell the user to upload anything or that there is an upload button ' +
-        'here — the system moves them to the upload screen automatically. ' +
-        'Keep the reply to 2-3 sentences.';
+        '[SYSTEM] The user would rather just see where their money goes for now ' +
+        'than set a goal. Take that at face value — it is a valid way to start. ' +
+        'Acknowledge it warmly in a sentence (a target can come whenever one clicks) ' +
+        'and say you are about to look at their transactions so the picture gets ' +
+        'specific. Do NOT ask another goal-related question. Do NOT call any tools. ' +
+        'Do NOT ask for income, rent, or any other number — those are collected on ' +
+        'the next screen, not here. Do NOT tell the user to upload anything or that ' +
+        'there is an upload button here — the system moves them to the upload screen ' +
+        'automatically. Keep the reply to 2-3 sentences.';
     }
   }
 
@@ -398,7 +398,6 @@ export async function POST(req: Request) {
   // Burn the window now so turn 2+ won't re-offer it — fire-and-forget; the
   // framing rule itself handles "drop it if the user deflects".
   if (
-    isLayeredReadEnabled() &&
     conversationType === 'first_read' &&
     conversationMetadata?.first_read_metadata_recomposed &&
     !conversationMetadata?.why_beat_offered &&
@@ -427,8 +426,25 @@ export async function POST(req: Request) {
 
   const toolbox = wrapToolsWithAlerts(createToolbox(toolCtx), user.id);
 
-  // Convert UI messages to model format
-  const modelMessages = await convertToModelMessages(messages);
+  // Convert UI messages to model format. First strip any internal QA
+  // "(System note: …)" diagnostic that historically leaked into persisted
+  // assistant messages — otherwise the model sees the pattern in its own history
+  // and fabricates fake notes on later turns (an echo loop, confirmed in
+  // staging). Defence-in-depth alongside the showInternalQANotes() gate (now
+  // default-off) and the one-off DB scrub.
+  const sanitisedMessages = messages.map((m) =>
+    m.role === 'assistant' && Array.isArray(m.parts)
+      ? {
+          ...m,
+          parts: m.parts.map((p) =>
+            p.type === 'text' && typeof p.text === 'string'
+              ? { ...p, text: stripValidatorNote(p.text) }
+              : p,
+          ),
+        }
+      : m,
+  );
+  const modelMessages = await convertToModelMessages(sanitisedMessages);
 
   // Pre-generate DB ID for the assistant message so we can stream it to the client
   const assistantMessageDbId = crypto.randomUUID();
@@ -926,8 +942,8 @@ export async function POST(req: Request) {
         // ── end hallucination guard ──────────────────────────────────────
 
         // ── V2 chat-intelligence validators (Phase 6) ────────────────────
-        // For wave-1/wave-1.5 cohort users on first_read conversations,
-        // run four deterministic guards on the LLM output:
+        // For first_read conversations, run four deterministic guards on
+        // the LLM output:
         //   - citation grounding (numbers + merchants → tool result/brief)
         //   - projection grounding (any /year, /month, "saved" framing →
         //     propose_experiment tool result)
@@ -937,9 +953,7 @@ export async function POST(req: Request) {
         // When the first three fire, a short server-side correction is
         // appended to the persisted message body and a single user_events
         // row is logged. Bad chips are stripped from the [OPTIONS] block.
-        const v2Enabled = isChatIntelligenceV2Enabled(profileForChat);
         if (
-          v2Enabled &&
           conversationType === 'first_read' &&
           textContent
         ) {

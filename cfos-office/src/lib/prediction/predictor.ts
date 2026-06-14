@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ValueCategoryRule, Category } from '@/lib/parsers/types'
 import { getTimeContext } from '@/lib/utils/time-context'
 import type { PredictionResult, ValueCategoryType } from './types'
+import { NONE_TIME_CONTEXT } from './types'
 
 /** Confidence thresholds per tier — a rule must meet this to be used */
 const THRESHOLDS: Record<string, number> = {
@@ -46,7 +47,13 @@ function findRule(
     if (r.match_value !== matchValue) return false
     if (matchType.endsWith('_time')) return r.time_context === timeContext
     if (matchType.endsWith('_amount')) return true // amount checked separately
-    return r.time_context === null || r.time_context === undefined
+    // Plain rules store the NONE sentinel (migration 064). Accept legacy
+    // null/undefined too, in case any pre-064 row lingers.
+    return (
+      r.time_context === NONE_TIME_CONTEXT ||
+      r.time_context === null ||
+      r.time_context === undefined
+    )
   })
 }
 
@@ -144,24 +151,4 @@ export async function loadUserRules(
     .eq('user_id', userId)
 
   return (data ?? []) as ValueCategoryRule[]
-}
-
-/**
- * Convenience wrapper — loads rules from DB, then resolves.
- * Use for single predictions (e.g. backfill). For batch, use loadUserRules + resolveValueCategory.
- */
-export async function predictValueCategory(
-  supabase: SupabaseClient,
-  userId: string,
-  merchantClean: string,
-  categoryId: string | null,
-  amount: number,
-  transactionTime: Date
-): Promise<PredictionResult> {
-  const [rules, { data: catData }] = await Promise.all([
-    loadUserRules(supabase, userId),
-    supabase.from('categories').select('id, name, tier, icon, color, examples, default_value_category').eq('is_active', true),
-  ])
-  const categories = (catData ?? []) as Category[]
-  return resolveValueCategory(rules, categories, merchantClean, categoryId, amount, transactionTime)
 }

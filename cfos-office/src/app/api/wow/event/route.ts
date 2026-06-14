@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { createClient } from '@/lib/supabase/server';
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 import { WOW_EVENT_TYPES } from '@/lib/wow/event-types';
 
 export const runtime = 'nodejs';
@@ -15,13 +14,6 @@ const EventSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  // When the flag is off (e.g. production), accept the call but no-op. This
-  // keeps the client safe to ship under feature-flag gating without leaking
-  // events into a table the prod schema doesn't yet have.
-  if (!isLayeredReadEnabled()) {
-    return NextResponse.json({ ok: true, skipped: 'flag_off' });
-  }
-
   const supabase = await createClient();
   const {
     data: { user },

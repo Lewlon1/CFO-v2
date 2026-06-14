@@ -2,7 +2,7 @@
  * Composition prompt for the layered first Read.
  *
  * The first Read is the single piece of writing the user sees when they finish
- * onboarding under the layered-read flag. It must reference the user's actual
+ * onboarding. It must reference the user's actual
  * top merchants, cite specific behavioural features (trend, recurrence, time
  * pattern, lifecycle, amount profile), and where stated intent (Value Map) and
  * behaviour diverge, point it out factually.
@@ -35,8 +35,20 @@ export type FirstReadComposeInput = {
   windowDays: number;
   /** Latest transaction date in the user's dataset (ISO YYYY-MM-DD), or null if no transactions. */
   dataWindowEnd?: string | null;
+  /** Earliest transaction date inside the analysis window (ISO YYYY-MM-DD), or null if no data. */
+  dataWindowStart?: string | null;
   /** Days between today and dataWindowEnd. Null when there's no data. */
   dataAgeDays?: number | null;
+  /** Inclusive span of days the windowed data actually covers (first → last txn). */
+  coveredDays?: number | null;
+  /** Calendar months the covered span touches (1 = a single month of data). */
+  monthsSpanned?: number | null;
+  /**
+   * Actual months of data, floored at 1 — the denominator for every "/mo" figure
+   * (lever currentMonthly + cluster per-month). Dividing by the fixed 90d window
+   * over a one-month upload understated every monthly figure ~3x.
+   */
+  effectiveMonths?: number | null;
   /** All derived levers, with the blocker first when present. */
   levers?: Lever[];
   /** The single highest-priority supply_input lever — when present, this IS the headline finding. */
@@ -157,6 +169,7 @@ HONESTY (NO HALLUCINATION):
 - Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS (e.g. "7 txns totalling 256.62 over 90d"). Never multiply mean × span, multiply mean × occurrence-count, or otherwise compute a sum yourself. If the volume line is absent for a cluster, do not cite a total.
 - If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line. Do not imply the activity is happening now.
 - Do not say a merchant is dormant unless its lifecycle status is "dormant".
+- Cite ONLY day-counts and date spans that appear verbatim in the data below. Never invent or infer a duration — e.g. do not write "over 52 days" unless that exact span is given. With only a total and a label, state those, not a fabricated time range.
 - Magnitudes for levers come from the LEVERS section. Quote them; don't compute them yourself.
 - Do NOT compute or quote derived figures the data didn't hand you: surplus, discretionary budget, runway, average monthly spend, percentage-of-income breakdowns. If a number isn't in the LEVERS section verbatim, it isn't available — frame the qualitative observation and end with the lever's own magnitude. Recomputing surplus from income minus rent in your head is forbidden.
 
@@ -216,6 +229,7 @@ HONESTY (NO HALLUCINATION):
 - Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS (e.g. "7 txns totalling 256.62 over 90d"). Never multiply mean × span, multiply mean × occurrence-count, or otherwise compute a sum yourself. If the volume line is absent for a cluster, do not cite a total.
 - If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly in the first or second line. Do not imply the activity is happening now.
 - Do not say a merchant is dormant unless its lifecycle status is "dormant".
+- Cite ONLY day-counts and date spans that appear verbatim in the data below. Never invent or infer a duration — e.g. do not write "over 52 days" unless that exact span is given. With only a total and a label, state those, not a fabricated time range.
 - Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim — never recompute them in your head. If a value is null in the data, do not invent one.
 - The ACTION's trim magnitude comes from the LEVERS section; the category's share comes from SPENDING BREAKDOWN. The next-step levers are HEADLINES — where a lever (e.g. a generic "recurring bills" lever) carries no magnitude in the data, name it without inventing a number.
 
@@ -307,8 +321,13 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     formatDataRecency(input),
     ``,
     `TRANSACTION CONTEXT:`,
-    `- Total transactions in window: ${input.transactionCountTotal}`,
-    `- Window length: ${input.windowDays} days`,
+    `- Total transactions: ${input.transactionCountTotal}`,
+    input.coveredDays != null && input.coveredDays > 0
+      ? `- Data coverage: ${input.coveredDays} day${input.coveredDays === 1 ? '' : 's'} of activity${input.dataWindowStart ? ` (${input.dataWindowStart} → ${input.dataWindowEnd ?? 'latest'})` : ''}.`
+      : `- Window length: ${input.windowDays} days`,
+    ``,
+    `DATA SUFFICIENCY (how much history this Read stands on — obey before stating any "/mo" rate, trend, or recurrence):`,
+    formatDataSufficiency(input),
     ``,
     `VALUE PROFILE (Stated Intent — what the user said in the Value Map):`,
     formatValueProfile(input.valueProfile),
@@ -382,7 +401,9 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     `BEHAVIOURAL CLUSTERS (top observations from their actual transactions):`,
     input.topClusterBehaviours.length === 0
       ? '(no clusters with sufficient data — fall back to the transaction count and acknowledge the thin data)'
-      : input.topClusterBehaviours.map((b) => formatClusterForPrompt(b, currency)).join('\n\n'),
+      : input.topClusterBehaviours
+          .map((b) => formatClusterForPrompt(b, currency, input.effectiveMonths, input.coveredDays))
+          .join('\n\n'),
     ``,
     isRecompose
       ? `COMPOSE THE RECOMPOSE NOW. Lead on what their sorting unlocked per READ FOCUS, ≤2 delta observations from the NEW Layer 2 (WHAT THE USER JUST SORTED), close on a directive + [CTA:open_chat]…[/CTA] that lands them in chat. Do not restate anything in ALREADY SAID. Do not open a new hook. Hard cap 200 words. Output the message text only — no markdown code fences, no preamble. Sign off with "— C." on its own line.`
@@ -614,6 +635,42 @@ function formatLever(lever: Lever): string {
   }
 }
 
+function monthName(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return 'that month';
+  return d.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' });
+}
+
+/**
+ * Data-sufficiency guidance keyed off ACTUAL coverage (not the fixed 90d window).
+ * A single month of data can't establish monthly averages, trends, or recurrence,
+ * so the Read must say so and frame per-month figures as that one month — never a
+ * settled rate. Without this the Read stated "$X a month" off one month of data
+ * and never acknowledged the limitation.
+ */
+function formatDataSufficiency(input: FirstReadComposeInput): string {
+  const days = input.coveredDays;
+  if (days == null || days <= 0) {
+    return '- Coverage unknown — keep figures qualitative; do not state monthly averages or trends.';
+  }
+  const months = input.monthsSpanned ?? Math.max(1, Math.round(days / DAYS_PER_MONTH));
+  const single = months <= 1 || days < 45;
+  const limited = !single && days < 75;
+  const monthLabel = input.dataWindowStart ? monthName(input.dataWindowStart) : 'that month';
+
+  if (single) {
+    return [
+      `- THIS IS A SINGLE MONTH OF DATA (${days} days). Acknowledge it explicitly in the first or second line — the user gave you one month, not a representative picture.`,
+      `- Every per-month figure below is THAT ONE MONTH's spend, not an established average. Frame it as "in ${monthLabel}" or "over the one month on file" — never as a settled "/mo" rate to bank on.`,
+      `- Do NOT label any merchant "recurring", "weekly", or "monthly", and do NOT assert a trend (rising/falling): one month cannot establish recurrence or direction. Where recurring-vs-one-off matters, ASK it — that is what the clarifiers are for.`,
+    ].join('\n');
+  }
+  if (limited) {
+    return `- This is roughly ${months} months of data (${days} days) — a provisional read, not settled averages. Hedge per-month figures ("running around …") and treat any trend as tentative, not established.`;
+  }
+  return `- ${days} days of data across ~${months} months — enough for monthly figures and basic trend/recurrence reads.`;
+}
+
 function formatDataRecency(input: FirstReadComposeInput): string {
   if (!input.dataWindowEnd || input.dataAgeDays == null) {
     return '- No transactions on file. Do not invent any.';
@@ -714,7 +771,12 @@ function formatValueProfile(profile: UserValueProfile): string {
   return lines.join('\n');
 }
 
-function formatClusterForPrompt(b: ClusterBehaviour, currency: string): string {
+function formatClusterForPrompt(
+  b: ClusterBehaviour,
+  currency: string,
+  effectiveMonths?: number | null,
+  coveredDays?: number | null,
+): string {
   const clean = b.cluster_type === 'merchant'
     ? normaliseMerchantDescription(b.cluster_id)
     : b.cluster_id;
@@ -753,14 +815,27 @@ function formatClusterForPrompt(b: ClusterBehaviour, currency: string): string {
   );
 
   const total = Math.abs(b.total_amount);
-  // Per-month equivalent so recurring spend is legible as a rate, not a raw
-  // window total ("X over 90 days" forces the user to do the division). Cite
-  // the /mo figure for recurring patterns; keep the window total for context.
-  const perMonth = b.window_days > 0 ? total / (b.window_days / DAYS_PER_MONTH) : null;
+  // Per-month equivalent off ACTUAL data coverage (floored at 1 month), not the
+  // fixed window — a one-month upload divided by the 90d window understated this
+  // ~3x. Falls back to the cluster's own window when coverage isn't supplied. The
+  // span label likewise reflects real coverage so "over 90d" can't imply data we
+  // don't have.
+  const months =
+    effectiveMonths != null && effectiveMonths > 0
+      ? Math.max(1, effectiveMonths)
+      : b.window_days > 0
+        ? b.window_days / DAYS_PER_MONTH
+        : null;
+  const perMonth = months != null && months > 0 ? total / months : null;
+  const spanDays = coveredDays != null && coveredDays > 0 ? coveredDays : b.window_days;
+  // On a single month of data, recurrence/cadence isn't established — drop the
+  // "prefer the /mo figure" nudge so the DATA SUFFICIENCY caveat governs framing.
+  const thin = coveredDays != null && coveredDays > 0 && coveredDays < 45;
   const isRecurring =
-    b.recurrence.pattern_label === 'monthly' || b.recurrence.pattern_label === 'weekly';
+    !thin &&
+    (b.recurrence.pattern_label === 'monthly' || b.recurrence.pattern_label === 'weekly');
   lines.push(
-    `- volume: ${b.transaction_count} txns totalling ${formatMoney(Math.round(total), currency)} over ${b.window_days}d` +
+    `- volume: ${b.transaction_count} txns totalling ${formatMoney(Math.round(total), currency)} over ${spanDays}d` +
       (perMonth != null
         ? ` (≈ ${formatMoney(Math.round(perMonth), currency)}/mo${isRecurring ? ' — recurring, prefer the /mo figure' : ''})`
         : ''),

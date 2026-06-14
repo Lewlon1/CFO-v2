@@ -85,6 +85,14 @@ export async function deriveLevers(args: {
   spendingBreakdown?: SpendingBreakdown | null;
   /** Window the breakdown totals cover, for the monthly-equivalent. Default 90. */
   windowDays?: number;
+  /**
+   * Actual months of data inside the window, floored at 1 — the monthly-equivalent
+   * divides by THIS, not by `windowDays`. Dividing a 1-month upload by the fixed
+   * 90d window (≈2.96 months) understated every "/mo" figure ~3x (a real $362
+   * shopping month surfaced as "$122 a month"). Falls back to windowDays/30.44
+   * when omitted, so callers that genuinely have a full window are unaffected.
+   */
+  effectiveMonths?: number;
 }): Promise<LeverPackage> {
   const ctx = makeMinimalCtx(args.supabase, args.userId, args.currency ?? 'GBP');
 
@@ -105,6 +113,7 @@ export async function deriveLevers(args: {
     budget,
     args.spendingBreakdown ?? null,
     args.windowDays ?? 90,
+    args.effectiveMonths,
   );
 
   const levers: Lever[] = [];
@@ -172,6 +181,7 @@ async function deriveCutLever(
   budget: Budget,
   breakdown: SpendingBreakdown | null,
   windowDays: number,
+  effectiveMonths?: number,
 ): Promise<Lever | null> {
   if (!breakdown || breakdown.top_categories.length === 0) return null;
 
@@ -180,8 +190,14 @@ async function deriveCutLever(
     .sort((a, b) => b.total - a.total)[0];
   if (!biggest) return null;
 
-  const monthly =
-    windowDays > 0 ? biggest.total / (windowDays / DAYS_PER_MONTH) : biggest.total;
+  // Divide by the ACTUAL data coverage, floored at one month so a sub-month
+  // upload can't be extrapolated upward. Falling back to windowDays/30.44 keeps
+  // full-window callers identical to before.
+  const months =
+    effectiveMonths != null
+      ? Math.max(1, effectiveMonths)
+      : Math.max(1, windowDays / DAYS_PER_MONTH);
+  const monthly = biggest.total / months;
   // Sub-€25/mo categories aren't "the one move" — not worth leading the Read on.
   if (monthly < 25) return null;
 

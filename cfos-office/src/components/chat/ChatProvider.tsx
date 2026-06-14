@@ -14,6 +14,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
+import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
 import {
   buildLabelRecapTrigger,
@@ -80,6 +81,15 @@ interface ChatContextValue {
   ) => void
   userCurrency?: string
   currentFolder: FolderKey
+  /** Server-derived onboarding_step, threaded from the office layout. Drives
+   *  the in-sheet onboarding beat host (deterministic, no LLM tool calls). */
+  onboardingStep: string | null
+  /** True for a brand-new user with no entry_struggle yet — the sheet opens
+   *  on the in-sheet "what brought you in?" beat (folded entry). */
+  needsEntryStruggle: boolean
+  /** Active goal during the upload beat, threaded from the office layout so the
+   *  bridge intro can acknowledge it by name. Null off-beat or on the skip path. */
+  onboardingGoal: OnboardingGoalSummary | null
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -108,9 +118,16 @@ interface ChatProviderProps {
    *  the user lands mid-goal-beat, so the office home never flashes behind the
    *  sheet while a post-paint effect opens it. */
   initialSheetOpen?: boolean
+  /** Server-derived onboarding_step. Threaded to context for the in-sheet
+   *  onboarding beat host. */
+  onboardingStep?: string | null
+  /** True when the user has not yet answered the entry struggle. */
+  needsEntryStruggle?: boolean
+  /** Active goal during the upload beat (see ChatContextValue). */
+  onboardingGoal?: OnboardingGoalSummary | null
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -546,6 +563,9 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen }: ChatP
     handleLabelTransactionsSubmit,
     userCurrency,
     currentFolder,
+    onboardingStep,
+    needsEntryStruggle,
+    onboardingGoal,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>

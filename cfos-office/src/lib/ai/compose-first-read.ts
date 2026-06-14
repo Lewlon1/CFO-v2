@@ -17,7 +17,7 @@ import { bedrock, chatModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
-import { getDataWindowEnd } from '@/lib/analytics/cluster-behaviour/queries';
+import { getDataWindowEnd, getDataWindowCoverage } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
@@ -25,6 +25,7 @@ import {
   reconcileFixedCosts,
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
+import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
   selectHookCandidates,
@@ -48,6 +49,7 @@ import {
 } from './prompts/first-read';
 
 const WINDOW_DAYS = 90;
+const DAYS_PER_MONTH = 30.44;
 const TOP_CLUSTER_LIMIT = 10;
 const MIN_DATA_COMPLETENESS = 0.3;
 const MAX_OUTPUT_TOKENS = 700;
@@ -91,6 +93,18 @@ export async function composeFirstRead(params: {
     dataWindowEnd,
   );
 
+  // Actual data coverage inside the window. The monthly normaliser and the
+  // thin-data caveat both key off REAL coverage, not the fixed 90d window — a
+  // one-month upload divided by 90d understated every "/mo" figure ~3x and the
+  // Read never flagged that it was reading a single month.
+  const coverage = await getDataWindowCoverage(
+    supabase,
+    params.userId,
+    WINDOW_DAYS,
+    dataWindowEnd,
+  );
+  const effectiveMonths = Math.max(1, coverage.coveredDays / DAYS_PER_MONTH);
+
   // Levers run AFTER the breakdown: the cut lever names the biggest discretionary
   // category from it, so the Read's ONE ACTION and the breakdown refer to the
   // same category (was: a recurring_expenses cut that surfaced essentials/renfe).
@@ -100,6 +114,7 @@ export async function composeFirstRead(params: {
     currency: financialFacts.currency,
     spendingBreakdown,
     windowDays: WINDOW_DAYS,
+    effectiveMonths,
   });
 
   // Goal-first precedence, mirroring resolveUserIntent() in insight-engine.ts.
@@ -156,7 +171,11 @@ export async function composeFirstRead(params: {
     transactionCountTotal,
     windowDays: WINDOW_DAYS,
     dataWindowEnd,
+    dataWindowStart: coverage.firstDate,
     dataAgeDays,
+    coveredDays: coverage.coveredDays,
+    monthsSpanned: coverage.monthsSpanned,
+    effectiveMonths,
     levers: leverPackage.levers,
     blocker: leverPackage.blocker,
     financialFacts,
@@ -250,7 +269,7 @@ async function getFinancialFacts(
   const [profileRes, snapshotRes] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly')
+      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, country')
       .eq('id', userId)
       .maybeSingle(),
     supabase
@@ -261,6 +280,11 @@ async function getFinancialFacts(
       .limit(1)
       .maybeSingle(),
   ]);
+  const txnRes = await supabase
+    .from('transactions')
+    .select('currency')
+    .eq('user_id', userId)
+    .limit(500);
   const income =
     typeof profileRes.data?.net_monthly_income === 'number'
       ? profileRes.data.net_monthly_income
@@ -297,10 +321,11 @@ async function getFinancialFacts(
     monthly_rent: rent,
     total_fixed_costs: totalFixed,
     free_cash_flow: freeCashFlow,
-    currency:
-      typeof profileRes.data?.primary_currency === 'string' && profileRes.data.primary_currency
-        ? profileRes.data.primary_currency
-        : 'EUR',
+    currency: resolveUserCurrency(
+      (profileRes.data?.country as string | null) ?? null,
+      (profileRes.data?.primary_currency as string | null) ?? null,
+      (txnRes.data as Array<{ currency?: string | null }> | null) ?? [],
+    ),
     income_shape:
       typeof profileRes.data?.income_shape === 'string' ? profileRes.data.income_shape : null,
     t3m_income_monthly:

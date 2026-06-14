@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const limit = await checkRateLimit(user.id)
+  const limit = await checkRateLimit(`vm-reveal:${user.id}`, { limit: 10, windowMs: 60_000 })
   if (!limit.allowed) {
     return Response.json(
       { error: 'Rate limit exceeded. Try again later.', resetAt: limit.resetAt?.toISOString() },

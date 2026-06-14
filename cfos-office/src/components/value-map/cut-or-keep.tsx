@@ -86,13 +86,13 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
 
         {cutItems.length > 0 ? (
           <>
-            <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm text-center animate-cut-savings-reveal">
-              <p className="text-sm text-muted-foreground mb-2">You&apos;d cut</p>
-              <p className="text-3xl font-mono font-bold text-foreground">
+            <div className="rounded-card border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm text-center animate-cut-savings-reveal">
+              <p className="text-sm text-text-secondary mb-2">You&apos;d cut</p>
+              <p className="text-3xl font-data font-bold text-text-primary">
                 {formatAmount(monthlyTotal, currency)}
-                <span className="text-base font-normal text-muted-foreground">/month</span>
+                <span className="text-base font-normal text-text-secondary">/month</span>
               </p>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-text-secondary mt-1">
                 That&apos;s {formatAmount(annualTotal, currency)} a year
               </p>
             </div>
@@ -105,25 +105,25 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Scissors className="h-3.5 w-3.5 text-value-leak shrink-0" />
-                    <span className="text-sm text-foreground truncate">{item.merchant}</span>
+                    <span className="text-sm text-text-primary truncate">{item.merchant}</span>
                   </div>
-                  <span className="font-mono text-sm text-value-leak shrink-0">
+                  <span className="font-data text-sm text-value-leak shrink-0">
                     {formatAmount(item.amount, currency)}
                   </span>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm">
-              <p className="text-sm text-foreground leading-relaxed">
+            <div className="rounded-card border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm">
+              <p className="text-sm text-text-primary leading-relaxed">
                 Upload your real statement and I&apos;ll find the actual numbers behind these.
                 The gap between what you think and what you spend is where the savings hide.
               </p>
             </div>
           </>
         ) : (
-          <div className="rounded-xl border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm text-center">
-            <p className="text-sm text-foreground leading-relaxed">
+          <div className="rounded-card border border-accent-gold/30 bg-accent-gold/5 p-4 max-w-sm text-center">
+            <p className="text-sm text-text-primary leading-relaxed">
               You&apos;re keeping everything on the list. That&apos;s a clear signal
               &mdash; your spending feels intentional. Let&apos;s see if the real numbers back that up.
             </p>
@@ -152,7 +152,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
     <div className="flex flex-col h-full min-h-0">
       {/* Progress bar */}
       <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+        <div className="flex items-center justify-between text-xs text-text-secondary mb-1.5">
           <span>{currentIndex + 1} of {total}</span>
           <span className="text-accent-gold">Would you cut it?</span>
         </div>
@@ -175,7 +175,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
                 : ''
           }
         >
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 space-y-4 text-center">
+          <div className="w-full max-w-sm rounded-card border border-[var(--border-subtle)] bg-bg-elevated p-6 space-y-4 text-center">
             {/* Quadrant badge */}
             <span
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -189,10 +189,10 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
 
             {/* Merchant + amount */}
             <div>
-              <p className="text-lg font-semibold text-foreground">{item.merchant}</p>
-              <p className="text-2xl font-mono font-bold text-foreground mt-1">
+              <p className="text-lg font-semibold text-text-primary">{item.merchant}</p>
+              <p className="text-2xl font-data font-bold text-text-primary mt-1">
                 {formatAmount(item.amount, currency)}
-                <span className="text-sm font-normal text-muted-foreground">/month</span>
+                <span className="text-sm font-normal text-text-secondary">/month</span>
               </p>
             </div>
 
@@ -208,7 +208,7 @@ export function CutOrKeep({ results, currency, onComplete }: CutOrKeepProps) {
               <Button
                 variant="outline"
                 onClick={() => handleDecision(false)}
-                className="flex-1 text-muted-foreground border-border py-5 text-sm"
+                className="flex-1 text-text-secondary border-[var(--border-subtle)] py-5 text-sm"
               >
                 I&apos;d keep it
               </Button>

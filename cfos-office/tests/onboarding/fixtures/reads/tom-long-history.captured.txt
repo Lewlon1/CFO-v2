@@ -1,0 +1,11 @@
+One thing to flag upfront: the most recent transaction in this data is from 2026-03-19, so these observations are 81 days old — treat them as a baseline, not a live picture.
+
+As of that date, your tracked spend breaks down clearly. **Housing** dominates at £2,840 — that's two rent payments to Norwood Lettings, the largest of which was £1,420 in January. After that, **groceries** at £748 and **eating & drinking out** at £264 are the next two lines. With only 2 transactions in the window, patterns are thin, but the shape is already legible: rent is the anchor, and everything else is a fraction of it.
+
+Your free cash flow sits at £1,934 a month against fixed costs of £2,066. The Pension top-up goal has £41,000 still to go — but without a target date, the monthly pace needed to get there on time can't be computed. That's the one missing piece.
+
+Set the date, and the goal math closes.
+
+[CTA:supply_input]Set a target date for Pension top-up[/CTA]
+
+— C.

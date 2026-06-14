@@ -48,6 +48,7 @@ export function createGetClusterBehaviourTool(ctx: ToolContext) {
           clusterType: cluster_type,
           clusterId: cluster_id,
           windowDays: window_days ?? 90,
+          currency: ctx.currency,
         });
       } catch (err) {
         console.error('[tool:get_cluster_behaviour] error:', err);

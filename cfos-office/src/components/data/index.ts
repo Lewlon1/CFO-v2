@@ -1,13 +1,11 @@
 // Visual Phase 2d: removed dead exports (MetricTile, FolderCard/FolderMetric,
-// CategoryBar, FileRow — all zero-consumer). ValuePill is KEPT: the audit marked it
-// KILL, but it is live inside TransactionRow (DataComponents.tsx), which ships via
-// OfficeTransactionsClient. The 6 below are consumed by TheGapClient / OfficeTransactionsClient.
-export { ValuePill } from './ValuePill'
+// CategoryBar, FileRow — all zero-consumer; GapCard/ProvenanceLine followed when
+// the v1 Gap rendering was removed). ValuePill stays live inside TransactionRow
+// via a direct import in DataComponents.tsx; its barrel re-export had no
+// consumers. The 4 below are consumed by OfficeTransactionsClient.
 export {
   MonthSelector,
   TransactionRow,
   FilterPills,
-  ProvenanceLine,
-  GapCard,
   SectionTitle,
 } from './DataComponents'

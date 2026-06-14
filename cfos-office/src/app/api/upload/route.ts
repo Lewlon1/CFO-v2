@@ -23,7 +23,6 @@ import { enrichLocation } from '@/lib/analytics/location-enricher'
 import { evaluatePaydaySavings } from '@/lib/nudges/evaluators/payday-savings'
 import { evaluateValueMapRetake } from '@/lib/nudges/evaluators/value-map-retake'
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read'
 import { createServiceClient } from '@/lib/supabase/service'
 import type {
   Category,
@@ -104,11 +103,9 @@ export async function POST(req: NextRequest) {
       // Session 32 (A) — refresh merchant_aggregates so the layered Read tools
       // have fresh data immediately for this user. Without this, new users
       // would wait until the 03:00 UTC nightly cron before get_cluster_behaviour
-      // could return anything. Gated by the layered-read flag because the MV
-      // refresh is only useful when those tools are active. Fire-and-forget;
-      // pipeline does not block on it. Uses service-role client because the
-      // RPC is locked down to service_role.
-      if (stats.imported > 0 && isLayeredReadEnabled()) {
+      // could return anything. Fire-and-forget; pipeline does not block on it.
+      // Uses service-role client because the RPC is locked down to service_role.
+      if (stats.imported > 0) {
         const svc = createServiceClient()
         svc.rpc('refresh_merchant_aggregates').then(({ error }) => {
           if (error) console.error('[upload] refresh_merchant_aggregates failed:', error)

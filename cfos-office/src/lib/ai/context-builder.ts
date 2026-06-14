@@ -5,16 +5,13 @@ import { getNextQuestions } from '@/lib/profiling/engine';
 import type { ProfileQuestion } from '@/lib/profiling/question-registry';
 import { assembleReviewContext } from './review-context';
 import { PERSONALITIES, SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants';
-import type { InsightPayload, QuotableFact, PatternResult, ExperimentProposalLayer } from '@/lib/analytics/insight-types';
-import { extractNumbers } from './insight-validator';
+import type { ExperimentProposalLayer } from '@/lib/analytics/insight-types';
 import { BRIDGE_USER_MSG_THRESHOLD } from '@/lib/onboarding-v2/bridge';
 import { getPrimaryGoal, type PrimaryGoal } from '@/lib/goals/primary-goal';
 import { currencySymbol, formatMoney } from '@/lib/format/money';
-import { isChatIntelligenceV2Enabled } from '@/lib/features/chat-intelligence-v2';
 import { getPosturePromptFragment } from './posture-prompts';
 import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
-import { isLayeredReadEnabled } from '@/lib/feature-flags/layered-read';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
   pickSignificantAmbiguousMerchant,
@@ -29,345 +26,13 @@ const COHORT_LABEL: Record<string, string> = {
   public: 'public launch',
 };
 
-/**
- * Keys whose string values are NOT merchant names — categories, day names,
- * prompt copy, structural enums. Anything else at a string position is treated
- * as a possible merchant for the validator's allowlist.
- */
-const NON_MERCHANT_KEYS = new Set([
-  'id', 'layer', 'currency', 'category', 'topCategory',
-  'top2Category', 'outlierDay', 'outlierName', 'narrative_prompt',
-  'hypothesis', 'title', 'reason', 'smallestDuplicateCategory',
-]);
-
-/**
- * Walk an arbitrary value tree and harvest every numeric value into `numbers`,
- * every plausibly-merchant-shaped string into `merchants`. The walk is
- * intentionally permissive — the validator is the gatekeeper, this just builds
- * the widest reasonable allowlist.
- */
-function walkPatternData(
-  node: unknown,
-  numbers: Set<number>,
-  merchants: Set<string>,
-  parentKey: string | null,
-): void {
-  if (node === null || node === undefined) return;
-  if (typeof node === 'number') {
-    if (Number.isFinite(node) && Math.abs(node) >= 1) {
-      const abs = Math.abs(node);
-      numbers.add(Math.round(abs));
-      // Also include the floor for decimals so "29.99" matches both 29 and 30.
-      if (!Number.isInteger(abs)) numbers.add(Math.floor(abs));
-    }
-    return;
-  }
-  if (typeof node === 'string') {
-    if (parentKey !== null && NON_MERCHANT_KEYS.has(parentKey)) return;
-    const trimmed = node.trim();
-    if (trimmed.length >= 2 && !/^\d+(?:\.\d+)?$/.test(trimmed)) {
-      merchants.add(trimmed.toLowerCase());
-    }
-    return;
-  }
-  if (Array.isArray(node)) {
-    for (const item of node) walkPatternData(item, numbers, merchants, parentKey);
-    return;
-  }
-  if (typeof node === 'object') {
-    for (const [k, v] of Object.entries(node)) {
-      walkPatternData(v, numbers, merchants, k);
-    }
-  }
-}
-
-/**
- * Turn a `PatternResult` into a single QuotableFact whose `numbers` and
- * `merchants` cover everything the LLM might legitimately cite. The pattern's
- * `data` shape is heterogeneous (each detector writes its own keys), so we
- * walk recursively and harvest indiscriminately. The validator's number-
- * tolerance and merchant-allowlist intersection do the actual gating.
- *
- * `currency` is unused here — kept in the signature for future per-pattern
- * formatted strings if we ever surface them.
- */
-function factsFromPattern(pattern: PatternResult, _currency: string): QuotableFact[] {
-  const numbers = new Set<number>();
-  const merchants = new Set<string>();
-  walkPatternData(pattern.data, numbers, merchants, null);
-
-  // Numbers that appear in the pre-resolved narrative_prompt template (e.g.
-  // formatCurrency() output) may not be in `data` if the detector derived
-  // them inline. Harvest them too.
-  if (typeof pattern.narrative_prompt === 'string') {
-    for (const n of extractNumbers(pattern.narrative_prompt)) numbers.add(n);
-  }
-
-  if (numbers.size === 0 && merchants.size === 0) return [];
-
-  return [{
-    text: pattern.narrative_prompt,
-    numbers: Array.from(numbers),
-    merchants: Array.from(merchants),
-  }];
-}
-
-export function buildQuotableFacts(payload: InsightPayload): QuotableFact[] {
-  const facts: QuotableFact[] = [];
-
-  // Transaction count is always quotable — frequently cited as "I went through
-  // all 66 of your transactions" etc.
-  facts.push({
-    text: `${payload.transactionCount} transactions`,
-    numbers: [payload.transactionCount],
-    merchants: [],
-  });
-
-  // Stat card values are already formatted correctly by the engine; we trust them
-  // verbatim. Extract numeric components for validation.
-  for (const card of payload.statCards) {
-    const numbers = Array.from(
-      card.value.matchAll(/\d[\d,]*(?:\.\d+)?/g),
-    ).map((m) => Number(m[0].replace(/,/g, ''))).filter((n) => Number.isFinite(n) && n >= 10);
-    facts.push({ text: card.value, numbers, merchants: [] });
-  }
-
-  // Per-pattern canonical facts
-  for (const layer of ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const) {
-    const pattern = payload.layers[layer];
-    if (!pattern) continue;
-    facts.push(...factsFromPattern(pattern, payload.currency));
-  }
-
-  return facts;
-}
-
-/**
- * Build the anti-hallucination context block for the First Insight conversation.
- *
- * The system has deterministically computed patterns, stat cards, and a hook
- * from the user's transactions. This function assembles those into a prompt
- * section that STRICTLY constrains Claude to narrate only what's in the
- * payload — no inventing income, savings rate, surplus, goals, etc.
- */
-const CAPABILITY_FOCUS: Record<string, string> = {
-  cashflow: 'The user wants to understand where their money goes. Emphasise spending patterns, categories, and cash flow clarity. Make the hook actionable toward tracking and awareness.',
-  values: 'The user wants to understand why they spend the way they do. Connect patterns to behaviour and habits. The hook should invite reflection on whether spending matches what they care about.',
-  networth: 'The user wants to track what they own and owe. Where possible, frame patterns in terms of what they reveal about financial position — recurring costs as liabilities, consistent deposits as assets. Hook toward a net worth conversation.',
-  scenarios: 'The user is weighing a big decision. Frame patterns in terms of financial headroom and optionality. The hook should invite a forward-looking question: "what would it take to..."',
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function buildFirstInsightContext(payload: InsightPayload, selectedCapabilities?: string[], profile?: any): string {
-  const lines: string[] = [];
-  lines.push('## First insight — data from the system');
-  lines.push('The following patterns were computed deterministically. You MUST narrate ONLY these patterns.');
-  lines.push('');
-  lines.push('STRICT RULES:');
-  lines.push('- Every number you cite must appear verbatim in the QUOTABLE FACTS list below. No estimating.');
-  lines.push('- Do NOT compute ratios, averages, multipliers, time spans, daily rates, or per-month figures yourself — if a derived figure is not listed in QUOTABLE FACTS, do not cite it. Rephrase qualitatively instead ("sharp spike", "a meaningful chunk") without inventing the number.');
-  lines.push('- Do NOT extrapolate (e.g. "across four months" unless the months of data count shown is exactly four). Stick to what the data shows.');
-  lines.push("- You do NOT know the user's income, savings rate, or surplus. Do not mention these concepts.");
-  if (payload.userIntent) {
-    lines.push("- You DO know the user's stated goal (see STATED GOAL below). Reference it naturally — don't list it back at them.");
-    lines.push("- You do NOT know the user's age, employment, or housing type. Do not reference them.");
-  } else {
-    lines.push("- You do NOT know the user's age, employment, housing type, or goals. Do not reference them.");
-  }
-  lines.push('- You do NOT know whether their spending is "sustainable" or "affordable" — that requires income.');
-  lines.push('- If a field says "not_available", you must not reference it or imply it.');
-  lines.push("- Do not say \"you spend X% of your income\" — you don't know their income.");
-  lines.push("- Do not say \"you have £X left over\" — you don't know what comes in.");
-  lines.push('- Do not say "your savings rate is..." — you cannot compute this.');
-  lines.push('- You CAN say: "Regular deposits are visible" if the income_detected pattern is present.');
-  lines.push('- You CAN say: "Income figure not yet known" as part of the hook.');
-  lines.push("- When in doubt: if it's not in the data below, don't say it.");
-  lines.push('');
-  lines.push('### Available data');
-  lines.push(`- Name: ${payload.userName ?? 'unknown'}`);
-  lines.push(`- Country: ${payload.country ?? 'unknown'}`);
-  lines.push(`- Currency: ${payload.currency}`);
-  lines.push(`- Months of data: ${payload.monthCount}`);
-  lines.push(`- Total transactions: ${payload.transactionCount}`);
-  lines.push(`- Value Map completed: ${payload.hasValueMap ? 'yes' : 'no'}`);
-  if (payload.hasValueMap) lines.push(`- Archetype: ${payload.archetype}`);
-  lines.push('');
-  lines.push(`### Discipline score: ${payload.disciplineScore}/100`);
-  if (payload.disciplineScore > 70) {
-    lines.push('This user is financially disciplined. Lead with recognition, not correction. Position yourself as a partner who can automate monitoring and help optimise, not as a teacher finding problems.');
-  } else if (payload.disciplineScore > 40) {
-    lines.push('This user has some financial structure but clear areas for improvement. Balance recognition with honest observations.');
-  } else {
-    lines.push('This user has limited financial structure. Focus on one clear, achievable pattern. Do not overwhelm.');
-  }
-  lines.push('');
-  // Stated goal — when the user has told us what they want from this product,
-  // anchor the wow moment to it rather than narrating in the abstract.
-  if (payload.userIntent) {
-    const intent = payload.userIntent;
-    lines.push('### STATED GOAL');
-    if (intent.source === 'goal' && intent.goalName) {
-      lines.push(`- The user has set a goal: "${intent.goalName}".`);
-      if (intent.text && intent.text !== intent.goalName) {
-        lines.push(`- In their own words: "${intent.text}"`);
-      }
-    } else if (intent.source === 'entry_struggle') {
-      const struggleLabels: Record<string, string> = {
-        wealth:    "I want to start building wealth",
-        debt:      "I'm carrying debt I want to clear",
-        planning:  "I'm planning for something specific",
-        free_text: "(see their own words below)",
-      };
-      const label = intent.struggleType ? struggleLabels[intent.struggleType] : null;
-      if (label) lines.push(`- At onboarding the user said: "${label}"`);
-      if (intent.text) lines.push(`- In their own words: "${intent.text}"`);
-    }
-    lines.push('');
-    lines.push('FRAME THE WOW MOMENT THROUGH THIS GOAL:');
-    lines.push('- Acknowledge the goal naturally inside the opening line — paraphrase, don\'t quote. Do NOT greet, welcome, or address the user by name. The opening is the observation, with the goal woven in.');
-    lines.push('- Then make the insight land *against* that goal. The leverage is in their day-to-day pattern — what\'s flowing where, and whether it\'s aligned with what they came here for.');
-    lines.push('- Pick ONE specific number from the QUOTABLE FACTS list and tie it to the goal. Specifics over abstractions.');
-    if (payload.userIntent.struggleType === 'wealth' ||
-        (payload.userIntent.text ?? '').toLowerCase().includes('wealth') ||
-        (payload.userIntent.text ?? '').toLowerCase().includes('grow')) {
-      lines.push('- Wealth-building framing: "If we\'re going to actually move toward this, the leverage is in your day-to-day spending — what\'s flowing where, and whether it\'s aligned with what matters."');
-    } else if (payload.userIntent.struggleType === 'debt') {
-      lines.push('- Debt framing: clearing it faster comes down to surplus — what\'s left after fixed costs. Point at where surplus could come from in their pattern.');
-    } else if (payload.userIntent.struggleType === 'planning') {
-      lines.push('- Planning framing: to get there, they need a clear picture of what\'s leaving the account each month. The pattern below is that picture.');
-    }
-    lines.push('');
-  }
-  // Quotable facts — the ONLY strings containing numbers or merchant names
-  // the LLM is permitted to cite. The post-LLM validator rejects narratives
-  // containing any other number >= 10 or any other merchant name.
-  const quotableFacts = buildQuotableFacts(payload);
-  lines.push('### QUOTABLE FACTS — the only numbers/merchants you may cite');
-  lines.push('Each line is a phrase you may echo verbatim in your narrative.');
-  lines.push('You may NOT cite any other number >= 10 or any other merchant name.');
-  lines.push('If you want to mention a figure that is not listed here, rephrase without the figure.');
-  for (const f of quotableFacts) {
-    lines.push(`- "${f.text}"`);
-  }
-  lines.push('');
-
-  if (selectedCapabilities && selectedCapabilities.length > 0) {
-    const focuses = selectedCapabilities
-      .map((id) => CAPABILITY_FOCUS[id])
-      .filter(Boolean)
-    if (focuses.length > 0) {
-      lines.push('### User focus areas (what they said they came for)')
-      lines.push('The user told us what they want from this product. Angle the insight and hook toward these goals:')
-      for (const f of focuses) lines.push(`- ${f}`)
-      lines.push('Do not mention these focus areas by name. Just let them shape what you emphasise and where the hook lands.')
-      lines.push('')
-    }
-  }
-
-  lines.push('### Patterns to narrate (in this order)');
-  lines.push('For each pattern below, follow the instruction. Weave the quotable facts above into prose.');
-  const layerOrder = ['headline', 'gap', 'numbers', 'hidden_pattern', 'action', 'hook'] as const;
-  const seenPatternIds = new Set<string>();
-  for (const layer of layerOrder) {
-    const pattern = payload.layers[layer];
-    if (!pattern) continue;
-    // A pattern can appear in both hidden_pattern and action (for the experiment
-    // frame). Narrate each pattern's observation only once.
-    if (seenPatternIds.has(pattern.id) && layer === 'action') continue;
-    seenPatternIds.add(pattern.id);
-    lines.push('');
-    lines.push(`#### ${layer.toUpperCase()}`);
-    lines.push(`Pattern: ${pattern.id}`);
-    lines.push(`Instruction: ${pattern.narrative_prompt}`);
-  }
-
-  // Experiment proposal — the closing beat of first insight. The system has
-  // scored the catalog against the detected patterns and the user's active
-  // goal. Claude proposes ONE experiment and asks via [OPTIONS]. Accept goes
-  // through propose_catalog_experiment → accept_experiment.
-  const proposal = payload.experiment_proposal;
-  if (proposal?.primary) {
-    const p = proposal.primary;
-    lines.push('');
-    lines.push('#### EXPERIMENT PROPOSAL (REQUIRED closing beat)');
-    lines.push(`- Template id: ${p.template_id}`);
-    lines.push(`- Source pattern: ${p.source_pattern_id}`);
-    lines.push(`- Proposed title: ${p.title}`);
-    lines.push(`- Hypothesis (paraphrase, don't quote): ${p.hypothesis}`);
-    lines.push(`- Success criterion: ${p.success_criterion}`);
-    lines.push(`- Duration: ${p.duration_days} day${p.duration_days === 1 ? '' : 's'}`);
-    if (proposal.alternatives.length > 0) {
-      const alt = proposal.alternatives.map((a) => `${a.template_id}`).join(', ');
-      lines.push(`- Alternatives if user wants a different one: ${alt}`);
-    }
-    if (!proposal.capacity.allowed) {
-      lines.push(`- CAPACITY: user already has ${proposal.capacity.activeCount}/${proposal.capacity.limit} active experiments. Mention the proposal but do NOT pressure for acceptance — finish their current experiments first.`);
-    }
-    lines.push('');
-    lines.push('EXPERIMENT RULES:');
-    lines.push('- Close the message with ONE sentence framing the proposed experiment using the title.');
-    lines.push('- State the success criterion plainly.');
-    lines.push('- Then emit the OPTIONS block exactly:');
-    lines.push('  [OPTIONS]');
-    lines.push("  - Yes, let's try it");
-    lines.push('  - Pick a different one');
-    lines.push('  - Not right now');
-    lines.push('  [/OPTIONS]');
-    lines.push('- When the user accepts: call `propose_catalog_experiment` with this template_id, then `accept_experiment`.');
-    lines.push('- When the user picks a different one: present the next alternative without re-explaining the rationale.');
-    lines.push('- When the user declines: do NOT push. Move on naturally.');
-    lines.push('- Vocabulary: "experiment" only. Never "challenge", "task", "habit".');
-    lines.push('- Never use the words "advice" or "advise" — say "suggestion", "nudge", or just what you\'d do.');
-  }
-  lines.push('');
-  lines.push('#### STAT CARDS');
-  lines.push('Emit exactly one [STATS]...[/STATS] block containing these three cards, in this order.');
-  lines.push('Use this literal format (one card per line, label pipe value):');
-  lines.push('[STATS]');
-  for (const card of payload.statCards) {
-    lines.push(`${card.label} | ${card.value}`);
-  }
-  lines.push('[/STATS]');
-  lines.push('');
-  lines.push('#### HOOK');
-  lines.push(payload.hook.prompt_for_claude);
-  lines.push('');
-  lines.push('#### SUGGESTED RESPONSES');
-  lines.push('End the message with an [OPTIONS]...[/OPTIONS] block containing exactly these three responses:');
-  for (const s of payload.suggestedResponses) lines.push(`- ${s}`);
-  lines.push('');
-  lines.push('#### NOT AVAILABLE — do not reference');
-  const planningTransform = getTransformPosture(profile) === 'planning';
-  // Surface the variable-income caveat whenever the income pattern was detected
-  // as variable — NOT only when posture resolved to 'planning'. Posture often
-  // comes back 'unknown' (low confidence / no runway) even though income is
-  // clearly variable, which previously suppressed the caveat and let the CFO
-  // treat irregular income as a flat monthly salary.
-  const incomeIsVariable = profile?.income_shape === 'variable';
-  if (planningTransform || incomeIsVariable) {
-    lines.push('- Income is VARIABLE — never call any figure "your monthly income". If t3m_income_monthly is available you may cite it as "trailing-3-month income" and note that income swings month to month.');
-  } else {
-    lines.push('- Income amount (even if income_detected pattern present, NEVER cite the number)');
-  }
-  lines.push('- Savings rate (requires income)');
-  lines.push('- Surplus/deficit (requires income)');
-  lines.push('- Any percentage "of income" (requires income)');
-  if (!payload.userIntent) {
-    lines.push('- Goals (not collected yet)');
-  }
-  lines.push('- Age, employment status, housing type (not collected yet)');
-  lines.push('- Whether spending is "sustainable" (requires income)');
-  return lines.join('\n');
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // V2 first-insight context (Session v2.2 Chat Intelligence)
 //
-// Brief-first prompt. Instead of pre-narrating quotable facts, the system
+// Brief-first prompt. Instead of pre-narrating computed facts, the system
 // hands the LLM a thin user brief + Value Map + memory surface and tells it
 // to form a hypothesis, call 1–3 detective tools, and write ONE specific
-// observation. Cohort-flag-gated; v1 path remains untouched for non-cohort
-// users (see `isChatIntelligenceV2Enabled`).
+// observation.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type BriefProfile = {
@@ -827,10 +492,10 @@ function buildGoalDeriveConfirmContext(
       '',
       hasGoal
         ? 'You have their goal. The next move is their transactions — the system is about to route them to the upload screen.'
-        : 'The user is taking a moment to decide on a goal. That is fine — say so briefly. The next move is their transactions; the system will route them to upload.',
+        : 'The user would rather just see where their money goes for now than set a goal — a perfectly good place to start. Acknowledge that warmly and briefly. The next move is their transactions; the system will route them to upload.',
       '',
       'In one short message (2–3 sentences):',
-      '- Acknowledge what you have (or that a goal can wait).',
+      '- Acknowledge what you have (or that they want to see where their money goes first — that is fine).',
       '- Say you are about to look at their numbers so the picture gets specific.',
       '',
       'Do NOT call any tools. Do NOT ask for income, rent, or any other number — those are collected on the next screen, not here. Do NOT ask another question. Do NOT tell the user to upload anything or that there is an upload button here — the system moves them to the upload screen automatically.',
@@ -892,11 +557,29 @@ function buildGoalDeriveConfirmContext(
     '- `current_amount`: the starting amount the user told you',
     '- `description`: a short clarifying sentence if useful',
     '',
+    'For a debt-clearing goal, `target_amount` is the balance on the debt today (e.g. what is on the card). The system records that balance on the balance sheet automatically when the goal is created — so treat the card/loan balance as captured. Do NOT re-ask for it in a later turn; if you later need to size a payoff, ask only for the APR and the monthly payment, not the balance.',
+    '',
     'Do not call `create_goal` speculatively. One goal per onboarding.',
     '',
-    "### When the user can't articulate a goal",
+    "### If the user stays vague — propose, don't give up",
     '',
-    "If the user truly cannot articulate a target after one clarifying question (most likely with `dont_know`), do not force one. Acknowledge briefly — e.g. \"That's fine — let's get visibility first, then come back to this once we can see your money moving.\" — and stop. Do NOT ask for any numbers; do NOT call request_structured_input. The system will route the user to the upload screen on its own; your job here is just to acknowledge and stop. There is NO upload control on this screen: never tell the user to upload anything here, to drag in a statement, or that an upload button is below the chat — the system takes them to the upload screen automatically.",
+    "If after ONE clarifying question the user still hasn't named a target (most likely with `planning` or `dont_know`), do NOT abandon the goal. Propose a concrete, specific starter goal yourself — tailored to why they came in — and present it as a starting point they can accept or adjust, not a fixed decision. Use the same draft shape:",
+    '',
+    '> **[Goal title]** — [amount in their currency] by [target date].',
+    "> A starting point — change the number or date if you have one in mind, then confirm to set it.",
+    '',
+    'Tailor the proposal to their reason for coming in:',
+    "- `planning` — ask once what they are planning for, then propose a round starter target for it (a trip, a deposit) with a sensible date. If they will not name the thing, propose a general savings target.",
+    "- `debt` — propose a payoff goal anchored on what they owe today: ask \"what's on the card right now?\" and make that balance the target.",
+    "- `wealth` — propose a first milestone, e.g. a 12-month savings or investing target they can build from.",
+    "- `dont_know` — propose a small starter buffer, e.g. \"let's set a £500 starter buffer as your first target — once we can see your spending we'll sharpen it.\"",
+    '- otherwise — propose the best fit of the above from what they have said.',
+    '',
+    'Keep it concrete (a real number and date), modest, and clearly adjustable. Make ONE proposal — do not stack options. On confirm, call `create_goal` as above.',
+    '',
+    '### If they decline — they want visibility, and that is fine',
+    '',
+    "If the user turns down your proposal or says they just want to see where their money goes, take it at face value: for now they are here to explore and understand their spending. Acknowledge it warmly as a good place to start — e.g. \"No problem — sounds like you mainly want to see where your money goes for now. That's a solid place to start; you can set a target the moment one clicks.\" — then stop. Do NOT force a goal, do NOT ask for any numbers, do NOT call request_structured_input. The system routes the user to the upload screen automatically; there is NO upload control here, so never tell them to upload anything or that a button is below the chat.",
     '',
     '### After create_goal succeeds',
     '',
@@ -954,7 +637,6 @@ export async function buildWhyBeatContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   conversationMetadata?: Record<string, any> | null,
 ): Promise<string> {
-  if (!isLayeredReadEnabled()) return '';
   if (conversationType !== 'first_read') return '';
   // The recompose must have been delivered, and the beat not yet offered.
   if (!conversationMetadata?.first_read_metadata_recomposed) return '';
@@ -1133,22 +815,13 @@ export async function buildSystemPrompt(
     return sections.join('\n\n---\n\n');
   }
 
-  // First Insight mode: when a first_insight_payload is attached, the system
-  // has deterministically computed everything Claude is allowed to say. We
-  // suppress any section that would leak income, surplus, goals, portrait
-  // traits, benchmarks, etc. — the payload is the sole source of truth.
-  //
-  // V2 (Session v2.2 Chat Intelligence) cohort users take a different
-  // branch: brief + tools + memory surface instead of pre-computed
-  // narration. Gated by isChatIntelligenceV2Enabled(profile). The v2 path
-  // does NOT require first_insight_payload to be present — the LLM forms
-  // its hypothesis from the brief and pulls numbers via the 10 tools.
-  const firstInsightPayload = conversationMetadata?.first_insight_payload as InsightPayload | undefined;
+  // First Insight mode (Session v2.2 Chat Intelligence): brief + tools +
+  // memory surface. The LLM forms its hypothesis from the brief and pulls
+  // numbers via the detective tools.
   const conversationIsFirstInsight =
     conversationType === 'first_read' || conversationType === 'post_upload';
-  const v2Enabled = isChatIntelligenceV2Enabled(profile);
 
-  if (conversationIsFirstInsight && v2Enabled) {
+  if (conversationIsFirstInsight) {
     // V2 brief assembly. Fetch the extras the brief needs (value_map_results
     // for per-quadrant labels, transaction window stats). Done sequentially
     // after the parallel block so the v1 path is unaffected.
@@ -1260,19 +933,11 @@ export async function buildSystemPrompt(
       // off. Empty unless this is a delivered-recompose first_read thread with a
       // significant ambiguous merchant and the beat not yet offered.
       await buildWhyBeatContext(userId, conversationType, conversationMetadata),
-      buildToolUsageInstructions(),
-      getPosturePromptFragment(profile),
-    ].filter(Boolean);
-
-    return sections.join('\n\n---\n\n');
-  }
-
-  if (conversationIsFirstInsight && firstInsightPayload) {
-    const sections = [
-      BASE_PERSONA + styleModifier,
-      buildCurrentDateContext(),
-      buildFirstInsightContext(firstInsightPayload, undefined, profile),
-      await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
+      // Active goals + the no-goal guardrail. Previously omitted from the
+      // first_read branch, which left the CFO blind to a goal it had just
+      // created in the goal-chat — it denied the wedding goal and called the
+      // wrong tools. Same data + call signature as the general branch below.
+      buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
       buildToolUsageInstructions(),
       getPosturePromptFragment(profile),
     ].filter(Boolean);
@@ -1333,7 +998,7 @@ export async function buildSystemPrompt(
     buildTripsContext(dedupedTrips, profile),
     experimentContext,
     buildToolUsageInstructions(),
-    isLayeredReadEnabled() ? buildLayeredReadInstructions() : '',
+    buildLayeredReadInstructions(),
     valueMappingContext,
     valueCheckinNudge,
     retakeSuggestion,
@@ -1345,7 +1010,7 @@ export async function buildSystemPrompt(
   return sections.join('\n\n---\n\n');
 }
 
-// Session 32 (A) — Layered Read instructions. Gated by isLayeredReadEnabled().
+// Session 32 (A) — Layered Read instructions.
 // Active on deploys of session-32/the-read and local with LAYERED_READ_LOCAL_OVERRIDE=true.
 // Strengthened in Session 32 (B) to make tool invocation mandatory rather than advisory.
 // Removed in Session D when the layered model becomes default.
@@ -2170,6 +1835,7 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **get_action_items**: "What's on my to-do list?" or "What should I be working on?"
 - **create_action_item**: When a conversation produces a concrete next step. Always confirm with the user before creating.
 - **create_goal**: "I want to save for X" / "Set a goal to save €Y" / any non-event savings target (emergency fund, house deposit, big purchase, etc.). Confirm goal name, target amount, and optional deadline with the user, then call. For trips, weddings, gifts, or other time-bound events, use plan_event instead.
+- **compute_goal_pace**: "Am I on track for [goal]?" / "How much a month for the wedding?" / "How long will it take?" — returns the monthly amount needed, months remaining, and on-track status from the system. Omit goal_id to use the user's primary active goal (you do NOT need a UUID). NEVER tell the user a goal doesn't exist without first calling this or checking the "Active goals" section — they may have set it earlier in the same flow.
 - **model_scenario**: "What if I got a raise?" / "What if I cut dining by 30%?" / "What would a mortgage look like?" / "What if I had kids?" / "What if I changed careers?" / "How would my investments grow?" All 6 scenario types are available. All calculations are server-side.
 - **plan_event**: "Help me plan a trip" / "I need to budget for my sister's wedding" / "I want to plan a gift for X" — create a budget, funding plan, and savings goal for any time-bound spending occasion. Pass kind (travel | celebration | gift | other) to disambiguate. Call this AFTER collecting destination/occasion, dates, style, and companions, and AFTER researching real costs. All funding calculations are server-side.
 - **analyse_gap**: "How does my spending compare to what I said I value?" The Gap analysis between Value Map perception and actual spending.
@@ -2560,37 +2226,10 @@ Available scenario types:
 Ask enough to fill the required params, then call model_scenario. Present the numbers clearly, then give your honest take on whether it makes sense given their situation. For investment_growth, plan on the 7% annual-return default and say in one line where it comes from — the moderate long-run average a broadly diversified portfolio has returned over long horizons, an assumption not a promise. You may show a 4%/10% sensitivity, but lock 7% as the working number rather than leaving the user with an unanchored band. Always mention the impact on their active goals if any exist.`;
 
     case 'first_read':
-    case 'post_upload': {
-      const payload = metadata?.first_insight_payload as InsightPayload | undefined;
-      if (!payload) {
-        // Legacy fallback: rows without a payload (pre-First-Insight-Engine
-        // conversations) still render using the original post-upload prompt.
-        return buildPostUploadPrompt(metadata, snapshots, profile);
-      }
-      return `## Conversation type: First insight
-
-This is your first real conversation with this user after they uploaded transactions.
-${payload.hasValueMap ? 'They have completed the Value Map.' : 'They have NOT done the Value Map.'}
-
-Your goals:
-1. Open with "Right." — you've done the reading, now you're giving your take.
-2. Narrate ONLY the patterns in the First Insight Data section above.
-3. Use actual numbers from the data. Never round aggressively (€1,935 not "about €2,000").
-4. Deliver each layer as a separate thought — the frontend renders these as separate chat bubbles.
-5. Emit the [STATS]...[/STATS] block exactly once, between the numbers layer and the hidden_pattern layer.
-6. End with the hook, then an [OPTIONS]...[/OPTIONS] block with the three suggested responses.
-
-Structure: headline → gap (or spending shape if no VM) → numbers + [STATS] → hidden pattern → one action → hook → [OPTIONS]
-
-Tone:
-- Direct, honest, not preachy.
-- Observe and interpret — don't lecture.
-- If discipline score > 70: lead with recognition; partner tone.
-- Name patterns without judgement ("you shop at 22 stores" not "too many stores").
-- The action must be specific and quantified where possible.
-
-CRITICAL: Do not mention, reference, imply, or compute anything involving income, savings rate, surplus, affordability, or sustainability. You do not have this data. The hook creates the desire to share income — but you must not pretend you already have it.`;
-    }
+    case 'post_upload':
+      // Layered first_read conversations carry composition metadata, not a
+      // pre-computed payload — the post-upload prompt covers both.
+      return buildPostUploadPrompt(metadata, snapshots, profile);
 
     case 'value_map_complete':
       return buildValueMapCompletePrompt(metadata, snapshots, profile);
@@ -2948,6 +2587,32 @@ HARD RULES:
   const completeness = Number(profile?.profile_completeness ?? 0)
   const addressName = firstName ?? 'them'
 
+  // Only ask for Day-0 basics that aren't already on file. Onboarding captures
+  // income / housing / rent up front, so re-asking them here reads as "did it
+  // even save?" — the single biggest trust hit (see test-user notes). Build the
+  // ask-list dynamically from what's actually missing.
+  const incomeKnown = profile?.net_monthly_income != null && profile?.net_monthly_income !== ''
+  const housingKnown = !!profile?.housing_type
+  const rentKnown = profile?.monthly_rent != null && profile?.monthly_rent !== ''
+  const basicsQuestions: string[] = []
+  if (!incomeKnown) {
+    basicsQuestions.push('field: "net_monthly_income", input_type: "currency_amount", label: "What\'s your monthly take-home pay?", rationale: "Needed to tell whether the spending patterns are sustainable"')
+  }
+  if (!housingKnown) {
+    basicsQuestions.push('field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What\'s your housing situation?", rationale: "Housing is usually the biggest lever — needed for meaningful benchmarks"')
+  }
+  if (!rentKnown) {
+    basicsQuestions.push('field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "Compared against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}')
+  }
+  const numberedBasics = basicsQuestions.map((q, i) => `  ${i + 1}. ${q}`).join('\n')
+  const phase2AgreeInstr = basicsQuestions.length === 0
+    ? `- The Day-0 basics (income, housing, rent) are ALREADY on file — do NOT ask for any of them again; re-asking reads as "it didn't save". Acknowledge in one line that the essentials are already captured, then either ask ONE question that is NOT income/housing/rent, or close warmly.`
+    : `- IMMEDIATELY call request_structured_input. Do NOT output any text before the tool call — the form renders inline and contains its own label/rationale. No preamble like "Great. First one:" — just call the tool.
+- Ask ONLY the question(s) below, ONE at a time. Everything else is already on file — NEVER ask for income, housing, or rent that isn't explicitly listed here:
+${numberedBasics}
+- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
+- Confirm before moving on by quoting the value the user just submitted (e.g. "Noted — sound right?"). Then call the next tool immediately.`
+
   prompt += `
 ### USE COUNTRY BENCHMARKS IN THE FIRST INSIGHT
 
@@ -2983,13 +2648,7 @@ Once you've delivered the first insight and the user has reacted (any response),
 "${addressName}, to sharpen the guidance from generic to actually useful, a few questions about your situation will be needed over time. Right now your CFO profile is at about ${completeness}% — enough to spot patterns, not enough for a real strategy. Fill in a few basics now, or do it as we go?"
 
 If they agree (any affirmative — "sure", "go ahead", "let's do it", "let's do a few now", "yes", "ok"):
-- IMMEDIATELY call request_structured_input. Do NOT output any text before the tool call — the form renders inline and contains its own label/rationale. No preamble like "Great. First one:" — just call the tool.
-- Ask up to 3 questions, ONE at a time:
-  1. field: "net_monthly_income", input_type: "currency_amount", label: "What's your monthly take-home pay?", rationale: "Needed to tell whether the spending patterns are sustainable"
-  2. field: "housing_type", input_type: "single_select", options: [Renting, Mortgage, Own outright, Living with family], label: "What's your housing situation?", rationale: "Housing is usually the biggest lever — needed for meaningful benchmarks"
-  3. field: "monthly_rent", input_type: "currency_amount", label: "How much do you pay per month?", rationale: "Compared against typical costs for your area" — ONLY ask if housing_type ∈ {Renting, Mortgage}
-- After each answer is submitted, give a one-line acknowledgement. If a country benchmark for that field exists in your context, reference it without inventing numbers — never quote a figure that isn't in the user's data or the benchmark fields you've been given.
-- Confirm before moving on by quoting the value the user just submitted (e.g. "Noted — sound right?"). Then call the next tool immediately.
+${phase2AgreeInstr}
 
 If they defer ("over time" / "later" / "not now"):
 - Respect it. Do NOT push further in this conversation. The profiling engine picks up future questions across sessions.

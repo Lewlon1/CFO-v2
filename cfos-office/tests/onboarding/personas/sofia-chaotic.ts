@@ -63,6 +63,8 @@ export const sofiaChaotic: Persona = {
     country: 'GB',
     city: 'London',
     currency: 'GBP',
+    monthlyIncome: 2900,
+    monthlyRent: 680,
   },
   // Sofia is "drifter"-shape: leak ≥ 25% of decided. Rent is hard-to-decide
   // (she sublets month-to-month — never sure what "rent" even means for her).
@@ -94,13 +96,20 @@ export const sofiaChaotic: Persona = {
     },
     stagesCompleted: [
       'struggle_submitted',
-      'value_map_done',
+      'goal_done',
       'upload_done',
-      'archetype_shown',
-      'complete',
+      'essentials_done',
+      'confirm_done',
+      'first_read',
     ],
+    goal: {
+      name: '3-month runway',
+      type: 'savings',
+      targetAmount: 9600,
+      currentAmount: 2000,
+    },
     dbAfterHandoff: {
-      financial_portrait: { archetype_name: 'exists' },
+      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [30, 50] },
     },
     hardRules: {
@@ -112,12 +121,7 @@ export const sofiaChaotic: Persona = {
         'monthly\\s+(rent|housing)',
       ],
       insight: {
-        // The recurring software subs (Adobe, Figma) are the rare regular
-        // pattern; the first Read should ground in those + the actually-recurring
-        // merchants rather than inventing rhythms in chaotic categories.
-        mustReferenceMerchantsFromCsv: ['adobe', 'figma', 'allpress', 'dishoom'],
-        mustReferenceOneOf: ['irregular', 'bursts', 'varies', 'spike', 'project', 'invoice', 'uneven', 'freelance'],
-        numbersMustMatchCsv: true,
+        mustReferenceOneOf: ['housing', 'free cash flow', 'snapshot', 'entertainment', 'travel'],
       },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],

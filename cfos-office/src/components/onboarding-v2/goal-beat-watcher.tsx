@@ -42,7 +42,7 @@ export function GoalBeatWatcher({
   const openedRef = useRef(false)
 
   // Active for the goal-derive beat AND the tentative state the chat route's
-  // stall handler advances to after 5 turns without a goal — both still need
+  // stall handler advances to after 7 turns without a goal — both still need
   // essentials collection, both should advance to upload once income+rent land.
   const isActive =
     onboardingStep === 'goal_chat_started' ||
@@ -66,7 +66,7 @@ export function GoalBeatWatcher({
 
   // Surface the skip control after 90 seconds for Marcus users from the start,
   // and immediately for anyone who has hit the tentative-stall state (the
-  // chat-route stall handler advances to `goal_chat_tentative` after 5 turns
+  // chat-route stall handler advances to `goal_chat_tentative` after 7 turns
   // without a goal). Either signal means the user is stuck on goal-picking
   // and should be able to move to upload.
   useEffect(() => {
@@ -103,12 +103,11 @@ export function GoalBeatWatcher({
       completedRef.current = true
       startTransition(async () => {
         try {
-          const { redirectTo } = await completeGoalBeat()
-          if (redirectTo) {
-            router.push(redirectTo)
-          } else {
-            router.refresh()
-          }
+          // Goal landed → upload_pending. The upload beat now runs in-sheet
+          // (OnboardingBeatHost), so stay in /office and refresh rather than
+          // routing to the (now redirect-only) /onboarding-v2/upload page.
+          await completeGoalBeat()
+          router.refresh()
         } catch (err) {
           console.error('[GoalBeatWatcher] completeGoalBeat failed', err)
           completedRef.current = false
@@ -154,12 +153,9 @@ export function GoalBeatWatcher({
     completedRef.current = true
     startTransition(async () => {
       try {
-        const { redirectTo } = await skipGoalBeat()
-        if (redirectTo) {
-          router.push(redirectTo)
-        } else {
-          router.refresh()
-        }
+        // Same in-sheet hand-off as completeGoalBeat — stay in /office.
+        await skipGoalBeat()
+        router.refresh()
       } catch (err) {
         console.error('[GoalBeatWatcher] skipGoalBeat failed', err)
         completedRef.current = false

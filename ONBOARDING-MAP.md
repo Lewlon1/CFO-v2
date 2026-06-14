@@ -11,9 +11,11 @@ SESSION-LOG entry for this session). Integration verified: `tsc --noEmit` clean,
 927 unit tests green.
 
 **Scope note:** This is a *map*, not a refactor. No onboarding source was rewritten.
-The current default flow is the **value-first layered Read** (`isLayeredReadEnabled()`
-returns true unless `LAYERED_READ_DISABLED=true`). The legacy pre-layered path is
-documented where it still exists but is flagged as rollback-only.
+The current flow is the **value-first layered Read** — since the 2026-06-10
+legacy removal it is unconditional (the `LAYERED_READ_DISABLED` kill-switch and
+the pre-layered path no longer exist). Legacy-path references below this point
+describe code that has since been deleted; the archetype surface survives for
+users stamped mid-flow on the old surface.
 
 ---
 

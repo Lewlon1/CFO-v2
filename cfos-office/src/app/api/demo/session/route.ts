@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { checkRateLimit, ipRateLimitKey } from '@/lib/chat/rate-limit'
 
 // ── POST — Batch save session + question responses ──────────────────────────
 
 export async function POST(request: Request) {
   try {
+    const limit = await checkRateLimit(ipRateLimitKey(request, 'demo-session'), {
+      limit: 30,
+      windowMs: 10 * 60_000,
+    })
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
+
     const body = await request.json()
 
     const {
@@ -110,12 +119,23 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json()
-    const { session_id, ai_response_rating, ai_response_shown, waitlist_joined } = body
+    const limit = await checkRateLimit(ipRateLimitKey(request, 'demo-session'), {
+      limit: 30,
+      windowMs: 10 * 60_000,
+    })
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
-    if (!session_id) {
+    const body = await request.json()
+    const { session_token, ai_response_rating, waitlist_joined } = body
+
+    // Authorise the write by the secret token the client holds, not the
+    // enumerable row id. The reading endpoint owns `ai_response_shown`, so it is
+    // not a client-settable field here.
+    if (!session_token) {
       return NextResponse.json(
-        { error: 'session_id is required' },
+        { error: 'session_token is required' },
         { status: 400 }
       )
     }
@@ -124,7 +144,6 @@ export async function PATCH(request: Request) {
 
     const update: Record<string, unknown> = {}
     if (ai_response_rating !== undefined) update.ai_response_rating = ai_response_rating
-    if (ai_response_shown !== undefined) update.ai_response_shown = ai_response_shown
     if (waitlist_joined !== undefined) update.waitlist_joined = waitlist_joined
 
     if (Object.keys(update).length === 0) {
@@ -137,7 +156,7 @@ export async function PATCH(request: Request) {
     const { error } = await supabase
       .from('demo_sessions')
       .update(update)
-      .eq('id', session_id)
+      .eq('session_token', session_token)
 
     if (error) {
       console.error('Demo session update error:', error)

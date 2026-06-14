@@ -1,5 +1,46 @@
 import { describe, it, expect } from 'vitest'
-import { formatMoney, moneySymbol } from './money'
+import { formatMoney, moneySymbol, sanitizeMoneyInput, parseMoneyInput } from './money'
+
+describe('sanitizeMoneyInput', () => {
+  it('strips leading zeros but keeps a single zero', () => {
+    expect(sanitizeMoneyInput('05200')).toBe('5200')
+    expect(sanitizeMoneyInput('00123')).toBe('123')
+    expect(sanitizeMoneyInput('0')).toBe('0')
+    expect(sanitizeMoneyInput('')).toBe('')
+  })
+
+  it('strips thousands separators (commas/spaces) — the 5200 case', () => {
+    expect(sanitizeMoneyInput('5,200')).toBe('5200')
+    expect(sanitizeMoneyInput('5 200')).toBe('5200')
+    expect(sanitizeMoneyInput('$5,200')).toBe('5200')
+  })
+
+  it('keeps only the first decimal point (no "5.200" → 5.2 corruption path)', () => {
+    // A user typing what they mean as 5,200 with a dot separator no longer
+    // collapses to 5.2 — only digits survive once separators are removed.
+    expect(sanitizeMoneyInput('5.2.0')).toBe('5.20')
+    expect(sanitizeMoneyInput('12.34')).toBe('12.34')
+  })
+
+  it('normalises a bare leading dot', () => {
+    expect(sanitizeMoneyInput('.5')).toBe('0.5')
+  })
+})
+
+describe('parseMoneyInput', () => {
+  it('parses sanitised values to numbers', () => {
+    expect(parseMoneyInput('5,200')).toBe(5200)
+    expect(parseMoneyInput('05200')).toBe(5200)
+    expect(parseMoneyInput('950')).toBe(950)
+    expect(parseMoneyInput('12.34')).toBe(12.34)
+  })
+
+  it('returns null for empty or non-numeric input', () => {
+    expect(parseMoneyInput('')).toBeNull()
+    expect(parseMoneyInput('.')).toBeNull()
+    expect(parseMoneyInput('abc')).toBeNull()
+  })
+})
 
 describe('moneySymbol', () => {
   it('returns symbol for known currencies', () => {

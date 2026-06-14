@@ -6,7 +6,7 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ## Coaching Cadence (2026-06-02) — deferrals
 
-- **Legacy first-insight de-stack.** The `InsightPayload` first-insight path (`context-builder.ts` ~292/552/623) mandates a REQUIRED experiment closing beat stacked with headline→gap→`[STATS]`→hidden-pattern→hook→`[OPTIONS]`→experiment — a lot of concepts in one message. It's gated behind `!isLayeredReadEnabled()`, so it's NOT on the live value-first flow (which composes via `compose-first-read.ts`). Apply the guiding cadence (one concept at a time, no forced beat) there only if that legacy path is revived; otherwise it ages out when the layered-read kill-switch is removed.
+- ~~**Legacy first-insight de-stack.**~~ Resolved by deletion — the `InsightPayload` first-insight path was removed with the layered-read kill-switch (2026-06-10); the live flow composes via `compose-first-read.ts`.
 - **Automated coaching behavioural-eval cases.** The guiding principle is verified by prompt-content unit tests (changes locked) + a human-review checklist (behavioural sign-off). Genuine behavioural eval cases — one-topic-per-turn, tie-to-goal, mechanism-matches-claim, no-forced-menu — belong in the `scripts/test-prompts.ts` §9 harness, but they assert on live model output and can't be calibrated without Bedrock creds. Author + calibrate them in a creds-enabled session.
 - **"Coaching" vs "guiding" terminology (Constitution §1).** The behaviour shipped under "How the CFO guides" because §1 lists "not a coach" (cheerleader sense). If the product wants "coaching" as the official term, amend §1's "not a coach" → "not a cheerleader/life-coach" and rename the §6 subsection + BASE_PERSONA section to match. Cosmetic, but it's identity-level wording — a deliberate call, not a silent rename.
 
@@ -42,7 +42,7 @@ Verified in Audit Zero but intentionally not actioned this session (protected fi
 - **`benchmarks` vs `benchmark_reference`** — possible redundancy; confirm which is canonical.
 - **`@types/pdf-parse`** — knip-unused devDep; verify `tsc` without it before removing.
 - **`proxy.ts` `protectedPaths`** — legacy route names, omits `/office` (vestigial; office gated by the `(office)` layout).
-- **Layered-read legacy path** — `!isLayeredReadEnabled()` branches + `computeFirstInsight`; retained kill-switch rollback, remove once proven in prod.
+- ~~**Layered-read legacy path**~~ — removed 2026-06-10 (`docs/decisions/2026-06-10-legacy-onboarding-removal-plan.md`): flag, `!isLayeredReadEnabled()` branches, `computeFirstInsight`/`insight-engine`, V1 narration path, `chat-intelligence-v2` gate.
 - **~10–15 genuinely-uncalled exports** (`predictValueCategory`, `estimateCostUSD`, `templatesForPattern`, `findAction`, …) — un-export or remove.
 - **Migration registry/file drift** — 86 applied vs 069 numbered files; staging ahead of prod.
 - **Prod row cleanup** (Lewis runs the guarded SQL): drop `savings_tips` (18) + `third_party_data_flows` (3); delete test users `lewis@test.com` + `gsbs@test.com`. See `cfos-office/supabase/migrations/prod-backfill-070_audit_zero_cleanup.sql`.

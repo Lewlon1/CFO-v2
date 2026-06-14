@@ -589,6 +589,8 @@ export type Database = {
         Row: {
           ai_response_rating: number | null
           ai_response_shown: string | null
+          claimed_at: string | null
+          claimed_by_user_id: string | null
           created_at: string | null
           device_type: string | null
           drop_off_at: string | null
@@ -608,6 +610,8 @@ export type Database = {
         Insert: {
           ai_response_rating?: number | null
           ai_response_shown?: string | null
+          claimed_at?: string | null
+          claimed_by_user_id?: string | null
           created_at?: string | null
           device_type?: string | null
           drop_off_at?: string | null
@@ -627,6 +631,8 @@ export type Database = {
         Update: {
           ai_response_rating?: number | null
           ai_response_shown?: string | null
+          claimed_at?: string | null
+          claimed_by_user_id?: string | null
           created_at?: string | null
           device_type?: string | null
           drop_off_at?: string | null
