@@ -19,4 +19,17 @@ describe('buildDeclaredFacts', () => {
     expect(facts.goalName).toBeNull()
     expect(facts.percentOfIncome).toBeNull()
   })
+  it('floors free cash at zero when fixed costs exceed income', () => {
+    const facts = buildDeclaredFacts({ income: 1000, totalFixedCosts: 1500, goal: null, currency: 'GBP' })
+    expect(facts.freeCash).toBe(0)
+  })
+  it('returns null percentOfIncome when income is zero (no divide-by-zero)', () => {
+    const facts = buildDeclaredFacts({
+      income: 0,
+      totalFixedCosts: 0,
+      goal: { name: 'X', monthlyRequiredSaving: 100 },
+      currency: 'GBP',
+    })
+    expect(facts.percentOfIncome).toBeNull()
+  })
 })

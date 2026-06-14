@@ -56,6 +56,11 @@ const TOP_CLUSTER_LIMIT = 10;
 const MIN_DATA_COMPLETENESS = 0.3;
 const MAX_OUTPUT_TOKENS = 700;
 
+// The declared Read is 70–130 words (it stands on two numbers, not 90 days of
+// data), so it gets a tighter ceiling than the transaction Read — generous
+// enough to never truncate the CTA/sign-off, tight enough to cap a runaway.
+const DECLARED_MAX_OUTPUT_TOKENS = 400;
+
 const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
 
 export type ComposeFirstReadMode = 'default' | 'value_first' | 'value_first_recompose' | 'declared';
@@ -531,7 +536,7 @@ async function composeDeclaredRead(
     model: bedrock(COMPOSE_MODEL),
     system: FIRST_READ_SYSTEM_PROMPT_DECLARED,
     messages: [{ role: 'user', content: buildDeclaredUserPrompt(declaredFacts) }],
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    maxOutputTokens: DECLARED_MAX_OUTPUT_TOKENS,
     temperature: 0.5,
     abortSignal: AbortSignal.timeout(20_000),
   });
