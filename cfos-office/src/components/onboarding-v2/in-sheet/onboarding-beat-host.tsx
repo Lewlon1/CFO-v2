@@ -14,6 +14,9 @@ type Props = {
   step: OnboardingStep | null
   currency: string
   goal: OnboardingGoalSummary | null
+  /** True on the skip-upload path (no imported transactions). Consumed by the
+   *  essentials beat to skip the parse-wait. */
+  noImport?: boolean
 }
 
 /**

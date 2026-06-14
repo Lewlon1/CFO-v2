@@ -146,6 +146,20 @@ export default async function OfficeLayout({ children }: { children: React.React
     }
   }
 
+  // Cheap existence check: does the user have ANY imported transactions yet?
+  // Only needed during the in-sheet beats (drives the no-import skip path and,
+  // later, the progress meter), so we skip the query on ordinary office
+  // renders. During onboarding-before-any-upload this is unambiguously zero; a
+  // later upload flips it true and the declared numbers reconcile (plan G1).
+  let hasImport = true
+  if (onboardingBeatActive) {
+    const { count: txnCount } = await supabase
+      .from('transactions')
+      .select('id', { head: true, count: 'exact' })
+      .eq('user_id', user.id)
+    hasImport = (txnCount ?? 0) > 0
+  }
+
   // Once-per-session goal recompute. Runs fire-and-forget after the response
   // is sent so it never blocks render. 30-minute TTL gate (in recomputeIfStale)
   // is well within the "up to one session's staleness is acceptable"
@@ -204,6 +218,7 @@ export default async function OfficeLayout({ children }: { children: React.React
         onboardingStep={onboardingStep}
         needsEntryStruggle={needsEntryStruggle}
         onboardingGoal={onboardingGoal}
+        noImport={!hasImport}
       >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />

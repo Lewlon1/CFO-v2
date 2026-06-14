@@ -90,6 +90,9 @@ interface ChatContextValue {
   /** Active goal during the upload beat, threaded from the office layout so the
    *  bridge intro can acknowledge it by name. Null off-beat or on the skip path. */
   onboardingGoal: OnboardingGoalSummary | null
+  /** True when the user has no imported transactions yet (skip-upload path).
+   *  Threaded from the office layout; drives the no-import beat behaviour. */
+  noImport: boolean
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -125,9 +128,11 @@ interface ChatProviderProps {
   needsEntryStruggle?: boolean
   /** Active goal during the upload beat (see ChatContextValue). */
   onboardingGoal?: OnboardingGoalSummary | null
+  /** See ChatContextValue.noImport. */
+  noImport?: boolean
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -566,6 +571,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     onboardingStep,
     needsEntryStruggle,
     onboardingGoal,
+    noImport,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
