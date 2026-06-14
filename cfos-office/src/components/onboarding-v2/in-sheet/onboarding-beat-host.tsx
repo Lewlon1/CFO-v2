@@ -27,7 +27,7 @@ type Props = {
  * off reuses the proven ?chat=open&conversationId mechanism (ChatOpenerTrigger)
  * so the composed Read loads into the same sheet.
  */
-export function OnboardingBeatHost({ step, currency, goal }: Props) {
+export function OnboardingBeatHost({ step, currency, goal, noImport }: Props) {
   const router = useRouter()
   const { openSheet, loadConversation } = useChatContext()
   const readTriggeredRef = useRef(false)
@@ -136,6 +136,7 @@ export function OnboardingBeatHost({ step, currency, goal }: Props) {
         currency={currency}
         initialIncome={null}
         initialRent={null}
+        noImport={noImport}
         // ProcessingForm runs advanceToConfirm itself (→ details_pending); we
         // just refresh so the host advances to the confirm beat.
         onAdvance={() => router.refresh()}
