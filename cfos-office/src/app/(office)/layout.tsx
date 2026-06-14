@@ -163,8 +163,9 @@ export default async function OfficeLayout({ children }: { children: React.React
 
   // Progress meter for the essentials + confirm beats. hasFixedCosts keys off
   // monthly_rent (the canonical first fixed cost, persisted in the essentials
-  // beat) so the meter fills during the flow — total_fixed_costs/declared rows
-  // aren't persisted until confirm commits, which is past these beats.
+  // beat — non-null including a legitimate 0 for rent-free users) so the meter
+  // fills during the flow — total_fixed_costs/declared rows aren't persisted
+  // until confirm commits, which is past these beats.
   let onboardingProgressResult: OnboardingProgressResult | null = null
   if (onboardingStep === 'upload_processing' || onboardingStep === 'details_pending') {
     const { count: goalCount } = await supabase

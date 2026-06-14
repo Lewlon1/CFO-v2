@@ -8,10 +8,10 @@ import type { OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-pr
  */
 export function OnboardingProgressMeter({ result }: { result: OnboardingProgressResult }) {
   return (
-    <div className="flex flex-col gap-1.5 min-w-0">
+    <div className="flex flex-col gap-1.5 min-w-0" role="status" aria-label={`Setup progress: ${result.pct}%`}>
       <div className="flex items-baseline gap-1.5">
         <span className="text-[13px] text-text-secondary">C. knows you</span>
-        <span className="text-[13px] text-text-muted">·</span>
+        <span className="text-[13px] text-text-muted" aria-hidden="true">·</span>
         <span className="text-[13px] font-bold text-accent-gold tabular-nums">
           {result.pct}%
         </span>
