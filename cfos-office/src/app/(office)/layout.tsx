@@ -6,6 +6,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { recomputeIfStale } from '@/lib/goals/recompute'
 import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
+import { onboardingProgress, type OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
@@ -53,7 +54,7 @@ export default async function OfficeLayout({ children }: { children: React.React
   // trip — it's read below to decide whether to fire a per-session recompute.
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step, goals_last_synced_at')
+    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step, goals_last_synced_at, net_monthly_income, monthly_rent')
     .eq('id', user.id)
     .single()
 
@@ -160,6 +161,26 @@ export default async function OfficeLayout({ children }: { children: React.React
     hasImport = (txnCount ?? 0) > 0
   }
 
+  // Progress meter for the essentials + confirm beats. hasFixedCosts keys off
+  // monthly_rent (the canonical first fixed cost, persisted in the essentials
+  // beat) so the meter fills during the flow — total_fixed_costs/declared rows
+  // aren't persisted until confirm commits, which is past these beats.
+  let onboardingProgressResult: OnboardingProgressResult | null = null
+  if (onboardingStep === 'upload_processing' || onboardingStep === 'details_pending') {
+    const { count: goalCount } = await supabase
+      .from('goals')
+      .select('id', { head: true, count: 'exact' })
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+    onboardingProgressResult = onboardingProgress({
+      hasGoal: (goalCount ?? 0) > 0,
+      hasIncome: profile?.net_monthly_income != null,
+      hasFixedCosts: profile?.monthly_rent != null,
+      hasUpload: hasImport,
+    })
+  }
+
   // Once-per-session goal recompute. Runs fire-and-forget after the response
   // is sent so it never blocks render. 30-minute TTL gate (in recomputeIfStale)
   // is well within the "up to one session's staleness is acceptable"
@@ -219,6 +240,7 @@ export default async function OfficeLayout({ children }: { children: React.React
         needsEntryStruggle={needsEntryStruggle}
         onboardingGoal={onboardingGoal}
         noImport={!hasImport}
+        onboardingProgress={onboardingProgressResult}
       >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />

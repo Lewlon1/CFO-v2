@@ -40,6 +40,7 @@ export function ChatSheet() {
     needsEntryStruggle,
     onboardingGoal,
     noImport,
+    onboardingProgress,
   } = useChatContext()
 
   const onboardingBeatActive = IN_SHEET_BEAT_STEPS.has(onboardingStep ?? '')
@@ -250,6 +251,7 @@ export function ChatSheet() {
               currency={userCurrency ?? 'EUR'}
               goal={onboardingGoal}
               noImport={noImport}
+              progress={onboardingProgress}
             />
           </div>
         ) : (

@@ -9,6 +9,8 @@ import { CfoThinking } from '@/components/brand/CfoThinking'
 import { UploadBeatBlock } from './upload-beat-block'
 import { EssentialsBeatBlock } from './essentials-beat-block'
 import { ConfirmBeatBlock } from './confirm-beat-block'
+import { OnboardingProgressMeter } from './onboarding-progress-meter'
+import type { OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
 
 type Props = {
   step: OnboardingStep | null
@@ -17,6 +19,8 @@ type Props = {
   /** True on the skip-upload path (no imported transactions). Consumed by the
    *  essentials beat to skip the parse-wait. */
   noImport?: boolean
+  /** Progress-meter result; rendered above the essentials + confirm beats. */
+  progress?: OnboardingProgressResult | null
 }
 
 /**
@@ -27,7 +31,7 @@ type Props = {
  * off reuses the proven ?chat=open&conversationId mechanism (ChatOpenerTrigger)
  * so the composed Read loads into the same sheet.
  */
-export function OnboardingBeatHost({ step, currency, goal, noImport }: Props) {
+export function OnboardingBeatHost({ step, currency, goal, noImport, progress }: Props) {
   const router = useRouter()
   const { openSheet, loadConversation } = useChatContext()
   const readTriggeredRef = useRef(false)
@@ -132,22 +136,38 @@ export function OnboardingBeatHost({ step, currency, goal, noImport }: Props) {
 
   if (step === 'upload_processing') {
     return (
-      <EssentialsBeatBlock
-        currency={currency}
-        initialIncome={null}
-        initialRent={null}
-        noImport={noImport}
-        // ProcessingForm runs advanceToConfirm itself (→ details_pending); we
-        // just refresh so the host advances to the confirm beat.
-        onAdvance={() => router.refresh()}
-      />
+      <>
+        {progress && (
+          <div className="px-4 pt-4">
+            <OnboardingProgressMeter result={progress} />
+          </div>
+        )}
+        <EssentialsBeatBlock
+          currency={currency}
+          initialIncome={null}
+          initialRent={null}
+          noImport={noImport}
+          // ProcessingForm runs advanceToConfirm itself (→ details_pending); we
+          // just refresh so the host advances to the confirm beat.
+          onAdvance={() => router.refresh()}
+        />
+      </>
     )
   }
 
   if (step === 'details_pending') {
     // confirmFixedCosts advances to details_confirmed; refresh lets the
     // details_confirmed branch above trigger the Read.
-    return <ConfirmBeatBlock onConfirmed={() => router.refresh()} />
+    return (
+      <>
+        {progress && (
+          <div className="px-4 pt-4">
+            <OnboardingProgressMeter result={progress} />
+          </div>
+        )}
+        <ConfirmBeatBlock onConfirmed={() => router.refresh()} />
+      </>
+    )
   }
 
   // details_confirmed — Read composing/handoff in flight.

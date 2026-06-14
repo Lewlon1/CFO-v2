@@ -15,6 +15,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
+import type { OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
 import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
 import {
   buildLabelRecapTrigger,
@@ -93,6 +94,9 @@ interface ChatContextValue {
   /** True when the user has no imported transactions yet (skip-upload path).
    *  Threaded from the office layout; drives the no-import beat behaviour. */
   noImport: boolean
+  /** Progress-meter result for the in-sheet onboarding beats, or null off-beat.
+   *  Threaded from the office layout (see OnboardingProgressMeter). */
+  onboardingProgress: OnboardingProgressResult | null
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -130,9 +134,11 @@ interface ChatProviderProps {
   onboardingGoal?: OnboardingGoalSummary | null
   /** See ChatContextValue.noImport. */
   noImport?: boolean
+  /** See ChatContextValue.onboardingProgress. */
+  onboardingProgress?: OnboardingProgressResult | null
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false, onboardingProgress = null }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -572,6 +578,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     needsEntryStruggle,
     onboardingGoal,
     noImport,
+    onboardingProgress,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
