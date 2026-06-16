@@ -970,6 +970,36 @@ capture + fixed-vs-variable split on the Step-4 confirm screen
 
 ---
 
+## v2.8 — Onboarding v2 + First Read quality + hardening — 2026-06-14
+
+**PRs:** #64, #65, #67, #68, #69, #66
+
+### What shipped
+- **First Read quality (PR #64):** Goal-anchoring and spending visibility — Read ties the opening line to the user's stated goal; discretionary alternatives surfaced as facts; coaching cadence principle propagated from Constitution v1.5 into BASE_PERSONA and tool descriptions.
+- **Onboarding v2 in-sheet (PR #65):** Full in-sheet chat flow replacing the modal — income input inline, avatar, fact-confirm beat, stall-detection fix.
+- **Correctness + CI gate (PR #67):** Validator note leak patched (QA notes were surfacing in production reads); echo loop fixed; first-read goal/currency/reconcile correctness; CI pipeline gate added (typecheck + lint + test on every PR).
+- **Legacy removal (PR #68):** Layered-read kill-switch (`LAYERED_READ_DISABLED`) and V1 deterministic-narration path removed; dead code pruned.
+- **Security hardening (PR #69):** Demo/value-map flow hardened against session hijack and cost-DoS; anon session size cap; rate-limit on archetype generation.
+- **Shared Select primitive (PR #66):** All native `<select>` elements migrated to a unified `<Select>` component; enforces token-based styling and touch-target sizing.
+
+### package.json
+`2.8.0`
+
+---
+
+## v2.7 — Visual Consistency — 2026-06-01
+
+**PRs:** #61, #63
+
+### What shipped
+- **Visual Consistency foundation (PR #61):** Colour, font, and radius tokens consolidated into `globals.css` as single source of truth; `tokens.ts` becomes a typed `var()` accessor. Primitives established: `Button`, `Badge`, `Card`, `EmptyState`. Scales locked: `rounded-control` (8px) · `rounded-card` (14px) · `rounded-pill` (full).
+- **The lock (PR #63):** ESLint `cfo/visual-token-guards` rule added — raw hex, `rgb()` literals, and arbitrary Tailwind colour/radius brackets fail CI. `/styleguide` dev route added as visual-regression surface. Full sweep across chat, goals, settings, and office chrome onto tokens.
+
+### package.json
+`2.7.0`
+
+---
+
 ## v2.6 — Audit Zero — 2026-05-29
 
 **Branch:** `session-33/audit-zero` (off main `2875904`)
