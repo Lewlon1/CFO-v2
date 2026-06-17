@@ -53,6 +53,12 @@ interface ChatContextValue {
   openSheet: () => void
   closeSheet: () => void
   isSheetOpen: boolean
+  /** In-sheet statement-upload surface (declared-Read upgrade flow). When true
+   *  the sheet swaps its message list + input for the upload uploader. Mirrors
+   *  isSheetOpen — independent of onboarding state. */
+  uploadSurfaceOpen: boolean
+  openUploadSurface: () => void
+  closeUploadSurface: () => void
   startConversation: (type?: string, metadata?: Record<string, string>) => void
   loadConversation: (id: string) => void
   conversationId: string | null
@@ -159,6 +165,10 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
 
   // Sheet visibility — seeded open when a chat-landing flow brought us here.
   const [isSheetOpen, setIsSheetOpen] = useState(wantsChatOpen)
+
+  // In-sheet upload surface visibility (declared-Read upgrade flow). Plain
+  // boolean, mirroring isSheetOpen; never seeded open.
+  const [uploadSurfaceOpen, setUploadSurfaceOpen] = useState(false)
 
   // Whether we expect a conversation to arrive imminently. Seeded true on a
   // chat landing so the first paint shows the loading state, not the folder
@@ -384,6 +394,14 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     setIsSheetOpen(false)
   }, [])
 
+  const openUploadSurface = useCallback(() => {
+    setUploadSurfaceOpen(true)
+  }, [])
+
+  const closeUploadSurface = useCallback(() => {
+    setUploadSurfaceOpen(false)
+  }, [])
+
   const startConversation = useCallback(
     (type?: string, metadata?: Record<string, string>) => {
       // Reset state for a new conversation
@@ -561,6 +579,9 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     openSheet,
     closeSheet,
     isSheetOpen,
+    uploadSurfaceOpen,
+    openUploadSurface,
+    closeUploadSurface,
     startConversation,
     loadConversation,
     conversationId,
