@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
+import { isValueMapV2Enabled } from '@/lib/value-map/flags'
 import { GoalsEmptyStateCTA } from './GoalsEmptyStateCTA'
 import { GoalCard } from './GoalCard'
+import { PlanProvenance } from './PlanProvenance'
 
 type Goal = Database['public']['Tables']['goals']['Row']
 
@@ -24,6 +26,9 @@ export default async function GoalsPage() {
 
   return (
     <div className="px-3.5 pt-2 pb-24 space-y-4">
+      {/* VM-4 (flag VALUE_MAP_V2): provenance only — why the plan looks the
+          way it does. Goal data, maths, and ordering are untouched. */}
+      {isValueMapV2Enabled() && <PlanProvenance userId={user.id} />}
       {activeGoals.length === 0 && completedGoals.length === 0 ? (
         <DashboardEmptyState
           icon={<span className="text-2xl" aria-hidden="true">◎</span>}

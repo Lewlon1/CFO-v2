@@ -1,0 +1,126 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:40:09.181Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "209/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "That's the next clean move."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "ruleId": "R9_goal_reference",
+      "passed": true
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, confident tone ('worth stating plainly', 'One note on the data') reads as a trusted peer rather than a system, with light editorial voice ('— C.')."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures check against source data: £2,850 FCF (18600 income − 16104.91 spend ÷ 3 months), £1,772/mo ISA DD (4998 ÷ 3), £8,898 existing pot implied by context, subscriptions £126/mo (BT + FT + Bloomberg + Spotify + Netflix = 126 + 117 + 104.97 + 50.97 + 44.97 ≈ £444 ÷ 3.5 months ≈ £126/mo), no hallucinations."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids prescriptive language, uses concrete math ('the monthly lift needed is far lower'), and frames action as tightening floor rather than moralizing; minor: 'won't shift the goal date' edges toward reassurance phrasing rather than pure observation."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Speaks to a builder/investor archetype with portfolio assumptions (7% long-run average, stress/upside cases), acknowledges compounding leverage, and respects existing structure; could be slightly more tailored to Zone 1 rent or investment mix specifics."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Ends with a crisp, quantified next move (trim £31/mo from subscriptions), explains why (tightens 4% stress case floor), and includes a CTA lever; user knows exactly what to do and why it matters."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, confident tone ('worth stating plainly', 'One note on the data') reads as a trusted peer rather than a system, with light editorial voice ('— C.')."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures check against source data: £2,850 FCF (18600 income − 16104.91 spend ÷ 3 months), £1,772/mo ISA DD (4998 ÷ 3), £8,898 existing pot implied by context, subscriptions £126/mo (BT + FT + Bloomberg + Spotify + Netflix = 126 + 117 + 104.97 + 50.97 + 44.97 ≈ £444 ÷ 3.5 months ≈ £126/mo), no hallucinations."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids prescriptive language, uses concrete math ('the monthly lift needed is far lower'), and frames action as tightening floor rather than moralizing; minor: 'won't shift the goal date' edges toward reassurance phrasing rather than pure observation."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Speaks to a builder/investor archetype with portfolio assumptions (7% long-run average, stress/upside cases), acknowledges compounding leverage, and respects existing structure; could be slightly more tailored to Zone 1 rent or investment mix specifics."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Ends with a crisp, quantified next move (trim £31/mo from subscriptions), explains why (tightens 4% stress case floor), and includes a CTA lever; user knows exactly what to do and why it matters."
+    }
+  }
+}

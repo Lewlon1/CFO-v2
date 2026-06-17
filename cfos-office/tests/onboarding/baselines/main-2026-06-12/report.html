@@ -1,0 +1,1217 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Onboarding suite — 2026-06-12T19-36-16-447Z</title>
+  <style>
+body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 24px; background: #0e1117; color: #e8e9ed; }
+h1, h2, h3, h4 { color: #fefefe; }
+h1 { margin-top: 0; }
+h2 { border-bottom: 1px solid #2a2e37; padding-bottom: 8px; }
+.summary-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+.summary-table th, .summary-table td { padding: 8px 12px; border-bottom: 1px solid #2a2e37; text-align: left; }
+.summary-table th { color: #9aa0a6; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+.b { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 8px; }
+.b.pass { background: #22543d; color: #68d391; }
+.b.fail { background: #742a2a; color: #fc8181; }
+.b.skip { background: #2d3748; color: #a0aec0; }
+.persona { background: #1a1e27; padding: 20px; border-radius: 8px; margin-bottom: 24px; }
+.persona header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.persona .duration { color: #9aa0a6; font-size: 14px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 12px 0; }
+.gallery figure { margin: 0; }
+.gallery img { width: 100%; border: 1px solid #2a2e37; border-radius: 4px; cursor: pointer; }
+.gallery figcaption { font-size: 12px; color: #9aa0a6; text-align: center; margin-top: 4px; font-family: monospace; }
+pre { background: #0e1117; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 12px; white-space: pre-wrap; }
+details { margin: 8px 0; }
+summary { cursor: pointer; color: #90cdf4; }
+.rules { padding-left: 20px; }
+.rules li { font-family: monospace; font-size: 12px; padding: 2px 0; }
+.rules li.pass { color: #68d391; }
+.rules li.fail { color: #fc8181; }
+.error { background: #742a2a; color: #fed7d7; padding: 10px; border-radius: 4px; margin: 10px 0; }
+table { border-collapse: collapse; }
+table th, table td { padding: 4px 12px; border-bottom: 1px solid #2a2e37; }
+</style>
+</head>
+<body>
+<h1>Onboarding Test Suite — 2026-06-12T19-36-16-447Z</h1>
+<p><strong>Project:</strong> qlbhvlssksnrhsleadzn · <strong>Duration:</strong> 400.9s · <strong>Exit:</strong> 0</p>
+<table class="summary-table">
+  <thead><tr><th>Persona</th><th>Label</th><th>Functional</th><th>LLM</th><th>Visual</th><th>Duration</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>builder-classic</code></td>
+      <td>The Builder — Casual</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>89.3s</td>
+    </tr>
+    <tr>
+      <td><code>fortress-saver</code></td>
+      <td>The Fortress — Saver</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>84.8s</td>
+    </tr>
+    <tr>
+      <td><code>truth-teller-balanced</code></td>
+      <td>The Truth Teller — Balanced</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>67.8s</td>
+    </tr>
+    <tr>
+      <td><code>drifter-expat</code></td>
+      <td>The Drifter — Expat</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>72.1s</td>
+    </tr>
+    <tr>
+      <td><code>anchor-debt</code></td>
+      <td>The Anchor — Debt-heavy</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>67.3s</td>
+    </tr>
+    <tr>
+      <td><code>time-saver-expert</code></td>
+      <td>The Time-Saver — Finance Expert</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>72.6s</td>
+    </tr>
+    <tr>
+      <td><code>aiko-low-transaction</code></td>
+      <td>Aiko — Sparse data (21 days)</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>61.1s</td>
+    </tr>
+    <tr>
+      <td><code>sofia-chaotic</code></td>
+      <td>Sofia — Chaotic freelancer</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>68.8s</td>
+    </tr>
+    <tr>
+      <td><code>tom-long-history</code></td>
+      <td>Tom — Long history (18 months)</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>86.1s</td>
+    </tr>
+    <tr>
+      <td><code>zane-spain</code></td>
+      <td>Zane — Madrid (EUR, Spanish merchants)</td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td><span class="b pass">pass</span></td>
+      <td>76.5s</td>
+    </tr></tbody>
+</table>
+<p>Likert means: <strong>warmth:</strong> 4.8 · <strong>accuracy:</strong> 5.0 · <strong>on_brand:</strong> 4.2 · <strong>persona_fit:</strong> 4.3 · <strong>actionability:</strong> 4.4</p>
+
+<section class="persona">
+  <header>
+    <h2>The Builder — Casual <code>builder-classic</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">89.3s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="builder-classic/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="builder-classic/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="builder-classic/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="builder-classic/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="builder-classic/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="builder-classic/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 205/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — io — every extra pound above £1,133/mo is stress-test cover.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>4.0</td></tr><tr><td>actionability</td><td>4.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — Conversational opener (&#39;Heads up&#39;), casual sign-off (&#39;— C.&#39;), and phrases like &#39;heavy lifting&#39; and &#39;the question now isn&#39;t&#39; create genuine smart-friend rapport without condescension.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures check against source data: £1,383/mo FCF (9600 income − 6691 spend ÷ 3 months), £12,000 ISA balance implied by context, subscriptions totalling ~£100/mo (Masterclass £180/yr + Coursera £39/mo + PureGym £30/mo ≈ £100/mo), and no invented merchants or numbers.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids prescriptive &#39;you should&#39; language and uses concrete comparisons (stress-test scenarios, compounding math); minor deduction because &#39;the question now isn&#39;t whether&#39; edges slightly toward rhetorical framing rather than pure CFO observation.</li><li><strong>[insight] persona_fit:</strong> 4/5 — Speaks directly to a Builder&#39;s investment mindset (compounding, stress-testing, buffer-building) and acknowledges the specific ISA goal; could be slightly more personalized to their learning/development interests (Masterclass, Coursera, Waterstones visible in data).</li><li><strong>[insight] actionability:</strong> 4/5 — Clear CTA with specific lever (trim £25/mo from subscriptions) and explicit rationale (widens stress-test cushion); slightly weaker because the impact is framed as immaterial to arrival date, which may reduce urgency for some users.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;Heads up: this read is based on data as of 2026-03-28, 76 days ago, so treat the picture as a recent snapshot rather than live.\n\nThe ISA goal is funded at plan. Your free cash flow sits at £1,383/mo. The goal needs £1,009/mo at 10%, £1,071/mo at 7%, or £1,133/mo at 4%. The 7% figure is the working number — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this, an assumption not a promise, which is why the 4% case stays visible as the stress test. At plan, £1,071/mo is covered with £312/mo to spare. The £12,000 already in the pot does significant heavy lifting through compounding over this horizon. The question now isn&#39;t whether you&#39;ll hit £40,000 by June 2028 — it&#39;s whether you want to get there sooner or build a buffer against the 4% stress case.\n\n**Subscriptions** are running at £100/mo across the window. With only 10 transactions over 87 days the pattern is thin, but that category is the clearest discretionary line visible right now.\n\nA trim of £25/mo from subscriptions won&#39;t move the arrival date materially, but it widens the cushion against the conservative scenario — every extra pound above £1,133/mo is stress-test cover.\n\n[CTA:cut_lever]Trim 25 from subscriptions[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;6e8d1611-0528-4d86-adb0-3a64be3d49a9&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;6d2a3687-cabe-4c3e-ba73-535bc7f9859a&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 3200,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 1100,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:37:37.489+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:36:16.994282+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:37:37.611577+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:36:29.483+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:36:27.235+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 3,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:36:50.777+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 3200,
+    &quot;t3m_spend_monthly&quot;: 1730.35,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:36:51.029+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 66,
+  &quot;assistantMessageContents&quot;: [
+    &quot;Heads up: this read is based on data as of 2026-03-28, 76 days ago, so treat the picture as a recent snapshot rather than live.\n\nThe ISA goal is funded at plan. Your free cash flow sits at £1,383/mo. The goal needs £1,009/mo at 10%, £1,071/mo at 7%, or £1,133/mo at 4%. The 7% figure is the working number — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this, an assumption not a promise, which is why the 4% case stays visible as the stress test. At plan, £1,071/mo is covered with £312/mo to spare. The £12,000 already in the pot does significant heavy lifting through compounding over this horizon. The question now isn&#39;t whether you&#39;ll hit £40,000 by June 2028 — it&#39;s whether you want to get there sooner or build a buffer against the 4% stress case.\n\n**Subscriptions** are running at £100/mo across the window. With only 10 transactions over 87 days the pattern is thin, but that category is the clearest discretionary line visible right now.\n\nA trim of £25/mo from subscriptions won&#39;t move the arrival date materially, but it widens the cushion against the conservative scenario — every extra pound above £1,133/mo is stress-test cover.\n\n[CTA:cut_lever]Trim 25 from subscriptions[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;vanguard isa transfer&quot;,
+    &quot;farmer j&quot;,
+    &quot;thames water&quot;,
+    &quot;spotify&quot;,
+    &quot;rent landlord&quot;,
+    &quot;tfl travel charge&quot;,
+    &quot;bt broadband&quot;,
+    &quot;octopus energy&quot;,
+    &quot;puregym membership&quot;,
+    &quot;tesco&quot;,
+    &quot;pret a manger&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>The Fortress — Saver <code>fortress-saver</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">84.8s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="fortress-saver/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="fortress-saver/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="fortress-saver/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="fortress-saver/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="fortress-saver/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="fortress-saver/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 169/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — Once the full picture is in, the levers become real.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>5.0</td></tr><tr><td>actionability</td><td>4.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — The opening &#39;heads-up first&#39; and closing signature create genuine conversational intimacy, while &#39;The number that may surprise you&#39; invites curiosity rather than lecturing.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures (£1,950 rent, £669 utilities, £548 groceries, £1,451 FCF, 8 transactions, 88 days) are directly verifiable from source data with no hallucinations or invented merchants.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids prescriptive language and uses concrete percentages and comparisons (&#39;59% of everything tracked&#39;), though the phrase &#39;the levers become real&#39; edges slightly toward advisory framing rather than pure observation.</li><li><strong>[insight] persona_fit:</strong> 5/5 — Directly addresses a saver archetype by highlighting structural health, free cash flow, and the discipline of tracking—exactly what matters to a Fortress builder, not generic advice.</li><li><strong>[insight] actionability:</strong> 4/5 — The insight clearly identifies the gap (missing 80% of spend) and points to a concrete next step (connect other accounts), though it stops short of explaining *why* that visibility matters to this specific user&#39;s goals.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;A heads-up first: this read is based on data as of 2026-03-29, so it&#39;s 75 days behind where you are today.\n\nAs of that date, housing is the dominant story — £1,950 across three rent payments, making up 59% of everything tracked. The single largest transaction is £650 on 1 March, your shared house rent. After that, **utilities &amp; bills** take the next biggest slice at £669, and **groceries** follow at £548 — those two together account for more than a third of tracked spend on their own.\n\nThe number that may surprise you: with £1,451 in free cash flow each month, the structural picture is actually healthy. Fixed costs are covered, and there&#39;s meaningful room left over. What&#39;s not yet visible is where that remaining cash is landing — only 8 transactions are on record across 88 days, which means a significant portion of your spending isn&#39;t being captured here yet.\n\nThat gap is the thing worth closing. Once the full picture is in, the levers become real.\n\n[CTA:supply_input]Connect my other accounts so the full picture is visible[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;70d81633-ccea-4c24-94ed-492a63592d40&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;7f93e512-9123-4260-82ea-036f2dd6e7c4&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 2650,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 650,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:37:34.647+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:36:16.993285+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:37:34.776959+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:36:29.525+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:36:27.252+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 3,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:36:46.478+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 2650,
+    &quot;t3m_spend_monthly&quot;: 1094.17,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:36:46.724+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 46,
+  &quot;assistantMessageContents&quot;: [
+    &quot;A heads-up first: this read is based on data as of 2026-03-29, so it&#39;s 75 days behind where you are today.\n\nAs of that date, housing is the dominant story — £1,950 across three rent payments, making up 59% of everything tracked. The single largest transaction is £650 on 1 March, your shared house rent. After that, **utilities &amp; bills** take the next biggest slice at £669, and **groceries** follow at £548 — those two together account for more than a third of tracked spend on their own.\n\nThe number that may surprise you: with £1,451 in free cash flow each month, the structural picture is actually healthy. Fixed costs are covered, and there&#39;s meaningful room left over. What&#39;s not yet visible is where that remaining cash is landing — only 8 transactions are on record across 88 days, which means a significant portion of your spending isn&#39;t being captured here yet.\n\nThat gap is the thing worth closing. Once the full picture is in, the levers become real.\n\n[CTA:supply_input]Connect my other accounts so the full picture is visible[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;rent - shared house&quot;,
+    &quot;edf electricity&quot;,
+    &quot;council tax&quot;,
+    &quot;national rail&quot;,
+    &quot;aldi&quot;,
+    &quot;virgin media broadband&quot;,
+    &quot;british gas&quot;,
+    &quot;wetherspoons&quot;,
+    &quot;giffgaff goodybag&quot;,
+    &quot;savings transfer&quot;
+  ],
+  &quot;goalsCount&quot;: 0
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>The Truth Teller — Balanced <code>truth-teller-balanced</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">67.8s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="truth-teller-balanced/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="truth-teller-balanced/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="truth-teller-balanced/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="truth-teller-balanced/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="truth-teller-balanced/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="truth-teller-balanced/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 202/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close —  directing surplus toward the goal rather than away from it.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>4.0</td></tr><tr><td>actionability</td><td>4.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — Conversational opener (&#39;Heads up&#39;), casual phrasing (&#39;not behind; you&#39;re in a position to run ahead&#39;), and direct address create genuine smart-friend rapport without condescension.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures check against source data: £3,000 banked (implied from goal context), £2,700 housing (3 rent txns), £73/month eating out (Dishoom £210 ÷ 6 txns ÷ 3 months ≈ £12, plus discretionary food), £1,774 FCF (£8,400 income − £4,134.97 spend ÷ 2.87 months), no hallucinated merchants.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids prescriptive &#39;you should&#39; language and uses tangible math (&#39;£857 a month&#39;, &#39;trim of £18&#39;), though the closing line (&#39;locks in a habit&#39;) edges slightly toward light advice-framing rather than pure observation.</li><li><strong>[insight] persona_fit:</strong> 4/5 — Tailored to a UK-based truth-teller in foundation quadrant with specific goal dates and currency, acknowledges data thinness honestly, and targets the one discretionary lever visible—feels personal, not templated.</li><li><strong>[insight] actionability:</strong> 4/5 — Clear CTA with specific lever (cut £18 from eating &amp; drinking out) and rationale, though the impact is framed as habit-building rather than outcome-shifting, which slightly softens urgency.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;Heads up: this picture is 76 days old — the last transaction captured was 2026-03-28, so treat everything below as where things stood then, not today.\n\nOn the goal: £15,000 safety net by 2027-06-01, with £3,000 already banked. That leaves £12,000 to go across roughly 14 months. At free cash flow of £1,774 a month, the raw capacity is there — the goal needs around £857 a month to hit the date, and your cash flow clears that comfortably. You&#39;re not behind; you&#39;re in a position to run ahead of pace if the spending holds.\n\nThe data here is thin — only 6 transactions across 87 days, so no behavioural patterns have formed yet. What the numbers do show is that **housing** is the dominant outflow at £2,700 across the window, which is expected and fixed. **Eating &amp; drinking out** ran at £73 a month as of late March — small in the scheme of things, but it&#39;s the one discretionary category with room to move.\n\nA trim of £18 a month on eating &amp; drinking out won&#39;t shift the finish line on its own, but it locks in a habit of directing surplus toward the goal rather than away from it.\n\n[CTA:cut_lever]Trim 18 from eating &amp; drinking out[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;0b8ccca3-783a-457a-9bc4-f72cd4918e7c&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;33ff962d-928c-4bbc-86d1-1353c893646d&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 2800,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 900,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:38:46.822+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:37:45.940904+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:38:46.946861+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:37:50.007+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:37:49.095+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 3,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:38:01.047+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 2800,
+    &quot;t3m_spend_monthly&quot;: 1378.32,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:38:01.282+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 43,
+  &quot;assistantMessageContents&quot;: [
+    &quot;Heads up: this picture is 76 days old — the last transaction captured was 2026-03-28, so treat everything below as where things stood then, not today.\n\nOn the goal: £15,000 safety net by 2027-06-01, with £3,000 already banked. That leaves £12,000 to go across roughly 14 months. At free cash flow of £1,774 a month, the raw capacity is there — the goal needs around £857 a month to hit the date, and your cash flow clears that comfortably. You&#39;re not behind; you&#39;re in a position to run ahead of pace if the spending holds.\n\nThe data here is thin — only 6 transactions across 87 days, so no behavioural patterns have formed yet. What the numbers do show is that **housing** is the dominant outflow at £2,700 across the window, which is expected and fixed. **Eating &amp; drinking out** ran at £73 a month as of late March — small in the scheme of things, but it&#39;s the one discretionary category with room to move.\n\nA trim of £18 a month on eating &amp; drinking out won&#39;t shift the finish line on its own, but it locks in a habit of directing surplus toward the goal rather than away from it.\n\n[CTA:cut_lever]Trim 18 from eating &amp; drinking out[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;tfl travel&quot;,
+    &quot;netflix&quot;,
+    &quot;octopus&quot;,
+    &quot;rent&quot;,
+    &quot;sainsburys&quot;,
+    &quot;amazon uk&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>The Drifter — Expat <code>drifter-expat</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">72.1s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="drifter-expat/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="drifter-expat/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="drifter-expat/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="drifter-expat/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="drifter-expat/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="drifter-expat/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 166/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — required monthly contribution becomes a number, not a guess.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>5.0</td></tr><tr><td>actionability</td><td>5.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — Opening &#39;Heads up&#39; and closing signature &#39;— C.&#39; create conversational intimacy; &#39;That math is solvable&#39; and &#39;treat it as a snapshot&#39; feel like a peer checking in, not a system lecturing.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures verified: €2,850 housing (3 txns to Alquiler Piso), €762 eating out (Bar Mut €138 + Cerveceria €122 + Deliveroo €126 + Glovo €114 = €500, plus other venues), €672 groceries (Mercadona), €2,700 income, €1,242 fixed costs, €1,200 saved toward €6,000 fund—no hallucinations.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids prescriptive &#39;you should&#39; language; uses concrete math (&#39;That math is solvable&#39;) and tangible framing (&#39;free cash flow sits at €1,458&#39;); one minor slip: &#39;Set a date and the required monthly contribution becomes a number&#39; edges toward light advice-giving rather than pure observation.</li><li><strong>[insight] persona_fit:</strong> 5/5 — Directly addresses the drifter-expat context (Spain, move-home fund, thin transaction history over short window) and acknowledges the &#39;no target date&#39; blocker specific to someone in transition; feels personalized, not templated.</li><li><strong>[insight] actionability:</strong> 5/5 — Ends with a single, concrete next step (set target date) that unlocks the entire plan; CTA is clear and removes ambiguity about what unblocks progress.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;Heads up: this picture is 75 days old, so treat it as a snapshot from 2026-03-29, not a live view.\n\nThe single biggest line in your spending is **housing** — €2,850 across 3 transactions, all to Alquiler Piso, making up 53% of everything tracked. After that, **eating &amp; drinking out** at €762 and **groceries** at €672 round out the top three. Nothing is uncategorised, which means the picture is clean.\n\nWith €2,700 coming in and €1,242 in fixed costs, free cash flow sits at €1,458 a month. You&#39;ve already saved €1,200 toward the €6,000 move-home fund — €4,800 left to go. That math is solvable, but right now there&#39;s no target date, which means there&#39;s no monthly pace to aim at. That&#39;s the one thing standing between you and a real plan.\n\nFifteen transactions over 88 days is thin for pattern-spotting, so the behavioural read will sharpen as more data comes in.\n\nSet a date and the required monthly contribution becomes a number, not a guess.\n\n[CTA:supply_input]Set a target date for Move-home fund[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;18a041af-1020-409f-ba15-9659033c130e&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;47da40e1-9087-4af1-a4bc-ce740d58987f&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;ES&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 2700,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 950,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:38:50.483+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:37:45.955367+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:38:50.613286+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:37:50.016+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:37:49.064+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 3,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:38:03.014+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 2700,
+    &quot;t3m_spend_monthly&quot;: 1793.96,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:38:03.29+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 76,
+  &quot;assistantMessageContents&quot;: [
+    &quot;Heads up: this picture is 75 days old, so treat it as a snapshot from 2026-03-29, not a live view.\n\nThe single biggest line in your spending is **housing** — €2,850 across 3 transactions, all to Alquiler Piso, making up 53% of everything tracked. After that, **eating &amp; drinking out** at €762 and **groceries** at €672 round out the top three. Nothing is uncategorised, which means the picture is clean.\n\nWith €2,700 coming in and €1,242 in fixed costs, free cash flow sits at €1,458 a month. You&#39;ve already saved €1,200 toward the €6,000 move-home fund — €4,800 left to go. That math is solvable, but right now there&#39;s no target date, which means there&#39;s no monthly pace to aim at. That&#39;s the one thing standing between you and a real plan.\n\nFifteen transactions over 88 days is thin for pattern-spotting, so the behavioural read will sharpen as more data comes in.\n\nSet a date and the required monthly contribution becomes a number, not a guess.\n\n[CTA:supply_input]Set a target date for Move-home fund[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;alquiler piso&quot;,
+    &quot;dir eixample gym&quot;,
+    &quot;disney plus&quot;,
+    &quot;endesa&quot;,
+    &quot;flax &amp; kale&quot;,
+    &quot;hbo max&quot;,
+    &quot;mercadona&quot;,
+    &quot;movistar fibra&quot;,
+    &quot;netflix&quot;,
+    &quot;spotify premium&quot;,
+    &quot;student loans company&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>The Anchor — Debt-heavy <code>anchor-debt</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">67.3s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="anchor-debt/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="anchor-debt/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="anchor-debt/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="anchor-debt/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="anchor-debt/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="anchor-debt/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 186/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close —  to change that is to tell me where you&#39;d be willing to cut.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>4.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>4.0</td></tr><tr><td>actionability</td><td>4.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 4/5 — Conversational opener (&#39;Heads up&#39;) and casual sign-off (&#39;— C.&#39;) create approachability, though the middle section leans slightly clinical.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures check against source data: £6,500 gap, £722/month target, £513 free cash flow, £780 housing, and transaction count/date range all verified.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids preachy language and uses concrete math (&#39;roughly 9 months&#39;, &#39;gap of £209&#39;), though the closing CTA leans slightly toward directive rather than pure observation.</li><li><strong>[insight] persona_fit:</strong> 4/5 — Directly addresses the debt-heavy anchor archetype by naming fixed-cost compression and credit card repayment as the core constraint, though could lean harder into the burden-quadrant psychology.</li><li><strong>[insight] actionability:</strong> 4/5 — Clear next step (fill Value Map to identify trade-offs) and specific blocker identified (fixed costs), but stops short of suggesting which categories might be most realistic to cut given the thin transaction history.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;Heads up: this picture is 76 days old (last transaction 2026-03-28), so treat what follows as a snapshot, not a live read.\n\nAs of that date, the credit card goal needs £6,500 more to reach £8,000. With a deadline of 2027-01-01, that&#39;s roughly 9 months away from now — meaning the goal requires around £722 a month to land on time. Free cash flow as of the snapshot was £513 a month. That&#39;s a gap of roughly £209 a month between what the goal needs and what the data shows available.\n\nWith only 7 transactions across 87 days, the spending picture is thin — not enough to build reliable cluster-level patterns. What is clear: fixed costs are consuming the vast majority of income, with housing alone at £780 a month. That compression is what&#39;s creating the shortfall against the £722 pace.\n\nThe Value Map is blank. Without knowing which spending categories you&#39;d trade off against the goal, there&#39;s no clean lever to size here — the system didn&#39;t produce one. The fastest way to change that is to tell me where you&#39;d be willing to cut.\n\n[CTA:supply_input]I&#39;ll fill in my Value Map so you can find the lever[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;f825d314-b099-47e9-8a68-f5fd788b7cdb&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;89d40077-33cb-4048-a047-caabb2d58828&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 2300,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 780,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:39:59.047+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:38:58.021959+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:39:59.174153+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:39:01.811+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:39:00.981+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 3,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:39:12.687+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 2300,
+    &quot;t3m_spend_monthly&quot;: 1277,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:39:12.925+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 42,
+  &quot;assistantMessageContents&quot;: [
+    &quot;Heads up: this picture is 76 days old (last transaction 2026-03-28), so treat what follows as a snapshot, not a live read.\n\nAs of that date, the credit card goal needs £6,500 more to reach £8,000. With a deadline of 2027-01-01, that&#39;s roughly 9 months away from now — meaning the goal requires around £722 a month to land on time. Free cash flow as of the snapshot was £513 a month. That&#39;s a gap of roughly £209 a month between what the goal needs and what the data shows available.\n\nWith only 7 transactions across 87 days, the spending picture is thin — not enough to build reliable cluster-level patterns. What is clear: fixed costs are consuming the vast majority of income, with housing alone at £780 a month. That compression is what&#39;s creating the shortfall against the £722 pace.\n\nThe Value Map is blank. Without knowing which spending categories you&#39;d trade off against the goal, there&#39;s no clean lever to size here — the system didn&#39;t produce one. The fastest way to change that is to tell me where you&#39;d be willing to cut.\n\n[CTA:supply_input]I&#39;ll fill in my Value Map so you can find the lever[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;credit card repayment&quot;,
+    &quot;car finance&quot;,
+    &quot;morrisons&quot;,
+    &quot;british gas&quot;,
+    &quot;council tax&quot;,
+    &quot;talktalk&quot;,
+    &quot;rent&quot;,
+    &quot;personal loan payment&quot;,
+    &quot;bus pass monthly&quot;,
+    &quot;just eat&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>The Time-Saver — Finance Expert <code>time-saver-expert</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">72.6s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="time-saver-expert/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="time-saver-expert/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="time-saver-expert/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="time-saver-expert/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="time-saver-expert/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="time-saver-expert/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 209/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — That&#39;s the next clean move.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>4.0</td></tr><tr><td>actionability</td><td>5.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — Conversational, confident tone (&#39;worth stating plainly&#39;, &#39;One note on the data&#39;) reads as a trusted peer rather than a system, with light editorial voice (&#39;— C.&#39;).</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures check against source data: £2,850 FCF (18600 income − 16104.91 spend ÷ 3 months), £1,772/mo ISA DD (4998 ÷ 3), £8,898 existing pot implied by context, subscriptions £126/mo (BT + FT + Bloomberg + Spotify + Netflix = 126 + 117 + 104.97 + 50.97 + 44.97 ≈ £444 ÷ 3.5 months ≈ £126/mo), no hallucinations.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids prescriptive language, uses concrete math (&#39;the monthly lift needed is far lower&#39;), and frames action as tightening floor rather than moralizing; minor: &#39;won&#39;t shift the goal date&#39; edges toward reassurance phrasing rather than pure observation.</li><li><strong>[insight] persona_fit:</strong> 4/5 — Speaks to a builder/investor archetype with portfolio assumptions (7% long-run average, stress/upside cases), acknowledges compounding leverage, and respects existing structure; could be slightly more tailored to Zone 1 rent or investment mix specifics.</li><li><strong>[insight] actionability:</strong> 5/5 — Ends with a crisp, quantified next move (trim £31/mo from subscriptions), explains why (tightens 4% stress case floor), and includes a CTA lever; user knows exactly what to do and why it matters.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;The ISA goal is funded at plan — worth stating plainly. With £2,850 free cash flow a month and the 7% middle case needing £1,772/mo, you have £1,078/mo to spare against the target. The 7% figure is the moderate middle of the range — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this — an assumption, not a promise, which is why the 4% stress case (£1,805/mo) and 10% upside (£1,738/mo) stay in view. Even at 4%, you&#39;re covered. The £8,898 already saved is doing real work here: compounding on that existing pot means the monthly lift needed is far lower than a flat split would suggest.\n\nOne note on the data: the most recent transaction here is from 2026-03-28, so these observations are as of that date, not today.\n\n**Subscriptions** are running £126/month across the window. With no Value Map yet to tell me which of those you&#39;d defend, that&#39;s the one category where there&#39;s clear room to move without touching anything structural.\n\nTrimming £31/month from subscriptions won&#39;t shift the goal date — the math is already working — but it tightens the floor and edges you toward covering the 4% stress case with even more headroom. That&#39;s the next clean move.\n\n[CTA:cut_lever]Trim £31 from subscriptions[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;04157e6f-6f01-45b4-a81a-5b36e787b0e1&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;53999488-c62f-49cb-9b02-e226ad17ad28&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 6200,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 1800,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:40:02.092+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:38:57.998501+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:40:02.220912+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:39:01.817+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:39:00.989+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 3,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:39:14.48+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 6200,
+    &quot;t3m_spend_monthly&quot;: 2402.3,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:39:14.789+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 57,
+  &quot;assistantMessageContents&quot;: [
+    &quot;The ISA goal is funded at plan — worth stating plainly. With £2,850 free cash flow a month and the 7% middle case needing £1,772/mo, you have £1,078/mo to spare against the target. The 7% figure is the moderate middle of the range — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this — an assumption, not a promise, which is why the 4% stress case (£1,805/mo) and 10% upside (£1,738/mo) stay in view. Even at 4%, you&#39;re covered. The £8,898 already saved is doing real work here: compounding on that existing pot means the monthly lift needed is far lower than a flat split would suggest.\n\nOne note on the data: the most recent transaction here is from 2026-03-28, so these observations are as of that date, not today.\n\n**Subscriptions** are running £126/month across the window. With no Value Map yet to tell me which of those you&#39;d defend, that&#39;s the one category where there&#39;s clear room to move without touching anything structural.\n\nTrimming £31/month from subscriptions won&#39;t shift the goal date — the math is already working — but it tightens the floor and edges you toward covering the 4% stress case with even more headroom. That&#39;s the next clean move.\n\n[CTA:cut_lever]Trim £31 from subscriptions[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;sipp contribution&quot;,
+    &quot;spotify premium family&quot;,
+    &quot;waitrose&quot;,
+    &quot;bt broadband&quot;,
+    &quot;notion plus&quot;,
+    &quot;netflix&quot;,
+    &quot;rent flat zone 1&quot;,
+    &quot;vanguard&quot;,
+    &quot;financial times&quot;,
+    &quot;octopus energy&quot;,
+    &quot;sweetgreen&quot;,
+    &quot;investengine gia&quot;,
+    &quot;bloomberg digital&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>Aiko — Sparse data (21 days) <code>aiko-low-transaction</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">61.1s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="aiko-low-transaction/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="aiko-low-transaction/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="aiko-low-transaction/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="aiko-low-transaction/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="aiko-low-transaction/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="aiko-low-transaction/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 182/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — , which means there&#39;s nothing to measure the £1,950 against.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>5.0</td></tr><tr><td>persona_fit</td><td>5.0</td></tr><tr><td>actionability</td><td>5.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — The tone is conversational and peer-like (&#39;One note upfront&#39;, &#39;That&#39;s the full picture&#39;, &#39;— C.&#39;), avoiding jargon while staying direct and honest about data limitations.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures match source data exactly: £1,150 rent, £185 IKEA, £131 groceries (Sainsbury&#39;s + Tesco), £54 utilities (Thames Water + EE), £22 eating out, and the 74% calculation is correct.</li><li><strong>[insight] on_brand:</strong> 5/5 — Uses concrete numbers and comparisons (&#39;£1,950 against £1,150&#39;), avoids prescriptive advice language, and frames the insight as a snapshot rather than a directive.</li><li><strong>[insight] persona_fit:</strong> 5/5 — Directly addresses the sparse-data reality for this user (21 days, 8 transactions), acknowledges the fortress/foundation archetype by focusing on fixed vs. free cash flow, and avoids over-interpreting thin signals.</li><li><strong>[insight] actionability:</strong> 5/5 — Clearly identifies the blocker (no goal set) and points to the exact next step (set a savings goal), making it obvious what the user should do to unlock better insights.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;One note upfront: this Read stands on 21 days of data last updated 2026-03-28 — 76 days ago — so treat everything here as a March snapshot, not a live picture.\n\nIn March, £1,150 of your £1,554 tracked spend was a single rent payment — 74% of everything recorded, in one transaction on 9 March. Strip that out and the remaining £404 breaks down to **shopping** at £185, **groceries** at £131, **utilities &amp; bills** at £54, and **eating &amp; drinking out** at £22. That&#39;s the full picture of where your money went.\n\nWith only 8 transactions across 21 days, the data is too thin to call anything a pattern. What&#39;s clear is that your free cash flow sits at £1,950 against £1,150 in fixed costs — but with one month on file, it&#39;s impossible to say how consistently the remaining £404 in variable spend holds, or whether March was light, heavy, or typical.\n\nThe most useful next move is anchoring what you actually want this money to do. No goal is set yet, which means there&#39;s nothing to measure the £1,950 against.\n\n[CTA:supply_input]Set my first savings goal[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;1c9a567a-1ce8-49a1-9dc4-ef7640b49071&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;d54b277f-2fd8-4444-a463-bf0bb6b5a922&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 3100,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 1150,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:41:05.31+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:40:10.565121+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:41:05.524711+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:40:14.421+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:40:13.626+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 1,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:40:21.016+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: null,
+    &quot;t3m_spend_monthly&quot;: null,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:40:21.275+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 14,
+  &quot;assistantMessageContents&quot;: [
+    &quot;One note upfront: this Read stands on 21 days of data last updated 2026-03-28 — 76 days ago — so treat everything here as a March snapshot, not a live picture.\n\nIn March, £1,150 of your £1,554 tracked spend was a single rent payment — 74% of everything recorded, in one transaction on 9 March. Strip that out and the remaining £404 breaks down to **shopping** at £185, **groceries** at £131, **utilities &amp; bills** at £54, and **eating &amp; drinking out** at £22. That&#39;s the full picture of where your money went.\n\nWith only 8 transactions across 21 days, the data is too thin to call anything a pattern. What&#39;s clear is that your free cash flow sits at £1,950 against £1,150 in fixed costs — but with one month on file, it&#39;s impossible to say how consistently the remaining £404 in variable spend holds, or whether March was light, heavy, or typical.\n\nThe most useful next move is anchoring what you actually want this money to do. No goal is set yet, which means there&#39;s nothing to measure the £1,950 against.\n\n[CTA:supply_input]Set my first savings goal[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [],
+  &quot;goalsCount&quot;: 0
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>Sofia — Chaotic freelancer <code>sofia-chaotic</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">68.8s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="sofia-chaotic/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="sofia-chaotic/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="sofia-chaotic/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="sofia-chaotic/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="sofia-chaotic/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="sofia-chaotic/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 173/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — That one input is what unlocks the goal math entirely.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>4.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>4.0</td></tr><tr><td>actionability</td><td>4.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 4/5 — Conversational and direct (&#39;that&#39;s the line with the most room to move&#39;), with a light touch of personality (&#39;— C.&#39;), though slightly more clinical than a true smart friend would be.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures check against source data: £2,180 housing (£820 + £680 + £680), £540 entertainment (Brand New Conference), £743 fixed costs derivable, £8,690 income and £4,489 spend both match.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids preachy language and uses concrete comparisons (&#39;nearly half&#39;, &#39;roughly £198 a month&#39;), though the closing CTA feels slightly more templated than the rest of the voice.</li><li><strong>[insight] persona_fit:</strong> 4/5 — Recognizes the chaotic freelancer pattern (variable income, multiple subletting addresses, travel/entertainment spend) and flags the data sparsity issue, but could lean harder into the &#39;leak&#39; quadrant diagnosis.</li><li><strong>[insight] actionability:</strong> 4/5 — Clearly identifies the missing input (target date) that unlocks next steps, and flags entertainment as the highest-leverage lever, though stops short of suggesting what to do with that insight.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;The data here runs to 2026-03-27 — 77 days ago — so treat these as a snapshot, not a live picture.\n\nThe single biggest slice of tracked spend is **housing** at £2,180, nearly half of everything recorded. Within that, one transaction stands out: £820 to Sublet — Bermondsey on 4 February, the largest single charge in the window. **Entertainment** is the next notable category at £540 across the period, running at roughly £198 a month — that&#39;s the line with the most room to move.\n\nOnly 8 transactions sit behind this read, so patterns are thin. What&#39;s clear is that fixed costs are anchored at £743 a month, and the trailing average of free cash flow is £2,157 a month — though income is variable and swings, so that average can flatter any given month.\n\nOn the runway goal: £7,600 still to go toward £9,600. The monthly pace needed to get there on time isn&#39;t calculable yet — because there&#39;s no target date. That one input is what unlocks the goal math entirely.\n\n[CTA:supply_input]Set a target date for 3-month runway[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;22b642bd-8375-4dc0-8093-458e03d39927&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;68e6d3c0-35a2-41ff-b98c-641453c0b87a&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 2900,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 680,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:41:12.744+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:40:10.586679+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:41:12.875475+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:40:14.435+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:40:13.607+00:00&quot;,
+    &quot;income_shape&quot;: &quot;variable&quot;,
+    &quot;income_volatility&quot;: 0.421,
+    &quot;income_shape_deposit_count&quot;: 6,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:40:27.836+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 2896.67,
+    &quot;t3m_spend_monthly&quot;: 1496.34,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:40:28.089+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 41,
+  &quot;assistantMessageContents&quot;: [
+    &quot;The data here runs to 2026-03-27 — 77 days ago — so treat these as a snapshot, not a live picture.\n\nThe single biggest slice of tracked spend is **housing** at £2,180, nearly half of everything recorded. Within that, one transaction stands out: £820 to Sublet — Bermondsey on 4 February, the largest single charge in the window. **Entertainment** is the next notable category at £540 across the period, running at roughly £198 a month — that&#39;s the line with the most room to move.\n\nOnly 8 transactions sit behind this read, so patterns are thin. What&#39;s clear is that fixed costs are anchored at £743 a month, and the trailing average of free cash flow is £2,157 a month — though income is variable and swings, so that average can flatter any given month.\n\nOn the runway goal: £7,600 still to go toward £9,600. The monthly pace needed to get there on time isn&#39;t calculable yet — because there&#39;s no target date. That one input is what unlocks the goal math entirely.\n\n[CTA:supply_input]Set a target date for 3-month runway[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;figma professional&quot;,
+    &quot;whole foods market&quot;,
+    &quot;adobe creative cloud&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>Tom — Long history (18 months) <code>tom-long-history</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">86.1s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="tom-long-history/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="tom-long-history/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="tom-long-history/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="tom-long-history/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="tom-long-history/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="tom-long-history/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 175/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — Set the date and the number becomes real.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>5.0</td></tr><tr><td>persona_fit</td><td>4.0</td></tr><tr><td>actionability</td><td>5.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — The tone is conversational and peer-like (&#39;One thing to flag&#39;, &#39;the server puts&#39;, &#39;Set the date and the number becomes real&#39;), avoiding any lecturing while maintaining authority.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures check against source data: £2,840 housing from £4,223 tracked spend (67%), £9,000 of £50,000 pension, £2,023 FCF derived from income minus spending, and rent merchant name matches exactly.</li><li><strong>[insight] on_brand:</strong> 5/5 — Uses tangible comparisons (&#39;67p in every tracked pound&#39;), avoids prescriptive advice language, and frames the insight as a constraint to solve rather than a recommendation to follow.</li><li><strong>[insight] persona_fit:</strong> 4/5 — Speaks directly to Tom&#39;s builder/investment archetype by focusing on cash flow math and goal-setting mechanics, though could have acknowledged his 18-month track record or investment behavior more explicitly.</li><li><strong>[insight] actionability:</strong> 5/5 — Identifies the single blocking input (target date), explains why it matters (unlocks monthly pace), and provides a direct CTA that removes ambiguity about next step.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;One thing to flag before diving in: this picture is based on data as of 2026-03-19, so it&#39;s a snapshot from roughly three months ago rather than your current position.\n\nWith only 1 transaction in the dataset, the patterns are too thin to read with confidence — but the spending breakdown still tells a clear story. **Housing** is doing the heavy lifting: £2,840 out of £4,223 tracked spend, all of it Rent — Norwood Lettings, with the largest single transaction being £1,420 on 24 January 2026. That&#39;s 67p in every tracked pound going to one landlord. After fixed costs, the server puts your free cash flow at £2,023 a month — that&#39;s the number the goal math runs on.\n\nThe pension top-up sits at £9,000 of £50,000, leaving £41,000 to go. That gap is entirely solvable from your free cash flow — but right now there&#39;s no target date, which means there&#39;s no monthly pace to aim at. Everything else is secondary to that one missing input.\n\nSet the date and the number becomes real.\n\n[CTA:supply_input]Set a target date for Pension top-up[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;aedfcf5b-9806-429f-9a1e-a4f6603e266a&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;fa82d35a-f586-412c-9193-e2cf3184acda&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;GB&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 4000,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 1420,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:42:38.401+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:41:19.347377+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:42:38.525291+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:41:22.942+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:41:22.211+00:00&quot;,
+    &quot;income_shape&quot;: &quot;salaried&quot;,
+    &quot;income_volatility&quot;: 0,
+    &quot;income_shape_deposit_count&quot;: 9,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:41:53.231+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 2800,
+    &quot;t3m_spend_monthly&quot;: 884.98,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:41:53.47+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 217,
+  &quot;assistantMessageContents&quot;: [
+    &quot;One thing to flag before diving in: this picture is based on data as of 2026-03-19, so it&#39;s a snapshot from roughly three months ago rather than your current position.\n\nWith only 1 transaction in the dataset, the patterns are too thin to read with confidence — but the spending breakdown still tells a clear story. **Housing** is doing the heavy lifting: £2,840 out of £4,223 tracked spend, all of it Rent — Norwood Lettings, with the largest single transaction being £1,420 on 24 January 2026. That&#39;s 67p in every tracked pound going to one landlord. After fixed costs, the server puts your free cash flow at £2,023 a month — that&#39;s the number the goal math runs on.\n\nThe pension top-up sits at £9,000 of £50,000, leaving £41,000 to go. That gap is entirely solvable from your free cash flow — but right now there&#39;s no target date, which means there&#39;s no monthly pace to aim at. Everything else is secondary to that one missing input.\n\nSet the date and the number becomes real.\n\n[CTA:supply_input]Set a target date for Pension top-up[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;dishoom kings cross&quot;,
+    &quot;spotify family&quot;,
+    &quot;stocks &amp; shares isa&quot;,
+    &quot;waitrose&quot;,
+    &quot;foyles&quot;,
+    &quot;octopus energy&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+<section class="persona">
+  <header>
+    <h2>Zane — Madrid (EUR, Spanish merchants) <code>zane-spain</code></h2>
+    <div class="layers">
+      Functional: <span class="b pass">pass</span>
+      LLM: <span class="b pass">pass</span>
+      Visual: <span class="b pass">pass</span>
+      <span class="duration">76.5s</span>
+    </div>
+  </header>
+  
+  <h3>Screenshots</h3>
+  <div class="gallery"><figure><img src="zane-spain/struggle_submitted.png" alt="struggle_submitted"><figcaption>struggle_submitted</figcaption></figure><figure><img src="zane-spain/goal_done.png" alt="goal_done"><figcaption>goal_done</figcaption></figure><figure><img src="zane-spain/upload_done.png" alt="upload_done"><figcaption>upload_done</figcaption></figure><figure><img src="zane-spain/essentials_done.png" alt="essentials_done"><figcaption>essentials_done</figcaption></figure><figure><img src="zane-spain/confirm_done.png" alt="confirm_done"><figcaption>confirm_done</figcaption></figure><figure><img src="zane-spain/first_read.png" alt="first_read"><figcaption>first_read</figcaption></figure></div>
+  <h3>LLM judge</h3>
+  <h4>Hard rules</h4>
+  <ul class="rules"><li class="pass">[insight] R1_no_banned_words</li><li class="pass">[insight] R1b_no_banned_patterns</li><li class="pass">[insight] R7_no_system_note</li><li class="pass">[insight] R6_no_goal_denial</li><li class="pass">[insight] R5_currency_symbol</li><li class="pass">[insight] R8_cta_vocabulary</li><li class="pass">[insight] R3b_insight_mentions_one_of</li><li class="pass">[insight] R4_numbers_match_csv</li><li class="pass">[insight] H1_signoff_present — expected &quot;— C.&quot; on its own final line</li><li class="pass">[insight] H2_within_word_cap — 205/250 words</li><li class="pass">[insight] H3_exactly_one_cta — 1 [CTA] block(s)</li><li class="pass">[insight] H4_no_options_block — retired [OPTIONS] chip format must not appear</li><li class="pass">[insight] H5_no_question_close — own, but it&#39;s a clean first move while the picture sharpens.</li><li class="pass">[insight] H6_no_emoji</li><li class="pass">[insight] H7_voice_no_banned</li><li class="pass">[insight] R9_goal_reference</li></ul>
+  <h4>Likert means</h4>
+  <table><thead><tr><th>Dimension</th><th>Score (1-5)</th></tr></thead><tbody><tr><td>warmth</td><td>5.0</td></tr><tr><td>accuracy</td><td>5.0</td></tr><tr><td>on_brand</td><td>4.0</td></tr><tr><td>persona_fit</td><td>4.0</td></tr><tr><td>actionability</td><td>4.0</td></tr></tbody></table>
+  <details><summary>Per-dimension reasons</summary><ul><li><strong>[insight] warmth:</strong> 5/5 — Opening caveat about data age, conversational asides (&#39;The real question is...&#39;), and closing signature create genuine smart-friend rapport without condescension.</li><li><strong>[insight] accuracy:</strong> 5/5 — All figures (€25k goal, €1,309 FCF, €2,565 health spend, €58 Movistar, €19 eating out) are either directly sourced or correctly derived from the CSV; no invented merchants or numbers.</li><li><strong>[insight] on_brand:</strong> 4/5 — Avoids prescriptive language (&#39;worth keeping in view&#39; vs &#39;you should cut&#39;), uses concrete comparisons (€25–€35 range), and frames as observation not directive—though &#39;not a directive&#39; is slightly defensive for the CFO voice.</li><li><strong>[insight] persona_fit:</strong> 4/5 — Speaks directly to Zane&#39;s fortress/foundation archetype (deposit goal, margin tightening, structural spending patterns) and Madrid context (Movistar range, Spanish merchants), but could lean harder into the 34-month runway or EUR-specific framing.</li><li><strong>[insight] actionability:</strong> 4/5 — CTA is concrete (trim €19 from eating &amp; drinking) and grounded in data, though the insight stops short of proposing a tracking cadence or next diagnostic step once the dataset thickens.</li></ul></details>
+  <h3>Captured</h3>
+  <details><summary>Archetype JSON</summary><pre>null</pre></details>
+  <details><summary>Insight JSON</summary><pre>{
+  &quot;conversationType&quot;: &quot;first_read&quot;,
+  &quot;content&quot;: &quot;A heads-up before the numbers: this picture is 75 days old, last updated 2026-03-29, so treat what follows as a March snapshot, not a live read.\n\n**The goal:** €25,000 still to save for the piso deposit by January 2029 — roughly 34 months away. Your free cash flow as of that snapshot was €1,309/month. If all of that reached the goal, you&#39;d overshoot comfortably. The real question is how much of that €1,309 is actually being set aside versus absorbed by day-to-day spending.\n\nThe data is thin — only 10 transactions across 88 days — so patterns aren&#39;t established yet. What is visible: **health** dominated tracked spend at €2,565 over the window, which is worth watching as the dataset fills out. It may be one-off or structural; right now there isn&#39;t enough history to call it.\n\nOn the bills side, movistar fusión at €58/month sits above the typical Spain range of €25–€35 — not a directive, just worth keeping in view as the margin tightens.\n\nThe one lever the data has sized: trimming **eating &amp; drinking out** by €19/month frees up a small but confirmed amount. It won&#39;t move the goal date on its own, but it&#39;s a clean first move while the picture sharpens.\n\n[CTA:cut_lever]Trim 19 from eating &amp; drinking out[/CTA]\n\n— C.&quot;,
+  &quot;messageId&quot;: &quot;98258a38-9b5e-4031-9a7d-77ed0341b07b&quot;
+}</pre></details>
+  <details><summary>DB state after handoff</summary><pre>{
+  &quot;user_profiles&quot;: {
+    &quot;id&quot;: &quot;a83eaf71-7cf3-4c36-8a52-1ae89aaddf7f&quot;,
+    &quot;display_name&quot;: null,
+    &quot;country&quot;: &quot;ES&quot;,
+    &quot;city&quot;: null,
+    &quot;primary_currency&quot;: &quot;EUR&quot;,
+    &quot;age_range&quot;: null,
+    &quot;employment_status&quot;: null,
+    &quot;gross_salary&quot;: null,
+    &quot;net_monthly_income&quot;: 2350,
+    &quot;pay_frequency&quot;: &quot;monthly&quot;,
+    &quot;has_bonus_months&quot;: null,
+    &quot;bonus_month_details&quot;: null,
+    &quot;housing_type&quot;: null,
+    &quot;monthly_rent&quot;: 820,
+    &quot;relationship_status&quot;: null,
+    &quot;partner_employment_status&quot;: null,
+    &quot;partner_monthly_contribution&quot;: null,
+    &quot;dependents&quot;: 0,
+    &quot;values_ranking&quot;: null,
+    &quot;spending_triggers&quot;: null,
+    &quot;risk_tolerance&quot;: null,
+    &quot;financial_awareness&quot;: null,
+    &quot;advice_style&quot;: &quot;direct&quot;,
+    &quot;nationality&quot;: null,
+    &quot;residency_status&quot;: null,
+    &quot;tax_residency_country&quot;: null,
+    &quot;years_in_country&quot;: null,
+    &quot;onboarding_completed_at&quot;: &quot;2026-06-12T19:42:28.629+00:00&quot;,
+    &quot;profile_completeness&quot;: 0,
+    &quot;created_at&quot;: &quot;2026-06-12T19:41:19.325482+00:00&quot;,
+    &quot;updated_at&quot;: &quot;2026-06-12T19:42:28.75237+00:00&quot;,
+    &quot;nudge_preferences&quot;: {},
+    &quot;savings_rate_target&quot;: null,
+    &quot;budget_config&quot;: {},
+    &quot;deleted_at&quot;: null,
+    &quot;anonymised_at&quot;: null,
+    &quot;onboarding_progress&quot;: null,
+    &quot;capability_preferences&quot;: null,
+    &quot;beta_cohort&quot;: null,
+    &quot;is_lifetime_pro&quot;: false,
+    &quot;entry_struggle&quot;: &quot;dont_know&quot;,
+    &quot;entry_struggle_text&quot;: null,
+    &quot;entry_struggle_at&quot;: &quot;2026-06-12T19:41:22.956+00:00&quot;,
+    &quot;onboarding_route&quot;: &quot;value_map&quot;,
+    &quot;onboarding_step&quot;: &quot;first_read_delivered&quot;,
+    &quot;value_map_offered_in_chat&quot;: false,
+    &quot;value_map_declined_in_chat&quot;: false,
+    &quot;goals_last_synced_at&quot;: &quot;2026-06-12T19:41:22.198+00:00&quot;,
+    &quot;income_shape&quot;: &quot;unknown&quot;,
+    &quot;income_volatility&quot;: null,
+    &quot;income_shape_deposit_count&quot;: 3,
+    &quot;income_shape_detected_at&quot;: &quot;2026-06-12T19:41:39.138+00:00&quot;,
+    &quot;financial_posture&quot;: &quot;unknown&quot;,
+    &quot;posture_confidence&quot;: 0,
+    &quot;runway_days&quot;: null,
+    &quot;t3m_income_monthly&quot;: 2350,
+    &quot;t3m_spend_monthly&quot;: 1530.22,
+    &quot;balance_trajectory&quot;: &quot;unknown&quot;,
+    &quot;posture_detected_at&quot;: &quot;2026-06-12T19:41:39.485+00:00&quot;
+  },
+  &quot;financial_portrait&quot;: [],
+  &quot;onboarding_progress&quot;: null,
+  &quot;transactionCount&quot;: 64,
+  &quot;assistantMessageContents&quot;: [
+    &quot;A heads-up before the numbers: this picture is 75 days old, last updated 2026-03-29, so treat what follows as a March snapshot, not a live read.\n\n**The goal:** €25,000 still to save for the piso deposit by January 2029 — roughly 34 months away. Your free cash flow as of that snapshot was €1,309/month. If all of that reached the goal, you&#39;d overshoot comfortably. The real question is how much of that €1,309 is actually being set aside versus absorbed by day-to-day spending.\n\nThe data is thin — only 10 transactions across 88 days — so patterns aren&#39;t established yet. What is visible: **health** dominated tracked spend at €2,565 over the window, which is worth watching as the dataset fills out. It may be one-off or structural; right now there isn&#39;t enough history to call it.\n\nOn the bills side, movistar fusión at €58/month sits above the typical Spain range of €25–€35 — not a directive, just worth keeping in view as the margin tightens.\n\nThe one lever the data has sized: trimming **eating &amp; drinking out** by €19/month frees up a small but confirmed amount. It won&#39;t move the goal date on its own, but it&#39;s a clean first move while the picture sharpens.\n\n[CTA:cut_lever]Trim 19 from eating &amp; drinking out[/CTA]\n\n— C.&quot;
+  ],
+  &quot;recurringNames&quot;: [
+    &quot;sala de despiece&quot;,
+    &quot;alquiler calle doctor esquerdo&quot;,
+    &quot;movistar fusión&quot;,
+    &quot;abono transporte madrid&quot;,
+    &quot;casa lucio&quot;,
+    &quot;altafit gym&quot;,
+    &quot;spotify españa&quot;,
+    &quot;comunidad de propietarios&quot;,
+    &quot;panadería la mallorquina&quot;,
+    &quot;mercadona&quot;,
+    &quot;toma café&quot;
+  ],
+  &quot;goalsCount&quot;: 1
+}</pre></details>
+  
+  
+</section>
+</body>
+</html>

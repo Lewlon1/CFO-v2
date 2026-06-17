@@ -1,13 +1,15 @@
-The data here runs to 2026-03-29 — 71 days ago — so treat these as a snapshot, not a live picture. That said, the shape is clear enough to act on.
+This is your sketch, not your statement — but even a sketch this rough tells me something worth acting on.
 
-A target date for your Move-home fund is the one thing standing between you and knowing what this goal actually costs per month. You've saved €1,200 of €6,000 — €4,800 still to go — but without a date, there's no pace to set, no monthly number to hit, and no way to tell whether your current cash flow gets you there comfortably or tight.
+Your ≈€1,200 fixed base leaves ≈€1,500 free each month. The pot needs ≈€170/mo — that's ≈6% of your €2,700 take-home, well within reach. The problem isn't the goal. It's the ≈€1,120 that's drifting out without a name.
 
-On the spending side: rent (Alquiler Piso) accounts for €2,850 of the €5,382 tracked — more than half of everything. The next biggest line is **eating & drinking out** at €762 across the window, running at roughly €264 a month. That's the category with the most flex.
+One move: set up a standing transfer of ≈€300/mo on payday. Sized at roughly half the drift, it won't bite. At that pace the pot lands in ≈3 months instead of ≈10 — and the experiences you're saving toward arrive on the earlier side of that gap.
 
-19 transactions across 88 days is a thin base, so patterns aren't fully established yet — but the category split is already legible, and the free cash flow of €1,458/month is real headroom once the goal has a deadline to pull against.
+You called the ≈€1,120 drift unsure. That's the honest answer right now. A real month settles it — you'll see exactly what's absorbing it, and whether any of it is worth keeping.
 
-Set the date and the monthly pace calculates itself.
+Two things checking adds: every ≈ swaps for a real number, so you can hold estimate against reality side by side. And the habits half of the picture is still completely empty — timing, what's recurring, what spikes — because estimates can't see it. Only real transactions can. You also mentioned things have shifted since the rent went up, which means the sketch may already be behind.
 
-[CTA:supply_input]Set a target date for Move-home fund[/CTA]
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

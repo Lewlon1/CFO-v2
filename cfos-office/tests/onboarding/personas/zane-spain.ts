@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, type Persona } from './types'
 
 // Zane — Spain / EUR (Session 32 C, persona expansion).
 //
@@ -112,44 +112,34 @@ export const zaneSpain: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
-    entryStruggle: 'dont_know',
+    // growth door — saving the entrada para piso. EUR market (€, never £).
+    entryStruggle: 'wealth',
+    ageBand: '30-39',
+    compositeRelate: 'spot_on',
+    goalDeadline: '2y',
+    sketchBands: {
+      housing: 'b', // 800–1,200 (rent ≈820)
+      subs: 'low', // few subs
+      bills: 'a', // ≈150
+      foodOut: 'b', // 20–50/week
+      saveReach: 'c', // ≈250 — a saver
+    },
+    topValue: 'Security',
+    verdicts: { subscriptions: 'unsure', foodOut: 'worth_it', drift: 'unsure' },
+    runStatementCheck: false,
     archetype: {
       expectedQuadrant: 'foundation',
       personalityId: 'fortress',
     },
-    stagesCompleted: [
-      'struggle_submitted',
-      'goal_done',
-      'upload_done',
-      'essentials_done',
-      'confirm_done',
-      'first_read',
-    ],
-    goal: {
-      name: 'Entrada para piso',
-      type: 'savings',
-      targetAmount: 30000,
-      currentAmount: 5000,
-      targetDate: '2029-01-01',
-    },
-    dbAfterHandoff: {
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
-      transactions: { countBetween: [55, 80] },
-    },
+    stagesCompleted: [...ESTIMATE_STAGES],
+    dbAfterHandoff: {},
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
       bannedPatterns: [
-        // Spanish utility billing is bi/tri-monthly; assuming monthly is the
-        // failure mode for the ES market.
-        'monthly\\s+electricity',
-        'monthly\\s+water',
-        'every\\s+month\\s+(your\\s+)?(electricity|water)',
         // £ symbol on a EUR persona is a currency-handling failure.
         '£[0-9]',
       ],
-      insight: {
-        mustReferenceOneOf: ['health', 'groceries', 'free cash flow', 'fixed cost'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

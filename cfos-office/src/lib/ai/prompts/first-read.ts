@@ -24,6 +24,7 @@ import { categoryLabel } from '@/lib/analytics/categories';
 const DAYS_PER_MONTH = 30.44;
 import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
 import type { ReadRecipe } from '@/lib/ai/first-read-recipe';
+import type { DeltaResult, BandDelta } from '@/lib/onboarding-v2/estimates/deltas';
 
 export type FirstReadComposeInput = {
   userId: string;
@@ -80,6 +81,18 @@ export type FirstReadComposeInput = {
   priorReadSummary?: PriorReadSummary | null;
   /** The merchant keys actually put in front of the user in the Value Map (Phase 1 selection). */
   valueMapCardKeys?: string[] | null;
+  /**
+   * Reality-check mode (OB-3) — the estimate-vs-reality deltas. Present ONLY for
+   * the reality-check Read. When set, the Read renders the ESTIMATE VS REALITY
+   * section and leads on the sharpest delta. The deltas are cited verbatim; the
+   * model never recomputes a real number or invents one for an unverified band.
+   */
+  deltas?: DeltaResult | null;
+  /**
+   * Reality-check mode — the exact "knows you · n%" line, reproduced VERBATIM in
+   * the HANDOFF (now past 70 because a statement was checked).
+   */
+  knowsYouLine?: string | null;
 };
 
 export type FirstReadMetadata = {
@@ -91,8 +104,8 @@ export type FirstReadMetadata = {
   levers_offered: string[];
   /** The field the supply_input blocker named, or null when no blocker existed. */
   blocker_field: string | null;
-  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta. */
-  mode?: 'default' | 'value_first' | 'value_first_recompose';
+  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta; 'estimate_first' is the pre-statement estimate Read (OB-2), composed by compose-estimate-read.ts from band estimates, not transactions; 'reality_check' is the OB-3 estimate-vs-reality Read delivered after the statement-check mission. */
+  mode?: 'default' | 'value_first' | 'value_first_recompose' | 'estimate_first' | 'reality_check';
   /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
   hook_candidates?: HookCandidate[] | null;
   /** Which LEAD recipe drove this Read (visibility | target | control | open), or null pre-change. */
@@ -103,6 +116,10 @@ export type FirstReadMetadata = {
   is_recompose?: boolean;
   /** Probe: does the recompose's first sentence string-match the prior Read's first sentence (should be false on a well-formed delta). */
   repeated_opening?: boolean;
+  /** OB-2 estimate Read: the deterministic "C. knows you · n%" score this Read was composed under. Logged for the judge; the single sanctioned user-visible number. */
+  knows_you_pct?: number;
+  /** OB-2 estimate Read: which derive() action branch the Read led its ONE ACTION on. */
+  estimate_action_branch?: string;
 };
 
 export type FirstReadComposeOutput = {
@@ -309,9 +326,67 @@ SHAPE TO AIM FOR (illustrative of the SHAPE only — never copy these figures or
 
 Notice what the shape does and does NOT do: it LEADS on what the sort revealed, references the goal only as a frame ("big enough to move the goal" — no contribution figure, no band, no verdict), pairs every sort with the new thing it makes visible (never "you called it X so it's X"), names the one remaining unknown, and lands ONE action before the handoff.`;
 
+/**
+ * Reality-check variant (OB-3) — the Read delivered after the optional
+ * statement-check mission. The user has now uploaded a real month, and the
+ * deterministic delta engine (estimates/deltas.ts) has checked every ≈ estimate
+ * against the real number. This Read leads on the estimate-vs-reality gap, gives
+ * the corrected position on real figures, and closes by handing into the Value
+ * Map (the VM-3 convergence). It inherits the value-first voice + honesty blocks;
+ * only the STRUCTURE and CLOSE differ.
+ */
+export const FIRST_READ_SYSTEM_PROMPT_REALITY_CHECK = `You are the user's CFO. Earlier you wrote them a Read built entirely from their own estimates — a sketch. They have now uploaded a real month (or more) of statements, and the system has checked each estimate against the real number. This message is the payoff: estimate vs reality, side by side. It is honest, specific, and lands the user somewhere better than the sketch left them. Sign off "— C." on its own line.
+
+WHAT CHANGED SINCE THE SKETCH:
+- The earlier figures were the user's guesses, written with "≈". You now have REAL numbers for the bands the statement could verify. Lead with the gap between the two.
+- The ESTIMATE VS REALITY block below gives you, per band: the estimate (≈), the real number, the delta, and whether the guess HELD or was off. Some bands are still ESTIMATES (the upload couldn't isolate them) — those are flagged; keep them as ≈ estimates, never as checked facts.
+
+STRUCTURE (this is the contract — DELTAS, then the corrected position, then clarifiers, then the handoff):
+1. DELTAS — open on the SHARPEST band from ESTIMATE VS REALITY (the biggest miss): "You guessed ≈X eating out. The real number was Y." Then at most one or two more deltas, in EITHER direction — a guess that came in under reality is as worth naming as one that came in over. Where a guess HELD, say so plainly ("your rent guess was on the money"). Where a band is still an ESTIMATE, keep it ≈ and name it as not-yet-checked; never present it as confirmed. If a save-reach note is given, quote it VERBATIM. If there is NO sharpest miss (every verified guess held), open on that — the sketch held up — and name which bands the month confirmed. If the upload couldn't verify ANY band, say plainly the real numbers are in but still settling, and move to the handoff.
+2. CORRECTED POSITION — restate where they now stand on REAL numbers: free cash flow and the goal's monthly pace, from FINANCIAL FACTS and GOAL verbatim. Reference the sketch's figures only as the contrast ("your sketch said ≈X; the real free cash is Y"). Do NOT recompute anything — quote the numbers you were handed. If the goal math gives a compound-growth band, show the range once then LOCK the moderate middle case as the plan, and treat the conservative case as the stress test.
+3. CLARIFIERS — one or two things the data still can't settle on its own, posed as DIRECT either/or questions on the HOOK CANDIDATES (cite merchant, amount, period_hint verbatim). If there are no hook candidates, skip this beat.
+4. HANDOFF — two beats: (a) name plainly that the habits half of the picture is now FILLABLE — timing, what's recurring, the patterns the sketch couldn't see — but that what those patterns MEAN to the user is still missing, and the Value Map is where that intent attaches; (b) the knows-you line VERBATIM from the KNOWS-YOU block, then the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
+
+BANNED IN THE READ:
+- Presenting a band still marked ≈ / not-verified as observed or confirmed.
+- Inventing a real number for a band the ESTIMATE VS REALITY block left as an estimate.
+- Narration of observing: "I see", "I notice", "On reviewing". State what's true.
+- Surfacing a figure only to disclaim it past the honest "this band's still an estimate" framing.
+- A vague question-back close: "What do you think?" / "Does that sound right?". (The CLARIFIERS are specific either/or questions — those are the point, not banned.)
+- Apology or boundary-stating language: "unfortunately", "I'm not able to advise", "I can't recommend", "sorry".
+- Emoji. The words "advice" or "advise" anywhere.
+- Product names or buy/sell/switch calls on instruments.
+- Inventing magnitudes. Every number comes verbatim from the blocks below.
+- More than one CTA, or a CTA other than [CTA:start_value_map_real].
+
+BOUNDARY (felt, not stated):
+Directness applies to behaviour and cash flow — name the gap, size the move, point to the next step. A contribution figure is a calculation ("the goal needs €420/mo"), never an instruction to fund a product. No disclaimers, no apologies.
+
+VOICE (Constitution v1.4 §2):
+- State findings directly. "Eating out ran €287 a month — €137 over your guess." Don't narrate the act of observing.
+- Plain English, short sentences, warm authority — not a service desk ("Let me…", "I can help…").
+- Second person for the user's facts. First person only when it carries a real stance.
+
+HONESTY (NO HALLUCINATION):
+- Use only the numbers, merchants, and patterns from the blocks below. Do not invent any of them.
+- Real deltas come from ESTIMATE VS REALITY verbatim; the ≈ figures are the user's old guesses — never recompute either.
+- Income, fixed costs, and free cash flow come from FINANCIAL FACTS verbatim.
+- Cluster totals and counts come from the "volume" line in BEHAVIOURAL CLUSTERS. Never compute a sum yourself.
+- If DATA RECENCY shows the data is stale, acknowledge it in the first or second line.
+- Cite only day-counts and date spans that appear verbatim below.
+
+LENGTH & FORMAT:
+- Target 120–220 words. Tight — a few short paragraphs, not an essay.
+- Plain prose. Bold (**) the band / cluster names when first mentioned. The clarifiers may sit as up to two short dashed lines.
+- The CTA is on its own line, immediately before "— C.".
+- Sign off "— C." on its own line.`;
+
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   const isRecompose = input.priorReadSummary != null;
-  const isValueFirst = (input.hookCandidates?.length ?? 0) > 0;
+  const isRealityCheck = input.deltas != null;
+  // Reality-check passes hook candidates too (for its CLARIFIERS), so exclude it
+  // from the value-first branch — it has its own STRUCTURE + close contract.
+  const isValueFirst = !isRealityCheck && (input.hookCandidates?.length ?? 0) > 0;
   const currency = input.financialFacts?.currency ?? 'EUR';
   const symbol = currencySymbol(currency).trim() || currency;
   const sections: string[] = [
@@ -345,6 +420,16 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     ``,
   ];
 
+  // Reality-check mode: the estimate-vs-reality deltas are the spine of the Read.
+  // Rendered right after the Layer-1 facts so the model leads on the gap.
+  if (isRealityCheck) {
+    sections.push(
+      `ESTIMATE VS REALITY (OB-3 — the system checked each ≈ estimate against the real month; cite these verbatim, never recompute a real number or invent one for an unverified band):`,
+      formatDeltas(input.deltas, currency),
+      ``,
+    );
+  }
+
   // Recompose mode: render WHAT THE USER JUST SORTED (the payoff source) and
   // ALREADY SAID (the do-not-restate contract) before the goal-math sections.
   if (isRecompose) {
@@ -363,17 +448,30 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
   // available for the LEAD — the target recipe leans on it.
   sections.push(
     `BLOCKER (a required input for the goal math is missing — when present this IS the lead under the target recipe, not a footnote):`,
-    formatBlocker(input.blocker, isValueFirst),
+    // Reality-check closes on the Value-Map hook CTA too, so suppress the
+    // blocker's supply_input CTA just as the value-first path does.
+    formatBlocker(input.blocker, isValueFirst || isRealityCheck),
     ``,
     `LEVERS (computed magnitudes — frame these numbers, do not invent them):`,
     formatLevers(input.levers),
     ``,
   );
 
-  if (isValueFirst) {
+  // Both value_first and reality_check render HOOK CANDIDATES — but as
+  // CLARIFIERS (direct either/or questions mid-Read), NOT as the closing hook.
+  // The two modes' COMPOSE directives below diverge on everything else.
+  if (isValueFirst || isRealityCheck) {
     sections.push(
       `HOOK CANDIDATES (the 1-2 things the data can't settle — pose these as direct CLARIFIER questions, not a closing hook):`,
       formatHookCandidates(input.hookCandidates ?? [], currency),
+      ``,
+    );
+  }
+
+  if (isRealityCheck && input.knowsYouLine) {
+    sections.push(
+      `KNOWS-YOU (reproduce this line VERBATIM in the HANDOFF, immediately before the CTA — it is the single sanctioned user-visible percentage):`,
+      input.knowsYouLine,
       ``,
     );
   }
@@ -405,7 +503,9 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
           .map((b) => formatClusterForPrompt(b, currency, input.effectiveMonths, input.coveredDays))
           .join('\n\n'),
     ``,
-    isRecompose
+    isRealityCheck
+      ? `COMPOSE THE REALITY-CHECK READ NOW. Open on the SHARPEST delta from ESTIMATE VS REALITY, name ≤2 more deltas (either direction; say where the guess held; keep unverified bands as ≈ estimates and never claim they were checked; quote any save-reach note verbatim), then the CORRECTED POSITION on real free cash + goal pace (FINANCIAL FACTS / GOAL verbatim, the sketch's ≈ figures only as the contrast), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES (skip the beat if there are none), then the HANDOFF: the habits half is now fillable but what those patterns MEAN still needs the Value Map, the knows-you line VERBATIM, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble. Sign off with "— C." on its own line.`
+      : isRecompose
       ? `COMPOSE THE RECOMPOSE NOW. Lead on what their sorting unlocked per READ FOCUS, ≤2 delta observations from the NEW Layer 2 (WHAT THE USER JUST SORTED), close on a directive + [CTA:open_chat]…[/CTA] that lands them in chat. Do not restate anything in ALREADY SAID. Do not open a new hook. Hard cap 200 words. Output the message text only — no markdown code fences, no preamble. Sign off with "— C." on its own line.`
       : isValueFirst
       ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
@@ -571,6 +671,73 @@ function formatHookCandidates(hooks: HookCandidate[], currency: string): string 
       ].join('\n');
     })
     .join('\n');
+}
+
+/** Human band labels for the ESTIMATE VS REALITY block — never the engine ids. */
+const DELTA_BAND_LABELS: Record<BandDelta['band'], string> = {
+  housing: 'housing',
+  subscriptions: 'subscriptions',
+  bills: 'bills',
+  food_out: 'eating out',
+  save_reach: 'what you could set aside',
+};
+
+/**
+ * Render the estimate-vs-reality deltas for the reality-check Read. Every figure
+ * is taken verbatim from the pure delta engine (computeDeltas) — the model cites
+ * these, it never recomputes a delta. Bands fall into four buckets: the sharpest
+ * miss (the lead), other verified misses, bands where the guess held, and bands
+ * the upload couldn't verify (which stay ≈ estimates).
+ */
+function formatDeltas(deltas: DeltaResult | null | undefined, currency: string): string {
+  if (!deltas) return '(no verification available)';
+  const m = (v: number) => formatMoney(Math.round(v), currency);
+  const signed = (v: number) => `${v >= 0 ? '+' : ''}${m(v)}`;
+  const lines: string[] = [];
+
+  if (deltas.sharpest) {
+    const s = deltas.sharpest;
+    const d = s.delta ?? 0;
+    lines.push(
+      `SHARPEST MISS (open on this): ${DELTA_BAND_LABELS[s.band]} — guessed ≈${m(s.estimate)}, real ${m(s.actual ?? 0)} (${signed(d)}, ${d > 0 ? 'higher than' : 'lower than'} the guess).`,
+    );
+  }
+
+  // Other verified misses (the sharpest is already shown above).
+  for (const b of deltas.bands) {
+    if (b.state !== 'verified' || b.held !== false) continue;
+    if (b.band === deltas.sharpest?.band) continue;
+    lines.push(
+      `- MISS: ${DELTA_BAND_LABELS[b.band]} — guessed ≈${m(b.estimate)}, real ${m(b.actual ?? 0)} (${signed(b.delta ?? 0)}).`,
+    );
+  }
+
+  // Bands where the guess held — say so plainly.
+  for (const b of deltas.held) {
+    lines.push(
+      `- HELD (guess was close — say so): ${DELTA_BAND_LABELS[b.band]} — guessed ≈${m(b.estimate)}, real ${m(b.actual ?? 0)}.`,
+    );
+  }
+
+  // Bands the upload couldn't verify — keep them ≈ estimates.
+  for (const b of deltas.bands) {
+    if (b.state !== 'estimated') continue;
+    lines.push(
+      `- STILL AN ESTIMATE (couldn't verify from this upload — keep it ≈, don't claim it was checked): ${DELTA_BAND_LABELS[b.band]} — ≈${m(b.estimate)}.`,
+    );
+  }
+
+  // Save-reach proxy note, quoted verbatim if present.
+  const saveReach = deltas.bands.find((b) => b.band === 'save_reach');
+  if (saveReach?.note) {
+    lines.push(
+      `- NOTE on what you could set aside: "${saveReach.note}" — quote this verbatim when you cite that figure.`,
+    );
+  }
+
+  return lines.length > 0
+    ? lines.join('\n')
+    : '(every band is still an estimate — no real numbers to compare yet)';
 }
 
 function formatBlocker(blocker: Lever | null | undefined, isValueFirst = false): string {

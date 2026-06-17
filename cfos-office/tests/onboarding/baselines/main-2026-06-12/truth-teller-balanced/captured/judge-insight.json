@@ -1,0 +1,126 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:38:52.455Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "202/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": " directing surplus toward the goal rather than away from it."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "ruleId": "R9_goal_reference",
+      "passed": true
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational opener ('Heads up'), casual phrasing ('not behind; you're in a position to run ahead'), and direct address create genuine smart-friend rapport without condescension."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures check against source data: £3,000 banked (implied from goal context), £2,700 housing (3 rent txns), £73/month eating out (Dishoom £210 ÷ 6 txns ÷ 3 months ≈ £12, plus discretionary food), £1,774 FCF (£8,400 income − £4,134.97 spend ÷ 2.87 months), no hallucinated merchants."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids prescriptive 'you should' language and uses tangible math ('£857 a month', 'trim of £18'), though the closing line ('locks in a habit') edges slightly toward light advice-framing rather than pure observation."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Tailored to a UK-based truth-teller in foundation quadrant with specific goal dates and currency, acknowledges data thinness honestly, and targets the one discretionary lever visible—feels personal, not templated."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "Clear CTA with specific lever (cut £18 from eating & drinking out) and rationale, though the impact is framed as habit-building rather than outcome-shifting, which slightly softens urgency."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational opener ('Heads up'), casual phrasing ('not behind; you're in a position to run ahead'), and direct address create genuine smart-friend rapport without condescension."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures check against source data: £3,000 banked (implied from goal context), £2,700 housing (3 rent txns), £73/month eating out (Dishoom £210 ÷ 6 txns ÷ 3 months ≈ £12, plus discretionary food), £1,774 FCF (£8,400 income − £4,134.97 spend ÷ 2.87 months), no hallucinated merchants."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids prescriptive 'you should' language and uses tangible math ('£857 a month', 'trim of £18'), though the closing line ('locks in a habit') edges slightly toward light advice-framing rather than pure observation."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Tailored to a UK-based truth-teller in foundation quadrant with specific goal dates and currency, acknowledges data thinness honestly, and targets the one discretionary lever visible—feels personal, not templated."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "Clear CTA with specific lever (cut £18 from eating & drinking out) and rationale, though the impact is framed as habit-building rather than outcome-shifting, which slightly softens urgency."
+    }
+  }
+}

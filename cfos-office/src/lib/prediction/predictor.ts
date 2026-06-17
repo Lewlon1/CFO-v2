@@ -1,81 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ValueCategoryRule, Category } from '@/lib/parsers/types'
-import { getTimeContext } from '@/lib/utils/time-context'
+import { gateDefaultEmission } from '@/lib/categorisation/value-config'
+import { matchValueRule } from '@/lib/categorisation/value-rule-matcher'
 import type { PredictionResult, ValueCategoryType } from './types'
-import { NONE_TIME_CONTEXT } from './types'
-
-/** Confidence thresholds per tier — a rule must meet this to be used */
-const THRESHOLDS: Record<string, number> = {
-  merchant_time: 0.30,
-  merchant_amount: 0.30,
-  merchant: 0.25,
-  category_time: 0.20,
-  category_amount: 0.20,
-  category: 0.15,
-  global: 0, // always returns if exists
-}
-
-/** Resolution order — first match above threshold wins */
-const RESOLUTION_ORDER = [
-  'merchant_time',
-  'merchant_amount',
-  'merchant',
-  'category_time',
-  'category_amount',
-  'category',
-  'global',
-] as const
-
-function daysSince(dateStr: string | null): number {
-  if (!dateStr) return Infinity
-  return Math.max(0, (Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function recencyBoost(lastSignalAt: string | null): number {
-  const days = daysSince(lastSignalAt)
-  return Math.max(0, 0.05 * (1 - days / 90))
-}
-
-function findRule(
-  rules: ValueCategoryRule[],
-  matchType: string,
-  matchValue: string,
-  timeContext: string | null
-): ValueCategoryRule | undefined {
-  return rules.find((r) => {
-    if (r.match_type !== matchType) return false
-    if (r.match_value !== matchValue) return false
-    if (matchType.endsWith('_time')) return r.time_context === timeContext
-    if (matchType.endsWith('_amount')) return true // amount checked separately
-    // Plain rules store the NONE sentinel (migration 064). Accept legacy
-    // null/undefined too, in case any pre-064 row lingers.
-    return (
-      r.time_context === NONE_TIME_CONTEXT ||
-      r.time_context === null ||
-      r.time_context === undefined
-    )
-  })
-}
-
-function findAmountRule(
-  rules: ValueCategoryRule[],
-  matchType: string,
-  matchValue: string,
-  amount: number
-): ValueCategoryRule | undefined {
-  const abs = Math.abs(amount)
-  return rules.find((r) => {
-    if (r.match_type !== matchType || r.match_value !== matchValue) return false
-    if (r.avg_amount_low !== null && abs < r.avg_amount_low) return false
-    if (r.avg_amount_high !== null && abs > r.avg_amount_high) return false
-    return true
-  })
-}
 
 /**
  * Pure resolution function — no DB access.
- * Takes pre-loaded rules and categories, resolves value category through 9 tiers.
- * Use this for batch operations (import pipeline).
+ * Takes pre-loaded rules and categories. Rule resolution is delegated to the
+ * shared matcher (categorisation/value-rule-matcher.ts — VM-2); this module
+ * only adds the gated category-default fallback below it.
+ * Use this for batch operations (import pipeline, re-score).
  */
 export function resolveValueCategory(
   rules: ValueCategoryRule[],
@@ -85,55 +19,32 @@ export function resolveValueCategory(
   amount: number,
   transactionTime: Date
 ): PredictionResult {
-  const timeContext = getTimeContext(transactionTime)
-
-  for (const tier of RESOLUTION_ORDER) {
-    let rule: ValueCategoryRule | undefined
-    if (tier === 'global') {
-      rule = rules.find((r) => r.match_type === 'global')
-    } else {
-      // Determine match_value based on tier type
-      const isMerchantTier = tier.startsWith('merchant')
-      const matchValue = isMerchantTier ? merchantClean : (categoryId ?? '')
-      if (!matchValue) continue
-
-      if (tier.endsWith('_amount')) {
-        rule = findAmountRule(rules, tier, matchValue, amount)
-      } else if (tier.endsWith('_time')) {
-        rule = findRule(rules, tier, matchValue, timeContext)
-      } else {
-        rule = findRule(rules, tier, matchValue, null)
-      }
-    }
-
-    if (!rule) continue
-
-    // Threshold check uses raw confidence (before recency boost)
-    if (rule.confidence < (THRESHOLDS[tier] ?? 0)) continue
-
-    const boost = recencyBoost(rule.last_signal_at ?? null)
-    const finalConfidence = Math.round(Math.min(0.99, rule.confidence + boost) * 100) / 100
-
+  const match = matchValueRule(
+    { description: '', merchantClean, categoryId, amount, date: transactionTime },
+    rules
+  )
+  if (match) {
     return {
-      value_category: rule.value_category as ValueCategoryType,
-      confidence: finalConfidence,
-      source: tier,
+      value_category: match.valueCategory as ValueCategoryType,
+      confidence: match.confidence,
+      source: match.matchType,
     }
   }
 
-  // Tier 8: category default
+  // Category default — gated (VM-1): never emits 'leak', confidence capped at
+  // DEFAULT_SOURCE_CONFIDENCE_CAP.
   if (categoryId) {
     const cat = categories.find((c) => c.id === categoryId)
     if (cat?.default_value_category) {
+      const gated = gateDefaultEmission(cat.default_value_category, 0.15)
       return {
-        value_category: cat.default_value_category as ValueCategoryType,
-        confidence: 0.15,
+        value_category: gated.valueCategory,
+        confidence: gated.confidence,
         source: 'category_default',
       }
     }
   }
 
-  // Tier 9: null
   return { value_category: null, confidence: 0, source: 'none' }
 }
 

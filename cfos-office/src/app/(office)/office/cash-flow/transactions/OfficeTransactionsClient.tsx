@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { MonthSelector, FilterPills, TransactionRow, SectionTitle } from '@/components/data'
+import { isValueDisplayable } from '@/lib/categorisation/value-config'
 import { formatMonth } from '@/lib/constants/dashboard'
 import type { ValueCategory } from '@/lib/tokens'
 import type { Database } from '@/lib/supabase/types'
@@ -12,7 +13,8 @@ import type { Database } from '@/lib/supabase/types'
 // shape that silently asserts non-null.
 type Transaction = Pick<
   Database['public']['Tables']['transactions']['Row'],
-  'id' | 'date' | 'description' | 'amount' | 'currency' | 'category_id' | 'value_category'
+  | 'id' | 'date' | 'description' | 'amount' | 'currency' | 'category_id'
+  | 'value_category' | 'value_confidence' | 'value_confirmed_by_user'
 >
 
 interface OfficeTransactionsClientProps {
@@ -136,6 +138,7 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
               const cat = tx.category_id ? categoryMap[tx.category_id] : null
               const VALID_VC = new Set(['foundation', 'investment', 'leak', 'burden', 'unsure'])
               const vc: ValueCategory = VALID_VC.has(tx.value_category ?? '') ? tx.value_category as ValueCategory : 'unsure'
+              const displayable = isValueDisplayable(tx)
               return (
                 <TransactionRow
                   key={tx.id}
@@ -147,6 +150,7 @@ export function OfficeTransactionsClient({ transactions, categoryMap }: OfficeTr
                   category={cat?.name ?? ''}
                   amount={`${tx.amount < 0 ? '-' : ''}\u20AC${Math.abs(tx.amount).toFixed(2)}`}
                   valueCategory={vc}
+                  valueDisplayable={displayable}
                   onValueChange={(newCat) => handleValueChange(tx.id, newCat)}
                 />
               )

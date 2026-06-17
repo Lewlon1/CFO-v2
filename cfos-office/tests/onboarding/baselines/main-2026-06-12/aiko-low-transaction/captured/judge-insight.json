@@ -1,0 +1,122 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:41:10.424Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "182/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": ", which means there's nothing to measure the £1,950 against."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "The tone is conversational and peer-like ('One note upfront', 'That's the full picture', '— C.'), avoiding jargon while staying direct and honest about data limitations."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures match source data exactly: £1,150 rent, £185 IKEA, £131 groceries (Sainsbury's + Tesco), £54 utilities (Thames Water + EE), £22 eating out, and the 74% calculation is correct."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses concrete numbers and comparisons ('£1,950 against £1,150'), avoids prescriptive advice language, and frames the insight as a snapshot rather than a directive."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly addresses the sparse-data reality for this user (21 days, 8 transactions), acknowledges the fortress/foundation archetype by focusing on fixed vs. free cash flow, and avoids over-interpreting thin signals."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Clearly identifies the blocker (no goal set) and points to the exact next step (set a savings goal), making it obvious what the user should do to unlock better insights."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "The tone is conversational and peer-like ('One note upfront', 'That's the full picture', '— C.'), avoiding jargon while staying direct and honest about data limitations."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures match source data exactly: £1,150 rent, £185 IKEA, £131 groceries (Sainsbury's + Tesco), £54 utilities (Thames Water + EE), £22 eating out, and the 74% calculation is correct."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses concrete numbers and comparisons ('£1,950 against £1,150'), avoids prescriptive advice language, and frames the insight as a snapshot rather than a directive."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly addresses the sparse-data reality for this user (21 days, 8 transactions), acknowledges the fortress/foundation archetype by focusing on fixed vs. free cash flow, and avoids over-interpreting thin signals."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Clearly identifies the blocker (no goal set) and points to the exact next step (set a savings goal), making it obvious what the user should do to unlock better insights."
+    }
+  }
+}

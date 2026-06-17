@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  isValueDisplayable,
+  UNMAPPED_BUCKET,
+} from '@/lib/categorisation/value-config'
+import {
   INCOME_CATEGORY_ID,
   UNCATEGORISED_CATEGORY_ID,
   isIncomeRow,
@@ -10,11 +14,14 @@ import { detectIncomeShape } from './income-shape'
 import { computeCashFlowAggregates } from './cashflow-aggregates'
 import { detectPosture } from './posture'
 import { reconcileFixedCosts } from './reconcile-fixed-costs'
+import { alignmentFromValueBuckets } from '@/lib/value-map/alignment'
 
 type SnapshotTxn = {
   amount: number | string
   category_id: string | null
   value_category: string | null
+  value_confidence: number | null
+  value_confirmed_by_user: boolean | null
   description: string
 }
 
@@ -71,7 +78,12 @@ export function aggregateMonthSpending(txns: SnapshotTxn[]): MonthAggregate {
     const cid = (txn.category_id ?? UNCATEGORISED_CATEGORY_ID) as string
     const delta = -Number(txn.amount) // outflow → +ve, refund → -ve
     spendingByCategory[cid] = (spendingByCategory[cid] ?? 0) + delta
-    const vc = txn.value_category ?? 'unsure'
+    // VM-1 honesty gate: only user-confirmed or high-confidence value labels
+    // count toward a value bucket; everything else (low-confidence defaults,
+    // 'unsure', legacy 'no_idea') aggregates under 'unmapped'.
+    const vc = isValueDisplayable(txn)
+      ? (txn.value_category as string)
+      : UNMAPPED_BUCKET
     spendingByValueCategory[vc] = (spendingByValueCategory[vc] ?? 0) + delta
 
     if (isSpendRow(txn.amount, txn.category_id) || (Number(txn.amount) < 0 && !txn.category_id)) {
@@ -169,7 +181,7 @@ async function refreshOneMonth(
 
   const { data: txns } = await supabase
     .from('transactions')
-    .select('amount, category_id, value_category, description')
+    .select('amount, category_id, value_category, value_confidence, value_confirmed_by_user, description')
     .eq('user_id', userId)
     .gte('date', monthStart)
     .lt('date', nextMonth)
@@ -204,6 +216,12 @@ async function refreshOneMonth(
       ? ((totalSpending - prevSnap.total_spending) / prevSnap.total_spending) * 100
       : null
 
+  // VM-5: alignment is derived from the same bucket record persisted below,
+  // so the stored score can never disagree with the jsonb other surfaces
+  // render. Written unconditionally (no flag gate) — the columns are inert
+  // until a VALUE_MAP_V2 surface reads them.
+  const alignment = alignmentFromValueBuckets(spendingByValueCategory)
+
   await supabase.from('monthly_snapshots').upsert(
     {
       user_id: userId,
@@ -218,6 +236,9 @@ async function refreshOneMonth(
       largest_transaction: Math.round(largestTxn * 100) / 100,
       largest_transaction_desc: largestTxnDesc || null,
       vs_previous_month_pct: vsPrevPct ? Math.round(vsPrevPct * 10) / 10 : null,
+      aligned_spend_pct: alignment.alignedSpendPct,
+      alignment_confidence: alignment.alignmentConfidence,
+      alignment_version: alignment.version,
     },
     { onConflict: 'user_id,month' }
   )

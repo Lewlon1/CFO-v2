@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, type Persona } from './types'
 
 // Fortress: foundation >= 50%. All 10 cards decided (no hard_to_decide).
 // Total: 1444.50
@@ -84,26 +84,33 @@ export const fortressSaver: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
+    // candor door, then corrects to a house-deposit goal via the escape hatch
+    // (exercises goal-show-alts + a no-deadline "direction" goal).
     entryStruggle: 'dont_know',
+    ageBand: '30-39',
+    compositeRelate: 'close',
+    compositeTruerLine: 'I save more than this sketch makes it look',
+    goalDeadline: 'none',
+    goalAltFamily: 'growth',
+    sketchBands: {
+      housing: 'a', // <800 (rent ≈650 — cheap Manchester)
+      subs: 'low', // thrifty — few subs
+      bills: 'a', // ≈150
+      foodOut: 'a', // <20/week — rarely eats out
+      saveReach: 'c', // ≈250 — a committed saver
+    },
+    topValue: 'Security',
+    verdicts: { subscriptions: 'leak', foodOut: 'leak', drift: 'leak' },
+    runStatementCheck: false,
     archetype: {
       expectedQuadrant: 'foundation',
       personalityId: 'fortress',
     },
-    stagesCompleted: ['struggle_submitted', 'goal_done', 'upload_done', 'essentials_done', 'confirm_done', 'first_read'],
-    dbAfterHandoff: {
-      /* primary_currency collected post-onboarding in chat, not asserted here */
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
-      transactions: { countBetween: [30, 70] },
-    },
+    stagesCompleted: [...ESTIMATE_STAGES],
+    dbAfterHandoff: {},
     hardRules: {
       bannedWords: ['advise', 'advice', "The CFO's Office", 'lecture'],
-      archetype: {
-        mustReferenceQuadrant: 'foundation',
-        mustMentionOneOf: ['careful', 'fortress', 'foundation', 'disciplined', 'protected'],
-      },
-      insight: {
-        mustReferenceOneOf: ['housing', 'groceries', 'free cash flow', 'goal'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

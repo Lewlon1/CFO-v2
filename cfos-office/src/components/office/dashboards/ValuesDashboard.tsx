@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { useDashboardData } from '@/lib/hooks/useDashboardData'
+import { AlignmentTile } from './AlignmentTile'
 import { Briefing } from './Briefing'
 import { DetailHeader } from './DetailHeader'
 import { DrillDownRow } from './DrillDownRow'
@@ -18,6 +19,9 @@ const VALUE_META: Record<string, { label: string; color: string; order: number }
   leak: { label: 'Leak', color: valueCategories.leak.color, order: 3 },
   burden: { label: 'Burden', color: valueCategories.burden.color, order: 4 },
   unsure: { label: 'Unclassified', color: valueCategories.unsure.color, order: 5 },
+  // VM-1: low-evidence labels aggregate under 'unmapped' (neutral) instead of
+  // asserting a value judgement. 'unsure' is kept for pre-VM-1 snapshots.
+  unmapped: { label: 'Unmapped', color: valueCategories.unsure.color, order: 6 },
 }
 
 export interface ValuesDashboardGap {
@@ -58,6 +62,12 @@ export function ValuesDashboard({
       <Briefing accentColor={ACCENT}>
         {buildBriefing(archetype, gaps)}
       </Briefing>
+
+      {/* VM-5 — present only when the server flag is on (the API omits the
+          field flag-off, so this renders nothing and the page is unchanged). */}
+      {summary?.alignment && (
+        <AlignmentTile alignment={summary.alignment} currency={currency} />
+      )}
 
       {archetype?.name && (
         <ArchetypeCard archetype={archetype} profileCompleteness={profileCompleteness} />
@@ -214,7 +224,7 @@ function ValueBreakdown({
   summary: ReturnType<typeof useDashboardData>['summary']
   currency: string
 }) {
-  const order: Array<keyof typeof VALUE_META> = ['foundation', 'investment', 'leak', 'burden']
+  const order: Array<keyof typeof VALUE_META> = ['foundation', 'investment', 'leak', 'burden', 'unmapped']
   const entries = order
     .map((key) => {
       const vc = summary?.spending_by_value_category?.[key]

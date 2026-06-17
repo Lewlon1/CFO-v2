@@ -1,11 +1,15 @@
-The ISA goal is funded at plan — note that the data here is 72 days stale (last transaction 28 March 2026), so treat these figures as a snapshot, not a live read.
+This is your sketch, not your statement — but even a sketch this rough tells me something clear.
 
-Here's where the math lands: maxing the ISA to £20,000 by 31 December needs £1,738/mo at 10%, £1,772/mo at 7%, or £1,805/mo at 4%. The 7% figure is the working number — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this, an assumption not a promise, which is why the 4% case stays visible as the stress test. Your free cash flow of £2,850/mo covers even the 4% stress case with room to spare. The goal is funded. The question now is whether you want to get there sooner or build a buffer against the conservative case.
+Your ≈£4,050/mo free cash looks generous on paper. The deposit needs ≈£6,670/mo — that's ≈108% of your take-home, so the September 2026 target as drawn isn't reachable at that pace. What matters is what you can actually move. Right now, your estimates show ≈£280/mo eating out and ≈£500/mo you said you could save, with ≈£3,270/mo sitting as unexplained drift. That gap is where the real question lives.
 
-Two things worth naming. First, the £8,898 already saved does significant heavy lifting here — compounding on that existing pot is a meaningful part of why the monthly ask is well below a flat split. Second, with only 10 transactions across 87 days, the behavioural picture is thin; **subscriptions** are the one cluster with enough signal, running at £126/month as of the snapshot.
+The one move: set up a standing transfer of ≈£300/mo on payday. Sized at roughly half the drift, it won't bite. At that pace the deposit lands in ≈25 months instead of ≈40 — fifteen months of freedom bought by one standing order.
 
-Trimming £31/month from subscriptions won't move the deadline, but it tightens the plan against the 4% stress case and frees margin you control directly.
+You called the ≈£3,270/mo drift worth it. That may well be true. A real month says whether it's genuinely accounted for, or whether some of it is just invisible spend that hasn't had a name yet.
 
-[CTA:cut_lever]Trim £31 from subscriptions[/CTA]
+Checking a real month does two things. First, it swaps every ≈ for an actual number — estimate and reality side by side. Second, the habits half of this picture is still empty: timing, patterns, what's truly recurring. Estimates can't see any of that.
+
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

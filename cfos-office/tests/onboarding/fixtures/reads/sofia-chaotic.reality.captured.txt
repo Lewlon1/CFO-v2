@@ -1,0 +1,13 @@
+The data here runs to 2026-03-27 — 78 days ago — so treat everything below as of that date, not today.
+
+The sharpest miss cuts both ways. You guessed ≈£0 for what you could set aside; the real figure was £2,053 — "worked out from what was left over, not from detected transfers." That's a £2,053 gap, entirely in your favour. The other miss ran the opposite direction: you guessed ≈£280 on **eating & drinking out**; the real number was £55, £225 under your guess. Your sketch had **housing** at ≈£700, **subscriptions** at ≈£86, and **bills** at ≈£150 — none of those could be verified from this upload, so they stay as estimates.
+
+On real numbers: your trailing 3-month average income is ≈£2,897/mo — variable, swings month to month — with fixed costs of £63/mo and free cash flow of £2,837/mo. Your sketch had none of that precision. The buffer goal needs £417/mo to reach £2,500 by 2026-12-13. At £2,837/mo free cash flow, you're running £2,420/mo above that pace. The goal is covered.
+
+Only 8 transactions sit behind this read across 83 days, so the pattern layer is thin. What the habits half of the picture *means* to you — which of these categories earns its spend, which doesn't — is still missing. That's what the Value Map settles.
+
+That check took me from a sketch to your real numbers — I now know you about 72%, past the 70% a real month unlocks. The last stretch is what these patterns mean to you, and that's what the Value Map settles.
+
+[CTA:start_value_map_real]Tell me what these mean[/CTA]
+
+— C.

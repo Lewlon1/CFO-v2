@@ -1,0 +1,126 @@
+{
+  "outputType": "estimate_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:17:57.450Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_read_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "235/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "Checking a real month is what takes that past 70%."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me something') with genuine curiosity about the user's situation rather than prescriptive authority."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures (£1,170 fixed, £3,100 take-home, £60 eating out, £1,770 drift) are derived directly from the persona data and transaction summary without invented merchants or unsourced claims."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses tangible comparisons (3 months vs 10 months), avoids prescriptive 'you should' language, frames the standing order as a test ('won't bite') rather than moral advice, and maintains the CFO's signature precision-with-humility voice."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly addresses Aiko's top value (Security) by framing the pot as a concrete safety mechanism, acknowledges the sparse 21-day data constraint, and respects the 'unsure' verdicts by treating them as honest gaps rather than failures."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Delivers a specific, sized action (£300/mo standing order), explains the logic (half the drift), names the outcome (3 months), and points to the next diagnostic step (statement check) with clear reasoning about what it unlocks (56% → 70% understanding)."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me something') with genuine curiosity about the user's situation rather than prescriptive authority."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures (£1,170 fixed, £3,100 take-home, £60 eating out, £1,770 drift) are derived directly from the persona data and transaction summary without invented merchants or unsourced claims."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses tangible comparisons (3 months vs 10 months), avoids prescriptive 'you should' language, frames the standing order as a test ('won't bite') rather than moral advice, and maintains the CFO's signature precision-with-humility voice."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly addresses Aiko's top value (Security) by framing the pot as a concrete safety mechanism, acknowledges the sparse 21-day data constraint, and respects the 'unsure' verdicts by treating them as honest gaps rather than failures."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Delivers a specific, sized action (£300/mo standing order), explains the logic (half the drift), names the outcome (3 months), and points to the next diagnostic step (statement check) with clear reasoning about what it unlocks (56% → 70% understanding)."
+    }
+  }
+}

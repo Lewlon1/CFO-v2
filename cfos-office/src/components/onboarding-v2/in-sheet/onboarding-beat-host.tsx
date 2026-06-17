@@ -9,6 +9,7 @@ import { CfoThinking } from '@/components/brand/CfoThinking'
 import { UploadBeatBlock } from './upload-beat-block'
 import { EssentialsBeatBlock } from './essentials-beat-block'
 import { ConfirmBeatBlock } from './confirm-beat-block'
+import { CheckProcessingBeatBlock } from './check-processing-beat-block'
 
 type Props = {
   step: OnboardingStep | null
@@ -28,6 +29,7 @@ export function OnboardingBeatHost({ step, currency, goal }: Props) {
   const router = useRouter()
   const { openSheet, loadConversation } = useChatContext()
   const readTriggeredRef = useRef(false)
+  const realityCheckTriggeredRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   // Terminal beat: details confirmed → compose the Read and hand it into the
@@ -95,6 +97,55 @@ export function OnboardingBeatHost({ step, currency, goal }: Props) {
     }
   }, [step, router, openSheet, loadConversation])
 
+  // OB-3 statement-check terminal: the confirm beat committed the real fixed
+  // costs and advanced to check_confirm_done (NOT details_confirmed). Compose the
+  // reality-check Read and hand it into the sheet. Mirrors the details_confirmed
+  // effect above exactly: POST → advanceStep → load into ChatProvider + a LONE
+  // router.refresh (no competing navigation). reality_check_delivered just records
+  // the mission outcome — the user is ALREADY onboarded, it is not a gate. Because
+  // it runs on a step (not a callback), a refresh mid-compose re-fires it; the
+  // route is idempotent, and the confirm beat is already behind us.
+  useEffect(() => {
+    if (step !== 'check_confirm_done' || realityCheckTriggeredRef.current) return
+    realityCheckTriggeredRef.current = true
+
+    let cancelled = false
+    void (async () => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 90_000)
+      try {
+        const res = await fetch('/api/insights/reality-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+        })
+        if (!res.ok) throw new Error(`reality-check returned ${res.status}`)
+        const data = await res.json()
+        const conversationId = data?.conversationId as string | null
+        if (!conversationId) throw new Error('reality-check returned no conversationId')
+        if (cancelled) return
+
+        await advanceStep('reality_check_delivered')
+        if (cancelled) return
+        openSheet()
+        loadConversation(conversationId)
+        router.refresh()
+      } catch (err) {
+        console.error('[onboarding-beat-host] reality-check trigger failed', err)
+        if (!cancelled) {
+          setError('Something went wrong checking your numbers.')
+          realityCheckTriggeredRef.current = false
+        }
+      } finally {
+        clearTimeout(timeout)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [step, router, openSheet, loadConversation])
+
   if (error) {
     return (
       <div className="px-4 py-8 text-center">
@@ -103,6 +154,9 @@ export function OnboardingBeatHost({ step, currency, goal }: Props) {
           type="button"
           onClick={() => {
             setError(null)
+            // Both terminal effects (details_confirmed, check_confirm_done) reset
+            // their trigger ref on failure, so a lone refresh re-fires the right
+            // one — the underlying routes are idempotent.
             router.refresh()
           }}
           className="min-h-11 px-5 rounded-control bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-medium transition-colors"
@@ -146,6 +200,46 @@ export function OnboardingBeatHost({ step, currency, goal }: Props) {
     return <ConfirmBeatBlock onConfirmed={() => router.refresh()} />
   }
 
-  // details_confirmed — Read composing/handoff in flight.
+  // OB-3 statement-check mission (the user is ALREADY onboarded — the estimate
+  // Read stamped completion; this is the optional accuracy pass).
+  if (step === 'check_upload_pending') {
+    return (
+      <UploadBeatBlock
+        goal={goal}
+        mode="check"
+        onImported={() => {}}
+        onDone={() => {
+          void advanceStep('check_processing')
+            .then(() => router.refresh())
+            .catch((err) =>
+              console.error('[onboarding-beat-host] check upload advance failed', err),
+            )
+        }}
+      />
+    )
+  }
+
+  if (step === 'check_processing') {
+    return (
+      <CheckProcessingBeatBlock
+        onDone={() => {
+          void advanceStep('check_confirm_pending')
+            .then(() => router.refresh())
+            .catch((err) =>
+              console.error('[onboarding-beat-host] check processing advance failed', err),
+            )
+        }}
+      />
+    )
+  }
+
+  if (step === 'check_confirm_pending') {
+    // confirmFixedCosts in 'check' mode reconciles and advances to
+    // check_confirm_done; the refresh lets the effect above fire the
+    // reality-check Read.
+    return <ConfirmBeatBlock mode="check" onConfirmed={() => router.refresh()} />
+  }
+
+  // details_confirmed or check_confirm_done — a Read is composing/handing off.
   return <CfoThinking variant="block" />
 }

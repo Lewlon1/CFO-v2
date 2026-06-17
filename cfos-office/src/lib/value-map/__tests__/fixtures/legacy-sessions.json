@@ -1,0 +1,5078 @@
+[
+ {
+  "index": 0,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1498
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1450
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1584
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2136
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1551
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1585
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1451
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1282
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1402
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2034
+   }
+  ]
+ },
+ {
+  "index": 1,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 899
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 767
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1233
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1316
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1101
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1017
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 732
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 866
+   }
+  ]
+ },
+ {
+  "index": 2,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 3468
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1451
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2683
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1966
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2995
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2517
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2182
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1400
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1082
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2066
+   }
+  ]
+ },
+ {
+  "index": 3,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2418
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2183
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1668
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 1,
+    "hard": false,
+    "delib": 1882
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2618
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1535
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2065
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1666
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1452
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3589
+   }
+  ]
+ },
+ {
+  "index": 4,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 784
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 800
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 983
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 733
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 917
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1034
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 833
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 917
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 899
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1966
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1084
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 783
+   }
+  ]
+ },
+ {
+  "index": 5,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 783
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 883
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 801
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3083
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1133
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 832
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 899
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1232
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1016
+   }
+  ]
+ },
+ {
+  "index": 6,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1685
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1365
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2283
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2350
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1700
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1419
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1952
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1434
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1753
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1382
+   }
+  ]
+ },
+ {
+  "index": 7,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 616
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 932
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1250
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 602
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 718
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 548
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 584
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 850
+   }
+  ]
+ },
+ {
+  "index": 8,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1866
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1616
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1283
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1300
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1599
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1516
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1334
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1516
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1534
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1117
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1367
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1767
+   }
+  ]
+ },
+ {
+  "index": 9,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1583
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 4066
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1449
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1550
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1456
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1267
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 4600
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1832
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1749
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1149
+   }
+  ]
+ },
+ {
+  "index": 10,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2786
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2485
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1552
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1184
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1583
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2805
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2533
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1467
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1450
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1399
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2883
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2751
+   }
+  ]
+ },
+ {
+  "index": 11,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1368
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1317
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 831
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1482
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1817
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1100
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 883
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 950
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 4750
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 984
+   }
+  ]
+ },
+ {
+  "index": 12,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1883
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1701
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1703
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1900
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1400
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1350
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1264
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1502
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1332
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1299
+   }
+  ]
+ },
+ {
+  "index": 13,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1248
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1349
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2880
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1300
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 884
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1250
+   }
+  ]
+ },
+ {
+  "index": 14,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1717
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1650
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2050
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 1,
+    "hard": false,
+    "delib": 2117
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2499
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1334
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1667
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1200
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1366
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1565
+   }
+  ]
+ },
+ {
+  "index": 15,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1750
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1617
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1632
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1981
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1649
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1466
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2332
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1483
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1566
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1685
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1349
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1447
+   }
+  ]
+ },
+ {
+  "index": 16,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1667
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1026
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2080
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 882
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 983
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 798
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 982
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 851
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1217
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 733
+   }
+  ]
+ },
+ {
+  "index": 17,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2318
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3487
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1468
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1552
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2686
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3387
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2820
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1634
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1669
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1449
+   }
+  ]
+ },
+ {
+  "index": 18,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2383
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 999
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 767
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1099
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 866
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2500
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1098
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1185
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 849
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 800
+   }
+  ]
+ },
+ {
+  "index": 19,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1816
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1383
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1383
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1349
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1300
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1265
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1366
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1183
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1416
+   }
+  ]
+ },
+ {
+  "index": 20,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2246
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2367
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1183
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1065
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1000
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 3151
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2000
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1583
+   }
+  ]
+ },
+ {
+  "index": 21,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 799
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1349
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1650
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 861
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1016
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1350
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1066
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 882
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 899
+   }
+  ]
+ },
+ {
+  "index": 22,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 651
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 648
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1384
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 565
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 551
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 784
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1418
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 582
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 618
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 551
+   }
+  ]
+ },
+ {
+  "index": 23,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1882
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1584
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1833
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2317
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3317
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2201
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1566
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2033
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1217
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1617
+   }
+  ]
+ },
+ {
+  "index": 24,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 985
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2282
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2159
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1717
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1850
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1533
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1066
+   }
+  ]
+ },
+ {
+  "index": 25,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2460
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1367
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3465
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1509
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1517
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1408
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1233
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2149
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1266
+   }
+  ]
+ },
+ {
+  "index": 26,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3037
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 3453
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2586
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 5408
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1403
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 3018
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 4106
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1903
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1387
+   }
+  ]
+ },
+ {
+  "index": 27,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 884
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1149
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 715
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 3680
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 785
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 685
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 816
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1017
+   }
+  ]
+ },
+ {
+  "index": 28,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 849
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 950
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 799
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1483
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1456
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 815
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 784
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1282
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 966
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 699
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1598
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 949
+   }
+  ]
+ },
+ {
+  "index": 29,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2001
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1484
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1417
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1401
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1234
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1233
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1456
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1100
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1434
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2316
+   }
+  ]
+ },
+ {
+  "index": 30,
+  "legacy_type": "anchor",
+  "cards": [
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 5067
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1214
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2667
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1000
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 834
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1066
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1901
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1017
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3084
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1249
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1400
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1266
+   }
+  ]
+ },
+ {
+  "index": 31,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 601
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 518
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 796
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1016
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 949
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 984
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1051
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1366
+   }
+  ]
+ },
+ {
+  "index": 32,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1100
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1050
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1412
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1317
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2283
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1017
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1733
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 3565
+   }
+  ]
+ },
+ {
+  "index": 33,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1565
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1065
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1566
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1965
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1733
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 617
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1550
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1117
+   }
+  ]
+ },
+ {
+  "index": 34,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1651
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2919
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 850
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1567
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 3837
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1101
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 11003
+   }
+  ]
+ },
+ {
+  "index": 35,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 7341
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1266
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1097
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1917
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 957
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 786
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1752
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1817
+   }
+  ]
+ },
+ {
+  "index": 36,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1333
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1084
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 650
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1184
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 720
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 649
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1132
+   }
+  ]
+ },
+ {
+  "index": 37,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2500
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1433
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 999
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 3037
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 683
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2980
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2534
+   }
+  ]
+ },
+ {
+  "index": 38,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1830
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 767
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 596
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 583
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 598
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1383
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 948
+   }
+  ]
+ },
+ {
+  "index": 39,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1533
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 602
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 634
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2371
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 868
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2552
+   }
+  ]
+ },
+ {
+  "index": 40,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1819
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1183
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 5488
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 982
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1687
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1185
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1302
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1248
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2301
+   }
+  ]
+ },
+ {
+  "index": 41,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1966
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1445
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 717
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1600
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 5954
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 632
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1650
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 4685
+   }
+  ]
+ },
+ {
+  "index": 42,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 3534
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 6012
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 533
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1600
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 596
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 717
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2533
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 851
+   }
+  ]
+ },
+ {
+  "index": 43,
+  "legacy_type": "builder",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2472
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 984
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 933
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2900
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1656
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1633
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 6383
+   }
+  ]
+ },
+ {
+  "index": 44,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 531
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 480
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 931
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1182
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1549
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 580
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2034
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2068
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1266
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 549
+   }
+  ]
+ },
+ {
+  "index": 45,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 755
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 950
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2017
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1249
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 900
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 984
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 767
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 788
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1683
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 883
+   }
+  ]
+ },
+ {
+  "index": 46,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 834
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 983
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1033
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2533
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1000
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 900
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1150
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 799
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 816
+   }
+  ]
+ },
+ {
+  "index": 47,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1267
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1664
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2914
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 10392
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2266
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1965
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1282
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1249
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1732
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1630
+   }
+  ]
+ },
+ {
+  "index": 48,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1083
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 683
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 816
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2501
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1387
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 1,
+    "hard": false,
+    "delib": 1999
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1950
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1714
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1366
+   }
+  ]
+ },
+ {
+  "index": 49,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 666
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 548
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 566
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 581
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 698
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 615
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 584
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 865
+   }
+  ]
+ },
+ {
+  "index": 50,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 829
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 680
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 782
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1922
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 749
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 648
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 633
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3886
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 749
+   }
+  ]
+ },
+ {
+  "index": 51,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 916
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 136149
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 884
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 883
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1450
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 815
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 884
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 849
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1483
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1164
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 966
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 933
+   }
+  ]
+ },
+ {
+  "index": 52,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 782
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 831
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 731
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 816
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 765
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 565
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 582
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 613
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 749
+   }
+  ]
+ },
+ {
+  "index": 53,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 698
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 896
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 865
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 750
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 516
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 600
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1098
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 534
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 569
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 617
+   }
+  ]
+ },
+ {
+  "index": 54,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 884
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 867
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 867
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1100
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 950
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 884
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 917
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 883
+   }
+  ]
+ },
+ {
+  "index": 55,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2417
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1048
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2100
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1167
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 28902
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 698
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 699
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 800
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 798
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 683
+   }
+  ]
+ },
+ {
+  "index": 56,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 57556
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 16756
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 5467
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1500
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1518
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2468
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1916
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1550
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1364
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1429
+   }
+  ]
+ },
+ {
+  "index": 57,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1718
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1700
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1083
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1370
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1469
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1151
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 4,
+    "hard": false,
+    "delib": 832
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 632
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1468
+   }
+  ]
+ },
+ {
+  "index": 58,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1834
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 915
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 850
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 950
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 849
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1650
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 916
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 950
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1600
+   }
+  ]
+ },
+ {
+  "index": 59,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 4147
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 967
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 550
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1215
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 732
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1666
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 631
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1062
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 633
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 565
+   }
+  ]
+ },
+ {
+  "index": 60,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1549
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1049
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1265
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1966
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1116
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1199
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1766
+   }
+  ]
+ },
+ {
+  "index": 61,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1067
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 783
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 818
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1000
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 816
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1183
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 900
+   }
+  ]
+ },
+ {
+  "index": 62,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1565
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1065
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2650
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1351
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 716
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 994
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 612
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 649
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 798
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 449
+   }
+  ]
+ },
+ {
+  "index": 63,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1764
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1686
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1848
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1297
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1280
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1482
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1899
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1765
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1316
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1565
+   }
+  ]
+ },
+ {
+  "index": 64,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2433
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 615
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 865
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 4018
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 967
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 815
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 732
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 666
+   }
+  ]
+ },
+ {
+  "index": 65,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 4717
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 814
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1199
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 500
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 598
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 598
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 468
+   }
+  ]
+ },
+ {
+  "index": 66,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 666
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 882
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 616
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 615
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1717
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 567
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 581
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   }
+  ]
+ },
+ {
+  "index": 67,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1317
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1051
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1170
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1372
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1086
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1063
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1018
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1788
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1767
+   }
+  ]
+ },
+ {
+  "index": 68,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2699
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1098
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1713
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 931
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 698
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1432
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1665
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 700
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 681
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 933
+   }
+  ]
+ },
+ {
+  "index": 69,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2582
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 3466
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2467
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1450
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1617
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2330
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1799
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1350
+   }
+  ]
+ },
+ {
+  "index": 70,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 6848
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2330
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 5,
+    "hard": false,
+    "delib": 2246
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1349
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1150
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1326
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1817
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 1500
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1180
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 794
+   }
+  ]
+ },
+ {
+  "index": 71,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 649
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2632
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 915
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 1,
+    "hard": false,
+    "delib": 1916
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1184
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 1568
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 2,
+    "hard": false,
+    "delib": 880
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 5,
+    "hard": false,
+    "delib": 1283
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1001
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1799
+   }
+  ]
+ },
+ {
+  "index": 72,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 617
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1735
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1199
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 966
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 530
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 648
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 533
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 583
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 653
+   }
+  ]
+ },
+ {
+  "index": 73,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 900
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 746
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 633
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 717
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 583
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1166
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 635
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 651
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 584
+   }
+  ]
+ },
+ {
+  "index": 74,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1094
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 749
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1299
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1049
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1050
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 949
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 615
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 564
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 749
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1614
+   }
+  ]
+ },
+ {
+  "index": 75,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 648
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 598
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 581
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 547
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 904
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 532
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 565
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 582
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 766
+   }
+  ]
+ },
+ {
+  "index": 76,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 882
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 600
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 916
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 849
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 616
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 699
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 599
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 617
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 602
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 951
+   }
+  ]
+ },
+ {
+  "index": 77,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2884
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1216
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1465
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1400
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1966
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1778
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1550
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1348
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 3484
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1550
+   }
+  ]
+ },
+ {
+  "index": 78,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1450
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 916
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 767
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 866
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 900
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 749
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 831
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1150
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 867
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 834
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1233
+   }
+  ]
+ },
+ {
+  "index": 79,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 582
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 583
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 566
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 847
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 914
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 700
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 564
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 667
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 615
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 865
+   }
+  ]
+ },
+ {
+  "index": 80,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1500
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1316
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 2550
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1099
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1466
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1382
+   }
+  ]
+ },
+ {
+  "index": 81,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1267
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 820
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 598
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 566
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 566
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 566
+   },
+   {
+    "quadrant": "leak",
+    "confidence": 3,
+    "hard": false,
+    "delib": 681
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 700
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 651
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 3,
+    "hard": false,
+    "delib": 615
+   }
+  ]
+ },
+ {
+  "index": 82,
+  "legacy_type": "fortress",
+  "cards": [
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 1016
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 2,
+    "hard": false,
+    "delib": 2000
+   },
+   {
+    "quadrant": "investment",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2567
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 1,
+    "hard": false,
+    "delib": 2384
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 3,
+    "hard": false,
+    "delib": 934
+   },
+   {
+    "quadrant": "burden",
+    "confidence": 3,
+    "hard": false,
+    "delib": 800
+   },
+   {
+    "quadrant": "foundation",
+    "confidence": 4,
+    "hard": false,
+    "delib": 2466
+   }
+  ]
+ }
+]

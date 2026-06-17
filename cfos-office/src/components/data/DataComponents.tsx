@@ -53,12 +53,14 @@ interface TransactionRowProps {
   category: string
   amount: string
   valueCategory: ValueCategory
+  /** VM-1: false → ValuePill renders the neutral "unmapped" chip. */
+  valueDisplayable?: boolean
   onValueChange?: (newCategory: ValueCategory) => void
 }
 
 export function TransactionRow({
   icon, iconBg, iconColor, merchant, time, category,
-  amount, valueCategory, onValueChange,
+  amount, valueCategory, valueDisplayable, onValueChange,
 }: TransactionRowProps) {
   return (
     <div
@@ -79,7 +81,7 @@ export function TransactionRow({
       </div>
       <div className="text-right">
         <div className="font-data text-[12px] font-medium">{amount}</div>
-        <ValuePill category={valueCategory} onChange={onValueChange} />
+        <ValuePill category={valueCategory} displayable={valueDisplayable} onChange={onValueChange} />
       </div>
     </div>
   )

@@ -144,7 +144,7 @@ describe('createGetTransactionsTool — input schema', () => {
     const result = tool.inputSchema.safeParse({
       date_from: '2026-04-01',
       date_to: '2026-04-30',
-      value_category: 'no_idea',
+      value_category: 'wasteful',
     });
     expect(result.success).toBe(false);
   });

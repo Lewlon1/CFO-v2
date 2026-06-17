@@ -7,11 +7,13 @@
 // Both profile_id and user_id reference auth.users.id — same UUID.
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 import type { ValueMapResult, ValueQuadrant } from '@/lib/value-map/types'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { VCR_ON_CONFLICT } from '@/lib/prediction/types'
 import { SAMPLE_TRANSACTIONS } from '@/lib/value-map/constants'
+import { cardConvictionToRuleConfidence } from '@/lib/categorisation/value-config'
 
 export async function POST(request: Request) {
   const { session_token } = await request.json()
@@ -145,7 +147,9 @@ export async function POST(request: Request) {
         match_type: 'category' as const,
         match_value: card.category_id!,
         value_category: r.quadrant,
-        confidence: r.confidence / 5, // Convert 1-5 scale to 0-1
+        // VM-3: conviction → confidence via the shared map (legacy /5 scale
+        // produced sub-floor rules for conviction 1–2). Old rows untouched.
+        confidence: cardConvictionToRuleConfidence(r.confidence),
         source: 'value_map',
         last_signal_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -158,6 +162,18 @@ export async function POST(request: Request) {
 
     if (rulesError) {
       console.error('[link-session] value_category_rules seed error:', rulesError)
+    } else {
+      // VM-2: apply the seeded rules retroactively. Usually a no-op at
+      // signup-link time (no transactions yet), but when the Value Map is
+      // linked after an import the seeded category rules must reach the
+      // existing history. Fire-and-forget — linking never fails on re-score.
+      after(async () => {
+        try {
+          await rescoreValueCategories(user.id)
+        } catch (err) {
+          console.error('[link-session] rescore failed:', err)
+        }
+      })
     }
   }
 

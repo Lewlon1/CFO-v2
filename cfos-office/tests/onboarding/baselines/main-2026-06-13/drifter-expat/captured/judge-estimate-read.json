@@ -1,0 +1,126 @@
+{
+  "outputType": "estimate_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:16:18.931Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_read_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "223/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "Checking a real month is what takes that past 70%."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me something') with genuine curiosity about the user's situation rather than judgment."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures (€1,200 fixed, €1,500 free, €170 pot, €1,120 drift, €48 subscriptions) are directly traceable to the persona data provided and used consistently."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses tangible comparisons ('6% of take-home,' '3 months instead of 10'), avoids prescriptive language, frames as observation ('tells me something worth acting on') rather than directive."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly addresses the user's own flagged uncertainty ('You flagged that yourself as unsure'), acknowledges their life shift (rent increase), and respects their top value by not lecturing against experiences."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Concrete next step (€300/mo standing transfer, real month check) with clear rationale, and CTA button points to immediate follow-up that unlocks deeper insight (56% → 70%)."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me something') with genuine curiosity about the user's situation rather than judgment."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures (€1,200 fixed, €1,500 free, €170 pot, €1,120 drift, €48 subscriptions) are directly traceable to the persona data provided and used consistently."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses tangible comparisons ('6% of take-home,' '3 months instead of 10'), avoids prescriptive language, frames as observation ('tells me something worth acting on') rather than directive."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly addresses the user's own flagged uncertainty ('You flagged that yourself as unsure'), acknowledges their life shift (rent increase), and respects their top value by not lecturing against experiences."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Concrete next step (€300/mo standing transfer, real month check) with clear rationale, and CTA button points to immediate follow-up that unlocks deeper insight (56% → 70%)."
+    }
+  }
+}

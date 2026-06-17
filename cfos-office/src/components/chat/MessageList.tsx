@@ -63,6 +63,7 @@ import { SavedItemCard, type SavedItemCardProps } from './SavedItemCard';
 import { CfoThinking } from '@/components/brand/CfoThinking';
 import { CFOAvatar } from '@/components/brand/CFOAvatar';
 import { ValueMapActionButton } from './ValueMapActionButton';
+import { StatementCheckActionButton } from './StatementCheckActionButton';
 import { isStartValueMapAction } from '@/lib/onboarding-v2/types';
 import { hasStartValueMapAction, stripActionMarkers } from '@/lib/onboarding-v2/bridge';
 import { parseOptions } from '@/lib/chat/options-parser';
@@ -534,6 +535,15 @@ export function MessageList({
               {message.role === 'assistant' && cta?.type === 'start_value_map_real' && (
                 <div className="px-3">
                   <ValueMapActionButton variant="real" />
+                </div>
+              )}
+
+              {/* Onboarding v2 (OB-2) — the estimate Read closes on a
+                  [CTA:start_statement_check] token; render the statement-check
+                  invite inline (same pattern as start_value_map_real). */}
+              {message.role === 'assistant' && cta?.type === 'start_statement_check' && (
+                <div className="px-3">
+                  <StatementCheckActionButton />
                 </div>
               )}
 

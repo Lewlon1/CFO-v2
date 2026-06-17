@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VALUE_CHAT_CITATION_THRESHOLD } from '@/lib/categorisation/value-config';
 import type { ToolContext } from './types';
 
 type ValueBreakdownRow = {
@@ -16,13 +17,14 @@ type BucketSummary = {
   top_items: Array<{ description: string; amount: number }>;
 };
 
-// The "confident enough to assert a value verdict" line, matching the threshold
-// retake-trigger.ts / context-builder.ts use to flag rows for reclassification.
-// A value_category below this AND not user-confirmed is a weak system guess —
-// e.g. the 0.15 `category_default` that tagged ALL unsorted dining as 'leak'.
-// Those are reported as uncategorised, never asserted as Foundation/.../Leak,
-// so the breakdown reflects what the user actually sorted, not a guess.
-const ASSERT_CONFIDENCE_FLOOR = 0.7;
+// The "confident enough to assert a value verdict" line, shared with
+// retake-trigger.ts / context-builder.ts via value-config (VM-2 — was a
+// hardcoded 0.7 in each file). A value_category below this AND not
+// user-confirmed is a weak system guess — e.g. the 0.15 `category_default`
+// that tagged ALL unsorted dining as 'leak'. Those are reported as
+// uncategorised, never asserted as Foundation/.../Leak, so the breakdown
+// reflects what the user actually sorted, not a guess.
+const ASSERT_CONFIDENCE_FLOOR = VALUE_CHAT_CITATION_THRESHOLD;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 

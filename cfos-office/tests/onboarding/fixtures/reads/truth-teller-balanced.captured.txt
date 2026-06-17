@@ -1,13 +1,15 @@
-Heads up: this picture is 72 days old — the last transaction captured is 2026-03-28, so treat what follows as a snapshot of where things stood then, not today.
+This is your sketch, not your statement — but even a sketch this rough tells me the shape is good.
 
-On the goal: £15,000 safety net by 2027-06-01, with £3,000 already banked. That leaves £12,000 to go across roughly 14 months. Your free cash flow sits at £1,774/month — comfortably above the pace this goal needs. On a straight no-growth basis the monthly contribution required is around £857. You're running well ahead of that, which means the target is reachable without stretching, assuming spending holds.
+Your ≈£1,450/mo free cash is real breathing room. The pot needs ≈£170/mo, which is ≈6% of take-home — that's well within reach. The gap isn't the goal size. It's the ≈£1,200/mo of drift that isn't explained by saving or eating out, and that's where the move lives.
 
-The biggest drag in the data is **housing**, which accounts for £2,700 of the £4,135 tracked — 65.3% of total spend across the window. That's structural, not a lever, but it's worth holding in view as the baseline pressure on your cash flow.
+Set up a standing transfer of ≈£300/mo on payday — about half the drift, so it won't bite. At that pace the pot lands in ≈3 months instead of ≈10. That's a Christmas fund that actually exists by Christmas, which matters when family is the point.
 
-With only 8 transactions across 87 days the behavioural picture is thin. **Eating & drinking out** is the one discretionary category with enough signal: running at £73/month as of March.
+You called the ≈£1,200/mo drift unsure. That's the honest call — a real month says whether it's invisible spending, money moving around, or something else entirely. The sketch can't see it. Transactions can.
 
-Trimming £18/month there is the lever the data surfaces. It's modest on its own, but it's the cleanest cut available right now — and completing your Value Map would sharpen the picture considerably for the next Read.
+Checking a real month does two things: it swaps every ≈ for an actual number, so you can see estimate versus reality side by side. And it opens the half of the picture that's still completely empty — timing, patterns, what's recurring — because estimates can't see any of that, only real transactions can.
 
-[CTA:cut_lever]Trim 18 from eating & drinking out[/CTA]
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

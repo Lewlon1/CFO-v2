@@ -3,6 +3,7 @@ import { normaliseMerchant } from './normalise-merchant'
 import { CATEGORY_AMBIGUITY } from './context-signals'
 import { getTimeContext } from '@/lib/utils/time-context'
 import { VCR_ON_CONFLICT, NONE_TIME_CONTEXT } from '@/lib/prediction/types'
+import { rescoreValueCategories } from './value-rescore'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -71,20 +72,25 @@ export async function applyValueClassification(
   const ambiguity = categoryId ? (CATEGORY_AMBIGUITY[categoryId] ?? 'high') : 'high'
 
   // Always create/update a plain merchant rule
-  await supabase.from('value_category_rules').upsert(
-    {
-      user_id: userId,
-      match_type: 'merchant' as const,
-      match_value: normDesc,
-      value_category: newValue,
-      confidence: 1.0,
-      time_context: NONE_TIME_CONTEXT,
-      source: 'correction',
-      last_signal_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: VCR_ON_CONFLICT }
-  )
+  const writtenRuleIds: string[] = []
+  const { data: merchantRule } = await supabase
+    .from('value_category_rules')
+    .upsert(
+      {
+        user_id: userId,
+        match_type: 'merchant' as const,
+        match_value: normDesc,
+        value_category: newValue,
+        confidence: 1.0,
+        time_context: NONE_TIME_CONTEXT,
+        source: 'correction',
+        last_signal_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: VCR_ON_CONFLICT }
+    )
+    .select('id')
+  for (const r of merchantRule ?? []) writtenRuleIds.push(r.id)
 
   // For high-ambiguity categories at contextual times, also create a merchant_time rule
   if (ambiguity !== 'low') {
@@ -95,40 +101,42 @@ export async function applyValueClassification(
       timeContext === 'weekend_evening'
 
     if (isContextual) {
-      await supabase.from('value_category_rules').upsert(
-        {
-          user_id: userId,
-          match_type: 'merchant_time' as const,
-          match_value: normDesc,
-          value_category: newValue,
-          confidence: 0.85,
-          time_context: timeContext,
-          source: 'correction',
-          last_signal_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: VCR_ON_CONFLICT }
-      )
+      const { data: timeRule } = await supabase
+        .from('value_category_rules')
+        .upsert(
+          {
+            user_id: userId,
+            match_type: 'merchant_time' as const,
+            match_value: normDesc,
+            value_category: newValue,
+            confidence: 0.85,
+            time_context: timeContext,
+            source: 'correction',
+            last_signal_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: VCR_ON_CONFLICT }
+        )
+        .select('id')
+      for (const r of timeRule ?? []) writtenRuleIds.push(r.id)
     }
   }
 
-  // 4. Propagate to similar unconfirmed transactions
+  // 4. Propagate to similar unconfirmed transactions — re-score scoped to the
+  // rules just written (VM-2). Same matcher + normalisation as ingest;
+  // user_confirmed rows untouched. Best-effort: the classification (and the
+  // rule write) must never fail because re-score failed.
   let propagatedCount = 0
-  if (applyToSimilar) {
-    const { data: propagated } = await supabase
-      .from('transactions')
-      .update({
-        value_category: newValue,
-        value_confidence: 0.8,
-        prediction_source: 'merchant_rule',
+  if (applyToSimilar && writtenRuleIds.length > 0) {
+    try {
+      const rescore = await rescoreValueCategories(userId, {
+        ruleIds: writtenRuleIds,
+        supabase,
       })
-      .eq('user_id', userId)
-      .eq('value_confirmed_by_user', false)
-      .neq('id', transactionId)
-      .ilike('description', `%${normDesc}%`)
-      .select('id')
-
-    propagatedCount = propagated?.length ?? 0
+      propagatedCount = rescore.updated
+    } catch (err) {
+      console.error('[value-classification] scoped rescore failed:', err)
+    }
   }
 
   return { ok: true, propagatedCount }

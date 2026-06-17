@@ -6,8 +6,10 @@ function txn(
   category_id: string | null,
   description = 'fixture',
   value_category: string | null = null,
+  value_confidence: number | null = null,
+  value_confirmed_by_user: boolean | null = null,
 ) {
-  return { amount, category_id, value_category, description }
+  return { amount, category_id, value_category, description, value_confidence, value_confirmed_by_user }
 }
 
 describe('aggregateMonthSpending — bucketing rules', () => {
@@ -84,6 +86,26 @@ describe('aggregateMonthSpending — bucketing rules', () => {
     const result = aggregateMonthSpending(txns)
     expect(result.largestTxn).toBe(1400)
     expect(result.largestTxnDesc).toBe('mortgage')
+  })
+
+  it('buckets value categories through the VM-1 honesty gate', () => {
+    const txns = [
+      // user-confirmed → always displayable
+      txn(-100, 'groceries', 'confirmed foundation', 'foundation', 0.2, true),
+      // high-confidence rule → displayable
+      txn(-50, 'subscriptions', 'rule leak', 'leak', 0.8, false),
+      // low-confidence default → unmapped
+      txn(-200, 'shopping', 'weak guess', 'leak', 0.2, false),
+      // unsure → unmapped regardless of confidence
+      txn(-30, 'travel', 'unsure row', 'unsure', 0.9, false),
+      // null label → unmapped
+      txn(-20, 'entertainment', 'no label', null, null, null),
+    ]
+    const result = aggregateMonthSpending(txns)
+    expect(result.spendingByValueCategory.foundation).toBe(100)
+    expect(result.spendingByValueCategory.leak).toBe(50)
+    expect(result.spendingByValueCategory.unmapped).toBe(250)
+    expect(result.spendingByValueCategory.unsure).toBeUndefined()
   })
 
   it('emits no negative bucket values even with mixed income and refunds in null bucket', () => {

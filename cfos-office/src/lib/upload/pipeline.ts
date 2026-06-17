@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { categoriseByRules } from '@/lib/categorisation/rules-engine'
 import { llmCategorise, saveLearnedMerchantRules } from '@/lib/categorisation/llm-categoriser'
 import { assignValueCategory } from '@/lib/categorisation/value-categoriser'
+import { emittableDefaultCategory } from '@/lib/categorisation/value-config'
 import { extractSignals, CATEGORY_AMBIGUITY, type MerchantHistory } from '@/lib/categorisation/context-signals'
 import { resolveValueCategory, loadUserRules } from '@/lib/prediction/predictor'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
@@ -175,15 +176,18 @@ export async function runImportPipeline(
     const isRecurring = recurringExpenses.some(
       (r) => normaliseMerchant(txn.description) === normaliseMerchant(r.name)
     )
-    // Recurring essentials bypass the predictor — high confidence from structure
+    // Recurring essentials bypass the predictor — high confidence from
+    // structure. Only foundation/burden/investment defaults qualify; a 'leak'
+    // default must never be auto-asserted (VM-1).
     if (isRecurring && catResult.categoryId) {
       const cat = categories.find(c => c.id === catResult.categoryId)
-      if (cat?.default_value_category && (CATEGORY_AMBIGUITY[catResult.categoryId] ?? 'high') === 'low') {
+      const recurringDefault = emittableDefaultCategory(cat?.default_value_category)
+      if (recurringDefault && (CATEGORY_AMBIGUITY[catResult.categoryId] ?? 'high') === 'low') {
         toInsert.push({
           ...txn,
           categoryId: catResult.categoryId,
           confidence: catResult.confidence,
-          valueCategory: cat.default_value_category,
+          valueCategory: recurringDefault,
           valueConfidence: 0.9,
           valuePredictionSource: 'recurring_essential',
           needsLLM: false,

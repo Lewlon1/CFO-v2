@@ -42,11 +42,15 @@ import {
   FIRST_READ_SYSTEM_PROMPT,
   FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST,
   FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
+  FIRST_READ_SYSTEM_PROMPT_REALITY_CHECK,
   buildFirstReadUserPrompt,
   type FirstReadComposeOutput,
   type FirstReadMetadata,
   type PriorReadSummary,
 } from './prompts/first-read';
+import type { DeltaResult } from '@/lib/onboarding-v2/estimates/deltas';
+import { knowsYou } from '@/lib/onboarding-v2/knows-you';
+import { struggleToFamily } from '@/lib/onboarding-v2/door/door-config';
 
 const WINDOW_DAYS = 90;
 const DAYS_PER_MONTH = 30.44;
@@ -56,7 +60,15 @@ const MAX_OUTPUT_TOKENS = 700;
 
 const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
 
-export type ComposeFirstReadMode = 'default' | 'value_first' | 'value_first_recompose';
+export type ComposeFirstReadMode =
+  | 'default'
+  | 'value_first'
+  | 'value_first_recompose'
+  | 'reality_check';
+
+/** The knows-you floor the estimate Read promised checking would clear; the
+ *  reality-check Read reflects the score now past it (statementChecked → +16). */
+const STATEMENT_CHECK_FLOOR = 70;
 
 export type { PriorReadSummary };
 
@@ -68,10 +80,16 @@ export async function composeFirstRead(params: {
   priorReadSummary?: PriorReadSummary;
   /** The merchant keys the Value Map actually presented (Phase 1 selection), for the recompose payoff context. */
   valueMapCardKeys?: string[];
+  /** Present only for reality_check — the estimate-vs-reality deltas to cite. */
+  deltas?: DeltaResult;
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
   const isRecompose = mode === 'value_first_recompose';
+  const isRealityCheck = mode === 'reality_check';
+  // The Read ends on the Value-Map hook (CLARIFIERS) in BOTH value_first and
+  // reality_check; selectHookCandidates feeds both.
+  const wantsHooks = mode === 'value_first' || isRealityCheck;
 
   const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
@@ -157,11 +175,18 @@ export async function composeFirstRead(params: {
     ? Math.max(0, Math.floor((Date.now() - new Date(dataWindowEnd).getTime()) / 86_400_000))
     : null;
 
-  // Value-first mode: pre-compute the hook candidates the Read will end on.
-  // The candidates are persisted into conversation.metadata by the caller
-  // so the Value Map step can run on the same real flagged transactions.
+  // Value-first / reality-check: pre-compute the hook candidates the Read ends
+  // on as CLARIFIERS. The candidates are persisted into conversation.metadata by
+  // the caller so the Value Map step can run on the same real flagged transactions.
   const hookCandidates: HookCandidate[] =
-    mode === 'value_first' ? selectHookCandidates(usableClusters, valueProfile) : [];
+    wantsHooks ? selectHookCandidates(usableClusters, valueProfile) : [];
+
+  // Reality-check: the knows-you score is now past the floor (statementChecked
+  // → +16). Computed from the same signals the estimate Read used so the meter,
+  // the estimate Read, and this Read all agree. Only fetched in this mode.
+  const realityCheckKnowsYou = isRealityCheck
+    ? await computeRealityCheckKnowsYou(supabase, params.userId, financialFacts)
+    : null;
 
   const userPrompt = buildFirstReadUserPrompt({
     userId: params.userId,
@@ -179,20 +204,25 @@ export async function composeFirstRead(params: {
     levers: leverPackage.levers,
     blocker: leverPackage.blocker,
     financialFacts,
-    hookCandidates: mode === 'value_first' ? hookCandidates : undefined,
+    hookCandidates: wantsHooks ? hookCandidates : undefined,
     benchmarkObservation,
     spendingBreakdown,
     readRecipe,
     // Recompose-only: the delta contract + payoff source.
     priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
     valueMapCardKeys: isRecompose ? (params.valueMapCardKeys ?? null) : null,
+    // Reality-check-only: the estimate-vs-reality deltas + the knows-you line.
+    deltas: isRealityCheck ? (params.deltas ?? null) : null,
+    knowsYouLine: isRealityCheck ? (realityCheckKnowsYou?.line ?? null) : null,
   });
 
-  const systemPrompt = isRecompose
-    ? FIRST_READ_SYSTEM_PROMPT_RECOMPOSE
-    : mode === 'value_first' && hookCandidates.length > 0
-      ? FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST
-      : FIRST_READ_SYSTEM_PROMPT;
+  const systemPrompt = isRealityCheck
+    ? FIRST_READ_SYSTEM_PROMPT_REALITY_CHECK
+    : isRecompose
+      ? FIRST_READ_SYSTEM_PROMPT_RECOMPOSE
+      : mode === 'value_first' && hookCandidates.length > 0
+        ? FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST
+        : FIRST_READ_SYSTEM_PROMPT;
 
   const result = await generateText({
     model: bedrock(COMPOSE_MODEL),
@@ -217,7 +247,101 @@ export async function composeFirstRead(params: {
     priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
   });
 
+  // Reality-check: stamp the post-statement knows-you % (the single sanctioned
+  // user-visible number) so the judge / wow plumbing can read it off metadata.
+  if (isRealityCheck && realityCheckKnowsYou != null) {
+    metadata.knows_you_pct = realityCheckKnowsYou.pct;
+  }
+
   return { composedMessage, metadata };
+}
+
+/**
+ * Reality-check knows-you line + score. Mirrors compose-estimate-read's signal
+ * computation but with statementChecked=true, so the meter, the estimate Read,
+ * and the reality-check Read never disagree about how well the CFO knows the
+ * user. Returns the exact line the Read reproduces verbatim plus the % it cites.
+ */
+async function computeRealityCheckKnowsYou(
+  supabase: SupabaseClient,
+  userId: string,
+  financialFacts: FinancialFacts,
+): Promise<{ pct: number; line: string } | null> {
+  const [profileRes, estimatesRes, goalRes] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('display_name, age_range, door_family, entry_struggle, composite_relate')
+      .eq('id', userId)
+      .maybeSingle(),
+    supabase
+      .from('onboarding_estimates')
+      .select('income_monthly, top_value, verdicts, housing_band, subs_band, bills_band, food_out_band, save_reach_band')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabase
+      .from('goals')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const profile = profileRes.data as {
+    display_name: string | null;
+    age_range: string | null;
+    door_family: string | null;
+    entry_struggle: string | null;
+    composite_relate: string | null;
+  } | null;
+  const estimates = estimatesRes.data as {
+    income_monthly: number | null;
+    top_value: string | null;
+    verdicts: Record<string, unknown> | null;
+    housing_band: string | null;
+    subs_band: string | null;
+    bills_band: string | null;
+    food_out_band: string | null;
+    save_reach_band: string | null;
+  } | null;
+
+  const sketchBandsCount = [
+    estimates?.housing_band,
+    estimates?.subs_band,
+    estimates?.bills_band,
+    estimates?.food_out_band,
+    estimates?.save_reach_band,
+  ].filter(Boolean).length;
+
+  const knows = knowsYou({
+    hasName: !!profile?.display_name,
+    hasDoor:
+      profile?.door_family != null ||
+      struggleToFamily(profile?.entry_struggle ?? null) != null,
+    hasContext: profile?.age_range != null,
+    hasCompositeRelate: profile?.composite_relate != null,
+    hasGoal: goalRes.data != null,
+    hasIncome:
+      (estimates?.income_monthly ?? financialFacts.net_monthly_income) != null,
+    sketchBandsCount,
+    hasTopValue: estimates?.top_value != null,
+    verdictsCount: Object.keys((estimates?.verdicts ?? {}) as Record<string, unknown>).length,
+    statementChecked: true,
+    valueMapDone: false,
+  });
+
+  // Only claim "past the floor" when the recomputed score actually cleared it.
+  // statementChecked adds +16, but a user with sparse estimate-stage signals can
+  // still land below 70 — asserting "past 70%" then would contradict the number.
+  const clearedFloor = knows.pct >= STATEMENT_CHECK_FLOOR;
+  const line = clearedFloor
+    ? `That check took me from a sketch to your real numbers — I now know you about ${knows.pct}%, past the ${STATEMENT_CHECK_FLOOR}% a real month unlocks. ` +
+      `The last stretch is what these patterns mean to you, and that's what the Value Map settles.`
+    : `That check took me from a sketch to your real numbers — I now know you about ${knows.pct}%. ` +
+      `The last stretch is what these patterns mean to you, and that's what the Value Map settles.`;
+
+  return { pct: knows.pct, line };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

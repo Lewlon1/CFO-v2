@@ -9,6 +9,9 @@ const VALUE_COLORS: Record<string, string> = {
   investment: valueCategories.investment.color,
   leak: valueCategories.leak.color,
   burden: valueCategories.burden.color,
+  // VM-1: spend without a displayable value label renders as a neutral
+  // segment instead of being hidden — the bar must not overstate evidence.
+  unmapped: valueCategories.unsure.color,
 }
 
 interface ValuesSectionProps {
@@ -29,7 +32,7 @@ export function ValuesSection({ summary, isLoading, archetype, profileCompletene
   }
 
   // Build value bar segments
-  const valueOrder = ['foundation', 'investment', 'leak', 'burden'] as const
+  const valueOrder = ['foundation', 'investment', 'leak', 'burden', 'unmapped'] as const
   const hasValueData = summary && Object.keys(summary.spending_by_value_category).length > 0
   const segments = hasValueData
     ? valueOrder

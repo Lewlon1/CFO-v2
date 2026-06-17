@@ -50,8 +50,8 @@ export async function runPersona(
     result.stagesCompleted = driverOut.stagesCompleted
     result.consoleErrors = driverOut.consoleErrors
     result.functionalErrors.push(...driverOut.errors)
-    if (driverOut.capturedArchetype !== null) result.captured.archetype = driverOut.capturedArchetype
-    if (driverOut.capturedInsight !== null) result.captured.insight = driverOut.capturedInsight
+    if (driverOut.capturedEstimateRead !== null) result.captured.estimateRead = driverOut.capturedEstimateRead
+    if (driverOut.capturedRealityCheck !== null) result.captured.realityCheckRead = driverOut.capturedRealityCheck
 
     // DB assertions
     const snap = await snapshotDbState(admin, user.id)
@@ -60,12 +60,12 @@ export async function runPersona(
     result.functionalErrors.push(...dbErrs)
 
     await writeFile(
-      path.join(personaOutputDir, 'captured', 'archetype.json'),
-      JSON.stringify(driverOut.capturedArchetype ?? null, null, 2),
+      path.join(personaOutputDir, 'captured', 'estimate-read.json'),
+      JSON.stringify(driverOut.capturedEstimateRead ?? null, null, 2),
     )
     await writeFile(
-      path.join(personaOutputDir, 'captured', 'insight.json'),
-      JSON.stringify(driverOut.capturedInsight ?? null, null, 2),
+      path.join(personaOutputDir, 'captured', 'reality-check.json'),
+      JSON.stringify(driverOut.capturedRealityCheck ?? null, null, 2),
     )
     await writeFile(
       path.join(personaOutputDir, 'captured', 'db-state-after-handoff.json'),
@@ -87,30 +87,34 @@ export async function runPersona(
 
     // LLM judge layer
     if (!ctx.skipJudge && persona.expectations.likertDimensions.length > 0) {
+      // The estimate Read predates any upload, so it is judged WITHOUT a CSV
+      // (its figures are honest ≈ band sketches). The reality-check Read is
+      // judged against the uploaded statement's summary so R4 can catch a
+      // hallucinated figure.
       const csvSummary = persona.csv
         ? summariseCsv(Buffer.from(persona.csv.contentBase64, 'base64').toString('utf-8'), persona.profile.currency)
         : null
 
-      if (result.captured.archetype) {
-        const j = await judgeOutput(persona, 'archetype', result.captured.archetype, csvSummary)
-        result.judge.archetype = j
-        await writeFile(path.join(personaOutputDir, 'captured', 'judge-archetype.json'), JSON.stringify(j, null, 2))
+      if (result.captured.estimateRead) {
+        const j = await judgeOutput(persona, 'estimate_read', result.captured.estimateRead, null)
+        result.judge.estimateRead = j
+        await writeFile(path.join(personaOutputDir, 'captured', 'judge-estimate-read.json'), JSON.stringify(j, null, 2))
       }
-      if (result.captured.insight) {
-        const j = await judgeOutput(persona, 'insight', result.captured.insight, csvSummary)
-        result.judge.insight = j
-        await writeFile(path.join(personaOutputDir, 'captured', 'judge-insight.json'), JSON.stringify(j, null, 2))
+      if (result.captured.realityCheckRead) {
+        const j = await judgeOutput(persona, 'reality_check_read', result.captured.realityCheckRead, csvSummary)
+        result.judge.realityCheckRead = j
+        await writeFile(path.join(personaOutputDir, 'captured', 'judge-reality-check.json'), JSON.stringify(j, null, 2))
       }
 
       const allHardRules = [
-        ...(result.judge.archetype?.hardRules ?? []),
-        ...(result.judge.insight?.hardRules ?? []),
+        ...(result.judge.estimateRead?.hardRules ?? []),
+        ...(result.judge.realityCheckRead?.hardRules ?? []),
       ]
       const failures = allHardRules.filter((r) => !r.passed)
       result.hardRuleFailures = failures.map((f) => `${f.ruleId}${f.detail ? ' — ' + f.detail : ''}`)
 
       const likertSums: Record<string, { total: number; n: number }> = {}
-      for (const j of [result.judge.archetype, result.judge.insight]) {
+      for (const j of [result.judge.estimateRead, result.judge.realityCheckRead]) {
         if (!j) continue
         for (const l of j.likert) {
           if (!likertSums[l.dimension]) likertSums[l.dimension] = { total: 0, n: 0 }
@@ -122,11 +126,11 @@ export async function runPersona(
         result.likertMeans[dim] = Math.round((v.total / v.n) * 10) / 10
       }
 
-      if (result.judge.archetype || result.judge.insight) {
+      if (result.judge.estimateRead || result.judge.realityCheckRead) {
         result.layers.llm = failures.length === 0 ? 'pass' : 'fail'
       } else {
         result.layers.llm = 'fail'
-        result.hardRuleFailures.push('No LLM outputs captured (flow never produced archetype or insight)')
+        result.hardRuleFailures.push('No LLM outputs captured (flow never produced an estimate Read)')
       }
     } else {
       result.layers.llm = 'skip'

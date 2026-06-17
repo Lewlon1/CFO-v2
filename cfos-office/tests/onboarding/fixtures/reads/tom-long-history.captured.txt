@@ -1,11 +1,15 @@
-One thing to flag upfront: the most recent transaction in this data is from 2026-03-19, so these observations are 81 days old — treat them as a baseline, not a live picture.
+This is your sketch, not your statement — but even a sketch this rough tells me something useful.
 
-As of that date, your tracked spend breaks down clearly. **Housing** dominates at £2,840 — that's two rent payments to Norwood Lettings, the largest of which was £1,420 in January. After that, **groceries** at £748 and **eating & drinking out** at £264 are the next two lines. With only 2 transactions in the window, patterns are thin, but the shape is already legible: rent is the anchor, and everything else is a fraction of it.
+After your ≈£1,750 fixed base, you have ≈£2,250 free each month. The deposit needs ≈£830/mo — ≈21% of take-home. That gap is closeable. The problem is the ≈£1,850 of drift: free cash that isn't going to eating out, isn't going to savings, and right now has no name.
 
-Your free cash flow sits at £1,934 a month against fixed costs of £2,066. The Pension top-up goal has £41,000 still to go — but without a target date, the monthly pace needed to get there on time can't be computed. That's the one missing piece.
+The move is a standing transfer of ≈£300/mo, set up on payday. That's roughly half the drift — sized so it doesn't bite. At that pace the deposit lands in ≈37 months. Without it, the sketch says ≈80. That's the difference between mid-2027 and somewhere in 2031.
 
-Set the date, and the goal math closes.
+You called the ≈£1,850 drift unsure. That's the right call. A real month settles it — not as a number to feel bad about, but as a map of where the growth actually goes.
 
-[CTA:supply_input]Set a target date for Pension top-up[/CTA]
+Checking a real month does two things. First, it swaps every ≈ for an actual figure — estimate and reality side by side. Second, the habits half of this picture is still empty: timing, patterns, what's recurring. Estimates can't see any of that. Only real transactions can.
+
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

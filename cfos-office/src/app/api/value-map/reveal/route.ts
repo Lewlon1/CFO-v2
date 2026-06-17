@@ -4,6 +4,7 @@ import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/chat/rate-limit'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
+import { isValueMapV2Enabled } from '@/lib/value-map/flags'
 
 const OPUS_MODEL = process.env.BEDROCK_OPUS_MODEL ?? 'eu.anthropic.claude-opus-4-6'
 
@@ -81,6 +82,13 @@ export async function POST(req: Request) {
         },
       },
     )
+  }
+
+  // VM-4: gated under VALUE_MAP_V2 — this route's free-form reading (and its
+  // raw-telemetry prompt) is superseded by the deterministic reveal. The
+  // client keeps its deterministic observations when observations is null.
+  if (isValueMapV2Enabled()) {
+    return Response.json({ observations: null })
   }
 
   const { results, currency, personalityName, dominantQuadrant, breakdown, avgConfidence } = await req.json()

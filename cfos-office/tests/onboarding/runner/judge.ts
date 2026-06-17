@@ -3,7 +3,12 @@ import { utilityModel, utilityModelId } from '@/lib/ai/provider'
 import { checkReadHardRules } from '@/lib/ai/read-judge'
 import type { Persona } from '../personas/types'
 import type { CsvSummary } from './csv-summariser'
-import type { JudgeOutput, HardRuleResult, LikertResult } from './types'
+import type { JudgeOutput, HardRuleResult, LikertResult, ReadKind } from './types'
+
+/** Harness-only word cap for the reality-check Read (see evaluateHardRules). The
+ *  prod READ_WORD_CAP (250) governs the estimate Read; the reality Read's
+ *  estimate-vs-reality walk across five bands runs longer. */
+const REALITY_READ_WORD_CAP = 300
 
 // ── Content unwrap ───────────────────────────────────────────────────────────
 
@@ -34,19 +39,23 @@ function checkBannedWords(text: string, banned: string[] | undefined): HardRuleR
   return { ruleId: 'R1_no_banned_words', passed: true }
 }
 
-function checkBannedPatterns(text: string, patterns: string[] | undefined): HardRuleResult {
-  if (!patterns?.length) return { ruleId: 'R1b_no_banned_patterns', passed: true }
+function checkBannedPatterns(
+  text: string,
+  patterns: string[] | undefined,
+  ruleId = 'R1b_no_banned_patterns',
+): HardRuleResult {
+  if (!patterns?.length) return { ruleId, passed: true }
   for (const src of patterns) {
     const re = new RegExp(src, 'i')
     if (re.test(text)) {
       return {
-        ruleId: 'R1b_no_banned_patterns',
+        ruleId,
         passed: false,
         detail: `Matches banned pattern: /${src}/i`,
       }
     }
   }
-  return { ruleId: 'R1b_no_banned_patterns', passed: true }
+  return { ruleId, passed: true }
 }
 
 function checkMustMentionOneOf(text: string, candidates: string[] | undefined, ruleId: string): HardRuleResult {
@@ -123,8 +132,9 @@ const GOAL_DENIAL_RE: RegExp[] = [
   /\bno goal (attached|set|on file)\b/i,
 ]
 
-function checkGoalDenial(text: string, persona: Persona): HardRuleResult {
-  if (!persona.expectations.goal) return { ruleId: 'R6_no_goal_denial', passed: true }
+// Every estimates-first persona has a goal — the estimate goal beat creates one
+// from pinned config — so a Read must never deny having one. Universal check.
+function checkGoalDenial(text: string): HardRuleResult {
   const hit = GOAL_DENIAL_RE.find((re) => re.test(text))
   return hit
     ? { ruleId: 'R6_no_goal_denial', passed: false, detail: `goal-denial phrase matched ${hit}` }
@@ -137,15 +147,41 @@ function checkSystemNoteLeak(text: string): HardRuleResult {
     : { ruleId: 'R7_no_system_note', passed: true }
 }
 
-const ALLOWED_CTA_TYPES = ['supply_input', 'set_goal', 'start_value_map_real', 'cut_lever']
+// start_statement_check is the estimate Read's close (OB-2); start_value_map_real
+// is the reality-check Read's close (OB-3). Both belong to the allowed set.
+const ALLOWED_CTA_TYPES = [
+  'supply_input',
+  'set_goal',
+  'start_value_map_real',
+  'start_statement_check',
+  'cut_lever',
+]
+
+function extractCtaTypes(text: string): string[] {
+  return [...text.matchAll(/\[CTA:([a-z_]+)\]/gi)].map((m) => m[1].toLowerCase())
+}
 
 function checkCtaVocabulary(text: string): HardRuleResult {
-  const types = [...text.matchAll(/\[CTA:([a-z_]+)\]/gi)].map((m) => m[1].toLowerCase())
+  const types = extractCtaTypes(text)
   if (types.length === 0) return { ruleId: 'R8_cta_vocabulary', passed: true } // H3 handles "missing CTA"
   const bad = types.filter((t) => !ALLOWED_CTA_TYPES.includes(t))
   return bad.length
     ? { ruleId: 'R8_cta_vocabulary', passed: false, detail: `unknown CTA type(s): ${bad.join(', ')}` }
     : { ruleId: 'R8_cta_vocabulary', passed: true }
+}
+
+/** The estimate Read must close on start_statement_check; the reality-check Read
+ *  on start_value_map_real (CTA contract per outputType — guards against drift). */
+function checkCtaMatchesRead(text: string, outputType: ReadKind): HardRuleResult {
+  const types = extractCtaTypes(text)
+  if (types.length === 0) return { ruleId: 'R8b_cta_matches_read', passed: true } // H3 handles "missing CTA"
+  const expected = outputType === 'estimate_read' ? 'start_statement_check' : 'start_value_map_real'
+  const ok = types.length === 1 && types[0] === expected
+  return {
+    ruleId: 'R8b_cta_matches_read',
+    passed: ok,
+    detail: ok ? undefined : `expected exactly [CTA:${expected}], got: ${types.join(', ') || '(none)'}`,
+  }
 }
 
 // ── LLM judge for subjective dimensions ─────────────────────────────────────
@@ -183,30 +219,32 @@ Return JSON ONLY in this exact shape, nothing else:
   "L5_actionability": { "score": 4, "reason": "..." }
 }`
 
+/** Human-readable label for the Read being judged (fills {output_type}). */
+function readTypeLabel(outputType: ReadKind): string {
+  return outputType === 'estimate_read' ? 'estimate read' : 'reality-check read'
+}
+
 function buildPersonaBlock(persona: Persona): string {
-  // archetype is null for chat-first personas, but those personas don't run
-  // the LLM judge (their likertDimensions is empty), so we never reach here
-  // without an archetype. Fall back to '(none)' defensively.
-  const archetype = persona.expectations.archetype
+  const e = persona.expectations
   return [
     `id: ${persona.id}`,
     `label: ${persona.label}`,
     `country: ${persona.profile.country}`,
     `currency: ${persona.profile.currency}`,
-    `target_archetype: ${archetype?.personalityId ?? '(none)'}`,
-    `target_dominant_quadrant: ${archetype?.expectedQuadrant ?? '(none)'}`,
+    `top_value: ${e.topValue}`,
+    `verdicts: subscriptions=${e.verdicts.subscriptions}, eating_out=${e.verdicts.foodOut}, drift=${e.verdicts.drift}`,
   ].join('\n')
 }
 
 async function callLlmJudge(
   persona: Persona,
-  outputType: 'archetype' | 'insight',
+  outputType: ReadKind,
   content: string,
   csvSummary: CsvSummary | null,
 ): Promise<{ likert: LikertResult[]; raw: unknown; modelId: string }> {
   const prompt = JUDGE_PROMPT_TEMPLATE
     .replace('{persona_block}', buildPersonaBlock(persona))
-    .replace('{output_type}', outputType)
+    .replace('{output_type}', readTypeLabel(outputType))
     .replace('{cfo_output}', content)
     .replace('{csv_summary}', csvSummary?.asText() ?? 'No CSV uploaded for this persona.')
 
@@ -241,59 +279,63 @@ async function callLlmJudge(
 
 export function evaluateHardRules(
   persona: Persona,
-  outputType: 'archetype' | 'insight',
+  outputType: ReadKind,
   content: string,
   csvSummary: CsvSummary | null,
 ): HardRuleResult[] {
   const rules = persona.expectations.hardRules
   const out: HardRuleResult[] = []
+
+  // Universal voice / safety checks (apply to both Reads). bannedPatterns here are
+  // the both-Reads ones (e.g. false-order trend claims, lecturing); behavioural /
+  // willpower patterns that are only illegitimate without transactions live in
+  // estimateOnlyBannedPatterns and are applied in the estimate-Read block below.
   out.push(checkBannedWords(content, rules?.bannedWords))
   out.push(checkBannedPatterns(content, rules?.bannedPatterns))
   out.push(checkSystemNoteLeak(content))
-  out.push(checkGoalDenial(content, persona))
+  out.push(checkGoalDenial(content))
 
-  if (outputType === 'archetype') {
-    out.push(checkMustMentionOneOf(content, rules?.archetype?.mustMentionOneOf, 'R2_archetype_mentions_one_of'))
-    out.push(checkMustMentionOneOf(content, rules?.archetype?.mustAcknowledgeOneOf, 'R2b_archetype_acknowledges_one_of'))
-    if (rules?.archetype?.mustReferenceQuadrant) {
-      out.push(checkMustMentionOneOf(content, [rules.archetype.mustReferenceQuadrant], 'R2c_archetype_references_quadrant'))
-    }
-  } else {
-    out.push(checkCurrencySymbol(content, persona))
-    out.push(checkCtaVocabulary(content))
-    out.push(checkMustMentionOneOf(content, rules?.insight?.mustReferenceOneOf, 'R3b_insight_mentions_one_of'))
-    // R4: include goal figures (target, current, remaining) as plausible amounts so
-    // goal-aware Reads that quote the goal math don't false-fail.
-    const g = persona.expectations.goal
-    const goalAmounts = g
-      ? [g.targetAmount, g.currentAmount ?? 0, g.targetAmount - (g.currentAmount ?? 0)].filter((n) => n > 0)
-      : []
-    out.push(checkMinimalNumbers(content, csvSummary, goalAmounts))
-    // NOTE: the retired `isValueFirst` detection (mode 'value_first' → the H3b
-    // rule asserting the CTA is `start_value_map_real`) is intentionally dropped.
-    // The live product emits supply_input/set_goal/cut_lever CTAs, not start_value_map_real
-    // (CTA contract drift — see the plan's decision D5). R8 now validates CTA
-    // vocabulary against the full allowed set. Always use mode: 'default' here.
-    // H8 (merchant citation) is NOT invoked from the test: goal-aware Reads lead
-    // with goal/levers/categories and don't reliably cite individual merchants.
-    // H8 stays in src/lib/ai/read-judge.ts for the prod cron — we just stop calling it here.
-    for (const r of checkReadHardRules(content, { mode: 'default' })) {
-      out.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
-    }
-    // R9: goal-aware Reads must reference the goal (by name, target amount, or /goal/i).
-    if (g) {
-      const lower = content.toLowerCase()
-      const goalReferenced =
-        (g.name && lower.includes(g.name.toLowerCase())) ||
-        content.includes(String(g.targetAmount)) ||
-        /goal/i.test(content)
-      out.push({
-        ruleId: 'R9_goal_reference',
-        passed: goalReferenced,
-        detail: goalReferenced ? undefined : `goal not referenced (name="${g.name}", target=${g.targetAmount})`,
-      })
-    }
+  // Read format + currency + CTA contract.
+  out.push(checkCurrencySymbol(content, persona))
+  out.push(checkCtaVocabulary(content))
+  out.push(checkCtaMatchesRead(content, outputType))
+
+  // Grounding check (estimate Read only): the band-built estimate Read is the
+  // one prone to drifting off its inputs. The reality-check Read is grounded by
+  // the deltas it cites + the CSV-anchored R4 below, so it skips this.
+  if (outputType === 'estimate_read') {
+    out.push(checkMustMentionOneOf(content, rules?.read?.mustReferenceOneOf, 'R3b_read_mentions_one_of'))
+    // Behavioural / willpower claims are unfounded in the no-transactions estimate
+    // Read, but legitimate once real data backs them in the reality-check Read — so
+    // these patterns are scoped to the estimate Read only (see anchor-debt).
+    out.push(
+      checkBannedPatterns(content, rules?.estimateOnlyBannedPatterns, 'R1c_no_estimate_only_patterns'),
+    )
   }
+
+  // R4: numeric grounding. For the estimate Read the runner passes csvSummary=null
+  // (no statement exists yet → every band figure is an honest ≈ sketch, so R4 is
+  // a no-op); for the reality-check Read it passes the uploaded statement's
+  // summary so a hallucinated figure is caught.
+  out.push(checkMinimalNumbers(content, csvSummary))
+
+  // H1–H7 format/voice rules shared with the prod composer (read-judge.ts). H3b
+  // (value_first CTA) is intentionally NOT enforced via mode here — R8b above
+  // does the per-Read CTA contract. H8 (merchant citation) is not invoked: the
+  // estimate Read has no merchants by design, and the reality-check Read leads
+  // with deltas, so neither reliably cites a single merchant.
+  //
+  // Word cap: the estimate Read uses the shared READ_WORD_CAP (250); the
+  // reality-check Read is a distinct format — it walks estimate-vs-reality across
+  // up to five bands, so it runs longer than the cap was calibrated for (live
+  // reality Reads land ~250–270). We give it headroom HERE in the harness only;
+  // the prod READ_WORD_CAP is unchanged. (Follow-up: calibrate the prod cap /
+  // composer length target for the reality_check mode — out of OB-4's scope.)
+  const wordCap = outputType === 'reality_check_read' ? REALITY_READ_WORD_CAP : undefined
+  for (const r of checkReadHardRules(content, { mode: 'default', wordCap })) {
+    out.push({ ruleId: r.ruleId, passed: r.passed, detail: r.detail })
+  }
+
   return out
 }
 
@@ -301,7 +343,7 @@ export function evaluateHardRules(
 
 export async function judgeOutput(
   persona: Persona,
-  outputType: 'archetype' | 'insight',
+  outputType: ReadKind,
   cfoOutput: unknown,
   csvSummary: CsvSummary | null,
 ): Promise<JudgeOutput> {

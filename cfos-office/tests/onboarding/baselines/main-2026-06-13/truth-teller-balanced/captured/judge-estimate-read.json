@@ -1,0 +1,126 @@
+{
+  "outputType": "estimate_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:15:46.252Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_read_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "219/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "Checking a real month is what takes that past 70%."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me', 'That drift is where the move lives') feels like a smart friend reviewing numbers over coffee, not a financial algorithm."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures (£1,450/mo free cash, £170/mo goal, £1,200/mo drift, 3-month timeline, 56% confidence) are internally consistent and grounded in the persona's stated verdicts and context; no invented merchants or unsourced claims."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses tangible comparisons ('6% of take-home', 'about half the drift'), avoids prescriptive language ('you should'), and frames the problem as a data gap rather than a moral failing—pure CFO voice."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly acknowledges the user's stated 'unsure' verdict on drift, respects 'Family' as top value by protecting it from the standing order, and speaks to someone working from estimates rather than statements."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Concrete next step (£300/mo standing transfer + check a real month) with clear rationale (swaps estimates for actuals, reveals habits, moves confidence from 56% to 70%), and CTA is specific and low-friction."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, peer-like tone ('even a sketch this rough tells me', 'That drift is where the move lives') feels like a smart friend reviewing numbers over coffee, not a financial algorithm."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures (£1,450/mo free cash, £170/mo goal, £1,200/mo drift, 3-month timeline, 56% confidence) are internally consistent and grounded in the persona's stated verdicts and context; no invented merchants or unsourced claims."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses tangible comparisons ('6% of take-home', 'about half the drift'), avoids prescriptive language ('you should'), and frames the problem as a data gap rather than a moral failing—pure CFO voice."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly acknowledges the user's stated 'unsure' verdict on drift, respects 'Family' as top value by protecting it from the standing order, and speaks to someone working from estimates rather than statements."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Concrete next step (£300/mo standing transfer + check a real month) with clear rationale (swaps estimates for actuals, reveals habits, moves confidence from 56% to 70%), and CTA is specific and low-friction."
+    }
+  }
+}

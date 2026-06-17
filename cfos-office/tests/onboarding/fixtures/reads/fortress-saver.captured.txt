@@ -1,11 +1,15 @@
-Heads up: this picture is 71 days old — as of 2026-03-29, here's where your money was going.
+This is your sketch, not your statement — but even a sketch this rough tells me something worth acting on.
 
-Housing ate 59.4% of tracked spend in the window — £1,950 across three rent payments, the single biggest merchant by a wide margin. The largest individual transaction was a £650 rent hit on 1 March. The line most likely to surprise you: utilities and bills at £669, which is 20.4% of tracked spend — more than groceries and everything else outside rent combined.
+Your take-home is £2,650. After a ≈£870 fixed base, ≈£1,780 is nominally free each month. Against a ≈£20,000 deposit with no deadline yet, that's a direction problem, not a timing one — the question is how much of that free cash actually moves toward it. Right now, your ≈£250 could-save figure and ≈£60 eating out leave ≈£1,470 unaccounted for. That's the gap the sketch can't explain.
 
-With only 10 transactions across 88 days, the picture is thin. That's not a criticism of your spending — it means the data is incomplete, and there are almost certainly outflows that haven't been captured yet. The free cash flow figure of £1,451/month is real, but without knowing what's happening in the gaps, it's hard to say how much of that is actually landing in your pocket.
+The move: set up a standing transfer of ≈£300 on payday. Sized at roughly half the drift, it shouldn't bite. At that pace the deposit lands in ≈37 months. Without it, the sketch puts you at ≈80. That's the difference one transfer makes.
 
-No levers have been computed yet — that changes once the full picture is in. The fastest way to sharpen this is to confirm what's missing.
+You called the ≈£1,470 drift a leak. A real month says whether it is — or whether, as you put it, you save more than this sketch makes it look. Checking settles that directly.
 
-[CTA:supply_input]Connect or add the accounts that hold the rest of my spending[/CTA]
+What a real month adds: every ≈ swaps for an actual number, estimate beside reality. And the habits half of the picture is still completely empty — timing, patterns, what's truly recurring — because estimates can't see it. Only real transactions can.
+
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

@@ -1,0 +1,126 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:38:56.744Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "166/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "required monthly contribution becomes a number, not a guess."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "ruleId": "R9_goal_reference",
+      "passed": true
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Opening 'Heads up' and closing signature '— C.' create conversational intimacy; 'That math is solvable' and 'treat it as a snapshot' feel like a peer checking in, not a system lecturing."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures verified: €2,850 housing (3 txns to Alquiler Piso), €762 eating out (Bar Mut €138 + Cerveceria €122 + Deliveroo €126 + Glovo €114 = €500, plus other venues), €672 groceries (Mercadona), €2,700 income, €1,242 fixed costs, €1,200 saved toward €6,000 fund—no hallucinations."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids prescriptive 'you should' language; uses concrete math ('That math is solvable') and tangible framing ('free cash flow sits at €1,458'); one minor slip: 'Set a date and the required monthly contribution becomes a number' edges toward light advice-giving rather than pure observation."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly addresses the drifter-expat context (Spain, move-home fund, thin transaction history over short window) and acknowledges the 'no target date' blocker specific to someone in transition; feels personalized, not templated."
+    },
+    {
+      "dimension": "actionability",
+      "score": 5,
+      "reason": "Ends with a single, concrete next step (set target date) that unlocks the entire plan; CTA is clear and removes ambiguity about what unblocks progress."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Opening 'Heads up' and closing signature '— C.' create conversational intimacy; 'That math is solvable' and 'treat it as a snapshot' feel like a peer checking in, not a system lecturing."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures verified: €2,850 housing (3 txns to Alquiler Piso), €762 eating out (Bar Mut €138 + Cerveceria €122 + Deliveroo €126 + Glovo €114 = €500, plus other venues), €672 groceries (Mercadona), €2,700 income, €1,242 fixed costs, €1,200 saved toward €6,000 fund—no hallucinations."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids prescriptive 'you should' language; uses concrete math ('That math is solvable') and tangible framing ('free cash flow sits at €1,458'); one minor slip: 'Set a date and the required monthly contribution becomes a number' edges toward light advice-giving rather than pure observation."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly addresses the drifter-expat context (Spain, move-home fund, thin transaction history over short window) and acknowledges the 'no target date' blocker specific to someone in transition; feels personalized, not templated."
+    },
+    "L5_actionability": {
+      "score": 5,
+      "reason": "Ends with a single, concrete next step (set target date) that unlocks the entire plan; CTA is clear and removes ambiguity about what unblocks progress."
+    }
+  }
+}

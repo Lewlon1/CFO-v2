@@ -1,4 +1,4 @@
-import type { Persona } from './types'
+import { ESTIMATE_STAGES, CHECK_STAGES, type Persona } from './types'
 
 // Sofia — Chaotic / freelance (Session 32 C, persona expansion).
 //
@@ -89,27 +89,28 @@ export const sofiaChaotic: Persona = {
     expectedBank: 'revolut',
   },
   expectations: {
-    entryStruggle: 'dont_know',
+    // agency door ("income comes in lumps, months don't match") — the freelance
+    // timing problem. Walks the statement-check to verify the lumpy month.
+    entryStruggle: 'planning',
+    ageBand: '18-29',
+    compositeRelate: 'close',
+    goalDeadline: '6m',
+    sketchBands: {
+      housing: 'a', // <800 (sublets ≈680)
+      subs: 'high', // 8+ — the drift
+      bills: 'a', // ≈150
+      foodOut: 'c', // 50+/week — bursty spending
+      saveReach: 'a', // nothing yet — irregular income
+    },
+    topValue: 'Freedom',
+    verdicts: { subscriptions: 'leak', foodOut: 'leak', drift: 'leak' },
+    runStatementCheck: true,
     archetype: {
       expectedQuadrant: 'leak',
       personalityId: 'drifter',
     },
-    stagesCompleted: [
-      'struggle_submitted',
-      'goal_done',
-      'upload_done',
-      'essentials_done',
-      'confirm_done',
-      'first_read',
-    ],
-    goal: {
-      name: '3-month runway',
-      type: 'savings',
-      targetAmount: 9600,
-      currentAmount: 2000,
-    },
+    stagesCompleted: [...ESTIMATE_STAGES, ...CHECK_STAGES],
     dbAfterHandoff: {
-      user_profiles: { onboarding_step: 'first_read_delivered', onboarding_completed_at: 'not-null' },
       transactions: { countBetween: [30, 50] },
     },
     hardRules: {
@@ -118,11 +119,8 @@ export const sofiaChaotic: Persona = {
         // Imposing order that isn't there is the failure mode.
         '(rising|falling|climbing)\\s+(steadily|consistently)',
         'every\\s+week\\s+you\\s+spend',
-        'monthly\\s+(rent|housing)',
       ],
-      insight: {
-        mustReferenceOneOf: ['housing', 'free cash flow', 'snapshot', 'entertainment', 'travel'],
-      },
+      read: { mustReferenceOneOf: ['free cash', 'save', 'subscriptions', 'eating', 'drift'] },
     },
     likertDimensions: ['warmth', 'accuracy', 'on_brand_voice', 'persona_fit', 'actionability'],
   },

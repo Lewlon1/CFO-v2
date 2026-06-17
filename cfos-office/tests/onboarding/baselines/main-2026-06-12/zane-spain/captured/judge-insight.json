@@ -1,0 +1,126 @@
+{
+  "outputType": "insight",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-12T19:42:34.530Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R3b_insight_mentions_one_of",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "205/250 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "own, but it's a clean first move while the picture sharpens."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "ruleId": "R9_goal_reference",
+      "passed": true
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Opening caveat about data age, conversational asides ('The real question is...'), and closing signature create genuine smart-friend rapport without condescension."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures (€25k goal, €1,309 FCF, €2,565 health spend, €58 Movistar, €19 eating out) are either directly sourced or correctly derived from the CSV; no invented merchants or numbers."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 4,
+      "reason": "Avoids prescriptive language ('worth keeping in view' vs 'you should cut'), uses concrete comparisons (€25–€35 range), and frames as observation not directive—though 'not a directive' is slightly defensive for the CFO voice."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 4,
+      "reason": "Speaks directly to Zane's fortress/foundation archetype (deposit goal, margin tightening, structural spending patterns) and Madrid context (Movistar range, Spanish merchants), but could lean harder into the 34-month runway or EUR-specific framing."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "CTA is concrete (trim €19 from eating & drinking) and grounded in data, though the insight stops short of proposing a tracking cadence or next diagnostic step once the dataset thickens."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Opening caveat about data age, conversational asides ('The real question is...'), and closing signature create genuine smart-friend rapport without condescension."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures (€25k goal, €1,309 FCF, €2,565 health spend, €58 Movistar, €19 eating out) are either directly sourced or correctly derived from the CSV; no invented merchants or numbers."
+    },
+    "L3_on_brand": {
+      "score": 4,
+      "reason": "Avoids prescriptive language ('worth keeping in view' vs 'you should cut'), uses concrete comparisons (€25–€35 range), and frames as observation not directive—though 'not a directive' is slightly defensive for the CFO voice."
+    },
+    "L4_persona_fit": {
+      "score": 4,
+      "reason": "Speaks directly to Zane's fortress/foundation archetype (deposit goal, margin tightening, structural spending patterns) and Madrid context (Movistar range, Spanish merchants), but could lean harder into the 34-month runway or EUR-specific framing."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "CTA is concrete (trim €19 from eating & drinking) and grounded in data, though the insight stops short of proposing a tracking cadence or next diagnostic step once the dataset thickens."
+    }
+  }
+}

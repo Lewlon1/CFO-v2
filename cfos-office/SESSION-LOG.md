@@ -9,6 +9,355 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## VM-5 — Alignment Score + approved seed-readings swap (2026-06-10)
+
+Branch: `claude/nifty-carson-4jzdl2` @ 790ca4b (base gate: PASS — `taxonomy-config.ts`, `classify-archetype.ts`, `value-rescore.ts` (lives in `lib/categorisation/`) all present; HEAD = VM-4). **Branch deviation:** the session prompt named `claude/value-map-v2-7ox3hw`, but that branch's remote tip is VM-2 — VM-3/VM-4 only exist on `claude/nifty-carson-4jzdl2`, which is also this session's designated push branch. Only branch passing the base gate; worked there. `origin/main` (eda279e) is an ancestor — merge was a no-op.
+
+**Phase 0:** Snapshot computation: `lib/analytics/monthly-snapshot.ts` (`aggregateMonthSpending` pure core + `refreshOneMonth` writer; `refreshMonthlySnapshots` is the callable recompute — G2 PASS). Dashboard summary enrichment: `app/api/dashboard/summary/route.ts` (mirrors writer bucketing; `select` is explicit-column). Context builder: `lib/ai/context-builder.ts:buildSystemPrompt` loads snapshots `select('*') limit(6) desc` → new columns flow automatically; `buildFinancialContext` is the citation injection point (general branch only — onboarding/first-read branches never see it). Chart primitives: no shared sparkline exists (TrendChart/ValuesTrendChart are Recharts page-charts) — tile got a minimal token-only SVG sparkline. Prompt file: `SEED_READINGS` is `{facts, reading}[]` — drop-in swap fits (G3 PASS). Eligibility conventions reused: `categories.ts` (`INCOME_CATEGORY_ID`, `isNeutralCategory`, positive-null-skip) + `value-config.ts` `isValueDisplayable`.
+
+**Phase 0 coverage reality check (verbatim, staging 2026-06-10):** v1 confidence over trailing 3 months — best Dorcas (doecas.tester@test4.com, post-VM-3, 1 VM session): **0.1943** (€6,463 of €8,022 eligible spend unmapped); dorcas.tester@test2.com 0.1903; test10 0.1248; all other Dorcas instances ≤0.05 or NULL. Fresh personas (no card session): NULL/0 — correctly below floor. **The session prompt's expectation "Dorcas should clear the 0.4 floor post-VM-3" does NOT hold on current staging data.** Floor kept at 0.4 (lowering it to pass a checklist would recreate the thin-coverage fiction VM-1 killed); floor behaviour validated via unit fixtures instead, calibrating state validated on real Dorcas data (see below).
+
+**Formula:** ALIGNMENT_V1 as specified, no deviations — `src/lib/value-map/alignment.ts`. `alignedSpendPct = (foundation+investment)/(foundation+investment+leak)` over displayable spend (0–100, 4 dp; NULL when denom 0), `alignmentConfidence = displayable/eligible` (0–1, 4 dp; 0 when eligible 0), burden in components/confidence but excluded from the ratio, buckets clamped at 0. Implemented as `alignmentFromValueBuckets` (shared core over the `spending_by_value_category` record — the snapshot writer derives the score from the SAME buckets it persists, so score and jsonb can never disagree) + `computeAlignment(txns)` (spec'd API; equivalence with `aggregateMonthSpending` pinned by a unit test). Floor constant `ALIGNMENT_DISPLAY_MIN_CONFIDENCE = 0.4` lives in `value-config.ts` with the other honesty-gate thresholds (per the spec's own "value-config" annotation), not in alignment.ts.
+
+**Migration:** `vm5_alignment_columns` applied to staging (qlbhvlssksnrhsleadzn) — three nullable columns on `monthly_snapshots`. Repo copy `supabase/migrations/073_vm5_alignment_columns.sql`; prod companion `supabase/manual/VM-5-prod-columns.DO-NOT-APPLY.sql` (columns + idempotent jsonb backfill) awaiting Lewis. **Backfill: 348 recomputed, 92 orphans skipped** (348+92 = 440 total; the prompt's "~141 orphans" is 92 as of today). Backfill ran as SQL deriving from each row's stored `spending_by_value_category` rather than through `refreshMonthlySnapshots` — this container holds no staging service-role credentials to run the TS path, and the jsonb derivation is the same arithmetic by construction (see shared-core design above). Forward writes go through the TS function on every refresh.
+
+**Hand reconciliation (Dorcas e50498fc…, raw transactions → independent SQL):** heaviest month 2026-03 — snap conf 0.1226 = calc 0.1226, pct NULL = NULL (all displayable spend was burden → no ratio, honest NULL) ✓; heaviest non-null month 2026-04 — pct 100.0000 = 100.0000, conf 0.3219 = 0.3219 ✓. Both match to 4 dp.
+
+**Floor behaviour on real data:** fresh Dorcas (test1, no card session) latest month: conf 0.0000 → calibrating, €2,693.95/month unmapped; best Dorcas (test4): conf 0.3219 → calibrating, €1,826.75/month unmapped. Context builder injects nothing for both (pinned by `alignment-citation.test.ts`: flag-off empty, sub-floor empty, sub-floor comparison month never anchors the delta, year-boundary lookback).
+
+**Surfaces (all behind VALUE_MAP_V2, flag-off byte-identical):** `/api/dashboard/summary` gains optional `alignment` block (omitted entirely flag-off; per-month honesty gate applied server-side). `AlignmentTile` on the Values dashboard: score + 6-month SVG sparkline (null months render as line breaks, never zeros; single surviving points as dots; tokens only — `folderColors.values`), calibrating state shows the exact € and links into the unmapped correction flow on `/office/cash-flow/transactions`. Context builder: `buildAlignmentCitation` inside `buildFinancialContext` — score, coverage, computed 3-month delta (only when the comparison month also cleared the floor), observation-only instruction. Snapshot writer persists all three columns unconditionally (inert without the flag, per constraint 7).
+
+**Seed-readings swap:** `SEED_READINGS` now carries the four approved readings (2026-06-10) — reading segments **verbatim, zero v1.5-forced edits** (all four pass §2 voice/never-words/no-narration and §4 no-judgement as written). Structure-forced adaptations only, logged in the file header comment: (1) receipt beats recast into the pinned `buildReceiptLines` shape — Builder's approved "about twice what most people put there" implies ratio ≥1.6 but 5-of-11 against BASE_RATES_V1 is 1.57, so the facts block carries the system-true 'more than most people'; (2) band clauses recast into `bandSummaryClause` shape with counts consistent with the approved beats; (3) tension beats kept verbatim; (4) apostrophes normalised to the file's typographic convention. Reveal generation against the new few-shots is covered by the existing `generate-reading` tests (mocked Bedrock — no AWS creds in this container for a live run, same as VM-4).
+
+**Verification:** typecheck ✓ build ✓ lint 0 errors (token guards pass — no raw hex in the tile) ✓ knip ✓ full suite 1271/1271 ✓ (13 new alignment formula tests: denom-zero → null, burden exclusion, confidence arithmetic, clamping, legacy `unsure`/`no_idea` handling, version stamping, writer-equivalence pin; 7 new citation gate tests). Session diff touches only the manifest files; nothing on the DO-NOT-TOUCH list (`/demo`, classifier/reveal logic, judge/wow, goal computation); zero prod writes.
+
+**Deviations & why:**
+- Branch: worked on `claude/nifty-carson-4jzdl2` not `claude/value-map-v2-7ox3hw` (stale at VM-2; gate-passing VM-4 tip only exists here — also the designated push branch).
+- Backfill mechanism: SQL-from-stored-jsonb instead of invoking `refreshMonthlySnapshots` (no staging credentials in the container; arithmetic identical by the shared-core design; hand reconciliation from raw transactions confirms).
+- Verification item "Dorcas clears the floor per 0.6": unsatisfiable on current staging data — 0.6 recorded verbatim shows max 0.19. Reported, not engineered around.
+- Orphan count: 92 actual vs "~141" expected.
+
+**Lessons learned:** Deriving a headline metric from the same persisted record other surfaces already render (rather than recomputing from raw rows) makes consistency a construction property instead of a reconciliation chore — the unmapped € a user sees IS the confidence gap. When a session prompt's sanity expectation fails against live data, the honest move is recording the miss and keeping the gate, not tuning the gate to pass.
+
+**Follow-ups:** VM-6 pulse (post-merge) | calibrating-state → mini-session entry (VM-6) | floor recalibration once real coverage data exists (current real-persona max 0.32 — the floor will gate everyone until card sessions cover more spend; consider whether rule-matching breadth, not the floor, is the real lever) | prod columns + backfill at final merge (Lewis) | summary-route trends endpoint orders ascending+limit (takes OLDEST months — pre-existing, untouched, worth a look).
+
+---
+
+## VM-4 — Archetype v2: taxonomy + reveal + provenance (2026-06-10)
+
+Branch: `claude/value-map-v2-7ox3hw` (canonical, post-VM-FF) @ 64fd2fe, merged origin/main (already up to date). Base gate: PASS (`select-candidates.ts`, `value-rescore.ts`, `POST /api/value-map/onboarding` all present).
+
+**Phase 0:** Reveal slot exactly as VM-3 documented — `onboarding-v2-flow.tsx` state machine between 'saving' and 'payback' (comment markers in both flow and payback-screen). Bedrock pattern: `lib/ai/provider.ts` (`createAmazonBedrock` + `eu.` profiles, Sonnet via `chatModel`); prompt convention: co-located `*-prompt.ts` with builder + fallback (e.g. `regenerate-archetype-prompt.ts`). Legacy free-form sites: `/api/onboarding/generate-archetype` (resume surface), `regenerateArchetype()` (retake), `/api/value-map/reveal` (Opus reading — fed RAW telemetry into its prompt; now gated). Plan surface: `/office/goals/page.tsx` — reachable, Phase 7 SHIPPED (no soft fallback needed). Constitution: `CFO-CONSTITUTION.md` v1.5 at repo root, read before prompt work.
+
+**Pinned v1 constants (verbatim from staging, 2026-06-10):**
+- Base rates (n=793 answered cards): foundation 0.4628 (367) | investment 0.2900 (230) | burden 0.1702 (135) | leak 0.0769 (61)
+- Certainty medians (85 sessions ≥6 cards): avg confidence 3.0000 | hard rate 0.0000 | median deliberation 1208.5ms; spreads (stddev_pop): 0.1934 | 0.0000 | 477.8
+- Deliberation bands: p33 = 914ms | p66 = 1483ms
+
+**Legacy session cross-distribution (83 sessions ≥6 answered cards — the prompt's "35" undercounted; actuals: anchor 31, builder 13, fortress 39):**
+
+| legacy → v1 | Builder | Scout | Fortress | Nester | Negotiator | Restless | Editor | Drifter | fallback |
+|---|---|---|---|---|---|---|---|---|---|
+| builder (13) | 9 | 2 | — | — | 1 | 1 | — | — | — |
+| fortress (39) | 12 | 1 | 5 | 4 | 2 | — | 9 | 3 | 3 |
+| anchor (31) | 4 | 4 | 1 | 5 | 4 | 2 | 4 | 6 | 1 |
+
+Sanity read: `builder` skews growth hard (11/13) — expectation met. `fortress` does NOT skew security (9/39) — expected by construction once base rates are in play: foundation's 46% base rate means foundation-heavy sorting rarely *over-indexes* foundation; the legacy label rewarded absolute share. `anchor` scatters, as predicted. Not force-mapped; reported as found.
+
+**Migration:** `072_vm4_taxonomy_columns` applied to staging (qlbhvlssksnrhsleadzn) — four nullable columns on `value_map_sessions`. Prod companion `supabase/manual/VM-4-prod-columns.DO-NOT-APPLY.sql` awaiting Lewis.
+
+**Tension detectors in fixtures:** D1 ×4 (incl. priority-over-D2 case), D2 ×1, none ×4. Dorcas simulation: D1 fires (candor-stated vs foundation-observed).
+
+**Deviations & why:**
+- Plan doc "Part 7" (locked spec + four approved seed readings) is NOT in the repo. Taxonomy rules/names/thresholds were fully specified in the session prompt and implemented verbatim; the four few-shot seed readings were authored fresh against CFO-CONSTITUTION v1.5 — Lewis to swap in the approved texts if they differ.
+- The reading generation lives in a sibling endpoint `POST /api/value-map/reading` rather than inline in `/api/value-map/onboarding`, so name + receipt + tension render instantly from the save response and only the reading streams in behind a shimmer. Still exactly one generation call per reveal; the unnamed-fallback cell never calls the LLM.
+- "Went back and forth" band dropped per spec (mind-changes not captured; not faked).
+- The 0.7 query's "35 legacy sessions" is actually 83 on staging — ran over all of them.
+- Dorcas end-to-end ran as a committed module-level pipeline simulation (`vm4-dorcas-simulation.test.ts`: classify → receipt → tension → payback-to-the-cent → reveal payload + CTA/frame flavour) plus the mocked-Bedrock-failure test; a live staging UI walkthrough needs AWS creds + a running app, which this container lacks.
+
+**Lessons learned:** Base-rate normalisation inverts intuitions formed on absolute shares — any future taxonomy version must re-pin constants AND re-run the legacy cross-distribution before trusting family names. Degenerate spreads (hard_to_decide stddev 0) need explicit guards in any z-composite.
+
+**Follow-ups:** VM-4b family-led goal resequencing | Read Layer-2 async recompose (never in the reveal's critical path) | shift narratives at retake time | prod columns + flag decision at final merge.
+
+---
+
+## VM-FF (2026-06-10): claude/value-map-v2-7ox3hw fast-forwarded to VM-3 tip ff52c51
+
+Canonical VM branch = `claude/value-map-v2-7ox3hw`.
+`claude/value-map-v2-post-read-s033w0` is now redundant; delete at
+final-merge cleanup. All future VM sessions base here (artifact gates
+still apply).
+
+---
+
+## VM-2 — Rule application engine v2 (2026-06-10)
+
+Branch/base: `claude/value-map-v2-7ox3hw` @ 426548d (contains VM-1; VM-1 gate
+`value-config.ts` present: PASS). All four Phase 0 hard stops passed.
+
+**Goal:** learned rules actually reach transactions — at ingest through the
+shared normaliser, retroactively on every rule create/strengthen, and on
+demand via `rescoreValueCategories(userId)` for VM-3's instant-payback moment.
+
+### Phase 0 findings
+
+- **Application sites:** TWO divergent matchers existed.
+  `prediction/predictor.ts:resolveValueCategory` (exact normalised match,
+  per-tier thresholds 0.15–0.30, recency boost) served the import pipeline's
+  main branch + `backfillForMerchant`; `value-categoriser.ts:assignValueCategory`
+  (SUBSTRING merchant match, NO thresholds, NO boost) served the upload
+  preview + the pipeline's preset-category branch. Two more drift writers:
+  `value-classification.ts` and `record-value-classifications.ts` propagated
+  via `ilike '%merchant%'` — the chat-tool variant didn't even set
+  `prediction_source` (0.8-confidence rows kept `category_default` provenance).
+- **Creation/strengthen sites:** `prediction/process-signals.ts` (learning
+  engine; called from `/api/corrections/signal` + `/api/value-map/personal`,
+  both followed by merchant-scoped `backfillForMerchant` — category/global
+  prior changes never propagated), `value-classification.ts` (direct upserts
+  @1.0/0.85), `record-value-classifications.ts` merchant mode (@0.9),
+  `link-session` VM seeding (category rules — **no retroactive application at
+  all**, the biggest gap given VM runs after upload in the value-first flow).
+- **Normalisation:** single shared `categorisation/normalise-merchant.ts`;
+  every rule writer normalises through it. **Joinability (0.7): 183/191
+  merchant-type rules (95.8%) match a same-user transaction through exact
+  normalised equality** — G2 pass; substring matching is legacy, not needed.
+  8 misses = 3 location-suffixed merchants (`walmart #3501 caguas pr`,
+  `econo super carolina #18`, `total 0451 carolina pr`) — VM-5 candidates.
+- **Rule semantics (0.9):** 201 staging rules — merchant 152 (avg conf .756),
+  merchant_time 39 (all .85, only weekday_late/weekend_evening), category 10
+  (avg .60). NO amount-band or global rules in data (code paths kept; band
+  semantics from writer: inclusive [low, high], null bound open, bands split
+  at midpoint). G3 pass.
+- **Baseline (0.8, staging, deleted_at IS NULL, 17,976 rows):**
+  category_default 17,589 (97.8%) / merchant_rule 237 (1.32%) /
+  user_confirmed 150. G4: no prod ref in code.
+
+### Changed
+
+- **NEW `categorisation/value-rule-matcher.ts`** — THE shared matcher
+  (`matchValueRule`): tier order merchant_time > merchant_amount > merchant >
+  category_time > category_amount > category > global; exact normalised
+  equality; highest confidence wins within a tier; single
+  `RULE_APPLICATION_MIN_CONFIDENCE` floor (0.5, raw conf pre-boost) replaces
+  the old per-tier thresholds (all sat below it); recency boost on output;
+  exports `RULE_MATCH_PREDICTION_SOURCE`. + unit tests (precedence, bands,
+  floor, normalisation parity, sentinel, boost).
+- **NEW `categorisation/value-rescore.ts`** — `rescoreValueCategories(userId,
+  {ruleIds?, supabase?})` with pure `planRescore` core (unit-tested: sacred
+  rule, leak-by-evidence, idempotency, scoping resolves against FULL rule
+  set). Only writes from rule matches — never re-applies defaults; skips
+  user_confirmed at plan AND write time; recomputes affected snapshots via
+  `refreshMonthlySnapshots`.
+- **Consolidation:** `resolveValueCategory` and `assignValueCategory` both
+  delegate to the matcher (substring matching + thresholdless application
+  removed); `prediction/backfill.ts` DELETED (superseded).
+- **Hooks:** corrections/signal + value-map/personal → full rescore after
+  processSignals (priors now propagate); `applyValueClassification` +
+  `record-value-classifications` merchant mode → scoped rescore (rule ids via
+  `.select('id')`), replacing the ilike propagation (fixes the missing
+  prediction_source); link-session seeding → fire-and-forget rescore in
+  `after()`. All best-effort: rule writes never fail on rescore failure.
+- **Constants (behaviour-preserving):** `VALUE_CHAT_CITATION_THRESHOLD = 0.7`
+  in value-config; migrated get-value-breakdown, get-value-review-queue,
+  context-builder (×2), retake-trigger.
+- **NEW `scripts/vm2-generate-rescore-backfill.ts`** — emits idempotent
+  backfill SQL by running the real planRescore over data dumps.
+
+### Backfill (staging): `vm2_rule_rescore_backfill_part1..4`
+
+Generated from real matcher output over 201 rules × 6,579 unconfirmed live
+rows (26 rule users). **Scanned 1,084 / updated 1,041** across 79 user-months
+(93 grouped UPDATEs + scoped snapshot recompute). Provenance before→after:
+merchant_rule **237 → 932**, category_rule **0 → 196** (rule-or-user sourced
+**2.2% → 7.1%** of active transactions); displayable (≥0.6 or confirmed)
+labels now 1,276. Sacred-rule checksum over all 150 `value_confirmed_by_user`
+rows identical pre/post (`dd3db509…`). Idempotency probe: re-running
+representative statements → 0 rows. Reconciliation (heavy user-month
+d65975d1/2026-03): snapshot buckets = live buckets, foundation 358.47 +
+unmapped 1,904.62 = 2,263.09.
+
+### Prod companion
+
+`supabase/manual/VM-2-prod-rescore.DO-NOT-APPLY.sql` (awaiting Lewis;
+deploy-first ordering; baseline + post-apply assertions included).
+
+### Deviations & why
+
+- **No new `matchValueRule`-from-scratch:** Phase 0 found `resolveValueCategory`
+  already 90% of the spec'd matcher; the new file is its extracted,
+  floor-governed core rather than a parallel implementation — one matcher,
+  as the session intends.
+- **Prod companion is a regeneration procedure, not identical statements:**
+  transactions store no normalised merchant and the normaliser is TS, so
+  set-based SQL would reimplement normalisation (G2 forbids). The staging
+  statements are row-targeted at staging UUIDs (no-ops on prod). The
+  companion documents regenerating with the same script + matcher against
+  prod dumps; semantics identical by construction.
+- **Migration applied in 4 named parts** (`_part1..4`) — 95KB exceeded a
+  single comfortable apply; statements unchanged.
+- **0.5 floor is a deliberate behaviour change at ingest:** 17 merchant +
+  1 category rules (conf .40–.49) stop applying (previously applied at tier
+  thresholds .15–.30). All were invisible behind the 0.6 display gate anyway.
+  Predictor tests updated accordingly.
+- **Verification grep #5 read literally still hits 0.7s in `src/lib`** —
+  archetype temperature, prompt weights, COVERAGE_FLOOR, ambiguity multiplier,
+  and suggest-value-recategorisation's `auto_category_confidence` check
+  (traditional-category confidence, different semantic — left). No
+  value-confidence citation floor remains hardcoded.
+
+### Lessons learned
+
+- The "two matchers" drift was invisible until the joinability test: substring
+  matching survived two sessions because the surfaces it served (preview,
+  preset branch) are rarely diffed against the predictor.
+- Generated, guard-wrapped SQL from the production matcher beats a SQL
+  reimplementation for backfills whose logic lives in TS — zero semantic
+  drift and idempotency comes free.
+
+### Follow-ups
+
+- 3 merchants whose rule match_values retain location suffixes match zero
+  transactions (8 rules) — VM-5 pulse targeting candidates; consider a
+  normaliser pass over `value_category_rules.match_value` on rule write.
+- 17+1 sub-floor rules (conf < 0.5) no longer apply and their previously
+  stamped rows keep stale low-confidence `merchant_rule` provenance (invisible
+  behind the display gate) — a future rescore sweep could downgrade orphaned
+  provenance explicitly.
+- `value_map_sessions`-linked seeding writes `confidence = r.confidence/5`;
+  a 2/5-confidence VM answer seeds a 0.4 rule that now never applies —
+  intended under the floor, but VM-3 should surface this in the retake design.
+- `suggest-value-recategorisation`'s `autoConfidence < 0.7` is a traditional-
+  category floor; if it should be tokenised it needs its own named constant.
+
+---
+
+## VM-1 — Value honesty gate (2026-06-10)
+
+Branch: `claude/value-map-v2-uas9b3` @ eda279e (session-designated branch; the
+prompt named `claude/value-map-v2` but the harness pinned this one)
+
+**Goal:** no value label renders anywhere without real evidence; nothing is
+ever auto-labelled `leak`; `no_idea` retired.
+
+### Phase 0 findings
+
+- **Default map (G1):** lives in DB `categories.default_value_category`
+  (seeded by migration 003). Four categories defaulted to `leak`
+  (eat_drinking_out, subscriptions, shopping, entertainment); **`travel`
+  still defaulted to `no_idea` on staging** — migration 050 cleaned data rows
+  but missed the `categories` column, making it the live writer behind 384
+  fresh `no_idea` transactions. The `no_idea`→`unsure` code rename itself was
+  already done in v2.2 (25 files); only stragglers remained
+  (`scripts/seed-test-user.ts`, one test fixture).
+- **Snapshots vs live (G3):** all Values dashboards (office + web) read
+  `monthly_snapshots.spending_by_value_category` via `/api/dashboard/summary`
+  (which re-scans transactions only to enrich counts/top-categories) and
+  `/api/dashboard/trends`. Callable recompute exists
+  (`refreshMonthlySnapshots`, TS). Per-transaction labels render in exactly
+  one place: office transactions list → `TransactionRow` → `ValuePill`
+  (the page select omitted `value_confidence`/`value_confirmed_by_user`).
+  Chat tools (`get-value-breakdown`, `get-value-review-queue`,
+  `suggest-value-recategorisation`) already gate at their own hardcoded 0.7.
+- **Enum columns (0.7):** `transactions.value_category`,
+  `correction_signals.value_category`, `value_category_rules.value_category`,
+  **plus `categories.default_value_category`** (not in the prompt's expected
+  list — covered in the migration since 0.7 governs).
+- **Baseline (staging, deleted_at IS NULL):** category_default → foundation
+  5,885 / unsure 5,627 / **leak 5,146** / no_idea 384 / investment 364 /
+  burden 183; merchant_rule → foundation 194 / investment 30 / burden 12 /
+  leak 1; user_confirmed → 150 total. Unconfirmed category_default rows:
+  17,589 at avg confidence 0.128, **max 0.8**.
+- **G4:** prod ref `iccelmjenljanqrhhzdv` appears only in docs/manual SQL —
+  no code writers. Zero prod writes this session.
+
+### Changed
+
+- **NEW `src/lib/categorisation/value-config.ts`** — single source of truth:
+  `VALUE_DISPLAY_CONFIDENCE_THRESHOLD = 0.6`,
+  `DEFAULT_SOURCE_CONFIDENCE_CAP = 0.3`, `isValueDisplayable()`,
+  `emittableDefaultCategory()`, `gateDefaultEmission()` (+ unit tests).
+- **Write paths:** `value-categoriser.ts` (Tier 5 defaults gated: never leak,
+  capped 0.3; Tier 1 recurring-essential leak-guarded),
+  `prediction/predictor.ts` (Tier 8 gated — flows through `backfill.ts`),
+  `upload/pipeline.ts` (recurring-essential branch leak-guarded).
+- **Snapshot computation:** `analytics/monthly-snapshot.ts` — non-displayable
+  rows bucket under `unmapped` in `spending_by_value_category`; select now
+  pulls `value_confidence`/`value_confirmed_by_user`.
+- **Display gating:** office transactions page select + client route through
+  `isValueDisplayable`; `ValuePill` gained a neutral "unmapped" chip state
+  (tappable — cycles from `unsure`, posts to the existing
+  `/api/corrections/signal` flow); `summary/route.ts` enrichment mirrors the
+  gate; `unmapped` bucket added to `ValuesSection`, `OfficeValuesBreakdown`,
+  `ValuesDashboard`, `ValuesDonut`, `ValuesTrendChart` (neutral band),
+  `DashboardClient`/`UnsureQueue` count, `constants/dashboard.ts`
+  VALUE_COLORS. All use the existing `value-unsure` grey token — no new hex.
+- `seed-test-user.ts` no_idea→unmapped; `get-transactions.test.ts` negative
+  probe no_idea→'wasteful' (test still asserts unknown values are rejected).
+
+### Migration applied (staging): `vm1_value_honesty_remap`
+
+Rows affected: no_idea→unsure **384** (transactions) / **0**
+(correction_signals) / **0** (value_category_rules) / **1** (categories:
+travel); unconfirmed default leak→unsure@0.1 **5,146**; confidence cap ≤0.3
+over all 17,589 unconfirmed category_default rows. Post-migration: zero
+no_idea anywhere, zero unconfirmed default leaks, max default confidence 0.3.
+Remaining `leak` rows are all evidence-backed (19 user_confirmed +
+1 merchant_rule @0.7+). Snapshots: 298 recomputed with the gate (one-off SQL
+mirroring `aggregateMonthSpending` — see deviations); 9 orphaned snapshots had
+their `no_idea` JSONB key folded into `unsure`.
+
+### Prod companion
+
+`supabase/manual/VM-1-prod-remap.DO-NOT-APPLY.sql` (awaiting Lewis; includes
+the snapshot recompute + post-apply assertions; prod may lack
+correction_signals — noted in header).
+
+### Deviations from prompt & why
+
+- Branch is `claude/value-map-v2-uas9b3`, not `claude/value-map-v2` — the
+  session harness pinned the suffixed branch and forbids pushing elsewhere.
+- Staging snapshot recompute ran as one-off SQL replicating
+  `aggregateMonthSpending`'s value bucketing instead of calling the TS
+  function — no staging service-role credentials exist in this environment.
+  Verified: recomputed buckets reconcile with live transactions; 64/298
+  snapshots were *already* internally stale pre-session (stored
+  `total_spending` drifted from stored `spending_by_category` too — churned
+  test users); the TS refresh trues those up on each user's next ingest.
+- UI spot-check as Dorcas/Carlos not performed — no staging env credentials
+  in the container to run the app against. Covered by unit tests (gating,
+  bucketing) + SQL assertions instead.
+- `no_idea` grep still hits comments, the defensive gating tests, and
+  generated `supabase/types.ts` (DB enum intentionally retains the value) —
+  zero writers remain.
+
+### Lessons learned
+
+- Migration 050's rename missed `categories.default_value_category` because
+  the 0.7-style information_schema sweep wasn't run then — "cover every
+  column using the enum" beats "cover the tables the prompt names".
+- 142 of 440 staging snapshots are orphans (user/month with no transactions)
+  that no recompute can reach; 141 still carry stale pre-gate `leak` buckets.
+  Mostly churned test users; harmless but worth a cleanup pass someday.
+
+### Follow-ups created
+
+- **VM-3:** "Unmapped" invite microcopy; the Read renders no per-transaction
+  value labels today (context-builder only surfaces `value_category_rules`
+  memory + snapshot aggregates), so no Read gating needed — but
+  `review-context.ts` prompt breakdowns now include an `unmapped` line the
+  Read/review prompts should learn to speak to.
+- Chat tools' hardcoded 0.7 assertion floors (`get-value-breakdown`,
+  `get-value-review-queue`, `retake-trigger`) should import from
+  `value-config.ts` — left untouched this session (chat behaviour change,
+  out of scope).
+- `DashboardClient`/`UnsureQueue` still link to `/transactions?...` which has
+  no route under the office app — pre-existing dead link, surfaced while
+  wiring the unmapped count.
+- Drop the `no_idea` enum value once prod remap is applied (deferred since
+  v2.2).
+
+---
+
 ## 2026-06-02 — Coaching Cadence: principle over procedure
 
 **Branch:** `claude/funny-pasteur-GEpYl` (continues the dedup/voice/read-quality work; harness-pinned per precedent).
@@ -2912,3 +3261,60 @@ When Lewis runs the full eval, the personas to watch for failure modes:
 - **Persona E2E assertions (manifest item) NOT shipped — follow-up.** The onboarding persona harness (`tests/onboarding/runner/playwright-driver.ts`) drives only the LEGACY Marcus path (`onboarding_route: 'value_map'`, value_map_done → upload); it does not walk the value-first upload → first-read → value-map → recompose → chat why-beat sequence, and does not capture the recompose / why-beat as distinct artifacts. Adding ≤10-card / delta-recompose / why-beat assertions requires a driver extension that cannot be validated without a running app + Bedrock. Shipping unrunnable assertions would be worse than recording the gap.
 - Salience uses spend *share*, not absolute — a lone tiny merchant still scores high (correct for relative selection; the `MIN_SALIENCE` floor only trips when many candidates dilute share AND there's no behavioural loudness).
 - `merchant_aggregates` is a service-role-only materialized view (RLS revoked from authenticated) — the value-map page must use the service client for `selectValueMapCards`, not the user client.
+
+## VM-3 — Post-Read Value Map flow (2026-06-10)
+Branch: `claude/value-map-v2-post-read-s033w0` @ base 01c0f03 (base gate: PASS — `value-rescore.ts` + `value-rule-matcher.ts` present). Harness note: this session's remote environment designates `claude/value-map-v2-post-read-s033w0`; it carries the identical VM-1+VM-2 tip as `claude/value-map-v2-7ox3hw` (same sha 01c0f03), so all VM work continues linearly. Merge into the VM line is a fast-forward.
+
+### Phase 0 findings
+- **Onboarding terminus / Read reachability:** the Read IS reachable and a post-Read Value Map surface already exists at `/onboarding-v2/value-map` (first-read CTA `[CTA:start_value_map_real]` → `?hook=1`). VM-3 therefore UPGRADED that surface rather than inserting a new one — no soft-fallback entries needed.
+- **Flag mechanism:** no registry; repo convention is env-var switches (retired `LAYERED_READ_DISABLED` pattern). New flag: `VALUE_MAP_V2=1` (`src/lib/value-map/flags.ts`), server-checked, default OFF.
+- **Hook path (G2):** canonical server pipeline = `/api/value-map/personal` POST. The legacy onboarding mode wrote a bespoke CLIENT-side path in `value-map-flow.tsx` (rules at `/5` confidence, metadata-only txn updates, no rescore) — exactly the parallel-path failure G2 guards against; VM-3's new route replaces it for the flagged flow.
+- **Session-type semantics (0.7):** `type='onboarding'` + `is_real_data=true` confirmed on staging (22 rows) — used for the new session writes.
+- **Candidate counts (0.8):** Dorcas 83 low-confidence merchants, Carlos 40 — both ≫ MIN_VIABLE (6).
+- **Legacy confidence (0.9):** `value_map` rules 0.40–0.80 (avg 0.60) — `/5` scale confirmed at two write sites (`value-map-flow.tsx`, `link-session/route.ts`).
+- **Constitution file:** `CFO-CONSTITUTION.md` (repo root). All new copy (intro, payback, cut-intent questions, unmapped-chip invite) written to §2 voice: declarative, no service-desk register, no hype.
+
+### Entry wiring chosen
+**Post-Read insertion** — the existing `/onboarding-v2/value-map` page branches on the flag: flag ON selects candidates via the new deterministic selector (seeded with the First Read's promised hook merchants) and renders the v2 flow; below MIN_VIABLE it defers (chat-offer column armed, `advanceStep('complete')`, route to /office). Flag OFF leaves the legacy value-first flow byte-identical.
+
+### Changed
+- `lib/categorisation/value-config.ts` (+test) — `ONBOARDING_CARD_COUNT`, `MIN_VIABLE_CANDIDATES`, `CARD_CONF_TO_RULE_CONF` + `cardConvictionToRuleConfidence()` clamp accessor.
+- `lib/value-map/select-candidates.ts` (NEW, +tests) — deterministic selector: `score = normalisedMonthlySpend × recurrenceBoost × (1 − currentValueConfidence)`; exclusions (user-confirmed merchants all-history, merchant rules ≥ application floor, income/transfer/debt/savings categories); 1 card/merchant, ≤3/category; 8–12 clamp; `seedMerchants` for hook continuity; `materialiseCandidateCards`. VM-5 reuses this.
+- `lib/value-map/payback.ts` (NEW, +tests) — pure `computePayback` + paged IO: mapped txns of answered merchants (displayable only), monthly = total / distinct months, quadrant split. Reconcilable to the cent.
+- `app/api/value-map/onboarding/route.ts` (NEW) — the VM-3 pipeline: session (`type='onboarding'`, `is_real_data=true`, `trigger_reason='value_first_onboarding'`) → result rows (telemetry + `cut_intent` to DB only) → merchant rules at mapped confidence (`source='value_map_personal'`) → exemplars `user_confirmed` → AWAITED `rescoreValueCategories` → exemplar-month snapshot refresh → payback. Flag-guarded (404 when off). Zero LLM imports.
+- `components/value-map/value-map-card.tsx` — additive `askCutIntent` prop: one-tap Yes/No after leak ("Would you cut this?") / burden ("Would you change this if it were easy?"), required before Next in this mode; resets on quadrant change/undo. Legacy modes unchanged.
+- `components/value-map/onboarding-v2-flow.tsx` (NEW) — intro → exercise → saving → payback; "Later" skip at start + per-card; re-entry latched by refs.
+- `components/value-map/payback-screen.tsx` (NEW) — renders verbatim from the route response; quadrant split bar; CTA → `/office/goals`.
+- `app/onboarding-v2/value-map/v2-actions.ts` (NEW) — graceful skip: `value_map_offered_in_chat=true`, step `complete`, permissive completion check; no rules, no rescore.
+- `app/onboarding-v2/value-map/page.tsx` + `value-map-orchestrator.tsx` — flag branch wiring.
+- `lib/value-map/types.ts` — `ValueMapResult.cut_intent?: boolean | null`.
+- `lib/value-map/copy.ts` — VM3_* copy block.
+- `components/data/ValuePill.tsx` — unmapped chip invite: "unmapped — tap to tell C. once" (+aria-label). NOT flag-gated: the tap-to-correct behaviour it invites pre-exists VM-3.
+
+### Confidence mapping
+Legacy `/5` scale migrated at BOTH write sites (`value-map-flow.tsx` ×2, `link-session/route.ts`) onto `cardConvictionToRuleConfidence`. Old rows untouched — VM-2's application floor keeps sub-floor legacy rows inert.
+
+### VM-4 insertion slot
+`components/value-map/onboarding-v2-flow.tsx` state machine: the reveal inserts a `'reveal'` step between `'saving'` and `'payback'`. Documented in comment blocks in both `onboarding-v2-flow.tsx` and `payback-screen.tsx`.
+
+### Schema delta
+None. `value_map_sessions` / `value_map_results` already carry everything (`cut_intent`, timing columns, `type`, `is_real_data`) — confirmed via information_schema on staging. Zero prod access all session.
+
+### Deviations & why
+- `selectValueMapCandidates(supabase, userId, n?, opts?)` instead of the spec's `(userId, n?)` — repo convention passes the client explicitly (cf. select-cards, retake-candidates); `opts.seedMerchants` added so the hook merchants the First Read promised stay in the card set (they pass through the same exclusions).
+- No `correction_signals` / `processSignals` on this path: the spec's Phase-4 pipeline is rule-at-mapped-confidence + exemplar confirm + rescore. Running `processSignals` here would overwrite the conviction-mapped confidences with learned ones, defeating `CARD_CONF_TO_RULE_CONF`.
+- The legacy `recompose-first-read` call (Bedrock, 15–45s) does NOT fire on the flagged path — the zero-LLM constraint forbids it from this flow's completion handler. Where the Layer-2 follow-up Read lands is a VM-4 decision.
+- Live HTTP end-to-end against staging not run (no staging credentials in this remote env). Substituted: a simulation driving the REAL production functions (`chooseCandidates` → mapping → `planRescore` → `computePayback`) over Dorcas's/Carlos's real staging rows (fetched read-only). Dorcas: 10 cards, 9 answers → 26 rescore updates, 35 txns mapped, €1,139.28/mo, payback reconciled to the cent against an independent aggregate; "I just told you" check passed for every answered merchant. Carlos: 10 cards, EUR exemplars. The full DB-write path needs one live staging run with `VALUE_MAP_V2=1` before merge.
+
+### Verification
+`tsc --noEmit` clean · eslint 0 errors · knip clean · `next build` clean · vitest 1216/1216 (32 new). Grep proofs: no LLM/Bedrock/demo imports in any new file; timing fields appear only in capture/POST paths, never in render output. Flag OFF: page branch dormant, route 404s, diff leaves legacy flow byte-identical. DO-NOT-TOUCH list untouched (`/demo`, archetype/judge/Read internals, `value-rescore.ts`/`value-rule-matcher.ts` consumed not modified, zero references to the prod project ref).
+
+### Lessons learned
+- The "bespoke parallel write path" G2 warned about already existed (legacy onboarding mode writing rules client-side at `/5`). The audit-first discipline caught that VM-3's real job was consolidation, not greenfield.
+- Null-category rows are kept as candidates by design (mirrors `fetchAndScoreReviewCandidates`), which means uncategorised transfer-like rows can surface as cards (Carlos: "EVO BANCO INVERSION TRANSFER"). Not a selector bug — a Layer-1 categorisation-coverage issue (already the top follow-up from Session 32).
+
+### Follow-ups
+- One live staging run of the full flow (`VALUE_MAP_V2=1`) exercising the route's DB writes before the merge decision.
+- VM-4: archetype reveal into the documented slot; decide where the Layer-2 recompose lands for v2 completions.
+- Payback copy may want constitution refinement once seen on-device.
+- Per-card mid-session persistence (true resume) if abandonment telemetry warrants it.

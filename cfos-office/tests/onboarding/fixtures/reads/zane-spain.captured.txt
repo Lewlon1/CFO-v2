@@ -1,13 +1,15 @@
-The picture here is as of 2026-03-29 — 71 days stale, so treat the numbers as a recent baseline, not a live feed.
+This is your sketch, not your statement — but even a sketch this rough tells me something useful.
 
-**Entrada para piso** needs €25,000 more by 2029-01-01. That's roughly 33 months away. Your free cash flow sits at €1,309/month — enough to cover the gap in full if a meaningful share of it is consistently directed toward the goal. The math is on your side; the question is whether it's actually moving.
+Your ≈€1,180/mo of free cash after fixed costs is real breathing room. The deposit needs ≈€830/mo to hit June 2028, which is ≈35% of take-home — tight but not impossible. The gap between what you said you could save (≈€250/mo) and what the goal actually needs is the honest problem on the table right now.
 
-Health spending dominated the 88-day window at €2,565 — 55.9% of all tracked spend. That's the single biggest drag on what could otherwise be accumulating toward the deposit. With only 13 transactions across the period, there isn't enough recurrence to read a firm pattern yet, but the weight of that category is worth watching as more data comes in.
+The one move: set up a standing transfer of ≈€300/mo on payday. That's roughly half the ≈€780/mo of drift — sized so it doesn't bite. At that pace the deposit lands in ≈37 months instead of ≈80. That difference is worth acting on before anything else.
 
-On utilities, Movistar Fusión at €58/month sits above the typical Spain range of €25–€35. No action required now, but worth a renegotiation conversation when the contract allows.
+You called the ≈€780/mo drift unsure. That's the right instinct. A real month says whether it's genuinely unaccounted spending, or just categories you didn't tap — because those are two very different problems.
 
-The computed lever is a €23/month trim on **eating & drinking out** (currently running €92/month). Small in isolation, but it's the cleanest, lowest-friction cut available right now.
+Checking a real month does two things. First, it swaps every ≈ for an actual number — estimate versus reality, side by side. Second, the habits half of this picture is still completely empty: timing, patterns, what's recurring versus one-off. Estimates can't see any of that, and only real transactions can.
 
-[CTA:cut_lever]Trim 23 from eating & drinking out[/CTA]
+Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

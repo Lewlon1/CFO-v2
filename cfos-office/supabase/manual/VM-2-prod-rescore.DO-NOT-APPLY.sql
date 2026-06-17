@@ -1,0 +1,87 @@
+-- ============================================================================
+-- VM-2 — Rule re-score backfill. PRODUCTION COMPANION. DO NOT APPLY.
+--
+-- Manual, Lewis only. Never run by automation.
+-- Apply ONLY after VM-2 code deploys (shared matcher + rescoreValueCategories
+-- + rule-write hooks). Verify value_category_rules and correction_signals
+-- exist on prod first:
+--
+--   SELECT table_name FROM information_schema.tables
+--   WHERE table_schema='public'
+--     AND table_name IN ('value_category_rules','correction_signals');
+--
+-- WHY THIS FILE CONTAINS A PROCEDURE, NOT ROW-LEVEL STATEMENTS
+-- ------------------------------------------------------------
+-- The staging backfill (migrations vm2_rule_rescore_backfill_part1..4 on
+-- qlbhvlssksnrhsleadzn) was GENERATED: transactions store no normalised
+-- merchant column and the merchant normaliser lives in TypeScript
+-- (src/lib/categorisation/normalise-merchant.ts), so a set-based SQL backfill
+-- would have to reimplement that normaliser in SQL — exactly the
+-- normalisation drift VM-2 exists to eliminate (Phase 0 gate G2: reuse, don't
+-- reimplement). The generated statements are row-targeted at staging UUIDs
+-- and would no-op on prod, so "identical statements" cannot be meaningful
+-- here. The identical SEMANTICS are reproduced by regenerating against prod
+-- data with the same script and the same shared matcher.
+--
+-- PROCEDURE (after VM-2 code deploys)
+-- -----------------------------------
+-- 1. Record the pre-backfill baseline (keep the output):
+--
+--      SELECT prediction_source, value_category, count(*)
+--      FROM transactions WHERE deleted_at IS NULL
+--      GROUP BY 1,2 ORDER BY 3 DESC;
+--
+--      SELECT count(*) AS confirmed_rows,
+--             md5(string_agg(id::text||':'||value_category::text||':'||value_confidence::text,
+--                            ',' ORDER BY id)) AS checksum
+--      FROM transactions WHERE value_confirmed_by_user = true;
+--
+-- 2. Dump prod inputs to JSON (read-only):
+--
+--      -- rules.json: all rows of
+--      SELECT id, user_id, match_type, match_value, value_category, confidence,
+--             total_signals, agreement_ratio, avg_amount_low, avg_amount_high,
+--             time_context, source, last_signal_at
+--      FROM value_category_rules;
+--
+--      -- transactions.json: all rows of
+--      SELECT id, user_id, description, category_id, amount, date,
+--             value_category, value_confidence, value_confirmed_by_user,
+--             prediction_source
+--      FROM transactions
+--      WHERE deleted_at IS NULL
+--        AND COALESCE(value_confirmed_by_user, false) = false
+--        AND user_id IN (SELECT DISTINCT user_id FROM value_category_rules);
+--
+-- 3. Generate the SQL with the REAL shared matcher (zero semantic drift):
+--
+--      npx tsx scripts/vm2-generate-rescore-backfill.ts rules.json transactions.json > prod-rescore.sql
+--
+--    The output is idempotent (IS DISTINCT FROM + value_confirmed_by_user=false
+--    + deleted_at IS NULL guards on every statement) and ends with a
+--    spending_by_value_category snapshot recompute scoped to affected
+--    user-months (mirrors aggregateMonthSpending, same as the VM-1 companion).
+--
+-- 4. Review prod-rescore.sql, then apply it.
+--
+-- POST-APPLY ASSERTIONS (all must hold)
+-- -------------------------------------
+--   -- Sacred rule: user-confirmed rows untouched — checksum identical to step 1:
+--   SELECT count(*), md5(string_agg(id::text||':'||value_category::text||':'||value_confidence::text,
+--                                   ',' ORDER BY id))
+--   FROM transactions WHERE value_confirmed_by_user = true;
+--
+--   -- Provenance: merchant_rule / category_rule counts rose vs step 1 baseline:
+--   SELECT prediction_source, count(*) FROM transactions
+--   WHERE deleted_at IS NULL GROUP BY 1 ORDER BY 2 DESC;
+--
+--   -- Idempotency: re-applying prod-rescore.sql updates zero rows.
+--
+-- NOTE: this backfill only matters for history that predates the deploy.
+-- After VM-2, every rule create/strengthen (corrections, chat classifications,
+-- Value Map completion/linking) triggers rescoreValueCategories() in code, so
+-- prod heals organically as users touch rules; the backfill accelerates it
+-- for dormant users. Staging result for scale: 201 rules, 6,579 scanned-able
+-- rows → 1,041 updates across 79 user-months; merchant_rule provenance
+-- 237 → 932, category_rule 0 → 196.
+-- ============================================================================

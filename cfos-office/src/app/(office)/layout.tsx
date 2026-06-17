@@ -4,7 +4,13 @@ import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { recomputeIfStale } from '@/lib/goals/recompute'
-import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
+import { isInSheetBeatStep, isEstimateBeatStep, estimateStepIndex } from '@/lib/onboarding-v2/in-sheet-steps'
+import { resolveEstimateResume } from '@/lib/onboarding-v2/estimate-resume'
+import { knowsYou } from '@/lib/onboarding-v2/knows-you'
+import { struggleToFamily, type DoorFamily } from '@/lib/onboarding-v2/door/door-config'
+import type { CompositeCountry } from '@/lib/onboarding-v2/composite/composite-config'
+import type { EstimateOnboardingContext } from '@/lib/onboarding-v2/estimate-context'
+import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
@@ -53,51 +59,55 @@ export default async function OfficeLayout({ children }: { children: React.React
   // trip — it's read below to decide whether to fire a per-session recompute.
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step, goals_last_synced_at')
+    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step, goals_last_synced_at, door_family, door_reflection, composite_relate, composite_repick_family, age_range, country, net_monthly_income')
     .eq('id', user.id)
     .single()
 
-  // If the user is mid-Marcus-journey (post-goal-beat), bounce them back to
-  // the appropriate onboarding-v2 step. Without this, a Marcus user could
-  // navigate manually to /office and skip the value-map / upload / archetype.
-  // Session 32 (B) — `upload_done` redirects to `/onboarding-v2/first-read`;
-  // the layered-terminal state `first_read_shown` also bounces back to that
-  // route. Users stamped `archetype_shown` (i.e. mid-flow on the old surface)
-  // continue to bounce there.
   const onboardingStep = (profile?.onboarding_step as string | null) ?? null
-  const isMarcus = profile?.entry_struggle === 'dont_know'
-  // Mid-goal-beat: the user landed here to talk to the CFO, not to browse the
-  // office. Drive the sheet open on the first paint so the office home never
-  // flashes behind it while the GoalBeatWatcher/ChatOpenerTrigger effects run.
-  const goalBeatActive =
-    onboardingStep === 'goal_chat_started' ||
-    onboardingStep === 'goal_chat_tentative'
-  // Upload → essentials → confirm → Read handoff all run inside the chat sheet
-  // now (deterministic OnboardingBeatHost), so these steps keep the user in
-  // /office with the sheet open rather than routing to /onboarding-v2/* pages.
-  const onboardingBeatActive = isInSheetBeatStep(onboardingStep)
-  // Brand-new user, no entry struggle yet — the "what brought you in?" beat now
-  // runs in-sheet (folded entry) rather than on the /onboarding-v2 page.
-  const needsEntryStruggle =
-    !profile?.onboarding_completed_at && !profile?.entry_struggle
-  const MID_MARCUS_STEPS = new Set([
-    'goal_set',
-    'goal_skipped',
-    'value_map_started',
-    'value_map_done',
-    'upload_done',
-    'archetype_shown',
-    'first_read_shown',
-  ])
-  if (isMarcus && !profile?.onboarding_completed_at && onboardingStep && MID_MARCUS_STEPS.has(onboardingStep)) {
-    if (onboardingStep === 'goal_set' || onboardingStep === 'goal_skipped' || onboardingStep === 'value_map_started') {
-      redirect('/onboarding-v2/value-map')
-    }
-    if (onboardingStep === 'value_map_done') redirect('/onboarding-v2/upload')
-    if (onboardingStep === 'upload_done') redirect('/onboarding-v2/first-read')
-    if (onboardingStep === 'archetype_shown') redirect('/onboarding-v2/archetype')
-    if (onboardingStep === 'first_read_shown') redirect('/onboarding-v2/first-read')
+  const completed = !!profile?.onboarding_completed_at
+
+  // Genuine legacy value-map mid-flow states bounce back to their onboarding-v2
+  // page (these are reached only by the old Marcus flow / the opt-in Value Map,
+  // never by a new estimates-first user). Session 32 (B) routes preserved.
+  const LEGACY_VM_REDIRECTS: Record<string, string> = {
+    value_map_started: '/onboarding-v2/value-map',
+    value_map_done: '/onboarding-v2/upload',
+    upload_done: '/onboarding-v2/first-read',
+    archetype_shown: '/onboarding-v2/archetype',
+    first_read_shown: '/onboarding-v2/first-read',
   }
+  if (!completed && onboardingStep && LEGACY_VM_REDIRECTS[onboardingStep]) {
+    redirect(LEGACY_VM_REDIRECTS[onboardingStep])
+  }
+
+  // Steps kept on the legacy value-first in-sheet host (users with transactions
+  // mid-pipeline) and the OB-3 statement-check host — NOT the estimate flow.
+  const LEGACY_HOST_STEPS = new Set([
+    'upload_processing',
+    'details_pending',
+    'details_confirmed',
+    'check_upload_pending',
+    'check_processing',
+    'check_confirm_pending',
+    'check_confirm_done',
+  ])
+
+  // Estimates-first onboarding (OB-2): brand-new users and every legacy
+  // pre-estimate stamp run the estimate beats in-sheet. Excluded: completed
+  // users, the legacy value-first / check host steps, and the legacy value-map
+  // states (redirected above).
+  const needsEstimateOnboarding =
+    !completed &&
+    !LEGACY_HOST_STEPS.has(onboardingStep ?? '') &&
+    !(onboardingStep != null && onboardingStep in LEGACY_VM_REDIRECTS)
+
+  // Legacy goal-beat (goal_chat_*) is superseded by the estimate flow. It and
+  // the legacy in-sheet host only fire for non-estimate users now.
+  const goalBeatActive =
+    !needsEstimateOnboarding &&
+    (onboardingStep === 'goal_chat_started' || onboardingStep === 'goal_chat_tentative')
+  const onboardingBeatActive =
+    !needsEstimateOnboarding && isInSheetBeatStep(onboardingStep)
 
   // If the user is mid-goal-beat (either the primary state or the tentative
   // state the chat stall handler moves users into), look up their active
@@ -127,7 +137,7 @@ export default async function OfficeLayout({ children }: { children: React.React
   // Active goal for the upload-beat bridge (so the CFO can acknowledge it by
   // name before asking for statements). Only queried at the upload entry steps.
   let onboardingGoal: OnboardingGoalSummary | null = null
-  if (onboardingStep === 'upload_pending' || onboardingStep === 'essentials_done') {
+  if (!needsEstimateOnboarding && (onboardingStep === 'upload_pending' || onboardingStep === 'essentials_done')) {
     const { data: activeGoal } = await supabase
       .from('goals')
       .select('name, target_amount, currency')
@@ -145,6 +155,119 @@ export default async function OfficeLayout({ children }: { children: React.React
       }
     }
   }
+
+  // Estimates-first onboarding (OB-2): resolve the effective beat and assemble
+  // the data bundle the beats + knows-you meter render from. The effective step
+  // is the stamped estimate step if there is one, else the data-driven resume
+  // point (which also forward-maps legacy pre-estimate stamps and brand-new
+  // users onto the door beat).
+  let estimateOnboarding: EstimateOnboardingContext | null = null
+  let estimateStep: string | null = null
+  if (needsEstimateOnboarding) {
+    const [{ data: estimates }, { data: activeGoal }] = await Promise.all([
+      supabase
+        .from('onboarding_estimates')
+        .select(
+          'housing_band, subs_band, bills_band, food_out_band, save_reach_band, income_monthly, top_value, verdicts, currency',
+        )
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('goals')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    const country: CompositeCountry = profile?.country === 'ES' ? 'ES' : 'GB'
+    const ageRange = (profile?.age_range as string | null) ?? null
+    const incomeMonthly =
+      (estimates?.income_monthly as number | null) ??
+      (profile?.net_monthly_income as number | null) ??
+      null
+    const bands = {
+      housing: (estimates?.housing_band as string | null) ?? null,
+      subs: (estimates?.subs_band as string | null) ?? null,
+      bills: (estimates?.bills_band as string | null) ?? null,
+      foodOut: (estimates?.food_out_band as string | null) ?? null,
+      saveReach: (estimates?.save_reach_band as string | null) ?? null,
+    }
+    const sketchBandsCount = Object.values(bands).filter(Boolean).length
+    const verdictsCount = Object.keys(
+      (estimates?.verdicts as Record<string, unknown> | null) ?? {},
+    ).length
+    const topValue = (estimates?.top_value as string | null) ?? null
+    const hasGoal = !!activeGoal
+
+    // Route to the EARLIER of the stamped estimate step and the data-resolved
+    // step. When the stamp has run ahead of the persisted data (e.g. a sketch
+    // band failed to save but the step reached read_pending), resolve wins and
+    // the user is sent back to the missing beat rather than looping a 500.
+    // When the stamp is behind (an action persisted data but the user hasn't
+    // tapped through an intermediate screen yet), the stamp wins — preserving
+    // the door-reflection and income-pace beats.
+    const resolved = resolveEstimateResume({
+      doorFamily: (profile?.door_family as string | null) ?? null,
+      entryStruggle: profile?.entry_struggle ?? null,
+      ageRange,
+      country,
+      compositeRelate: (profile?.composite_relate as string | null) ?? null,
+      hasGoal,
+      incomeMonthly,
+      sketchBandsCount,
+      topValue,
+      verdictsCount,
+    })
+    const stampedIdx = estimateStepIndex(onboardingStep)
+    const resolvedIdx = estimateStepIndex(resolved)
+    estimateStep =
+      stampedIdx >= 0 && stampedIdx < resolvedIdx ? (onboardingStep as string) : resolved
+
+    const knows = knowsYou({
+      hasName: !!profile?.display_name,
+      hasDoor:
+        profile?.door_family != null ||
+        struggleToFamily(profile?.entry_struggle ?? null) != null,
+      hasContext: ageRange != null,
+      hasCompositeRelate: profile?.composite_relate != null,
+      hasGoal,
+      hasIncome: incomeMonthly != null,
+      sketchBandsCount,
+      hasTopValue: topValue != null,
+      verdictsCount,
+      statementChecked: false,
+      valueMapDone: false,
+    })
+
+    // Effective family for the persona/goal beats: a composite re-pick wins,
+    // then the door family, then the legacy struggle reverse-map.
+    const effectiveFamily: DoorFamily | null =
+      (profile?.composite_repick_family as DoorFamily | null) ??
+      (profile?.door_family as DoorFamily | null) ??
+      struggleToFamily(profile?.entry_struggle ?? null)
+
+    estimateOnboarding = {
+      knowsYou: knows,
+      displayName: profile?.display_name ?? null,
+      doorFamily: effectiveFamily,
+      doorReflection: (profile?.door_reflection as string | null) ?? null,
+      country,
+      currency: resolveUserCurrency(
+        country,
+        (estimates?.currency as string | null) ?? profile?.primary_currency ?? null,
+        [],
+      ),
+      bands,
+      income: incomeMonthly,
+    }
+  }
+
+  // The step the client beats dispatch on: the resolved estimate beat when in
+  // the estimate flow, otherwise the raw stamped step.
+  const providedStep = needsEstimateOnboarding ? estimateStep : onboardingStep
 
   // Once-per-session goal recompute. Runs fire-and-forget after the response
   // is sent so it never blocks render. 30-minute TTL gate (in recomputeIfStale)
@@ -200,10 +323,10 @@ export default async function OfficeLayout({ children }: { children: React.React
 
       <ChatProvider
         userCurrency={currency}
-        initialSheetOpen={goalBeatActive || onboardingBeatActive || needsEntryStruggle}
-        onboardingStep={onboardingStep}
-        needsEntryStruggle={needsEntryStruggle}
+        initialSheetOpen={goalBeatActive || onboardingBeatActive || needsEstimateOnboarding}
+        onboardingStep={providedStep}
         onboardingGoal={onboardingGoal}
+        estimateOnboarding={estimateOnboarding}
       >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />
@@ -233,7 +356,7 @@ export default async function OfficeLayout({ children }: { children: React.React
             /onboarding-v2/upload. Renders a skip control after 90s for
             dont_know users (legacy → /onboarding-v2/value-map). */}
         <GoalBeatWatcher
-          onboardingStep={onboardingStep}
+          onboardingStep={providedStep}
           entryStruggle={profile?.entry_struggle ?? null}
           goalChatConversationId={goalChatConversationId}
         />

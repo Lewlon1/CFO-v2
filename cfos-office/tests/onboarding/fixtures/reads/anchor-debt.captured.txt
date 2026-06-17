@@ -1,11 +1,13 @@
-Heads up: this picture is 72 days old (last transaction 28 March 2026), so treat what follows as a snapshot, not a live view.
+This is your sketch, not your statement — but even a sketch this rough tells me something worth acting on.
 
-The goal needs £6,500 more to reach £8,000 by 1 January 2027 — that's roughly 8 months from the last data point. Free cash flow sits at £513 a month. If all of that reached the goal, you'd land at around £4,100 contributed over 8 months — short of the £6,500 remaining. The gap is real: at current flow, the January deadline is tight without either a pace increase or a lump sum.
+Your ≈£1,250/mo of free cash is real breathing room. The exit pot needs ≈£40/mo to hit £1,000 by June 2028 — that's ≈2% of take-home, and the room is clearly there. The problem isn't the goal. It's that your could-save figure sits at ≈£0/mo, meaning nothing is moving yet. That's the only thing to fix right now.
 
-Fixed costs are running at £1,787 against £2,300 net income, which is where the squeeze comes from. Housing alone is £780 a month, and utilities and bills add another £669 — together that's the bulk of outgoings before groceries or anything discretionary.
+Start a standing transfer of ≈£150/mo on payday. Not because it's the perfect number — because starting the habit is the move. The goal only needs ≈£40/mo, so ≈£150/mo builds the pot and leaves margin. Security comes from the transfer happening before the month spends it, not from optimising the amount later.
 
-With only 9 transactions across the window, spending patterns aren't established enough to size a cut lever yet. The one move that sharpens the picture immediately is confirming whether any variable spend — groceries at £588 across the period, eating out at £54 — has room to compress. No lever magnitude was computed from this data, so the ask below is the right next step.
+You called your ≈£1,100/mo of drift a leak. A real month says whether that's genuinely unaccounted spend, or just categories you didn't tap — because ≈£1,100/mo unexplained is where the real picture hides.
 
-[CTA:supply_input]Add my recent transactions so we can size a real cut[/CTA]
+Checking a real month swaps every ≈ for an actual number — estimate against reality, side by side. The habits half of the picture is still empty: timing, patterns, what's recurring. Estimates can't see any of it. Right now, I know you about 56%. Checking a real month is what takes that past 70%.
+
+[CTA:start_statement_check]Check my numbers[/CTA]
 
 — C.

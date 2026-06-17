@@ -107,7 +107,7 @@ const CADENCE_ALIASES: Record<string, Cadence> = {
   annually: 'annual',
 }
 
-function normaliseCadence(raw: string | null | undefined): Cadence {
+export function normaliseCadence(raw: string | null | undefined): Cadence {
   const c = (raw ?? 'monthly').toLowerCase().trim()
   if ((CADENCE_LADDER as readonly string[]).includes(c)) return c as Cadence
   if (CADENCE_ALIASES[c]) return CADENCE_ALIASES[c]

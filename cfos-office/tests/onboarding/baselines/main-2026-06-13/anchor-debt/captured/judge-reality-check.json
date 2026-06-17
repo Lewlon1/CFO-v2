@@ -1,0 +1,122 @@
+{
+  "outputType": "reality_check_read",
+  "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "timestamp": "2026-06-13T21:17:27.194Z",
+  "hardRules": [
+    {
+      "ruleId": "R1_no_banned_words",
+      "passed": true
+    },
+    {
+      "ruleId": "R1b_no_banned_patterns",
+      "passed": true
+    },
+    {
+      "ruleId": "R7_no_system_note",
+      "passed": true
+    },
+    {
+      "ruleId": "R6_no_goal_denial",
+      "passed": true
+    },
+    {
+      "ruleId": "R5_currency_symbol",
+      "passed": true
+    },
+    {
+      "ruleId": "R8_cta_vocabulary",
+      "passed": true
+    },
+    {
+      "ruleId": "R8b_cta_matches_read",
+      "passed": true
+    },
+    {
+      "ruleId": "R4_numbers_match_csv",
+      "passed": true
+    },
+    {
+      "ruleId": "H1_signoff_present",
+      "passed": true,
+      "detail": "expected \"— C.\" on its own final line"
+    },
+    {
+      "ruleId": "H2_within_word_cap",
+      "passed": true,
+      "detail": "253/300 words"
+    },
+    {
+      "ruleId": "H3_exactly_one_cta",
+      "passed": true,
+      "detail": "1 [CTA] block(s)"
+    },
+    {
+      "ruleId": "H4_no_options_block",
+      "passed": true,
+      "detail": "retired [OPTIONS] chip format must not appear"
+    },
+    {
+      "ruleId": "H5_no_question_close",
+      "passed": true,
+      "detail": "patterns mean to you, and that's what the Value Map settles."
+    },
+    {
+      "ruleId": "H6_no_emoji",
+      "passed": true
+    },
+    {
+      "ruleId": "H7_voice_no_banned",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "likert": [
+    {
+      "dimension": "warmth",
+      "score": 5,
+      "reason": "Conversational, self-aware tone ('That's not a rounding error'; 'I now know you about 72%') reads as a smart peer reviewing findings rather than a system delivering verdicts."
+    },
+    {
+      "dimension": "accuracy",
+      "score": 5,
+      "reason": "All figures (£960 credit card repayment, £19 eating out, £513/month FCF, £2,300 net income, £1,787 fixed costs) directly traceable to source CSV; no invented merchants or numbers."
+    },
+    {
+      "dimension": "on_brand",
+      "score": 5,
+      "reason": "Uses concrete comparisons ('less than 10% of your free cash'), avoids prescriptive language ('What those patterns mean to you isn't something the data settles'), and frames findings as snapshots not directives."
+    },
+    {
+      "dimension": "persona_fit",
+      "score": 5,
+      "reason": "Directly addresses the debt-heavy anchor's core anxiety by reframing the position from 'nothing spare' to 'goal already covered several times over'—speaks to security value without being patronizing."
+    },
+    {
+      "dimension": "actionability",
+      "score": 4,
+      "reason": "Clear next step (Value Map CTA) and concrete insight (£42/month pace already met), though the output stops short of naming which patterns matter most to *this* user's debt-reduction priority."
+    }
+  ],
+  "raw": {
+    "L1_warmth": {
+      "score": 5,
+      "reason": "Conversational, self-aware tone ('That's not a rounding error'; 'I now know you about 72%') reads as a smart peer reviewing findings rather than a system delivering verdicts."
+    },
+    "L2_accuracy": {
+      "score": 5,
+      "reason": "All figures (£960 credit card repayment, £19 eating out, £513/month FCF, £2,300 net income, £1,787 fixed costs) directly traceable to source CSV; no invented merchants or numbers."
+    },
+    "L3_on_brand": {
+      "score": 5,
+      "reason": "Uses concrete comparisons ('less than 10% of your free cash'), avoids prescriptive language ('What those patterns mean to you isn't something the data settles'), and frames findings as snapshots not directives."
+    },
+    "L4_persona_fit": {
+      "score": 5,
+      "reason": "Directly addresses the debt-heavy anchor's core anxiety by reframing the position from 'nothing spare' to 'goal already covered several times over'—speaks to security value without being patronizing."
+    },
+    "L5_actionability": {
+      "score": 4,
+      "reason": "Clear next step (Value Map CTA) and concrete insight (£42/month pace already met), though the output stops short of naming which patterns matter most to *this* user's debt-reduction priority."
+    }
+  }
+}

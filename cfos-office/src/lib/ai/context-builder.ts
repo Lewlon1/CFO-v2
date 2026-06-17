@@ -14,9 +14,14 @@ import { getTransformPosture } from '@/lib/analytics/posture-helpers';
 import { getOpenItems, renderOpenItemsBlock } from '@/lib/conversations/open-items';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
+  VALUE_CHAT_CITATION_THRESHOLD,
+  ALIGNMENT_DISPLAY_MIN_CONFIDENCE,
+} from '@/lib/categorisation/value-config';
+import {
   pickSignificantAmbiguousMerchant,
   type SignificantMerchant,
 } from '@/lib/value-map/significant-merchant';
+import { isValueMapV2Enabled } from '@/lib/value-map/flags';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -1180,6 +1185,56 @@ function buildProfileContext(profile: any): string {
   return `## What you know about this user\n\n${fields.join('\n')}${completenessNote}${doNotAskBlock}${lensBlock}`;
 }
 
+// VM-5 — verbatim alignment facts for the CFO. Score, confidence, and the
+// 3-month delta are all system-computed here — the LLM cites, never derives.
+// Returns '' when the flag is off, when the latest month has no score, or
+// when its confidence sits below the display floor (the same gate the
+// dashboard tile applies — the two surfaces cannot disagree).
+// Exported for unit tests only — the floor gate is load-bearing honesty.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildAlignmentCitation(snapshots: any[]): string {
+  if (!isValueMapV2Enabled()) return '';
+
+  const displayable = (s: { aligned_spend_pct?: number | null; alignment_confidence?: number | null }) =>
+    s?.aligned_spend_pct != null &&
+    Number(s.alignment_confidence ?? 0) >= ALIGNMENT_DISPLAY_MIN_CONFIDENCE;
+
+  const latest = snapshots[0];
+  if (!displayable(latest)) return '';
+
+  const pct = Math.round(Number(latest.aligned_spend_pct));
+  const confidencePct = Math.round(Number(latest.alignment_confidence) * 100);
+
+  const lines = [
+    '\n### Spending–values alignment (system-computed, visible on the user\'s dashboard)',
+    `Alignment score: ${pct}% of value-mapped spending sits in Foundation or Investment (burden is excluded from the ratio — necessary costs are not judged).`,
+    `Coverage: ${confidencePct}% of eligible spending carries a confirmed value label; the score is computed over that portion only.`,
+  ];
+
+  // 3-month delta: the snapshot exactly three calendar months earlier, and
+  // only if that month also cleared the floor — never anchor a comparison on
+  // a number the user was never shown.
+  const latestKey = String(latest.month).slice(0, 7);
+  const [ly, lm] = latestKey.split('-').map(Number);
+  const priorDate = new Date(Date.UTC(ly, lm - 1 - 3, 1));
+  const priorKey = `${priorDate.getUTCFullYear()}-${String(priorDate.getUTCMonth() + 1).padStart(2, '0')}`;
+  const prior = snapshots.find((s) => String(s.month).slice(0, 7) === priorKey);
+  if (prior && displayable(prior)) {
+    const priorPct = Math.round(Number(prior.aligned_spend_pct));
+    const delta = pct - priorPct;
+    const priorMonthName = priorDate.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' });
+    lines.push(
+      `3-month change: ${delta >= 0 ? '+' : ''}${delta} percentage points since ${priorMonthName} (${priorPct}% → ${pct}%).`,
+    );
+  }
+
+  lines.push(
+    'Cite these alignment numbers verbatim when relevant. Observation only — state the number and the movement, never praise or judgement ("alignment moved from 71% to 78% since March", never "well done" or "you should").',
+  );
+
+  return lines.join('\n');
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null, profile: any): string {
   const parts: string[] = [];
@@ -1230,6 +1285,13 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
         parts.push(line);
       }
     }
+
+    // VM-5 — Alignment Score citation. Injected ONLY above the honesty floor:
+    // below it the user's dashboard shows a calibrating state, and the CFO
+    // must never discuss a number the user can't see, so nothing about
+    // alignment enters the context at all.
+    const alignmentBlock = buildAlignmentCitation(snapshots);
+    if (alignmentBlock) parts.push(alignmentBlock);
   }
 
   // Recurring expenses
@@ -1929,7 +1991,7 @@ async function getValueCheckinNudgeContext(
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('value_confirmed_by_user', false)
-      .or('value_confidence.is.null,value_confidence.lt.0.7')
+      .or(`value_confidence.is.null,value_confidence.lt.${VALUE_CHAT_CITATION_THRESHOLD}`)
       .lt('amount', 0)
 
     if (error) return ''
@@ -2071,7 +2133,7 @@ async function getValueMappingContext(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (t: any) =>
         !t.value_confirmed_by_user &&
-        (t.value_confidence === null || Number(t.value_confidence) < 0.7)
+        (t.value_confidence === null || Number(t.value_confidence) < VALUE_CHAT_CITATION_THRESHOLD)
     ).length
     const reviewed = total - unreviewed
     const percentReviewed = Math.round((reviewed / total) * 100)
