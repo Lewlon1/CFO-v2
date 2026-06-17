@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
-import { getTimeContext } from '@/lib/utils/time-context'
 import { selectRetakeCandidates } from '@/lib/value-map/retake-candidates'
-import { processSignals } from '@/lib/prediction/process-signals'
-import { backfillForMerchant } from '@/lib/prediction/backfill'
-import { regenerateArchetype } from '@/lib/value-map/regenerate-archetype'
 import {
-  refreshMonthlySnapshots,
-  extractAffectedMonths,
-} from '@/lib/analytics/monthly-snapshot'
+  persistRealValueClassifications,
+  runMerchantLearning,
+  VALID_QUADRANTS,
+} from '@/lib/value-map/persist-real-classification'
+import { regenerateArchetype } from '@/lib/value-map/regenerate-archetype'
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
 
-const VALID_QUADRANTS = new Set(['foundation', 'investment', 'burden', 'leak'])
 const RETAKE_WEIGHT_MULTIPLIER = 2.0
 
 type IncomingResult = {
@@ -106,7 +103,8 @@ export async function POST(req: NextRequest) {
   }
 
   const results = Array.isArray(body.results) ? body.results : []
-  // Skip hard-to-decide and invalid quadrants
+  // Skip rows with a missing/invalid quadrant. hard_to_decide is retained as a
+  // signal on value_map_results, not a filter — a hard call is still a call.
   const actionable = results.filter(
     (r) =>
       r.transaction_id &&
@@ -216,72 +214,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 5. Compute derived fields + bulk-insert correction signals @ 2x weight
-  const signalRows = actionable
-    .map((r) => {
-      const txn = txnMap.get(r.transaction_id)
-      if (!txn) return null
-      const merchantClean = normaliseMerchant(txn.description)
-      if (!merchantClean) return null
-      const txnDate = new Date(txn.date)
-      return {
-        user_id: user.id,
-        transaction_id: r.transaction_id,
-        merchant_clean: merchantClean,
-        category_id: txn.category_id,
-        value_category: r.quadrant,
-        amount: Number(txn.amount),
-        transaction_time: txn.date,
-        time_context: getTimeContext(txnDate),
-        day_of_month: txnDate.getDate(),
-        weight_multiplier: RETAKE_WEIGHT_MULTIPLIER,
-      }
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null)
-
-  if (signalRows.length > 0) {
-    const { error: signalError } = await supabase
-      .from('correction_signals')
-      .insert(signalRows)
-    if (signalError) {
-      console.error('[api/value-map/personal] signal insert error:', signalError)
-      // non-fatal — continue with transaction updates
-    }
+  // 5. Shared persistence: weighted correction_signals + synchronous merchant
+  //    rule + transaction confirm + snapshot refresh. Same path as the
+  //    value-first onboarding flow (/api/value-map/classify) — one source of
+  //    truth for "the user classified these real transactions".
+  let merchantsAffected: string[]
+  try {
+    const persisted = await persistRealValueClassifications(
+      supabase,
+      user.id,
+      actionable,
+      { weightMultiplier: RETAKE_WEIGHT_MULTIPLIER },
+    )
+    merchantsAffected = persisted.merchantsAffected
+  } catch (err) {
+    console.error('[api/value-map/personal] persistence failed:', err)
+    return NextResponse.json({ error: 'Could not save classifications' }, { status: 500 })
   }
 
-  // 6. Update affected transactions (loop — no bulk update with different values)
-  const affectedDates: string[] = []
-  const confirmedAt = new Date().toISOString()
-  for (const r of actionable) {
-    const txn = txnMap.get(r.transaction_id)
-    if (!txn) continue
-    const { error: updateError } = await supabase
-      .from('transactions')
-      .update({
-        value_category: r.quadrant,
-        value_confidence: 1.0,
-        value_confirmed_by_user: true,
-        prediction_source: 'user_confirmed',
-        confirmed_at: confirmedAt,
-      })
-      .eq('id', r.transaction_id)
-      .eq('user_id', user.id)
-    if (!updateError) {
-      affectedDates.push(txn.date)
-    }
-  }
-
-  // 7. Refresh monthly snapshots for affected months (awaited so fresh for impact screen)
-  if (affectedDates.length > 0) {
-    const months = extractAffectedMonths(affectedDates)
-    try {
-      await refreshMonthlySnapshots(supabase, user.id, months)
-    } catch (err) {
-      console.error('[api/value-map/personal] snapshot refresh failed:', err)
-    }
-  }
-
-  // 8. Log completion event for observability
+  // 6. Log completion event for observability
   void supabase.from('user_events').insert({
     profile_id: user.id,
     event_type: 'value_map_personal_completed',
@@ -289,23 +240,15 @@ export async function POST(req: NextRequest) {
     payload: {
       session_id: session.id,
       classified: actionable.length,
-      merchants_affected: new Set(signalRows.map((s) => s.merchant_clean)).size,
+      merchants_affected: merchantsAffected.length,
       personality_type: body.personalityType,
     },
   })
 
-  // 9. Trigger async learning — one processSignals+backfill per unique merchant
-  const uniqueMerchants = [...new Set(signalRows.map((s) => s.merchant_clean))]
+  // 7. Trigger async learning — one processSignals+backfill per unique merchant,
+  //    then regenerate the archetype once every merchant's rules have settled.
   after(async () => {
-    for (const merchant of uniqueMerchants) {
-      try {
-        await processSignals(user.id, merchant)
-        await backfillForMerchant(user.id, merchant)
-      } catch (err) {
-        console.error(`[retake learning] ${merchant} failed:`, err)
-      }
-    }
-    // After all merchants processed, regenerate archetype
+    await runMerchantLearning(user.id, merchantsAffected)
     try {
       await regenerateArchetype(supabase, user.id, 'retake_complete')
     } catch (err) {
@@ -317,6 +260,6 @@ export async function POST(req: NextRequest) {
     success: true,
     retake_id: session.id,
     classified: actionable.length,
-    merchants_affected: uniqueMerchants.length,
+    merchants_affected: merchantsAffected.length,
   })
 }

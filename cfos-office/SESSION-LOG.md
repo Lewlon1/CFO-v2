@@ -9,6 +9,82 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-16 — Real-transaction Value Map: one persistence path
+
+**Branch:** `claude/peaceful-goodall-l912it`.
+
+The real-transactions Value Map could complete via two code paths that
+persisted inconsistently, so classifications drifted depending on which surface
+the user came through:
+
+1. **Server retake** (`/api/value-map/personal` POST) — value_map_results +
+   weighted `correction_signals` (2x) + the learning pipeline (`processSignals`
+   → flat/time/amount rules + category/global priors, then `backfillForMerchant`
+   to reclassify the merchant's OTHER transactions) + a hard transaction confirm.
+
+2. **Client onboarding flow** (value-first, `value-map-flow.tsx` `handleContinue`,
+   `isRealData`) — value_map_results + a naive `value_category_rules` merchant
+   upsert (source=`value_map_personal`, match_value=`r.merchant.toLowerCase()`)
+   straight from the browser client. **No `correction_signals`, no
+   `processSignals`/`backfillForMerchant`, no proper confirm** — only a
+   write-only `metadata.value_quadrant` flag on the carded txn. So the learning
+   engine never ran for value-first onboarding: no agreement-ratio rule, no
+   time/amount sub-rules, no priors, and the merchant's other transactions were
+   never re-scored. The two paths also keyed the merchant rule differently
+   (`r.merchant.toLowerCase()` vs `normaliseMerchant(description)`).
+
+### What shipped — one source of truth
+- **`lib/value-map/persist-real-classification.ts` (new).** The single
+  persistence for "the user classified these REAL transactions":
+  `persistRealValueClassifications` (weighted `correction_signals` +
+  **synchronous** merchant `value_category_rules` row + hard transaction confirm
+  + monthly-snapshot refresh) and `runMerchantLearning` (the
+  `processSignals` + `backfillForMerchant` loop). Both the retake route and the
+  onboarding flow call it, so they cannot drift.
+- **`/api/value-map/classify` (new route).** The value-first onboarding flow now
+  POSTs its real classifications here (weight **1.0** — a first-time call, not a
+  2x retake correction). No archetype regen: the onboarding recompose delivers
+  the post-sort reading. Onboarding bookkeeping (session + value_map_results +
+  cut_intent) stays client-side.
+- **`/api/value-map/personal` refactored** to call the shared helper (weight
+  2.0) and chain `regenerateArchetype` after `runMerchantLearning` in `after()`.
+- **`value-map-flow.tsx`** — `handleContinue` POSTs real classifications to
+  `/classify` (awaited, before `onComplete` fires the recompose), and skips the
+  now-redundant client-side metadata write + merchant-rule upsert for real data.
+  The sample-card onboarding path (category rules, source=`value_map`) is
+  unchanged.
+- **Comment/code fix** in `personal/route.ts`: the actionable filter only checks
+  quadrant validity, so the "Skip hard-to-decide" comment was wrong — corrected
+  to note `hard_to_decide` is retained on `value_map_results`, not filtered.
+
+### The load-bearing constraint
+The onboarding **recompose** (`/api/insights/recompose-first-read` →
+`composeFirstRead` value_first_recompose) reads Layer 2 `by_merchant`
+(`buildUserValueProfile`), which is populated **only** from
+`value_category_rules` merchant rows. The recompose runs immediately after the
+client flow, so the merchant rule must land synchronously — `processSignals`
+alone (deferred via `after()`) would be too late and would regress the
+recompose's "what you just sorted" payoff. Hence the shared helper writes the
+merchant rule synchronously (keyed on `normaliseMerchant` + `__none__`
+time_context so the async flat rule merges onto the same row), in addition to
+emitting the signal. This also means the retake path now mints an immediate
+merchant rule too — a robustness net against the known async rule-persistence
+gap (see 2026-06-02 backlog).
+
+### Verification
+`npm run typecheck` ✅ · `npm run lint` ✅ (0 errors) · `npm run build` ✅ ·
+full vitest **1160/1160** ✅, including a new
+`persist-real-classification.test.ts` (signal weight, synchronous merchant rule
+key/source/confidence, per-card signal vs per-merchant rule dedup, confirm
+fields, empty/invalid handling, `runMerchantLearning` fan-out + error swallow).
+
+### Follow-ups (unchanged from 2026-06-02 backlog)
+- The deeper async rule-persistence gap (`processSignals` rules not always
+  landing on the retake path) is mitigated — not closed — by the synchronous
+  rule. Still worth its own investigation.
+
+---
+
 ## 2026-06-02 — Coaching Cadence: principle over procedure
 
 **Branch:** `claude/funny-pasteur-GEpYl` (continues the dedup/voice/read-quality work; harness-pinned per precedent).
