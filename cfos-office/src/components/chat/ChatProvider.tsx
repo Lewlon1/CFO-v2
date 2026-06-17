@@ -71,6 +71,11 @@ interface ChatContextValue {
   }) => void
   chatError: string | null
   dismissError: () => void
+  /** Surface a brief, kind notice in the chat's existing banner. Used by the
+   *  declared-Read upgrade flow to nudge after a thin upload, once the upload
+   *  surface has closed and the message-list arm (which renders the banner) is
+   *  back on screen. */
+  notify: (message: string) => void
   /** True while a specific conversation is expected to materialise — the
    *  goal-beat auto-open, or an in-flight loadConversation fetch. Lets the
    *  sheet show a "working on this" state instead of the generic folder
@@ -392,6 +397,9 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
 
   const closeSheet = useCallback(() => {
     setIsSheetOpen(false)
+    // Reset the upload surface too: a stale-true value would otherwise strand
+    // the user on the uploader the next time the sheet opens.
+    setUploadSurfaceOpen(false)
   }, [])
 
   const openUploadSurface = useCallback(() => {
@@ -415,6 +423,8 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
       firstReadCtxRef.current = null
       setChatError(null)
       setInput('')
+      // A new conversation must never inherit a stale-open upload surface.
+      setUploadSurfaceOpen(false)
 
       // If this is a typed conversation that needs auto-trigger, queue it.
       // Such conversations open an opener immediately, so keep the loading
@@ -567,6 +577,10 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
 
   const dismissError = useCallback(() => setChatError(null), [])
 
+  // Brief notice surfaced in the existing chat banner. Distinct from chat send
+  // errors only by intent — both render via chatError; dismissError clears it.
+  const notify = useCallback((message: string) => setChatError(message), [])
+
   // ── Context value ─────────────────────────────────────────────────────────
 
   const value: ChatContextValue = {
@@ -589,6 +603,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     registerFirstReadDelivery,
     chatError,
     dismissError,
+    notify,
     isLoadingConversation,
     handleOptionSelect,
     handleStructuredSubmit,

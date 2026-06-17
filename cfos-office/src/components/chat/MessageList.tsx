@@ -256,8 +256,10 @@ export function MessageList({
   }) => void;
 }) {
   // The sheet is a persistent overlay; navigation CTAs must close it so the
-  // destination page isn't hidden underneath (see ChatCTA.onNavigate).
-  const { closeSheet } = useChatContext();
+  // destination page isn't hidden underneath (see ChatCTA.onNavigate). The
+  // start_statement_upload CTA instead opens the in-sheet upload surface in
+  // place (declared-Read upgrade flow).
+  const { closeSheet, openUploadSurface } = useChatContext();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -524,6 +526,7 @@ export function MessageList({
                   label={cta.label}
                   onAction={optionSelectHandler}
                   onNavigate={closeSheet}
+                  onOpenUpload={openUploadSurface}
                 />
               )}
 

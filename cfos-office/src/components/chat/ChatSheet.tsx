@@ -12,7 +12,7 @@ import { CHAT_SUBJECTS, getFolderChatMeta, type FolderKey } from '@/lib/chat/fol
 import type { PostureProfile } from '@/lib/analytics/posture-helpers'
 import { OnboardingBeatHost } from '@/components/onboarding-v2/in-sheet/onboarding-beat-host'
 import { StruggleBeatBlock } from '@/components/onboarding-v2/in-sheet/struggle-beat-block'
-import { InSheetStatementUpload } from '@/components/upload/InSheetStatementUpload'
+import { UpgradeUploadSurface } from './UpgradeUploadSurface'
 import { IN_SHEET_BEAT_STEPS } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 
@@ -26,7 +26,6 @@ export function ChatSheet() {
     isSheetOpen,
     closeSheet,
     uploadSurfaceOpen,
-    closeUploadSurface,
     startConversation,
     handleOptionSelect,
     handleStructuredSubmit,
@@ -233,9 +232,16 @@ export function ChatSheet() {
         </div>
 
         {/* Content */}
-        {/* The upload surface outranks the conversation list: the `!uploadSurfaceOpen`
-            guard means an open upload surface wins even if the list was toggled. */}
-        {showConversations && !uploadSurfaceOpen ? (
+        {/* The upload surface is hoisted to the TOP of the chain: it outranks
+            every other arm (including the conversation list), so precedence is
+            positional and no negation guards are needed downstream. */}
+        {uploadSurfaceOpen ? (
+          // In-chat statement upload (declared-Read upgrade flow). REPLACES the
+          // message list + ChatInput entirely — there is no free-text input
+          // while the upload surface is open. The wrapper owns the upgrade POST
+          // + loading / error / retry states; the uploader stays generic.
+          <UpgradeUploadSurface />
+        ) : showConversations ? (
           <ConversationList
             conversations={conversations}
             onBack={() => setShowConversations(false)}
@@ -257,22 +263,6 @@ export function ChatSheet() {
               goal={onboardingGoal}
               noImport={noImport}
               progress={onboardingProgress}
-            />
-          </div>
-        ) : uploadSurfaceOpen ? (
-          // In-chat statement upload (declared-Read upgrade flow). REPLACES the
-          // message list + ChatInput entirely — there is no free-text input
-          // while the upload surface is open. Outranks showConversations via the
-          // guard above.
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <InSheetStatementUpload
-              onCancel={closeUploadSurface}
-              onImported={() => {
-                // TODO(task5): POST /api/insights/upgrade-declared-read then
-                // loadConversation to swap to the sharpened Read. For now just
-                // close the surface so the chat reappears.
-                closeUploadSurface()
-              }}
             />
           </div>
         ) : (

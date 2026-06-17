@@ -38,14 +38,25 @@ export function InSheetStatementUpload({ onImported, onDone, onCancel }: Props) 
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('categories')
-      .select('*')
-      .order('name')
-      .then(({ data }) => {
-        if (data) setCategories(data as Category[])
-      })
+    let cancelled = false
+    const load = async () => {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('categories')
+          .select('*')
+          .order('name')
+        if (!cancelled && data) setCategories(data as Category[])
+      } catch (err) {
+        // A categories fetch failure left the dropdown empty silently before;
+        // log it (mirrors value-map-card) so a flaky load is at least visible.
+        console.error('[upload] categories load failed', err)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (
