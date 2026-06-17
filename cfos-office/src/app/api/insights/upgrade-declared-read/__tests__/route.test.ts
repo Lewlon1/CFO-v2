@@ -51,6 +51,17 @@ type TableResults = {
   /** Result for a `head/count` select that is awaited directly (no maybeSingle). */
   count?: { count: number | null; error: unknown }
   insertResult?: { data: unknown; error: unknown }
+  /**
+   * When set, any `update(value)` whose value matches makes the write REJECT
+   * (simulating a transient DB blip). Used to drive the markUpgraded /
+   * clearUpgradeInProgress failure paths. Stays armed across calls, so a single
+   * predicate covers all of markUpgraded's retry attempts.
+   */
+  updateThrowsWhen?: (value: Record<string, unknown>) => boolean
+  /** Error thrown when `updateThrowsWhen` matches (defaults to a generic blip). */
+  updateError?: Error
+  /** When set, `insert(...)` REJECTS — simulates appendAssistantFollowup failing. */
+  insertThrows?: Error
 }
 
 function mockClient(tables: Record<string, TableResults> = {}) {
@@ -60,7 +71,17 @@ function mockClient(tables: Record<string, TableResults> = {}) {
     const t = tables[table] ?? {}
     let lastWrite: 'insert' | 'update' | null = null
     let isCountSelect = false
+    let lastUpdateValue: Record<string, unknown> | null = null
     const readQueue = [...(t.reads ?? [])]
+
+    // True when the most recent update on this chain is configured to reject.
+    function updateShouldThrow(): boolean {
+      return Boolean(
+        t.updateThrowsWhen &&
+          lastUpdateValue &&
+          t.updateThrowsWhen(lastUpdateValue),
+      )
+    }
 
     function emulateUpdateResult(): { data: unknown; error: unknown } {
       // Metadata of the row this client most recently read for `table`.
@@ -109,21 +130,33 @@ function mockClient(tables: Record<string, TableResults> = {}) {
       update: (value: unknown) => {
         calls.push({ table, method: 'update', value })
         lastWrite = 'update'
+        lastUpdateValue = value as Record<string, unknown>
         return b
       },
       maybeSingle: async () => {
         if (lastWrite === 'insert') {
           lastWrite = null
+          if (t.insertThrows) throw t.insertThrows
           return t.insertResult ?? { data: null, error: null }
         }
         if (lastWrite === 'update') {
           lastWrite = null
+          if (updateShouldThrow()) {
+            throw t.updateError ?? new Error('update blip')
+          }
           return emulateUpdateResult()
         }
         return readQueue.shift() ?? { data: null, error: null }
       },
       // Awaitable terminal for `update(...).eq(...)` with no `.select()`.
-      then: (resolve: (v: unknown) => unknown) => resolve({ error: null }),
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
+        if (lastWrite === 'update' && updateShouldThrow()) {
+          lastWrite = null
+          const err = t.updateError ?? new Error('update blip')
+          return reject ? reject(err) : Promise.reject(err)
+        }
+        return resolve({ error: null })
+      },
     })
     return b
   }
@@ -401,5 +434,128 @@ describe('runDeclaredReadUpgrade', () => {
     expect(
       updates.some((u) => (u.metadata as Record<string, unknown>)?.[UPGRADED_KEY] === true),
     ).toBe(false)
+  })
+
+  it('append throws → in-progress CLEARED (retry-safe), markUpgraded never called', async () => {
+    // Compose + close assertion pass; the assistant-message insert itself fails
+    // BEFORE delivery. Nothing reached the chat, so this is retry-safe: clear the
+    // claim, never stamp.
+    composeFirstRead.mockResolvedValue({
+      composedMessage: WELL_FORMED,
+      metadata: GOOD_META,
+    })
+    const client = mockClient({
+      conversations: conversationsTable({ layered_read: true }),
+      transactions: { count: { count: 42, error: null } },
+      messages: {
+        reads: [{ data: { content: 'Declared first sentence. More.' }, error: null }],
+        insertThrows: new Error('insert exploded'),
+      },
+    })
+    const res = await runDeclaredReadUpgrade({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: client as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      svc: client as any,
+      userId: 'u1',
+    })
+    expect(res.status).toBe(500)
+    // Append failed before delivery → retry-safe compose_failed, NOT stamp_failed.
+    expect(res.body).toMatchObject({ upgraded: false, reason: 'compose_failed' })
+
+    const updates = find(client, 'conversations', 'update').map((c) => c.value as Record<string, unknown>)
+    // in-progress was cleared so a retry can proceed.
+    expect(
+      updates.some((u) => (u.metadata as Record<string, unknown>)?.[UPGRADE_IN_PROGRESS_KEY] === false),
+    ).toBe(true)
+    // markUpgraded never ran: no update ever set value_first_upgraded=true.
+    expect(
+      updates.some((u) => (u.metadata as Record<string, unknown>)?.[UPGRADED_KEY] === true),
+    ).toBe(false)
+  })
+
+  it('append OK but markUpgraded throws (after retries) → in-progress NOT cleared (next call 409s), no 2nd append, stamp_failed', async () => {
+    // Compose + close assertion + append all succeed; the FINAL stamp fails on
+    // every retry. The Read is already in the chat, so the failure path must
+    // leave the conversation claimed: a delivered-but-unstamped Read deliberately
+    // blocks retries to avoid a duplicate in-chat Read.
+    composeFirstRead.mockResolvedValue({
+      composedMessage: WELL_FORMED,
+      metadata: GOOD_META,
+    })
+    const client = mockClient({
+      conversations: {
+        ...conversationsTable({ layered_read: true }),
+        // markUpgraded's write sets value_first_upgraded=true — make THAT update
+        // (and only that one) reject on every retry attempt. The claim update and
+        // any clear update don't set UPGRADED_KEY, so they're unaffected.
+        updateThrowsWhen: (value) =>
+          (value.metadata as Record<string, unknown> | undefined)?.[UPGRADED_KEY] === true,
+        updateError: new Error('stamp blip'),
+      },
+      transactions: { count: { count: 42, error: null } },
+      messages: {
+        reads: [{ data: { content: 'Declared first sentence. More.' }, error: null }],
+        insertResult: { data: { id: 'm-new' }, error: null },
+      },
+    })
+    const res = await runDeclaredReadUpgrade({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: client as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      svc: client as any,
+      userId: 'u1',
+    })
+    expect(res.status).toBe(500)
+    expect(res.body).toMatchObject({ upgraded: false, reason: 'stamp_failed', conversationId: 'conv1' })
+
+    // The Read WAS appended exactly once — a retry must not append a second.
+    const inserts = find(client, 'messages', 'insert')
+    expect(inserts).toHaveLength(1)
+    expect((inserts[0].value as Record<string, unknown>).content).toBe(WELL_FORMED)
+
+    // markUpgraded was retried the configured number of times (all failed).
+    const stampAttempts = find(client, 'conversations', 'update').filter(
+      (c) => (((c.value as Record<string, unknown>).metadata) as Record<string, unknown>)?.[UPGRADED_KEY] === true,
+    )
+    expect(stampAttempts.length).toBeGreaterThanOrEqual(2)
+
+    const updates = find(client, 'conversations', 'update').map((c) => c.value as Record<string, unknown>)
+    // CRITICAL: no standalone clearUpgradeInProgress ran after the append. The
+    // catch must NOT clear the claim once the Read is delivered. A standalone
+    // clear writes ONLY { in_progress: false }; markUpgraded's (rejected) writes
+    // carry in_progress:false alongside upgraded:true, so we exclude those — they
+    // threw and changed no state. The conversation stays claimed → a retry 409s.
+    const standaloneClears = updates.filter(
+      (u) =>
+        (u.metadata as Record<string, unknown>)?.[UPGRADE_IN_PROGRESS_KEY] === false &&
+        (u.metadata as Record<string, unknown>)?.[UPGRADED_KEY] !== true,
+    )
+    expect(standaloneClears).toHaveLength(0)
+  })
+
+  it('after a delivered-but-unstamped Read, a subsequent call 409s (no duplicate append)', async () => {
+    // Simulate the retry that follows the stamp_failed case above: the
+    // conversation is still claimed (value_first_upgrade_in_progress=true,
+    // value_first_upgraded absent), so the claim short-circuits to 409 and we
+    // never compose or append again.
+    const client = mockClient({
+      conversations: conversationsTable({
+        layered_read: true,
+        [UPGRADE_IN_PROGRESS_KEY]: true,
+      }),
+      transactions: { count: { count: 42, error: null } },
+    })
+    const res = await runDeclaredReadUpgrade({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: client as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      svc: client as any,
+      userId: 'u1',
+    })
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ upgraded: false, reason: 'in_progress', conversationId: 'conv1' })
+    expect(composeFirstRead).not.toHaveBeenCalled()
+    expect(find(client, 'messages', 'insert')).toHaveLength(0)
   })
 })
