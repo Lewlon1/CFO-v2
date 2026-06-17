@@ -28,6 +28,14 @@ import type { ReadRecipe } from '@/lib/ai/first-read-recipe';
 export type FirstReadComposeInput = {
   userId: string;
   userName?: string | null;
+  /**
+   * Composition mode. Drives which ALREADY-SAID contract, READ FOCUS, and
+   * COMPOSE directive render. Defaults are derived from the data when omitted
+   * (priorReadSummary != null → recompose; hookCandidates present → value_first)
+   * — but 'declared_upgrade' MUST be passed explicitly, because it threads a
+   * priorReadSummary WITHOUT lighting up the Value-Map-sort recompose machinery.
+   */
+  mode?: 'default' | 'value_first' | 'value_first_recompose' | 'declared_upgrade';
   goalSummary?: string | null;
   valueProfile: UserValueProfile;
   topClusterBehaviours: ClusterBehaviour[];
@@ -91,8 +99,8 @@ export type FirstReadMetadata = {
   levers_offered: string[];
   /** The field the supply_input blocker named, or null when no blocker existed. */
   blocker_field: string | null;
-  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta; 'declared' is the skip-upload path. */
-  mode?: 'default' | 'value_first' | 'value_first_recompose' | 'declared';
+  /** Composition mode — 'value_first' shifts the close from lever-CTA to hook-CTA; 'value_first_recompose' is the post-Value-Map delta; 'declared' is the skip-upload path; 'declared_upgrade' is the sharper transaction Read appended after a declared-mode user uploads real statements. */
+  mode?: 'default' | 'value_first' | 'value_first_recompose' | 'declared' | 'declared_upgrade';
   /** The hook items the composer handed the model. Persisted so the Value Map step can run on the same real flagged transactions. */
   hook_candidates?: HookCandidate[] | null;
   /** Which LEAD recipe drove this Read (visibility | target | control | open), or null pre-change. */
@@ -108,12 +116,24 @@ export type FirstReadMetadata = {
 export type FirstReadComposeOutput = {
   composedMessage: string;
   metadata: FirstReadMetadata;
+  /**
+   * declared_upgrade only — set when the upload was too sparse to produce a real
+   * spending picture (no usable clusters or no hook candidates). The route reads
+   * this to skip appending an upgrade message and leave the declared Read as the
+   * last word. composedMessage is '' in this case (no LLM call was made).
+   */
+  insufficientData?: boolean;
 };
 
 /**
  * Summary of the prior First Read, handed to the recompose so it knows what is
  * ALREADY SAID and must not be restated. Built by the recompose route from the
  * first assistant message + its persisted metadata.
+ *
+ * Also handed to the 'declared_upgrade' path, where the prior is the DECLARED
+ * Read: layer1Stated + goalStatedAsReveal are true (income / fixed costs / free
+ * cash / goal pace were all announced), and merchantsAlreadyNamed is empty (the
+ * declared Read saw no transactions, so it named no merchants).
  */
 export type PriorReadSummary = {
   /** Income / fixed costs / free cash flow were already stated as standing facts. */
@@ -307,6 +327,82 @@ SHAPE TO AIM FOR (illustrative of the SHAPE only — never copy these figures or
 
 Notice what the shape does and does NOT do: it LEADS on what the sort revealed, references the goal only as a frame ("big enough to move the goal" — no contribution figure, no band, no verdict), pairs every sort with the new thing it makes visible (never "you called it X so it's X"), names the one remaining unknown, and lands ONE action before the handoff.`;
 
+/**
+ * Declared-upgrade variant — the message appended AFTER a user who got a
+ * declared-mode first Read (built on self-reported income + fixed costs, no
+ * transactions) later uploads real statements in-chat. It is NOT a second
+ * first Read and NOT a re-statement of the declared picture: it LEADS on the
+ * declared→actual DELTA ("you told me ≈X — the statements show Y"), uses the
+ * real transaction layers (spending breakdown, clusters, hooks), and closes on
+ * the same Value-Map handoff the value-first Read uses ([CTA:start_value_map_real]).
+ *
+ * It inherits the VALUE-FIRST voice, honesty, and boundary blocks verbatim
+ * (thread consistency) — only the STRUCTURE (delta lead) and the ALREADY-SAID
+ * contract (scoped to the DECLARED facts) differ. The declared facts —
+ * income, fixed costs, free cash, goal pace — were ALL stated in the declared
+ * Read; this turn does not re-announce them as newly discovered.
+ */
+export const FIRST_READ_SYSTEM_PROMPT_DECLARED_UPGRADE = `You are the user's CFO. This is NOT the first thing they have seen. They already got one Read from you built entirely on two numbers they typed — their take-home pay and their fixed costs — with no statements. They have now uploaded their real statements. This message is the payoff: the sharper picture the actual transactions make possible. Sign off "— C." on its own line.
+
+Your job: write the DELTA. Lead on what the statements change versus what they told you — not a fresh tour of facts they already have. Tight, specific, no fluff.
+
+STRUCTURE (this is the contract — DELTA, then the sharpened picture, then clarifiers, then handoff):
+1. THE DELTA — open on the single biggest gap between what they DECLARED and what the statements actually show. Use the DECLARED→ACTUAL DELTA and FINANCIAL FACTS / SPENDING BREAKDOWN figures verbatim. The frame is "you told me ≈X — the statements show Y": e.g. declared fixed costs vs reconciled fixed costs, or the declared free-cash cushion vs how much real everyday spending eats into it. Name the number that moved and what it means for the room they have. This is the LEAD — never re-announce income / fixed costs / free cash as if they were new.
+2. THE SHARPENED PICTURE — at most 1-2 observations the real data makes possible that the declared numbers could not: the biggest discretionary category from SPENDING BREAKDOWN (name it, its share of tracked spend, the absolute figure), or a behavioural pattern in the BEHAVIOURAL CLUSTERS. Tie it back to the goal pace they already know — the cushion is thinner / the deposit is slower than the declared picture implied. Frame the magnitudes you were handed; never compute a new one.
+3. CLARIFIERS — one or two things the statements raise that the data still can't settle on its own, posed as DIRECT either/or questions on the HOOK CANDIDATES. Cite the merchant, amount, and pattern hint verbatim: "Aldi, €431 — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
+4. HANDOFF — position the Value Map as where this real spending gets weighed against what they actually value, and note the clarifiers above sharpen it. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
+
+ALREADY SAID — DO NOT RESTATE (these were in the DECLARED Read; reference in a clause at most). The specific items are in the ALREADY SAID section of the DATA below:
+- Income / fixed costs / free cash flow as standing facts — the DECLARED figures were already stated. Do NOT re-open on them as a fresh reveal; the statements REVISE them, and the revision is the delta you lead on.
+- The goal target and its monthly pace — the declared Read already revealed them. Reference the goal as an established frame; do NOT re-issue the target or the pace as new.
+- There are NO merchants already named — the declared Read saw no transactions. Every merchant in the data below is new to the conversation; name them freely.
+
+BANNED IN THE DECLARED UPGRADE:
+- Re-announcing the DECLARED facts (income / fixed / free cash / goal pace) as if they were freshly discovered. They are the BEFORE side of the delta, not the headline.
+- A re-statement that reads like a second declared Read — "your income is X, your fixed costs are Y, so you have Z free". The statements moved at least one of those; lead on what moved.
+- Narration of the act of observing: "I see", "I notice", "I can see X but I can't tell Y", "On reviewing your data". State what's true; ask the rest as a direct question.
+- Surfacing a figure only to disclaim it. If a number isn't knowable, ask the question that settles it.
+- A vague question-back close: "What do you think?" / "Does that sound right?". (The CLARIFIERS are specific either/or questions about named transactions — those are the point, not banned.)
+- Apology or boundary-stating language: "unfortunately", "I'm not able to advise", "I can't recommend", "sorry".
+- Emoji. The words "advice" or "advise" anywhere.
+- Product names or buy/sell/switch calls on instruments.
+- Inventing magnitudes. If the data didn't compute a number, you don't have it.
+- Putting the CLARIFIER transactions anywhere but the clarifiers — they are the hook the Read turns on.
+
+BOUNDARY (felt, not stated):
+Directness applies to behaviour and cash flow — name the gap, name the biggest line, ask the clarifier. It does NOT cross into regulated territory: a contribution figure is a calculation ("the goal needs €948/mo"), never an instruction to fund a product. You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies.
+
+VOICE — Read-format constraints only (full voice lives in CFO-CONSTITUTION.md §2; do not restate it here):
+- State findings directly. "Eating out ran €680 over the window" — never "I can see your eating out is high". Don't narrate the act of observing.
+- Second person for the user's facts. First person only when it carries a real stance, which a Read rarely needs.
+
+HONESTY (NO HALLUCINATION):
+- Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
+- Never attribute a transaction to today's date. The data is a snapshot.
+- The DECLARED figures (the BEFORE side of the delta) come from the DECLARED→ACTUAL DELTA / ALREADY SAID sections verbatim; the ACTUAL figures come from FINANCIAL FACTS and SPENDING BREAKDOWN verbatim. Never recompute either side of the delta in your head.
+- Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS. Never compute a sum yourself.
+- Proportions and percentages come verbatim from SPENDING BREAKDOWN. When category coverage is low (a large uncategorised share), lead on named-merchant proportions and absolute amounts instead of a total-spend % you can't support.
+- If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly. Obey the DATA SUFFICIENCY caveats — on a single month of data, frame per-month figures as that one month, not a settled rate.
+- Cite ONLY day-counts and date spans that appear verbatim in the data below. Never invent or infer a duration — e.g. do not write "over 52 days" unless that exact span is given.
+
+LENGTH & FORMAT:
+- Hard cap 250 words; aim tighter — it's a delta, not a fresh Read.
+- Plain prose. Bold (**) cluster/merchant names when first mentioned. The clarifiers may sit as up to two short dashed lines.
+- The CTA is on its own line, immediately before "— C.".
+- Sign off "— C." on its own line.
+
+SHAPE TO AIM FOR (numbers and merchants are illustrative of the SHAPE only — the DATA below is the real source; never copy these figures):
+> You told me your fixed costs ran about €1,850 a month. The statements put them at €2,140 — the standing bills you listed missed roughly €290 a month in committed spend, so the free cash you'd been counting on is already smaller than the declared picture showed.
+> That tightens the room around the deposit. **Eating and drinking out** ran €680 over the window — 30% of everything tracked and the single biggest discretionary line, bigger than the cushion those two declared numbers left after the goal. The deposit's headroom is thinner than the paper figure, not wider.
+> Two things the statements raise that the declared numbers couldn't:
+> – **Aldi**, €431 over the window — primary shop, or a top-up alongside another?
+> – **Uber**, €135, new this window — one-off, or a habit forming?
+> Once those land, the Value Map is where this real spending gets weighed against what you actually value — that's where the deposit plan gets honest.
+> [CTA:start_value_map_real]Tell me what these mean[/CTA]
+> — C.
+
+Notice what the shape does and does NOT do: it LEADS on the delta (declared vs actual), never re-announces income / free cash / goal pace as new, uses the real spending breakdown and named merchants, poses the clarifiers as direct either/or questions, and closes on the Value Map handoff — exactly one [CTA:start_value_map_real] line.`;
+
 export const FIRST_READ_SYSTEM_PROMPT_DECLARED = `You are the user's CFO. The user has just told you two numbers — their monthly take-home pay and their fixed costs — without sharing any statements yet. You have NOT seen a single transaction. This is their first Read, built entirely on what they declared.
 
 Your job: turn those declared numbers into one clear, honest picture — what's left to work with each month, and how that sits against their goal — then leave the door open to go deeper. Tight and specific. Sign off "— C." on its own line.
@@ -382,8 +478,14 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
 }
 
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
-  const isRecompose = input.priorReadSummary != null;
-  const isValueFirst = (input.hookCandidates?.length ?? 0) > 0;
+  // declared_upgrade ALSO threads a priorReadSummary (the declared prior), so the
+  // recompose machinery can no longer be inferred from `priorReadSummary != null`
+  // alone — it must read the explicit mode. The Value-Map-sort recompose is ONLY
+  // value_first_recompose; declared_upgrade renders the declared ALREADY-SAID
+  // contract and the value-first hook close instead.
+  const isDeclaredUpgrade = input.mode === 'declared_upgrade';
+  const isRecompose = input.mode === 'value_first_recompose' || (input.mode == null && input.priorReadSummary != null);
+  const isValueFirst = isDeclaredUpgrade || (input.hookCandidates?.length ?? 0) > 0;
   const currency = input.financialFacts?.currency ?? 'EUR';
   const symbol = currencySymbol(currency).trim() || currency;
   const sections: string[] = [
@@ -406,10 +508,12 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     ``,
     isRecompose
       ? `GOAL (ALREADY DELIVERED in the first Read — the target, the monthly contribution figure, and the compound-growth band were all stated. Reference the goal as an established frame, in a clause at most; do NOT restate the band or re-issue a verdict):`
+      : isDeclaredUpgrade
+      ? `GOAL (ALREADY DELIVERED in the declared Read — the target and its monthly pace were stated there. Reference the goal as an established frame; the statements may make the pace harder, but do NOT re-reveal the target or re-issue the pace as new):`
       : `GOAL:`,
     input.goalSummary ?? '(none set yet)',
     ``,
-    `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):${isRecompose ? ' [ALREADY DELIVERED in the first Read — context only; do not re-open on income / fixed costs / FCF.]' : ''}`,
+    `FINANCIAL FACTS (Layer 1 — confirmed, server-computed; cite verbatim, do not recompute):${isRecompose ? ' [ALREADY DELIVERED in the first Read — context only; do not re-open on income / fixed costs / FCF.]' : isDeclaredUpgrade ? ' [ALREADY DELIVERED in the declared Read — the DECLARED income / fixed costs / free cash were stated there. These reconciled figures are the ACTUAL side of the delta; do not re-open on income / fixed costs / FCF as a fresh reveal — LEAD on what moved versus the declared numbers.]' : ''}`,
     formatFinancialFacts(input.financialFacts, currency),
     ``,
     `SPENDING BREAKDOWN (Layer 1 — server-computed; cite verbatim, never recompute a % or a sum):`,
@@ -425,7 +529,19 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
       formatWhatJustSorted(input),
       ``,
       `ALREADY SAID — DO NOT RESTATE (these were in the first Read; reference in a clause at most):`,
-      formatAlreadySaid(input.priorReadSummary ?? null),
+      formatAlreadySaid(input.priorReadSummary ?? null, 'first Read'),
+      ``,
+    );
+  } else if (isDeclaredUpgrade) {
+    // Declared upgrade: NO Value-Map-sort block (the sort did not happen on this
+    // path). Render the DELTA frame + the declared ALREADY-SAID contract so the
+    // Read leads on the declared→actual gap and never re-announces the declared
+    // figures as newly discovered.
+    sections.push(
+      `DECLARED→ACTUAL DELTA (this is the LEAD): the prior Read stood on the DECLARED figures in ALREADY SAID below; the FINANCIAL FACTS + SPENDING BREAKDOWN above are the ACTUAL picture the statements now show. Open on the single biggest gap between the two ("you told me ≈X — the statements show Y"). Do NOT re-state the declared picture; lead on what moved.`,
+      ``,
+      `ALREADY SAID — DO NOT RESTATE (these were in the DECLARED Read; reference in a clause at most):`,
+      formatAlreadySaid(input.priorReadSummary ?? null, 'declared Read'),
       ``,
     );
   }
@@ -479,6 +595,8 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     ``,
     isRecompose
       ? `COMPOSE THE RECOMPOSE NOW. Lead on what their sorting unlocked per READ FOCUS, ≤2 delta observations from the NEW Layer 2 (WHAT THE USER JUST SORTED), close on a directive + [CTA:open_chat]…[/CTA] that lands them in chat. Do not restate anything in ALREADY SAID. Do not open a new hook. Hard cap 200 words. Output the message text only — no markdown code fences, no preamble. Sign off with "— C." on its own line.`
+      : isDeclaredUpgrade
+      ? `COMPOSE THE DECLARED UPGRADE NOW. LEAD on the DECLARED→ACTUAL DELTA — the single biggest gap between what they told you (ALREADY SAID) and what the statements show (FINANCIAL FACTS + SPENDING BREAKDOWN), framed "you told me ≈X — the statements show Y". Do NOT re-announce income / fixed costs / free cash / goal pace as new — they are the BEFORE side of the delta. Then 1-2 SHARPENED observations the real data makes possible (the biggest discretionary category from SPENDING BREAKDOWN, or a pattern from BEHAVIOURAL CLUSTERS), tied back to the goal pace they already know. Then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES. Then close by positioning the Value Map as where this real spending gets weighed against what they value, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Hard cap 250 words; aim tighter. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
       : isValueFirst
       ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
       : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
@@ -786,18 +904,29 @@ function formatWhatJustSorted(input: FirstReadComposeInput): string {
   return lines.join('\n');
 }
 
-/** The do-not-restate contract from the prior Read. */
-function formatAlreadySaid(prior: PriorReadSummary | null): string {
+/**
+ * The do-not-restate contract from the prior Read. `priorLabel` names which prior
+ * this is — the value-first 'first Read' (a transaction Read) or the
+ * 'declared Read' (the skip-upload self-reported Read). The declared prior named
+ * no merchants (it saw no transactions), so the merchant line falls away and the
+ * upgrade is free to name every merchant in the data.
+ */
+function formatAlreadySaid(prior: PriorReadSummary | null, priorLabel = 'first Read'): string {
   if (!prior) return '(no prior Read on file — treat nothing as already said)';
+  const isDeclaredPrior = priorLabel === 'declared Read';
   const lines: string[] = [];
   if (prior.layer1Stated) {
-    lines.push(`- Income / fixed costs / free cash flow were already stated as standing facts. Do NOT re-open on them.`);
+    lines.push(
+      isDeclaredPrior
+        ? `- Income / fixed costs / free cash flow were already stated as standing facts (the DECLARED figures). Do NOT re-open on income / fixed costs / FCF as a fresh reveal — the statements revise them, and that revision is the delta to lead on.`
+        : `- Income / fixed costs / free cash flow were already stated as standing facts. Do NOT re-open on them.`,
+    );
   }
   if (prior.goalStatedAsReveal) {
-    lines.push(`- The goal target was already revealed. Do NOT re-reveal it.`);
+    lines.push(`- The goal target and its monthly pace were already revealed. Do NOT re-reveal them.`);
   }
   if (prior.merchantsAlreadyNamed.length > 0) {
-    lines.push(`- Merchants already named in the first Read (reference as givens, do not re-explain as new): ${prior.merchantsAlreadyNamed.join(', ')}`);
+    lines.push(`- Merchants already named in the ${priorLabel} (reference as givens, do not re-explain as new): ${prior.merchantsAlreadyNamed.join(', ')}`);
   }
   if (prior.hookMerchantsUsed.length > 0) {
     lines.push(`- The clarifier hook (unresolved-transaction questions) already ran on: ${prior.hookMerchantsUsed.join(', ')}. Its job is DONE — do not pose them again.`);

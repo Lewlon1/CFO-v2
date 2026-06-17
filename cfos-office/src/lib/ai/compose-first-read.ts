@@ -43,6 +43,7 @@ import {
   FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST,
   FIRST_READ_SYSTEM_PROMPT_RECOMPOSE,
   FIRST_READ_SYSTEM_PROMPT_DECLARED,
+  FIRST_READ_SYSTEM_PROMPT_DECLARED_UPGRADE,
   buildFirstReadUserPrompt,
   buildDeclaredUserPrompt,
   type FirstReadComposeOutput,
@@ -63,9 +64,28 @@ const DECLARED_MAX_OUTPUT_TOKENS = 400;
 
 const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
 
-export type ComposeFirstReadMode = 'default' | 'value_first' | 'value_first_recompose' | 'declared';
+export type ComposeFirstReadMode =
+  | 'default'
+  | 'value_first'
+  | 'value_first_recompose'
+  | 'declared'
+  | 'declared_upgrade';
 
 export type { PriorReadSummary };
+
+/**
+ * Decline-on-thin predicate for the declared_upgrade path. The upgrade is a
+ * real-transaction Read — if the upload produced no usable clusters OR no hook
+ * candidates, there is no spending picture to sharpen the declared Read with, so
+ * the route must NOT call the LLM (it would either hallucinate or just re-state
+ * the declared numbers). Pure so it can be unit-tested without Bedrock.
+ */
+export function isDeclaredUpgradeInsufficient(
+  usableClusters: ClusterBehaviour[],
+  hookCandidates: HookCandidate[],
+): boolean {
+  return usableClusters.length === 0 || hookCandidates.length === 0;
+}
 
 export async function composeFirstRead(params: {
   userId: string;
@@ -79,6 +99,12 @@ export async function composeFirstRead(params: {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
   const isRecompose = mode === 'value_first_recompose';
+  const isDeclaredUpgrade = mode === 'declared_upgrade';
+  // Both the post-Value-Map recompose and the post-upload declared upgrade carry
+  // a PriorReadSummary (the do-not-restate contract). Threading it for the
+  // upgrade does NOT light up the Value-Map-sort recompose machinery — the prompt
+  // builder branches on the explicit `mode`, not on `priorReadSummary != null`.
+  const threadsPrior = isRecompose || isDeclaredUpgrade;
 
   if (mode === 'declared') {
     return composeDeclaredRead(supabase, params.userId);
@@ -168,14 +194,43 @@ export async function composeFirstRead(params: {
     ? Math.max(0, Math.floor((Date.now() - new Date(dataWindowEnd).getTime()) / 86_400_000))
     : null;
 
-  // Value-first mode: pre-compute the hook candidates the Read will end on.
-  // The candidates are persisted into conversation.metadata by the caller
-  // so the Value Map step can run on the same real flagged transactions.
-  const hookCandidates: HookCandidate[] =
-    mode === 'value_first' ? selectHookCandidates(usableClusters, valueProfile) : [];
+  // Value-first AND declared-upgrade close on the HOOK: pre-compute the hook
+  // candidates the Read ends on. The candidates are persisted into
+  // conversation.metadata by the caller so the Value Map step can run on the same
+  // real flagged transactions.
+  const usesHook = mode === 'value_first' || isDeclaredUpgrade;
+  const hookCandidates: HookCandidate[] = usesHook
+    ? selectHookCandidates(usableClusters, valueProfile)
+    : [];
+
+  // Decline-on-thin (declared_upgrade only): if the upload is too sparse to
+  // produce a real spending picture, do NOT call the LLM. Return a typed signal
+  // the route can detect (insufficientData) so it can leave the declared Read as
+  // the last word instead of appending an empty or hallucinated upgrade.
+  if (isDeclaredUpgrade && isDeclaredUpgradeInsufficient(usableClusters, hookCandidates)) {
+    return {
+      composedMessage: '',
+      metadata: {
+        layers_used: [],
+        features_cited: [],
+        gap_present: false,
+        clusters_referenced: [],
+        levers_offered: [],
+        blocker_field: null,
+        mode: 'declared_upgrade',
+        hook_candidates: null,
+        read_recipe: readRecipe,
+        breakdown_cited: false,
+        is_recompose: false,
+        repeated_opening: false,
+      },
+      insufficientData: true,
+    };
+  }
 
   const userPrompt = buildFirstReadUserPrompt({
     userId: params.userId,
+    mode,
     valueProfile,
     goalSummary,
     topClusterBehaviours: usableClusters,
@@ -190,20 +245,23 @@ export async function composeFirstRead(params: {
     levers: leverPackage.levers,
     blocker: leverPackage.blocker,
     financialFacts,
-    hookCandidates: mode === 'value_first' ? hookCandidates : undefined,
+    hookCandidates: usesHook ? hookCandidates : undefined,
     benchmarkObservation,
     spendingBreakdown,
     readRecipe,
-    // Recompose-only: the delta contract + payoff source.
-    priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
+    // Recompose carries the delta contract + Value-Map payoff source; the
+    // declared upgrade carries the delta contract only (no sort happened).
+    priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
     valueMapCardKeys: isRecompose ? (params.valueMapCardKeys ?? null) : null,
   });
 
   const systemPrompt = isRecompose
     ? FIRST_READ_SYSTEM_PROMPT_RECOMPOSE
-    : mode === 'value_first' && hookCandidates.length > 0
-      ? FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST
-      : FIRST_READ_SYSTEM_PROMPT;
+    : isDeclaredUpgrade
+      ? FIRST_READ_SYSTEM_PROMPT_DECLARED_UPGRADE
+      : mode === 'value_first' && hookCandidates.length > 0
+        ? FIRST_READ_SYSTEM_PROMPT_VALUE_FIRST
+        : FIRST_READ_SYSTEM_PROMPT;
 
   const result = await generateText({
     model: bedrock(COMPOSE_MODEL),
@@ -225,7 +283,7 @@ export async function composeFirstRead(params: {
     hookCandidates,
     readRecipe,
     spendingBreakdown,
-    priorReadSummary: isRecompose ? (params.priorReadSummary ?? null) : null,
+    priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
   });
 
   return { composedMessage, metadata };
@@ -646,6 +704,10 @@ export function extractCompositionMetadata(args: {
 }): FirstReadMetadata {
   const text = args.composedMessage.toLowerCase();
   const isRecompose = args.mode === 'value_first_recompose';
+  // Both the recompose and the declared upgrade are DELTAS off a prior Read, so
+  // both carry a PriorReadSummary and both must not re-open on the prior's first
+  // sentence — the repeated_opening probe is meaningful for either.
+  const threadsPrior = isRecompose || args.mode === 'declared_upgrade';
 
   const layers_used = ['L1', 'L2', 'L3'];
   if (args.goalSummary) layers_used.push('L5');
@@ -670,13 +732,13 @@ export function extractCompositionMetadata(args: {
 
   const breakdown_cited = detectBreakdownCited(args.composedMessage, args.spendingBreakdown);
 
-  // Repeated-opening probe: a well-formed delta recompose must NOT open on the
-  // prior Read's first sentence. Only meaningful in recompose mode with a prior
-  // sentence on hand.
+  // Repeated-opening probe: a well-formed delta (recompose OR declared upgrade)
+  // must NOT open on the prior Read's first sentence. Only meaningful when a
+  // prior sentence is on hand.
   const priorFirst = args.priorReadSummary?.firstSentence
     ? args.priorReadSummary.firstSentence.toLowerCase().replace(/\s+/g, ' ').trim()
     : null;
-  const repeated_opening = isRecompose && priorFirst
+  const repeated_opening = threadsPrior && priorFirst
     ? firstSentenceOf(args.composedMessage) === priorFirst
     : false;
 
