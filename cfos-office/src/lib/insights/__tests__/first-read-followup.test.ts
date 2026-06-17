@@ -289,6 +289,35 @@ describe('snapshotConversationMetadata', () => {
     const payload = find(client, 'conversations', 'update')[0].value as Record<string, unknown>
     expect(payload.metadata).toEqual({ x: 1 })
   })
+
+  // ── Returned-error surfacing (the Supabase client returns `{ error }`, it does
+  //    NOT throw). These guard the idempotency machinery: markUpgraded routes
+  //    through here, and the upgrade route's retry/catch only engages on a THROW.
+  //    A reverted fix (dropping the `error` checks) would let these resolve and
+  //    FAIL these assertions.
+
+  it('throws when the metadata UPDATE returns an error', async () => {
+    const client = mockClient({
+      // read-back succeeds; the write returns a DB error (no `.select()`, so it
+      // resolves through the awaitable `then` → updateNoSelectResult).
+      selectResult: { data: { metadata: { a: 1 } }, error: null },
+      updateNoSelectResult: { error: { message: 'update boom' } },
+    })
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      snapshotConversationMetadata(client as any, { conversationId: 'c1', metadata: { b: 2 } }),
+    ).rejects.toThrow(/update boom/)
+  })
+
+  it('throws when the metadata read-back returns an error', async () => {
+    const client = mockClient({
+      selectResult: { data: null, error: { message: 'read boom' } },
+    })
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      snapshotConversationMetadata(client as any, { conversationId: 'c1', metadata: { b: 2 } }),
+    ).rejects.toThrow(/read boom/)
+  })
 })
 
 describe('refreshMerchantAggregates', () => {
@@ -407,13 +436,42 @@ describe('claimUpgradeInProgress', () => {
 
   it('returns claimed=false when the guarded write matches no row (lost the race)', async () => {
     // Force the zero-row outcome directly to model a concurrent caller having
-    // stamped the row between our read and the write's recheck.
+    // stamped the row between our read and the write's recheck. This is a
+    // LEGITIMATE not-claimed result (no error), so it must NOT throw — the
+    // distinction the returned-error checks must preserve.
     const client = mockClient({
       selectResult: { data: { metadata: {} }, error: null },
       updateResult: { data: null, error: null },
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(await claimUpgradeInProgress(client as any, 'c1')).toEqual({ claimed: false })
+  })
+
+  // ── Returned-error surfacing. A DB error is DIFFERENT from a zero-row "not
+  //    claimed" result: a failed query must THROW, a clean zero-row match must
+  //    NOT. A reverted fix would let these resolve and FAIL.
+
+  it('throws when the stamp READ returns an error', async () => {
+    const client = mockClient({
+      selectResult: { data: null, error: { message: 'claim read boom' } },
+    })
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      claimUpgradeInProgress(client as any, 'c1'),
+    ).rejects.toThrow(/claim read boom/)
+  })
+
+  it('throws when the claim WRITE returns an error (vs. a clean zero-row not-claimed)', async () => {
+    const client = mockClient({
+      // read-back is clean (passes the short-circuit), but the conditional
+      // update returns a DB error — a real failure, not a lost race.
+      selectResult: { data: { metadata: {} }, error: null },
+      updateResult: { data: null, error: { message: 'claim write boom' } },
+    })
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      claimUpgradeInProgress(client as any, 'c1'),
+    ).rejects.toThrow(/claim write boom/)
   })
 })
 
@@ -436,5 +494,34 @@ describe('clearUpgradeInProgress / markUpgraded', () => {
     expect(meta[UPGRADE_IN_PROGRESS_KEY]).toBe(false)
     expect(meta.upgrade_metadata).toEqual({ x: 1 })
     expect(meta.keep).toBe(1)
+  })
+
+  it('markUpgraded throws when the final stamp WRITE returns an error', async () => {
+    // The upgrade route's idempotency hinges on this throw: its retry loop +
+    // `appended`-guard catch only engage on a THROWN error. The Supabase client
+    // returns `{ error }` (it doesn't throw), so without surfacing it markUpgraded
+    // would "succeed" silently with value_first_upgraded unset → a re-tap could
+    // append a SECOND Read. A reverted fix FAILS this assertion.
+    const client = mockClient({
+      selectResult: { data: { metadata: { [UPGRADE_IN_PROGRESS_KEY]: true } }, error: null },
+      updateNoSelectResult: { error: { message: 'stamp boom' } },
+    })
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      markUpgraded(client as any, 'c1', { upgrade_metadata: { x: 1 } }),
+    ).rejects.toThrow(/stamp boom/)
+  })
+
+  it('clearUpgradeInProgress throws when its write returns an error', async () => {
+    // safeClear in the route exists precisely to swallow this so it can't mask
+    // the chosen exit reason; the throw itself is the contract.
+    const client = mockClient({
+      selectResult: { data: { metadata: { [UPGRADE_IN_PROGRESS_KEY]: true } }, error: null },
+      updateNoSelectResult: { error: { message: 'clear boom' } },
+    })
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      clearUpgradeInProgress(client as any, 'c1'),
+    ).rejects.toThrow(/clear boom/)
   })
 })

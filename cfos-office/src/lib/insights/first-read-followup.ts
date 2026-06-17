@@ -113,24 +113,46 @@ export type SnapshotConversationMetadataArgs = {
  * spread `prev` then `patch` (patch wins on key collision), write back the merge
  * plus a fresh `updated_at`. A shallow merge — nested objects in the patch
  * replace, they don't deep-merge — which is exactly what the routes do.
+ *
+ * Throws on a returned DB error for BOTH the read-back and the write — the
+ * Supabase JS client surfaces query failures in `{ error }` rather than
+ * throwing, so an unchecked `.update()` would "succeed" silently even when the
+ * stamp never landed. Surfacing it as a thrown error matches
+ * `appendAssistantFollowup` (the established pattern in this file) and, for the
+ * upgrade route, is load-bearing: `markUpgraded` routes through here and the
+ * route's retry loop + `appended`-guard catch depend on a failed final stamp
+ * THROWING (a silent no-op would let the route report `upgraded:true` while
+ * `value_first_upgraded` stays unset, re-opening the duplicate-append window).
  */
 export async function snapshotConversationMetadata(
   svc: AnySupabase,
   { conversationId, metadata }: SnapshotConversationMetadataArgs,
 ): Promise<void> {
-  const { data: row } = await svc
+  const { data: row, error: readError } = await svc
     .from('conversations')
     .select('metadata')
     .eq('id', conversationId)
     .maybeSingle()
 
+  if (readError) {
+    throw new Error(
+      `snapshotConversationMetadata: metadata read-back failed: ${readError.message}`,
+    )
+  }
+
   const prev = (row?.metadata as Record<string, unknown> | null) ?? {}
   const merged = { ...prev, ...metadata }
 
-  await svc
+  const { error: writeError } = await svc
     .from('conversations')
     .update({ metadata: merged, updated_at: new Date().toISOString() })
     .eq('id', conversationId)
+
+  if (writeError) {
+    throw new Error(
+      `snapshotConversationMetadata: metadata update failed: ${writeError.message}`,
+    )
+  }
 }
 
 /**
@@ -195,12 +217,18 @@ export async function claimUpgradeInProgress(
   svc: AnySupabase,
   conversationId: string,
 ): Promise<ClaimResult> {
-  // 1. Read current stamps.
-  const { data: row } = await svc
+  // 1. Read current stamps. A returned DB error here is a real failure (not a
+  //    "no such row" — that surfaces as data:null) and must THROW so the caller
+  //    treats the claim as unresolved rather than silently denying it.
+  const { data: row, error: readError } = await svc
     .from('conversations')
     .select('metadata')
     .eq('id', conversationId)
     .maybeSingle()
+
+  if (readError) {
+    throw new Error(`claimUpgradeInProgress: stamp read failed: ${readError.message}`)
+  }
 
   const prev = (row?.metadata as Record<string, unknown> | null) ?? {}
   if (prev[UPGRADED_KEY] || prev[UPGRADE_IN_PROGRESS_KEY]) {
@@ -219,7 +247,7 @@ export async function claimUpgradeInProgress(
   //    Plain `.neq` here would be WRONG: NULL <> 'true' is NULL, excluding the
   //    absent-key row and denying every legitimate first claim.
   const merged = { ...prev, [UPGRADE_IN_PROGRESS_KEY]: true }
-  const { data: updated } = await svc
+  const { data: updated, error: writeError } = await svc
     .from('conversations')
     .update({ metadata: merged, updated_at: new Date().toISOString() })
     .eq('id', conversationId)
@@ -228,14 +256,25 @@ export async function claimUpgradeInProgress(
     .select('id')
     .maybeSingle()
 
-  // No row came back → the WHERE guard matched nothing (already stamped, or a
-  // concurrent claim beat us to it).
+  // A returned DB error is a real failure (different from a legitimate zero-row
+  // result) and must THROW so the caller doesn't mistake a broken query for a
+  // lost race. Crucially, this is checked BEFORE the zero-row interpretation
+  // below: a failed query is an error; a clean zero-row match is NOT.
+  if (writeError) {
+    throw new Error(`claimUpgradeInProgress: claim write failed: ${writeError.message}`)
+  }
+
+  // No error AND no row came back → the WHERE guard matched nothing (already
+  // stamped, or a concurrent claim beat us to it). That is a legitimate
+  // not-claimed outcome, not an error.
   return { claimed: Boolean(updated?.id) }
 }
 
 /**
  * Clear the in-progress flag (e.g. composition failed and we want to allow a
- * retry). Thin wrapper over snapshotConversationMetadata.
+ * retry). Thin wrapper over snapshotConversationMetadata — inherits its
+ * throw-on-DB-error behaviour. (The upgrade route wraps its clears in `safeClear`
+ * precisely because a thrown clear must not mask the real exit reason.)
  */
 export async function clearUpgradeInProgress(
   svc: AnySupabase,
@@ -251,6 +290,12 @@ export async function clearUpgradeInProgress(
  * Stamp the final `value_first_upgraded = true` and clear the in-progress flag.
  * Merges extra metadata (e.g. the upgrade composition snapshot) in the same
  * write so callers don't need a second round-trip.
+ *
+ * Throws on a returned DB error (via snapshotConversationMetadata) — this is
+ * load-bearing for the upgrade route's idempotency: its retry loop catches the
+ * throw to retry, and on exhaustion re-throws into the `appended`-guard catch so
+ * a delivered-but-unstamped Read blocks retries rather than reporting success
+ * with the stamp unset.
  */
 export async function markUpgraded(
   svc: AnySupabase,
