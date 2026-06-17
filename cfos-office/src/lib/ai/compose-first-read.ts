@@ -483,6 +483,10 @@ export interface DeclaredReadFacts {
   goalName: string | null
   monthlyRequiredSaving: number | null
   percentOfIncome: number | null
+  /** Free cash left after the goal contribution — a MODELLED cushion (not observed
+   *  spend). null when there's no goal pace to subtract. Computed server-side so the
+   *  model cites it verbatim instead of doing the arithmetic itself (Rule 2). */
+  unallocated: number | null
   currency: string
 }
 
@@ -496,6 +500,9 @@ export function buildDeclaredFacts(input: {
   const mrs = input.goal?.monthlyRequiredSaving ?? null
   const percentOfIncome =
     mrs != null && input.income > 0 ? Math.round((mrs / input.income) * 100) : null
+  // The cushion left after the goal contribution — computed here so the model
+  // never derives it itself (Rule 2). null when there's no pace to subtract.
+  const unallocated = mrs != null ? Math.max(0, freeCash - mrs) : null
   return {
     income: input.income,
     totalFixedCosts: input.totalFixedCosts,
@@ -503,6 +510,7 @@ export function buildDeclaredFacts(input: {
     goalName: input.goal?.name ?? null,
     monthlyRequiredSaving: mrs,
     percentOfIncome,
+    unallocated,
     currency: input.currency,
   }
 }
