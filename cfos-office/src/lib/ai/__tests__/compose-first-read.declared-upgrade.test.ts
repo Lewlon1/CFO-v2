@@ -5,7 +5,10 @@ import {
   type FirstReadComposeInput,
   type PriorReadSummary,
 } from '../prompts/first-read';
-import { isDeclaredUpgradeInsufficient } from '../compose-first-read';
+import {
+  isDeclaredUpgradeInsufficient,
+  declaredUpgradeDeclineResult,
+} from '../compose-first-read';
 import { checkReadHardRules } from '../read-judge';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
@@ -185,6 +188,9 @@ describe('FIRST_READ_SYSTEM_PROMPT_DECLARED_UPGRADE', () => {
 });
 
 describe('declared_upgrade hard-rule compliance (read-judge, mode value_first)', () => {
+  // Mode coupling: declared_upgrade reuses value_first's hard-rule contract (same
+  // single start_value_map_real close), so it is judged under mode 'value_first'.
+  // If the two ever diverge, update both this test and read-judge together.
   // A representative declared_upgrade-shaped Read. Single start_value_map_real
   // close, no question-final sentence, ≤250 words, "— C." on its own line.
   const sampleRead = `You told me your fixed costs ran about €1,850 a month. The statements say €2,140 — the standing bills you listed missed roughly €290 a month in committed spend.
@@ -193,7 +199,7 @@ That changes the free-cash picture. **Eating out** ran €680 over the window, t
 
 Two things the statements raise that your declared numbers couldn't:
 – **Aldi**, €431 — primary shop, or a top-up alongside another?
-– **Uber**, €431 — one-off, or a habit forming?
+– **Uber**, €174 — one-off, or a habit forming?
 
 Once those land, the Value Map is where this spending gets weighed against what you actually value.
 
@@ -235,5 +241,31 @@ describe('isDeclaredUpgradeInsufficient — decline-on-thin predicate', () => {
 
   it('returns false when both clusters and hooks are present', () => {
     expect(isDeclaredUpgradeInsufficient(oneCluster, oneHook)).toBe(false);
+  });
+});
+
+describe('declaredUpgradeDeclineResult — decline-on-thin RETURN contract', () => {
+  // The route keys off composed.insufficientData to skip appending an upgrade and
+  // leave the declared Read as the last word. Lock that contract here so the
+  // compose-layer decline return — not just the predicate — is covered.
+  it('flags insufficientData with an empty message and the declared_upgrade mode', () => {
+    const result = declaredUpgradeDeclineResult('target');
+    expect(result.insufficientData).toBe(true);
+    expect(result.composedMessage).toBe('');
+    expect(result.metadata.mode).toBe('declared_upgrade');
+  });
+
+  it('threads the read recipe through and stays a non-recompose, non-hook decline', () => {
+    const result = declaredUpgradeDeclineResult('control');
+    expect(result.metadata.read_recipe).toBe('control');
+    expect(result.metadata.is_recompose).toBe(false);
+    expect(result.metadata.hook_candidates).toBeNull();
+    expect(result.metadata.clusters_referenced).toEqual([]);
+  });
+
+  it('accepts a null recipe (no goal/entry context) without breaking the contract', () => {
+    const result = declaredUpgradeDeclineResult(null);
+    expect(result.insufficientData).toBe(true);
+    expect(result.metadata.read_recipe).toBeNull();
   });
 });

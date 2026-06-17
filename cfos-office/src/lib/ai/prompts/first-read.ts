@@ -478,11 +478,14 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
 }
 
 export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
-  // declared_upgrade ALSO threads a priorReadSummary (the declared prior), so the
-  // recompose machinery can no longer be inferred from `priorReadSummary != null`
-  // alone — it must read the explicit mode. The Value-Map-sort recompose is ONLY
-  // value_first_recompose; declared_upgrade renders the declared ALREADY-SAID
-  // contract and the value-first hook close instead.
+  // INVARIANT: any caller passing a priorReadSummary MUST set `mode` to a delta
+  // mode — 'value_first_recompose' (Value-Map-sort recompose) or 'declared_upgrade'
+  // (post-upload delta). The `mode == null` branch below is the LEGACY recompose
+  // caller ONLY (it predates explicit modes and is inferred from summary presence).
+  // declared_upgrade ALSO threads a priorReadSummary (the declared prior), which is
+  // exactly why summary-presence can no longer select the recompose machinery — it
+  // must read the explicit mode. Do NOT reintroduce summary-presence inference for a
+  // third mode: add an explicit mode instead.
   const isDeclaredUpgrade = input.mode === 'declared_upgrade';
   const isRecompose = input.mode === 'value_first_recompose' || (input.mode == null && input.priorReadSummary != null);
   const isValueFirst = isDeclaredUpgrade || (input.hookCandidates?.length ?? 0) > 0;

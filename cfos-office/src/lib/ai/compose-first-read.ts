@@ -87,6 +87,37 @@ export function isDeclaredUpgradeInsufficient(
   return usableClusters.length === 0 || hookCandidates.length === 0;
 }
 
+/**
+ * Builds the decline-on-thin RETURN for the declared_upgrade path: an empty
+ * message plus the typed `insufficientData` signal the route keys off to skip
+ * appending an upgrade. Pure (no Bedrock/Supabase) so the decline contract —
+ * `insufficientData === true`, `composedMessage === ''`, `metadata.mode ===
+ * 'declared_upgrade'` — is unit-testable, and so the metadata literal lives in
+ * one place instead of being hand-maintained inline.
+ */
+export function declaredUpgradeDeclineResult(
+  readRecipe: ReadRecipe | null,
+): FirstReadComposeOutput {
+  return {
+    composedMessage: '',
+    metadata: {
+      layers_used: [],
+      features_cited: [],
+      gap_present: false,
+      clusters_referenced: [],
+      levers_offered: [],
+      blocker_field: null,
+      mode: 'declared_upgrade',
+      hook_candidates: null,
+      read_recipe: readRecipe,
+      breakdown_cited: false,
+      is_recompose: false,
+      repeated_opening: false,
+    },
+    insufficientData: true,
+  };
+}
+
 export async function composeFirstRead(params: {
   userId: string;
   supabase?: SupabaseClient;
@@ -208,24 +239,7 @@ export async function composeFirstRead(params: {
   // the route can detect (insufficientData) so it can leave the declared Read as
   // the last word instead of appending an empty or hallucinated upgrade.
   if (isDeclaredUpgrade && isDeclaredUpgradeInsufficient(usableClusters, hookCandidates)) {
-    return {
-      composedMessage: '',
-      metadata: {
-        layers_used: [],
-        features_cited: [],
-        gap_present: false,
-        clusters_referenced: [],
-        levers_offered: [],
-        blocker_field: null,
-        mode: 'declared_upgrade',
-        hook_candidates: null,
-        read_recipe: readRecipe,
-        breakdown_cited: false,
-        is_recompose: false,
-        repeated_opening: false,
-      },
-      insufficientData: true,
-    };
+    return declaredUpgradeDeclineResult(readRecipe);
   }
 
   const userPrompt = buildFirstReadUserPrompt({
