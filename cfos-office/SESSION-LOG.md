@@ -2916,3 +2916,51 @@ When Lewis runs the full eval, the personas to watch for failure modes:
 - A residual the model derives in prose (free cash − contribution) is a Rule 2 violation even when the arithmetic is correct — pre-compute and pass it as a fact, label it MODELLED.
 - Declared-mode thirst comes from goal-tied STAKES (constitution §2: urgency from the goal-gap, not motivation): "fixed costs is the soft number; if it is higher the goal slips" beats "statements change that". Never frame a modelled leftover as observed spend.
 - Verified: typecheck, build, AI vitest 76/76. NOT re-captured: `tests/onboarding/fixtures/reads/skip-upload-declared.captured.txt` (live Bedrock recapture, runtime follow-up — do not hand-edit).
+
+## 2026-06-17 — In-chat declared→actual upgrade (declared-Read user uploads statements)
+
+**What shipped.** A declared-mode first-Read user taps the Read's `[CTA:start_statement_upload]` →
+an in-sheet uploader opens in the chat sheet (reusing the onboarding `UploadWizard`, NOT the
+standalone cash-flow page) → after import a new route appends a sharper transaction-based Read as a
+follow-up in the SAME conversation, framed as a declared→actual delta and closing on the Value-Map CTA.
+Too-thin uploads decline (declared Read stays). Built subagent-driven (5 tasks, two-stage review each)
+from the revised plan `~/.claude/plans/launch-selected-element-element-tag-div-mutable-canyon.md`.
+Pieces: `declared_upgrade` compose mode + prompt/few-shot (`compose-first-read.ts`, `prompts/first-read.ts`);
+shared `src/lib/insights/first-read-followup.ts`; route `src/app/api/insights/upgrade-declared-read/route.ts`;
+`InSheetStatementUpload` + `UpgradeUploadSurface` + `ChatProvider.uploadSurfaceOpen`; `ChatCTA` button +
+`upgrade-response.ts` decision table.
+
+**Lessons (the load-bearing gotchas).**
+- **`value_first` + `priorReadSummary` is a silent no-op.** `composeFirstRead` only threads the summary
+  when `mode === 'value_first_recompose'`, and the prompt builder re-derives recompose-ness from
+  `priorReadSummary != null`. So "compose as value_first, pass a declared summary" would have re-stated
+  the declared picture (Rule 6) AND, if forced, lit up the Value-Map "WHAT YOU JUST SORTED" block for a
+  sort that never happened. Fix: a dedicated `declared_upgrade` mode with its own prompt + re-derived
+  few-shot (Rule 7), threaded via `threadsPrior = isRecompose || mode === 'declared_upgrade'`.
+- **`read-judge` is NOT a runtime gate** — only the nightly `wow-aggregate` cron + tests import it, and
+  its mode type is only `default|value_first`. So the route asserts `checkReadHardRules(text,
+  {mode:'value_first'})` before appending (`bad_close` → don't ship). Also: `value_first` only emits the
+  `start_value_map_real` close when `hookCandidates` is non-empty, else it silently degrades to the
+  default lever CTA — `declared_upgrade` instead DECLINES on empty clusters/hooks (`insufficientData`).
+- **PostgREST `.neq('metadata->>key','true')` excludes ABSENT keys** (`NULL <> 'true'` = NULL → row not
+  matched). The double-tap claim guard must use null-aware `.or('key.is.null,key.neq.true')`
+  (`IS DISTINCT FROM 'true'`) or the FIRST legitimate claim returns claimed:false. DB-verified.
+- **Supabase JS returns query errors in `{ error }` (does not throw).** Metadata-write helpers
+  (`snapshotConversationMetadata`/`markUpgraded`/`claimUpgradeInProgress`) must check `{ error }` and
+  throw, or the idempotency stamp can fail silently → `upgraded:true` unstamped → re-tap double-appends.
+- **Double-tap / duplicate-append:** client `inFlight` ref (mirror `value-map-orchestrator.tsx`) + a
+  server claim stamp set BEFORE compose. The final `value_first_upgraded` stamp is written AFTER the
+  append, so on a post-append stamp failure the route does NOT clear the in-progress flag (retry 409s
+  rather than appending a second Read). `messages` has no `updated_at` (never set it); `conversations` does.
+- **Reuse, don't clone:** the conversation lookup / append / metadata-snapshot / merchant-aggregate
+  refresh logic is shared by recompose + the new route via `first-read-followup.ts`. No migrations — all
+  state on `conversations.metadata` jsonb (Rule 3). `InSheetStatementUpload` stays generic; upgrade-only
+  POST/loading/error/retry lives in the chat-only `UpgradeUploadSurface` wrapper.
+
+**Verified.** `npm run typecheck`, `npm run lint` (0 errors), `npm run build` all green; full
+`npm run test` = **1236 passing** (106 files). Per-task spec + code-quality reviews + a final
+whole-feature seam review, all ✅.
+**NOT run (runtime follow-ups):** live Bedrock end-to-end; the staging fixture
+`2f493072-…`/`7c85accf-…` now has 105 txns (no longer a clean 0-txn declared user) — reset it on
+staging (delete txns + import batch + clear the upgrade stamps) before the manual smoke per the plan's
+Fixture Reset section. Also pending: `provider.ts` default model-id divergence (separate task).
