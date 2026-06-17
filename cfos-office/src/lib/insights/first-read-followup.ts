@@ -168,19 +168,28 @@ export type ClaimResult = { claimed: boolean }
  * flag nor `value_first_upgraded` is already truthy, and reports whether the
  * claim was won.
  *
- * Concurrency note: the Supabase JS client can't express a single conditional
- * jsonb update guarded on key-absence, so this is a read-then-conditional-write.
- * To shrink (not eliminate) the race we re-read inside the write's filter:
- *
- *   .eq('metadata->>value_first_upgrade_in_progress' IS NOT 'true')  — via .not
- *
- * The write only lands on rows that still lack BOTH stamps at write time, so two
- * racing callers cannot both flip the flag in the DB. We then re-read to confirm
- * THIS caller is the one that set it. Residual race: two callers could both see
- * the guarded update report success in pathological ordering, but the row's flag
- * is single-valued so the confirming read disambiguates. Good enough for a
+ * Concurrency note: the real guard is the UPDATE's WHERE clause, not the
+ * pre-read. The write only lands on rows where BOTH stamps are still "not true"
+ * at write time, so two racing callers on a clean `{}` row cannot both flip the
+ * flag: Postgres row-locks the row, the first writer sets in_progress, and the
+ * second writer's recheck of the WHERE clause then matches zero rows. `claimed`
+ * reflects whether a row actually came back (`RETURNING id`). Good enough for a
  * one-click UI guard; a fully-atomic version would need an RPC (out of scope —
  * no new migrations).
+ *
+ * NULL pitfall (the bug this guards against): a JSONB key that is ABSENT yields
+ * `metadata->>key = NULL`, and `NULL <> 'true'` is NULL — NOT true — so a plain
+ * `.neq('metadata->>key', 'true')` filter EXCLUDES the row. That would deny the
+ * normal first-claim case (metadata `{}`, no stamps) entirely. We need IS
+ * DISTINCT FROM 'true' semantics: an absent key (or a `false` value) must count
+ * as "not set". With the JS client we express that per key as
+ * `(metadata->>key IS NULL OR metadata->>key <> 'true')` via a single `.or(...)`
+ * call. PostgREST ANDs chained `.or()` calls together, so two separate
+ * `.or('K.is.null,K.neq.true')` calls give the AND-of-ORs we want:
+ *   WHERE id = X
+ *     AND (in_progress IS NULL OR in_progress <> 'true')   -- in_progress IS DISTINCT FROM 'true'
+ *     AND (upgraded    IS NULL OR upgraded    <> 'true')   -- upgraded    IS DISTINCT FROM 'true'
+ * Do NOT revert these to bare `.neq` — that reintroduces the NULL exclusion bug.
  */
 export async function claimUpgradeInProgress(
   svc: AnySupabase,
@@ -198,20 +207,29 @@ export async function claimUpgradeInProgress(
     return { claimed: false }
   }
 
-  // 2. Conditional write: only rows where BOTH stamps are still absent at write
-  //    time get the in-progress flag. The metadata->>key filters reject rows a
-  //    racing caller may have already stamped between our read and write.
+  // 2. Conditional write: only rows where BOTH stamps are still "not true" at
+  //    write time get the in-progress flag, rejecting rows a racing caller may
+  //    have stamped between our read and write. Each `.or(...)` is NULL-aware —
+  //    `K.is.null,K.neq.true` ≡ `(K IS NULL OR K <> 'true')` ≡ K IS DISTINCT
+  //    FROM 'true' — so an ABSENT key (the normal `{}` first-claim case) and a
+  //    `false` value both count as "not set" and the row IS updated. PostgREST
+  //    ANDs the two `.or()` calls, so the effective guard is:
+  //      id = X AND in_progress IS DISTINCT FROM 'true'
+  //             AND upgraded    IS DISTINCT FROM 'true'
+  //    Plain `.neq` here would be WRONG: NULL <> 'true' is NULL, excluding the
+  //    absent-key row and denying every legitimate first claim.
   const merged = { ...prev, [UPGRADE_IN_PROGRESS_KEY]: true }
   const { data: updated } = await svc
     .from('conversations')
     .update({ metadata: merged, updated_at: new Date().toISOString() })
     .eq('id', conversationId)
-    .neq('metadata->>' + UPGRADED_KEY, 'true')
-    .neq('metadata->>' + UPGRADE_IN_PROGRESS_KEY, 'true')
+    .or(`metadata->>${UPGRADE_IN_PROGRESS_KEY}.is.null,metadata->>${UPGRADE_IN_PROGRESS_KEY}.neq.true`)
+    .or(`metadata->>${UPGRADED_KEY}.is.null,metadata->>${UPGRADED_KEY}.neq.true`)
     .select('id')
     .maybeSingle()
 
-  // No row came back → a concurrent claim beat us to it.
+  // No row came back → the WHERE guard matched nothing (already stamped, or a
+  // concurrent claim beat us to it).
   return { claimed: Boolean(updated?.id) }
 }
 
