@@ -60,6 +60,10 @@ export function UpgradeUploadSurface() {
           closeUploadSurface()
           return
         case 'notify_close':
+          // Ordering contract: close the upload surface BEFORE calling notify().
+          // The notice banner only renders in the message-list arm of ChatSheet
+          // (it's hidden while the upload surface is open), so these two calls
+          // must not be swapped — notify before close would drop the nudge.
           closeUploadSurface()
           notify(action.message)
           return
@@ -70,6 +74,12 @@ export function UpgradeUploadSurface() {
         case 'retry':
           setPhase('error')
           return
+        default: {
+          // Exhaustiveness guard: adding a new UpgradeAction variant without a
+          // case above becomes a compile error here.
+          const _exhaustive: never = action
+          return _exhaustive
+        }
       }
     } catch (err) {
       // Network/parse failure before we got a verdict — retryable. The upload
