@@ -2882,3 +2882,37 @@ When Lewis runs the full eval, the personas to watch for failure modes:
 - **Persona E2E assertions (manifest item) NOT shipped — follow-up.** The onboarding persona harness (`tests/onboarding/runner/playwright-driver.ts`) drives only the LEGACY Marcus path (`onboarding_route: 'value_map'`, value_map_done → upload); it does not walk the value-first upload → first-read → value-map → recompose → chat why-beat sequence, and does not capture the recompose / why-beat as distinct artifacts. Adding ≤10-card / delta-recompose / why-beat assertions requires a driver extension that cannot be validated without a running app + Bedrock. Shipping unrunnable assertions would be worse than recording the gap.
 - Salience uses spend *share*, not absolute — a lone tiny merchant still scores high (correct for relative selection; the `MIN_SALIENCE` floor only trips when many candidates dilute share AND there's no behavioural loudness).
 - `merchant_aggregates` is a service-role-only materialized view (RLS revoked from authenticated) — the value-map page must use the service client for `selectValueMapCards`, not the user client.
+
+## 2026-06-16 — Merchant Value Map mark not reaching category-level Read
+
+**Symptom.** User marked merchant "underground bar & grill" as investment (2/5 conf); the first Read still said the eating-&-drinking *category* had "nothing in your Foundation or Investment columns".
+
+**Root cause (workflow-verified vs live staging).** Two gaps, both required:
+1. The client Value Map writer (`value-map-flow.tsx`) seeded a `value_category_rules` merchant rule (`source=value_map_personal`, conf=`r.confidence/5`) but NEVER updated the `transactions` row — unlike the server retake path (`api/value-map/personal/route.ts`), which hard-confirms the txn. So the txn stayed at its category default (`leak`/`category_default`/`value_confirmed_by_user=false`).
+2. `buildUserValueProfile` routes `match_type=merchant` rules into `by_merchant` only (never `categoryAccum`), and the first-read "columns" sentence is category-keyed (`by_category`). With no merchant→category rollup and the txn unconfirmed, `eat_drinking_out` had 0 weighted category signal < `MIN_SIGNAL_FOR_CONFIDENCE=3` → absent from `by_category` → model reads the absence as "nothing in Foundation/Investment". The 2/5 confidence is a red herring (gates nothing; 0.40 clears the 0.25 predictor floor). Snapshot date / profile_id-vs-user_id keying were NOT implicated.
+
+**Fix (A+B).**
+- B (`value-map-flow.tsx`): after the rule upsert, back-propagate the call onto the carded real transactions (`value_category`, `value_confirmed_by_user=true`, `value_confidence=1.0`, `prediction_source=user_confirmed`, `confirmed_at`). RLS `transactions_own FOR ALL` permits the own-row client update. Real cards only (`!cardLookup.has(id)`).
+- A (`value-profile.ts`): a category with >=1 `value_confirmed_by_user` transaction now bypasses `MIN_SIGNAL_FOR_CONFIDENCE` (a deliberate user sort is confident on its own; the gate was only meant to suppress thin/AI-seeded signal). `addSignal` now returns whether it added; tx loop records `confirmedCategories`.
+
+**Lessons.**
+- Two writers complete a real-transactions Value Map: the server retake (`api/value-map/personal`) confirms transactions; the client flow (`value-map-flow.tsx`) historically did not. Keep them in sync.
+- `by_merchant` and `by_category` are separate dictionaries with NO rollup; any category-level claim is blind to merchant-level marks unless the signal also rides the (category-keyed) transaction path.
+- `MIN_SIGNAL_FOR_CONFIDENCE=3` silently buried single deliberate user classifications — a Rule 6 ("pay back every input") hazard.
+- Existing orphaned classifications (rule written pre-fix, txn still unconfirmed) are reconciled by joining `value_map_results.transaction_id` → `transactions` (precise; no merchant-string matching). Staging backfill offered, not yet applied.
+- Verified: `tsc` clean, `next build` clean, value-map+AI vitest 107/107 (incl. 2 new gate-exemption tests). NOT run: live Bedrock recompose (needs app+DB).
+
+## 2026-06-17 — Declared first-Read close: coherence + thirst + Rule 2
+
+**Symptom.** The skip-upload (declared-mode) first Read closed on "where that €620 actually lands" — but €620 is a MODELLED residual (free cash − goal contribution), not observed spend that "lands" anywhere. Flat, thirst-free close ("Three months of real statements change that."). And the €620 was model-computed arithmetic (1478−858) — a quiet Rule 2 break (the model never does arithmetic; validators treat hallucinated figures as bugs).
+
+**Fix.**
+- `compose-first-read.ts`: added `unallocated: number|null` to `DeclaredReadFacts`; `buildDeclaredFacts` now pre-computes `mrs != null ? max(0, freeCash - mrs) : null` so the cushion is a server fact, not model arithmetic.
+- `prompts/first-read.ts` `buildDeclaredUserPrompt`: injects the cushion as a labelled fact ("a MODELLED cushion … NOT observed spend; cite verbatim, never recompute").
+- `FIRST_READ_SYSTEM_PROMPT_DECLARED`: rewrote THE HONEST CLOSE to hook on the real uncertainty — the plan rests on two estimates, fixed costs is the one people undercount; if higher, the cushion thins and the goal slips; real statements settle it. Added BANNED entries: deriving a residual yourself, and framing a modelled cushion as money you can "watch land". Re-derived the few-shot SHAPE in the same edit (Rule 7).
+- Test: `compose-first-read.declared.test.ts` asserts `unallocated` (650 for the deposit case, null no-goal, floored 0 when contribution > free cash).
+
+**Lessons.**
+- A residual the model derives in prose (free cash − contribution) is a Rule 2 violation even when the arithmetic is correct — pre-compute and pass it as a fact, label it MODELLED.
+- Declared-mode thirst comes from goal-tied STAKES (constitution §2: urgency from the goal-gap, not motivation): "fixed costs is the soft number; if it is higher the goal slips" beats "statements change that". Never frame a modelled leftover as observed spend.
+- Verified: typecheck, build, AI vitest 76/76. NOT re-captured: `tests/onboarding/fixtures/reads/skip-upload-declared.captured.txt` (live Bedrock recapture, runtime follow-up — do not hand-edit).

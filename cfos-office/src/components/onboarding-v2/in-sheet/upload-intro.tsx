@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
-import { CfoThinking } from '@/components/brand/CfoThinking'
 import { formatMoney } from '@/lib/utils/money'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 import { skipUploadToEssentials } from '@/app/onboarding-v2/skip-upload-actions'
@@ -11,47 +10,40 @@ import { skipUploadToEssentials } from '@/app/onboarding-v2/skip-upload-actions'
 type Props = {
   /** Active goal, or null on the skip/defer path. */
   goal: OnboardingGoalSummary | null
-  /** Called when the user taps Continue to proceed to the uploader. */
+  /** Called when the user taps Upload to proceed to the uploader. */
   onContinue: () => void
 }
 
-// Controls the delay before the "Getting ready…" indicator appears — not an
-// auto-advance. Reduced-motion users get a shorter delay.
-const DWELL_MS = 2800
-const DWELL_REDUCED_MS = 600
-
 /**
- * Trust-building bridge between the goal beat and the statement-upload ask.
- * Instead of snapping straight from the goal chat to the uploader, the CFO
- * acknowledges the goal by name, says *why* the statements matter, shows a brief
- * "preparing" beat, then hands off to the uploader. Advancing is now an explicit
- * tap — 'Continue' proceeds to the uploader, or 'I don't have a statement handy'
- * skips upload and advances straight to the income/rent beat.
+ * Trust-building bridge between the goal beat and the statement upload. The CFO
+ * acknowledges the goal by name and says *why* the statements matter, then puts
+ * the next action front and centre: a single primary CTA to upload, with one
+ * de-emphasised escape hatch ('I don't have a statement handy') that skips
+ * upload and advances straight to the income/rent beat. No passive "preparing"
+ * dwell — the screen never implies work is happening while it waits on a tap.
  */
 export function UploadIntro({ goal, onContinue }: Props) {
-  const [showPreparing, setShowPreparing] = useState(false)
-  const doneRef = useRef(false)
+  const [busy, setBusy] = useState(false)
   const router = useRouter()
 
-  const advance = () => {
-    if (doneRef.current) return
-    doneRef.current = true
+  function handleUpload() {
+    if (busy) return
     onContinue()
   }
 
-  useEffect(() => {
-    const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const dwell = reduced ? DWELL_REDUCED_MS : DWELL_MS
-    const prep = setTimeout(() => setShowPreparing(true), Math.min(900, dwell / 2))
-    return () => {
-      clearTimeout(prep)
-    }
-  }, [])
+  function handleSkip() {
+    if (busy) return
+    setBusy(true)
+    void skipUploadToEssentials()
+      .then(() => router.refresh())
+      .catch((err) => {
+        setBusy(false)
+        console.error('[upload-intro] skip-upload failed', err)
+      })
+  }
 
   return (
-    <div className="px-4 py-6 space-y-4 animate-fade-in">
+    <div className="px-4 py-6 space-y-5 animate-fade-in">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 shrink-0">
           <CFOAvatar size={28} />
@@ -85,31 +77,22 @@ export function UploadIntro({ goal, onContinue }: Props) {
         </div>
       </div>
 
-      {showPreparing && <CfoThinking label="Getting ready to read your statements…" />}
-
-      <div className="flex items-center gap-4">
+      <div className="space-y-3">
         <button
           type="button"
-          onClick={advance}
-          className="text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary"
+          onClick={handleUpload}
+          disabled={busy}
+          className="w-full min-h-[44px] rounded-control bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 text-sm font-semibold px-4 py-3 disabled:opacity-40 transition-colors"
         >
-          Continue
+          Upload my statements
         </button>
         <button
           type="button"
-          onClick={() => {
-            if (doneRef.current) return
-            doneRef.current = true
-            void skipUploadToEssentials()
-              .then(() => router.refresh())
-              .catch((err) => {
-                doneRef.current = false
-                console.error('[upload-intro] skip-upload failed', err)
-              })
-          }}
-          className="text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary"
+          onClick={handleSkip}
+          disabled={busy}
+          className="w-full text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary disabled:opacity-40 transition-colors"
         >
-          I don&apos;t have a statement handy
+          {busy ? 'One moment…' : "I don't have a statement handy"}
         </button>
       </div>
     </div>

@@ -161,11 +161,14 @@ export default async function OfficeLayout({ children }: { children: React.React
     hasImport = (txnCount ?? 0) > 0
   }
 
-  // Progress meter for the essentials + confirm beats. hasFixedCosts keys off
-  // monthly_rent (the canonical first fixed cost, persisted in the essentials
-  // beat — non-null including a legitimate 0 for rent-free users) so the meter
-  // fills during the flow — total_fixed_costs/declared rows aren't persisted
-  // until confirm commits, which is past these beats.
+  // Progress meter for the essentials + confirm beats. Goal and income fill as
+  // the user supplies them; fixed costs is EARNED only when the confirm beat
+  // commits (step → details_confirmed), NOT when rent lands in the essentials
+  // beat. Keying it off monthly_rent lit the chip a beat early — the confirm
+  // screen read 60% when goal+income = 40% is correct, since rent is persisted
+  // in essentials. Both steps that render the meter are pre-confirm, so fixed
+  // costs is always still pending here; the +20 lands as the user leaves for
+  // the Read (where the meter no longer shows).
   let onboardingProgressResult: OnboardingProgressResult | null = null
   if (onboardingStep === 'upload_processing' || onboardingStep === 'details_pending') {
     const { count: goalCount } = await supabase
@@ -177,7 +180,7 @@ export default async function OfficeLayout({ children }: { children: React.React
     onboardingProgressResult = onboardingProgress({
       hasGoal: (goalCount ?? 0) > 0,
       hasIncome: profile?.net_monthly_income != null,
-      hasFixedCosts: profile?.monthly_rent != null,
+      hasFixedCosts: false,
       hasUpload: hasImport,
     })
   }
