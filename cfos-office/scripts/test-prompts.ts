@@ -309,7 +309,7 @@ async function runCase(c: Case): Promise<{ text: string; passed: boolean; failur
 async function main() {
   console.log('§9 acceptance suite — running 9 reference exchanges against new BASE_PERSONA')
   console.log('Caching: providerOptions.bedrock.cachePoint = default')
-  console.log('Model:', process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6-20250514-v1:0')
+  console.log('Model:', process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6')
   console.log('')
 
   const results: Array<{ id: string; title: string; passed: boolean; attempts: number; failures: string[]; text: string }> = []
