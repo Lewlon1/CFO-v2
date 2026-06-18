@@ -6,7 +6,7 @@ export const bedrock = createAmazonBedrock({
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
 })
 
-export const chatModelId = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6-20250514-v1:0'
+export const chatModelId = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
 export const utilityModelId =
   process.env.BEDROCK_CLAUDE_UTILITY_MODEL || 'eu.anthropic.claude-haiku-4-5-20251001-v1:0'
 // Opus is reserved for lifetime-once high-stakes generations: archetype

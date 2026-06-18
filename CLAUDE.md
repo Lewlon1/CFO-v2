@@ -138,7 +138,7 @@ export const bedrock = createAmazonBedrock({
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
 });
 
-export const chatModel = bedrock('anthropic.claude-sonnet-4-6-20250514-v1:0');
+export const chatModel = bedrock('eu.anthropic.claude-sonnet-4-6');
 ```
 
 ### Model Routing
