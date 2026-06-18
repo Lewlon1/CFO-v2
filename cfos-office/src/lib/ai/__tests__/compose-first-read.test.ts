@@ -314,6 +314,7 @@ describe('buildFirstReadUserPrompt — recompose mode', () => {
       currency: 'EUR',
       income_shape: null,
       t3m_income_monthly: null,
+      income_provenance: null,
     },
     spendingBreakdown: null,
     readRecipe: 'visibility',

@@ -343,6 +343,11 @@ export type FinancialFacts = {
   /** 'variable' means income swings — surface it instead of a flat monthly figure. */
   income_shape: string | null;
   t3m_income_monthly: number | null;
+  /**
+   * Where the income figure came from: 'observed' (seen landing), 'declared_unverified'
+   * (user stated it, no deposit seen), or 'unknown'. Drives the declared-income hedge.
+   */
+  income_provenance: string | null;
 };
 
 async function getFinancialFacts(
@@ -352,7 +357,7 @@ async function getFinancialFacts(
   const [profileRes, snapshotRes] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, country')
+      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, income_provenance, country')
       .eq('id', userId)
       .maybeSingle(),
     supabase
@@ -414,6 +419,10 @@ async function getFinancialFacts(
     t3m_income_monthly:
       typeof profileRes.data?.t3m_income_monthly === 'number'
         ? profileRes.data.t3m_income_monthly
+        : null,
+    income_provenance:
+      typeof profileRes.data?.income_provenance === 'string'
+        ? profileRes.data.income_provenance
         : null,
   };
 }

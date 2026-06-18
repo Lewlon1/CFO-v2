@@ -31,6 +31,11 @@ type ExtractResponse = {
     accountCurrency: string | null
   }
   warnings?: string[]
+  // Pages (0-based) that failed extraction (vision error or schema parse).
+  // Present even when the request succeeds — a 200 can still be a partial.
+  failedPages?: number[]
+  // 'ok' = all pages parsed, 'partial' = some failed, 'failed' = none parsed.
+  status?: 'ok' | 'partial' | 'failed'
 }
 
 export async function parseUniversalPDF(
@@ -62,12 +67,34 @@ export async function parseUniversalPDF(
 
   const data = (await res.json()) as ExtractResponse
   if (!Array.isArray(data.transactions) || data.transactions.length === 0) {
+    // Distinguish two empty-result causes:
+    //  (a) status === 'failed' — every page errored or timed out mid-extraction.
+    //      The PDF may well be readable; the run just didn't complete. Tell the
+    //      user it's worth retrying before falling back to CSV.
+    //  (b) otherwise — pages parsed fine but held no transactions: the PDF
+    //      isn't machine-readable. Keep the existing CSV/XLSX guidance.
+    if (data.status === 'failed') {
+      return {
+        ok: false,
+        error:
+          "We couldn't finish reading this statement — the extraction didn't complete (it may have timed out on a large or slow file). Please try uploading it again. If it keeps failing, export the statement as CSV or XLSX from your bank's website.",
+        warnings: data.warnings,
+      }
+    }
     return {
       ok: false,
       error:
         "Couldn't read transactions from this PDF. Many bank statements aren't machine-readable — try exporting the same statement as CSV or XLSX from your bank's website.",
       warnings: data.warnings,
     }
+  }
+
+  // Partial success: we got transactions but some pages failed. Surface a
+  // non-fatal warning so the UI can tell the user the import may be incomplete
+  // (distinct from a clean full extraction) without blocking the upload.
+  const partialWarnings = [...(data.warnings ?? [])]
+  if (data.status === 'partial' && (data.failedPages?.length ?? 0) > 0) {
+    partialWarnings.push('partial_extraction')
   }
 
   return {
@@ -86,7 +113,7 @@ export async function parseUniversalPDF(
       detectionSource: 'llm',
     },
     skippedRows: 0,
-    warnings: data.warnings ?? [],
+    warnings: partialWarnings,
     statementMetadata: data.metadata ?? null,
   }
 }

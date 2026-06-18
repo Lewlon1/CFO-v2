@@ -158,6 +158,7 @@ STRUCTURE (this is the contract):
    - If no blocker, lead with the most actionable observation that moves the active goal forward.
 2. BODY — at most 2 supporting observations. Each must add to the picture. Statistical loudness is not enough; the observation must connect to a lever, a value-map divergence worth naming, or context that sharpens the lead.
 3. CLOSE — one sized lever the system computed (frame the number you were handed; do not improvise magnitudes) PLUS exactly one tappable CTA emitted on its own line as [CTA:type]label[/CTA]. The label is written from the USER's point of view — what tapping it means the user is saying. Examples: [CTA:supply_input]Here's my monthly take-home[/CTA], [CTA:cut_lever]Trim 40 from streaming[/CTA], [CTA:supply_input]Set a target date for the deposit[/CTA]. The close is one lever + one CTA — never a menu, never empty-handed.
+   - If the LEVERS section contains an 'accelerate' lever, the goal is already FUNDED AT PLAN. Do NOT manufacture a cut or a gap. The close becomes the real choice: the spare cash beyond what the goal needs, framed as landing sooner / covering the conservative stress case if it's still short / turning to the next goal. Still one lever + one CTA.
 
 BANNED IN THE READ:
 - Narration of the act of observing: "I see", "I notice", "On reviewing your data". State what's true.
@@ -214,7 +215,7 @@ Your job: write the user's first Read. Not a summary — a move. Tight, specific
 
 STRUCTURE (this is the contract — POSITION, then one action, then clarifiers, then levers):
 1. POSITION — open on the numbers that set the stakes: free cash flow from FINANCIAL FACTS, and where the goal sits against it (what it needs per month vs what's free). Use the FINANCIAL FACTS and GOAL figures verbatim; do NOT recompute or improvise. If the goal math gives a compound-growth band, show the range ONCE so the options are visible, then LOCK the moderate middle case (the rate flagged in the GOAL block) as the plan and size the position against THAT — not the worst-case figure. Say in one line where that rate comes from (the GOAL block gives it), and name the conservative case as the stress test, not the default.
-2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it.
+2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it. If the LEVERS section instead contains an 'accelerate' lever, the goal is ALREADY FUNDED AT PLAN — do NOT manufacture a trim or a gap: the ONE ACTION becomes the real choice — name the spare cash beyond what the goal needs and frame the move as getting there sooner, covering the conservative stress case if it's still short, or turning to the next goal. If FINANCIAL FACTS marks income as DECLARED (not seen landing), say plainly that this on-track read rests on the figure they gave you, not one you can see arrive.
 3. CLARIFIERS — one or two things the data can't settle on its own, posed as DIRECT QUESTIONS on the HOOK CANDIDATES. Cite the merchant, amount, and period_hint verbatim, then ask the either/or: "Aldi, €431 over 90 days, irregular — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
 4. LEVERS + HANDOFF — name the levers worth pulling next as HEADLINES only (e.g. recurring bills, a spend-pattern change like two no-spend days a week) — named, not walked through. Position the Value Map as where these get prioritised against what the user actually values, and note the clarifiers above still gate that precision. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
 
@@ -601,8 +602,8 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
       : isDeclaredUpgrade
       ? `COMPOSE THE DECLARED UPGRADE NOW. LEAD on the DECLARED→ACTUAL DELTA — the single biggest gap between what they told you (ALREADY SAID) and what the statements show (FINANCIAL FACTS + SPENDING BREAKDOWN), framed "you told me ≈X — the statements show Y". Do NOT re-announce income / fixed costs / free cash / goal pace as new — they are the BEFORE side of the delta. Then 1-2 SHARPENED observations the real data makes possible (the biggest discretionary category from SPENDING BREAKDOWN, or a pattern from BEHAVIOURAL CLUSTERS), tied back to the goal pace they already know. Then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES. Then close by positioning the Value Map as where this real spending gets weighed against what they value, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Hard cap 250 words; aim tighter. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
       : isValueFirst
-      ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
-      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
+      ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN — UNLESS the LEVERS section has an \`accelerate\` lever, in which case the goal is funded at plan: lead the action on the spare-cash choice, never a trim), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
+      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask (if the lever is an \`accelerate\` lever, the goal is funded at plan — close on the spare-cash choice, not a trim). Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   );
 
   return sections.join('\n');
@@ -627,6 +628,13 @@ function formatFinancialFacts(
         (t3m
           ? ` Trailing-3-month average ≈ ${t3m}/mo — cite it as a trailing average, and note income swings month to month.`
           : ` Treat income as uncertain and avoid a precise monthly figure.`),
+    );
+  } else if (facts.income_provenance === 'declared_unverified') {
+    // The user declared an income figure but no salary deposit was seen in the
+    // statements. Frame it as DECLARED, not observed, and pose the clarifier —
+    // any free-cash or on-track read rests on this stated number.
+    lines.push(
+      `- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'} — DECLARED by the user, NOT seen landing in this account (no salary deposit in the statements). State it as the figure they gave you, not one you can see arrive, and pose the clarifier: is the salary paid into another account? Any free-cash or on-track read here rests on this declared number.`,
     );
   } else {
     lines.push(`- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'}`);
@@ -820,6 +828,25 @@ function formatLever(lever: Lever): string {
         `  - goal impact: ${impact}`,
         `  - CTA template: [CTA:cut_lever]Trim ${lever.suggestedCut} from ${lever.category}[/CTA]`,
       ].join('\n');
+    }
+    case 'accelerate': {
+      const lines = [
+        `- accelerate lever (the goal is ALREADY FUNDED AT PLAN — do NOT manufacture a cut; THIS is the close):`,
+        `  - goal: ${lever.goalName}`,
+        `  - spare cash beyond what the goal needs at plan: ${lever.surplusOverRequired}/month`,
+      ];
+      if (lever.stressTestGap != null) {
+        lines.push(
+          lever.stressTestGap > 0
+            ? `  - conservative (stress-test) case: still SHORT ${lever.stressTestGap}/month if returns come in low`
+            : `  - conservative (stress-test) case: also COVERED — funded even if returns come in low`,
+        );
+      }
+      lines.push(
+        `  - The ONE ACTION is the real choice, NOT a trim: direct the spare toward the goal to land sooner, cover the stress case if it's short, or turn to the next goal.`,
+        `  - CTA template (user's voice): [CTA:open_chat]What should I do with the spare ${lever.surplusOverRequired} a month?[/CTA]`,
+      );
+      return lines.join('\n');
     }
     case 'shift':
       return `- shift lever: ${lever.category} (${lever.rationale})`;
