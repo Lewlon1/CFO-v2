@@ -3020,3 +3020,39 @@ New accelerate lever cases + income_provenance test-fixture updates included.
 **NOT run (runtime follow-ups):** live re-run of Nancy's value map / first read through the app
 (requires Bedrock + the running app) — DB-level changes verified, end-to-end behaviour pending a
 manual smoke. `import_attempts` not added to generated `types.ts` (cast in route until regen).
+
+## 2026-06-22 — Declared (pre-upload) read: on-track framing for funded-at-plan goals
+
+Follow-up to the 2026-06-18 four-fix session. Testing on a fresh user (`0d496761`, 0 txns,
+investment retirement goal, `monthly_required_saving=0`) showed the pre-upload read still said
+"no monthly contribution attached … £3,005 unspoken-for" — the original on-track concern, in a
+path the earlier fix never touched.
+
+### Lesson (the gotcha)
+- **The pre-upload declared read is a SEPARATE composer.** `composeFirstRead` short-circuits at
+  `if (mode === 'declared') return composeDeclaredRead(...)` (compose-first-read.ts) BEFORE
+  `deriveLevers` — so the `accelerate` lever and the value-first/default prompt branches from the
+  earlier fix don't run on it. It has its own prompt (`FIRST_READ_SYSTEM_PROMPT_DECLARED`) and
+  facts builder (`buildDeclaredFacts`/`buildDeclaredUserPrompt`), neither investment-aware. A £0/mo
+  funded-at-plan goal therefore read as "no contribution attached". When fixing a Read behaviour,
+  check ALL composer entry points (declared / value_first / default / recompose / declared_upgrade),
+  not just the lever path.
+
+### What shipped
+- `buildDeclaredFacts` is now investment-aware: when an investment goal's `monthly_required_saving`
+  is 0 with target+date present, it sets `fundedAtPlan` and computes the conservative stress case
+  from the SAME `requiredMonthlyBand` / `INVESTMENT_DEFAULT_RATE_PCT` the post-upload Read uses
+  (Rule 8). `composeDeclaredRead` threads goal type/target/current/date through.
+- `buildDeclaredUserPrompt` + `FIRST_READ_SYSTEM_PROMPT_DECLARED` gained a funded-at-plan branch
+  (Rule 7 — new SHAPE few-shot re-derived in the same edit): affirm on track, explain £0 = pot
+  grows to target at a moderate return, name the stress case, and reframe the honest close — unseen
+  spending bears on LIFESTYLE headroom + confirming income lands, NOT "the goal slower" (a
+  funded-at-plan goal draws nothing monthly).
+- No migrations.
+
+### Verified
+`npm run typecheck` clean; full `npm run test` = **1242 passing**; `npm run build` green. New unit
+cases assert `fundedAtPlan`/stress-case computation and that the funded prompt drops the
+"Monthly contribution needed / unspoken-for" lines.
+**NOT run:** live LLM re-render of the declared read (needs Bedrock) — the data/prompt-assembly
+path is unit-covered with `0d496761`'s exact figures.

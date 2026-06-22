@@ -411,7 +411,9 @@ Your job: turn those declared numbers into one clear, honest picture — what's 
 STRUCTURE (the contract):
 1. THE PICTURE — state it plainly from the FACTS below: income, fixed costs, and the free cash that's left once fixed costs are paid. Use the figures verbatim; never recompute or invent. Never derive your own leftover or residual — if a modelled cushion is given in the FACTS you may cite it verbatim; otherwise do not state one. Make clear this free cash is the pool EVERYTHING ELSE comes out of — including day-to-day living — not pure surplus. A tangible frame is allowed ONLY when it is built from a figure already in the FACTS — the goal's % of take-home, or free cash set against the fixed costs. Do not pad.
 2. THE GOAL (only if a goal is present in the FACTS) — what reaching it needs each month, and how that sits against the free cash: comfortably clear, tight, or short. If a modelled cushion is given, name it as a PAPER figure — what's left before any day-to-day spending — never as money truly spare. Use the figures GIVEN; do not compute your own.
+   - If the FACTS mark the goal ON TRACK / FUNDED AT PLAN (£0/mo needed at plan), say so plainly — they are on track. Explain the £0 in ONE line: the already-saved pot is projected to reach the target on its own at a moderate return. Name the conservative stress case from the FACTS (the cautious-rate monthly and whether their free cash covers it). NEVER frame £0 as "no contribution attached" or the free cash as "unspoken-for because the goal has no pace" — that misreads being on track as a gap.
 3. THE HONEST CLOSE — the biggest thing these two numbers miss is EVERYDAY SPENDING: groceries, transport, eating out — the variable week-to-week living that never gets declared and comes straight out of that same free cash. Name it plainly: the declared picture has no day-to-day spending in it at all, so the cushion isn't real spare until that's seen. (Fixed costs are easy to undercount too — a lighter, secondary point.) Then the stake, tied to their goal: once real spending is in the picture, the room — and that cushion — can be a lot thinner, and the goal slower. Make the upload feel like how they find out whether the plan is real, not a chore. Close on a forward statement, never a question. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Share my last 3 statements[/CTA].
+   - When the goal is ON TRACK / FUNDED AT PLAN, the unseen spending bears on LIFESTYLE HEADROOM and on confirming the income actually lands — NOT on whether the goal survives. Do NOT say real spending makes "the goal slower": a funded-at-plan goal draws nothing monthly, so spending can't slow it. Frame the upload as how they see what daily life really leaves and confirm the income lands, with the retirement plan already standing on the pot's growth.
 
 BANNED:
 - Inventing any number not in the FACTS below. If free cash isn't given, do not state one. Do not compute a leftover/residual yourself — only cite the modelled cushion if it is in the FACTS.
@@ -432,6 +434,13 @@ SHAPE TO AIM FOR (illustrative only — the FACTS below are the real source; nev
 > Your house deposit wants about €600 a month — close to a fifth of your income, and it fits inside that €1,250 with around €650 over on paper.
 > On paper is the catch. These two numbers don't count a single day of everyday living — groceries, transport, the going-out — and all of it comes out of that same €1,250. So the €650 isn't really spare; it's whatever's left after a month of real spending, and these numbers don't include any of it. Three months of statements show what your week actually costs, and whether the deposit still fits.
 > [CTA:start_statement_upload]Share my last 3 statements[/CTA]
+> — C.
+
+SHAPE TO AIM FOR — ON-TRACK / FUNDED-AT-PLAN goal (illustrative only; never copy these figures):
+> £3,500 comes in each month, and the fixed costs you listed sit at £495 — so about £3,005 is left once those are paid.
+> On the retirement goal you're on track: the £400k you've already got is projected to reach £600k on its own by 2034 at a moderate 7% return, so nothing extra is needed each month at plan. Even at a cautious 4%, it'd want around £440 a month — which your £3,005 comfortably covers. The pot's growth does the work here, not your monthly saving.
+> What these two numbers don't show is a single day of everyday living — groceries, transport, going out — and that's what really decides how much breathing room £3,005 leaves you. Three months of statements show what your week actually costs and confirm your pay lands as expected; the retirement plan itself already stands on the pot.
+> [CTA:start_statement_upload]Share my last 3 statements[/CTA]
 > — C.`;
 
 export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
@@ -449,7 +458,25 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
 
   if (facts.goalName) {
     sections.push(`GOAL:`, `- ${facts.goalName}`);
-    if (facts.monthlyRequiredSaving != null) {
+    if (facts.fundedAtPlan) {
+      // Investment goal funded at plan (£0/mo needed). Frame as ON TRACK, not
+      // "no contribution attached". Figures are server-computed — cite verbatim.
+      sections.push(
+        `- ON TRACK / FUNDED AT PLAN: the already-saved pot is projected to reach the target on its own at a moderate ${facts.planRatePct}% annual return, so £0/mo is needed at plan. Say plainly that they're on track; explain the £0 in one line (the pot grows to the target on its own). Do NOT frame this as "no contribution attached" or the free cash as "unspoken-for".`,
+      );
+      if (facts.stressMonthly != null) {
+        sections.push(
+          `- Conservative stress test: at a cautious ${facts.stressRatePct}% return, about ${m(facts.stressMonthly)}/mo would be needed — on what they've told you, their free cash ${facts.stressCovered ? 'comfortably covers that' : `falls short of that by ${m(Math.max(0, facts.stressMonthly - facts.freeCash))}/mo`}. Cite these figures verbatim; never recompute them.`,
+        );
+      } else {
+        sections.push(
+          `- Conservative stress test: even at a cautious ${facts.stressRatePct}% return the existing pot does the work — no monthly contribution is needed either way.`,
+        );
+      }
+      sections.push(
+        `- This goal draws NOTHING from monthly free cash — day-to-day spending does not slow it. The spending caveat below is about LIFESTYLE headroom and confirming the income lands, NOT whether the goal survives.`,
+      );
+    } else if (facts.monthlyRequiredSaving != null) {
       sections.push(
         `- Monthly contribution needed: ${m(facts.monthlyRequiredSaving)}/mo` +
           (facts.percentOfIncome != null ? ` (${facts.percentOfIncome}% of take-home)` : ''),
@@ -469,10 +496,14 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
     sections.push(`GOAL: (none set yet — close on the room they have and the upload, not a goal.)`, ``);
   }
 
+  const closeDirective = facts.fundedAtPlan
+    ? `; then the honest close — say plainly they're on track for this goal at plan, then note these two numbers don't include any day-to-day spending (food, transport, going out), so the free cash isn't real spare yet; real statements show what week-to-week actually costs and confirm the income lands — about lifestyle headroom, NOT whether the goal survives (it draws nothing monthly)`
+    : `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it`;
   sections.push(
     `COMPOSE THE DECLARED FIRST READ NOW. State the picture (income, fixed costs, free cash) from the FACTS verbatim` +
       (facts.goalName ? `; then how the goal sits against the free cash` : ``) +
-      `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it — and the [CTA:start_statement_upload]Share my last 3 statements[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
+      closeDirective +
+      ` — and the [CTA:start_statement_upload]Share my last 3 statements[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
   );
 
   return sections.join('\n');

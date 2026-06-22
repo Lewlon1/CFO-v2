@@ -562,19 +562,38 @@ export interface DeclaredReadFacts {
   totalFixedCosts: number
   freeCash: number
   goalName: string | null
+  goalType: string | null
   monthlyRequiredSaving: number | null
   percentOfIncome: number | null
   /** Free cash left after the goal contribution — a MODELLED cushion (not observed
    *  spend). null when there's no goal pace to subtract. Computed server-side so the
    *  model cites it verbatim instead of doing the arithmetic itself (Rule 2). */
   unallocated: number | null
+  /** Investment goal whose existing pot reaches the target at the plan rate → £0/mo
+   *  needed. Frame as ON TRACK, not "no contribution attached". */
+  fundedAtPlan: boolean
+  /** Moderate (plan) annual return rate the £0/mo verdict rests on. */
+  planRatePct: number | null
+  /** Conservative (stress-test) annual return rate. */
+  stressRatePct: number | null
+  /** Monthly contribution the conservative case would need (server-computed). */
+  stressMonthly: number | null
+  /** Whether declared free cash covers the conservative-case monthly. */
+  stressCovered: boolean | null
   currency: string
 }
 
 export function buildDeclaredFacts(input: {
   income: number
   totalFixedCosts: number
-  goal: { name: string; monthlyRequiredSaving: number | null } | null
+  goal: {
+    name: string
+    type?: string | null
+    targetAmount?: number | null
+    currentAmount?: number | null
+    targetDate?: string | null
+    monthlyRequiredSaving: number | null
+  } | null
   currency: string
 }): DeclaredReadFacts {
   const freeCash = Math.max(0, input.income - input.totalFixedCosts)
@@ -584,14 +603,59 @@ export function buildDeclaredFacts(input: {
   // The cushion left after the goal contribution — computed here so the model
   // never derives it itself (Rule 2). null when there's no pace to subtract.
   const unallocated = mrs != null ? Math.max(0, freeCash - mrs) : null
+
+  // Investment goal funded at plan: the existing pot is projected to reach the
+  // target on its own at the moderate rate, so monthly_required_saving (compound)
+  // came back 0. Frame it as ON TRACK, not "no contribution attached". The stress
+  // figures come from the SAME band the post-upload Read uses (Rule 8).
+  const goalType = input.goal?.type ?? null
+  let fundedAtPlan = false
+  let planRatePct: number | null = null
+  let stressRatePct: number | null = null
+  let stressMonthly: number | null = null
+  let stressCovered: boolean | null = null
+  if (
+    goalType === 'investment' &&
+    mrs != null &&
+    mrs <= 0 &&
+    input.goal?.targetAmount != null &&
+    input.goal?.targetDate != null
+  ) {
+    const monthsLeft = monthsBetween(new Date(), new Date(input.goal.targetDate))
+    if (monthsLeft > 0) {
+      fundedAtPlan = true
+      planRatePct = INVESTMENT_DEFAULT_RATE_PCT
+      const band = requiredMonthlyBand({
+        targetAmount: input.goal.targetAmount,
+        currentAmount: input.goal.currentAmount ?? 0,
+        months: monthsLeft,
+      })
+      const conservative = band.reduce(
+        (min, b) => (b.ratePct < min.ratePct ? b : min),
+        band[0],
+      )
+      if (conservative) {
+        stressRatePct = conservative.ratePct
+        stressMonthly = conservative.monthly != null ? Math.round(conservative.monthly) : null
+        stressCovered = stressMonthly != null ? freeCash >= stressMonthly : null
+      }
+    }
+  }
+
   return {
     income: input.income,
     totalFixedCosts: input.totalFixedCosts,
     freeCash,
     goalName: input.goal?.name ?? null,
+    goalType,
     monthlyRequiredSaving: mrs,
     percentOfIncome,
     unallocated,
+    fundedAtPlan,
+    planRatePct,
+    stressRatePct,
+    stressMonthly,
+    stressCovered,
     currency: input.currency,
   }
 }
@@ -616,7 +680,14 @@ async function composeDeclaredRead(
     income: facts.net_monthly_income ?? 0,
     totalFixedCosts: facts.total_fixed_costs ?? 0,
     goal: goalRow
-      ? { name: goalRow.name, monthlyRequiredSaving: goalRow.monthly_required_saving }
+      ? {
+          name: goalRow.name,
+          type: goalRow.type,
+          targetAmount: goalRow.target_amount,
+          currentAmount: goalRow.current_amount,
+          targetDate: goalRow.target_date,
+          monthlyRequiredSaving: goalRow.monthly_required_saving,
+        }
       : null,
     currency: facts.currency,
   });
