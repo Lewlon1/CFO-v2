@@ -145,3 +145,49 @@ describe('runModel — edge cases', () => {
     expect(m.terminals.rent).toBeCloseTo(83009.1, 0)
   })
 })
+
+describe('runModel — scenario 4 (sell & redeploy into a new home)', () => {
+  // Hand-checked year 1: buyingCosts = 320000*0.11 = 35,200; totalCashNeeded =
+  // 355,200; deposit (myProceeds0) = 78,792.12; newMortgage = 355,200 -
+  // 78,792.12 = 276,407.88; pot0 = 0 (deposit < totalCashNeeded).
+  // Year 1: avoidedRent = 1100*12 = 13,200; interest = 276,407.88*0.035 =
+  // 9,674.28; maint = 320000*0.01 = 3,200; netBenefit = 13200 - 9674.28 -
+  // 3200 = 325.72; pot1 = 325.72. newPrice1 = 320000*1.03 = 329,600;
+  // sellingCosts1 = 329600*0.025 = 8,240; equity1 = 329600 - 276407.88 -
+  // 8240 = 44,952.12. Row 1 = equity1 + pot1 = 45,277.84 -> rounds to 45,278,
+  // matching the value below (computed by running the implementation and
+  // confirmed against this hand check).
+  //
+  // runModel takes fully-resolved values (no implicit MARKET_DEFAULTS
+  // fallback — that merge happens in resolveValues() upstream of this call),
+  // so the three new_* redeploy rates the hand-check above depends on
+  // (11 / 3.5 / 3.0, matching MARKET_DEFAULTS) must be stated explicitly here.
+  const withRedeploy = {
+    ...FIXTURE,
+    new_property_price: 320000,
+    current_rent_paid_monthly: 1100,
+    new_buying_costs_pct: 11,
+    new_mortgage_rate_pct: 3.5,
+    new_property_appreciation_pct: 3.0,
+  }
+
+  it('matches the hand-checked year-1 redeploy trajectory point and pinned 10-year terminal', () => {
+    const m = runModel(withRedeploy)
+    expect(Math.round(m.rows[1].redeploy as number)).toBe(45278)
+    expect(Math.round(m.terminals.redeploy as number)).toBe(141579)
+  })
+
+  it('appears as a ranked option alongside rent/invest/cash', () => {
+    const m = runModel(withRedeploy)
+    const ranked = Object.entries(m.terminals)
+      .filter(([, val]) => val !== null)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
+    expect(ranked.map(([k]) => k)).toContain('redeploy')
+  })
+
+  it('is null when the user has not opted into scenario 4 (no new_property_price)', () => {
+    const m = runModel(FIXTURE)
+    expect(m.terminals.redeploy).toBeNull()
+    expect(m.rows[1].redeploy).toBeNull()
+  })
+})
