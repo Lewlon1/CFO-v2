@@ -16,6 +16,7 @@ import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 import type { OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
+import type { DeclaredReadPending } from '@/lib/insights/first-read-followup'
 import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
 import {
   buildLabelRecapTrigger,
@@ -106,8 +107,13 @@ interface ChatContextValue {
    *  Threaded from the office layout; drives the no-import beat behaviour. */
   noImport: boolean
   /** Progress-meter result for the in-sheet onboarding beats, or null off-beat.
-   *  Threaded from the office layout (see OnboardingProgressMeter). */
+   *  Threaded from the office layout (see OnboardingProgressMeter). Also set
+   *  post-onboarding for declared-pending users (the pinned 60% meter). */
   onboardingProgress: OnboardingProgressResult | null
+  /** Set when the user's first Read stands on declared numbers and no upgrade
+   *  Read has landed (skip-upload path). Carries the server-computed cushion
+   *  figure for the re-offer surfaces. Threaded from the office layout. */
+  declaredPending: DeclaredReadPending | null
   /** Already-persisted income/rent for the essentials beat (values save on
    *  blur; a return mid-beat prefills rather than re-asks — Rule 6). */
   essentialsPrefill: { income: number | null; rent: number | null } | null
@@ -150,11 +156,13 @@ interface ChatProviderProps {
   noImport?: boolean
   /** See ChatContextValue.onboardingProgress. */
   onboardingProgress?: OnboardingProgressResult | null
+  /** See ChatContextValue.declaredPending. */
+  declaredPending?: DeclaredReadPending | null
   /** See ChatContextValue.essentialsPrefill. */
   essentialsPrefill?: { income: number | null; rent: number | null } | null
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false, onboardingProgress = null, essentialsPrefill = null }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false, onboardingProgress = null, declaredPending = null, essentialsPrefill = null }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -620,6 +628,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     onboardingGoal,
     noImport,
     onboardingProgress,
+    declaredPending,
     essentialsPrefill,
   }
 

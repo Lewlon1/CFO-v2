@@ -7,8 +7,11 @@ import {
   claimUpgradeInProgress,
   clearUpgradeInProgress,
   markUpgraded,
+  parseDeclaredReadPending,
+  setDeclaredReadPending,
   UPGRADE_IN_PROGRESS_KEY,
   UPGRADED_KEY,
+  DECLARED_READ_PENDING_KEY,
 } from '../first-read-followup'
 
 type Call = {
@@ -523,5 +526,70 @@ describe('clearUpgradeInProgress / markUpgraded', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       clearUpgradeInProgress(client as any, 'c1'),
     ).rejects.toThrow(/clear boom/)
+  })
+})
+
+describe('parseDeclaredReadPending', () => {
+  const valid = { conversationId: 'c1', freeCash: 1900, currency: 'GBP' }
+
+  it('round-trips a well-formed flag', () => {
+    expect(parseDeclaredReadPending(valid)).toEqual(valid)
+  })
+
+  it('returns null for absent / cleared / malformed values', () => {
+    expect(parseDeclaredReadPending(undefined)).toBeNull()
+    expect(parseDeclaredReadPending(null)).toBeNull()
+    expect(parseDeclaredReadPending(true)).toBeNull()
+    expect(parseDeclaredReadPending({ conversationId: 'c1' })).toBeNull()
+    expect(parseDeclaredReadPending({ ...valid, freeCash: '1900' })).toBeNull()
+  })
+})
+
+describe('setDeclaredReadPending', () => {
+  it('merges the flag into onboarding_progress without clobbering other keys', async () => {
+    const client = mockClient({
+      selectResult: { data: { onboarding_progress: { goal_chat_tentative_at: 't0' } }, error: null },
+    })
+    const pending = { conversationId: 'c1', freeCash: 1900, currency: 'GBP' }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await setDeclaredReadPending(client as any, 'u1', pending)
+    const updates = find(client, 'user_profiles', 'update')
+    expect(updates).toHaveLength(1)
+    expect((updates[0].value as Record<string, unknown>).onboarding_progress).toEqual({
+      goal_chat_tentative_at: 't0',
+      [DECLARED_READ_PENDING_KEY]: pending,
+    })
+  })
+
+  it('clears the flag with null, preserving the rest of the jsonb', async () => {
+    const client = mockClient({
+      selectResult: {
+        data: {
+          onboarding_progress: {
+            other: 1,
+            [DECLARED_READ_PENDING_KEY]: { conversationId: 'c1', freeCash: 1, currency: 'EUR' },
+          },
+        },
+        error: null,
+      },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await setDeclaredReadPending(client as any, 'u1', null)
+    const updates = find(client, 'user_profiles', 'update')
+    const progress = (updates[0].value as Record<string, unknown>)
+      .onboarding_progress as Record<string, unknown>
+    expect(progress.other).toBe(1)
+    expect(progress[DECLARED_READ_PENDING_KEY]).toBeNull()
+    // A cleared flag must parse back to null (the layout's read path).
+    expect(parseDeclaredReadPending(progress[DECLARED_READ_PENDING_KEY])).toBeNull()
+  })
+
+  it('never throws on a failed read — the Read that triggered it must not fail', async () => {
+    const client = mockClient({
+      selectResult: { data: null, error: { message: 'rls says no' } },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect(setDeclaredReadPending(client as any, 'u1', null)).resolves.toBeUndefined()
+    expect(find(client, 'user_profiles', 'update')).toHaveLength(0)
   })
 })

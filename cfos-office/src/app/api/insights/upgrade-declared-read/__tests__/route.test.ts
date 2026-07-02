@@ -411,6 +411,16 @@ describe('runDeclaredReadUpgrade', () => {
     const stampMeta = stamp!.metadata as Record<string, unknown>
     expect(stampMeta[UPGRADE_IN_PROGRESS_KEY]).toBe(false)
     expect(stampMeta.first_read_metadata_upgraded).toEqual(GOOD_META)
+
+    // The delivered Read also clears the profile's declared-pending flag so
+    // post-onboarding surfaces stop advertising the upgrade.
+    const profileUpdates = find(client, 'user_profiles', 'update').map(
+      (c) => c.value as Record<string, unknown>,
+    )
+    expect(profileUpdates).toHaveLength(1)
+    expect(
+      (profileUpdates[0].onboarding_progress as Record<string, unknown>).declared_read_pending,
+    ).toBeNull()
   })
 
   it('threads the declared_facts snapshot into the compose when the conversation carries one', async () => {
@@ -573,6 +583,17 @@ describe('runDeclaredReadUpgrade', () => {
         (u.metadata as Record<string, unknown>)?.[UPGRADED_KEY] !== true,
     )
     expect(standaloneClears).toHaveLength(0)
+
+    // The declared-pending flag DOES clear on this path — the Read is delivered
+    // even though the stamp failed, so the pinned meter / re-offer banner must
+    // stop advertising the upgrade.
+    const profileUpdates = find(client, 'user_profiles', 'update').map(
+      (c) => c.value as Record<string, unknown>,
+    )
+    expect(profileUpdates).toHaveLength(1)
+    expect(
+      (profileUpdates[0].onboarding_progress as Record<string, unknown>).declared_read_pending,
+    ).toBeNull()
   })
 
   it('after a delivered-but-unstamped Read, a subsequent call 409s (no duplicate append)', async () => {

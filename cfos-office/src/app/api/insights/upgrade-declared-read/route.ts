@@ -10,6 +10,7 @@ import {
   claimUpgradeInProgress,
   clearUpgradeInProgress,
   markUpgraded,
+  setDeclaredReadPending,
   UPGRADED_KEY,
 } from '@/lib/insights/first-read-followup'
 import { NextResponse } from 'next/server'
@@ -240,6 +241,13 @@ export async function runDeclaredReadUpgrade(args: {
       content: composed.composedMessage,
     })
     appended = true
+
+    // The upgrade Read is delivered — clear the profile's declared-pending
+    // flag NOW (not after the stamp), so a stamp_failed exit can't leave the
+    // pinned meter / re-offer banner advertising an upgrade that already
+    // landed. Non-fatal by construction; the conversation-level stamps below
+    // stay the source of truth for the upgrade itself.
+    await setDeclaredReadPending(svc, userId, null)
 
     // Stamp the final upgrade: sets value_first_upgraded=true, clears
     // in-progress, and snapshots the upgrade composition metadata — one

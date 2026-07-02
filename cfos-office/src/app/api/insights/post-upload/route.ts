@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead, type ComposeFirstReadMode } from '@/lib/ai/compose-first-read'
+import { setDeclaredReadPending } from '@/lib/insights/first-read-followup'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -153,6 +154,18 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
   if (convError || !conversation) {
     console.error('[post-upload.layered] conversation insert failed:', convError)
     return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
+  }
+
+  // Declared mode delivered a Read that stands on self-reported numbers —
+  // flag the profile so post-onboarding surfaces (pinned meter, re-offer
+  // banner) can pull toward the upload. Non-fatal; carries the cushion figure
+  // so those surfaces need no extra query and no client math.
+  if (composed.declaredFacts) {
+    await setDeclaredReadPending(svc, userId, {
+      conversationId: conversation.id,
+      freeCash: composed.declaredFacts.freeCash,
+      currency: composed.declaredFacts.currency,
+    })
   }
 
   // Pre-write the composed message so the auto-trigger guard skips firing.

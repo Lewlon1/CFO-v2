@@ -13,6 +13,7 @@ import type { PostureProfile } from '@/lib/analytics/posture-helpers'
 import { OnboardingBeatHost } from '@/components/onboarding-v2/in-sheet/onboarding-beat-host'
 import { StruggleBeatBlock } from '@/components/onboarding-v2/in-sheet/struggle-beat-block'
 import { UpgradeUploadSurface } from './UpgradeUploadSurface'
+import { OnboardingProgressMeter } from '@/components/onboarding-v2/in-sheet/onboarding-progress-meter'
 import { IN_SHEET_BEAT_STEPS } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 
@@ -43,6 +44,7 @@ export function ChatSheet() {
     onboardingGoal,
     noImport,
     onboardingProgress,
+    declaredPending,
     essentialsPrefill,
   } = useChatContext()
 
@@ -269,6 +271,15 @@ export function ChatSheet() {
           </div>
         ) : (
           <>
+            {/* Declared-pending: the "C. knows you" meter stays pinned until
+                "A real month" lands — the standing pull toward the upload.
+                Renders only in the message-list arm; the upload/onboarding
+                surfaces carry their own meter. */}
+            {declaredPending && onboardingProgress && (
+              <div className="px-4 py-2 border-b border-border-medium shrink-0">
+                <OnboardingProgressMeter result={onboardingProgress} />
+              </div>
+            )}
             <div className="flex-1 min-h-0 overflow-y-auto">
               {messages.length === 0 ? (
                 // A conversation is loading or its opener is composing — show
