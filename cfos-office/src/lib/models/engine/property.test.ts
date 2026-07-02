@@ -112,3 +112,36 @@ describe('flipPoint', () => {
     expect(result).toBeNull()
   })
 })
+
+describe('runModel — edge cases', () => {
+  it('zero mortgage: no interest deduction, no mortgage subtracted from sale proceeds', () => {
+    const m = runModel({ ...FIXTURE, mortgage_balance: 0 })
+    // net = 480000 - 12000(costs) - 0(mortgage) - 21600(cgt) = 446400; *0.3333 share = 148,785.12
+    expect(Math.round(m.myProceeds0)).toBe(148785)
+    expect(m.myProceeds0).toBeGreaterThan(runModel(FIXTURE).myProceeds0)
+  })
+
+  it('negative rental profit floors tax at zero, not a negative rebate', () => {
+    const m = runModel({ ...FIXTURE, monthly_costs: 5000 })
+    expect(m.firstYearCF).toBeLessThan(0)
+    // If tax were allowed to go negative, netCF would differ from profit*share exactly.
+    const grossRent = 2000 * 12 * (1 - 3 / 52)
+    const agent = (grossRent * 12) / 100
+    const maint = 480000 * 0.01
+    const interest = (210000 * 4.5) / 100
+    const own = 5000 * 12
+    const profit = grossRent - agent - maint - own - interest
+    expect(m.firstYearCF).toBeCloseTo(profit * 0.3333, 1)
+  })
+
+  it('100% ownership share returns the full sale net, unshared', () => {
+    const m = runModel({ ...FIXTURE, ownership_share_pct: 100 })
+    expect(m.myProceeds0).toBeCloseTo(236400, 6)
+  })
+
+  it('horizon of 1 year returns exactly 2 rows (year 0 and year 1)', () => {
+    const m = runModel({ ...FIXTURE, horizon_years: 1 })
+    expect(m.rows).toHaveLength(2)
+    expect(m.terminals.rent).toBeCloseTo(83009.1, 0)
+  })
+})
