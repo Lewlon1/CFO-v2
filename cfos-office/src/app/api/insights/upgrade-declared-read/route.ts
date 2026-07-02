@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { composeFirstRead } from '@/lib/ai/compose-first-read'
+import { composeFirstRead, type DeclaredReadFacts } from '@/lib/ai/compose-first-read'
 import type { PriorReadSummary } from '@/lib/ai/prompts/first-read'
 import { checkReadHardRules } from '@/lib/ai/read-judge'
 import {
@@ -46,6 +46,39 @@ export type UpgradeDeclaredReadResult = {
 function firstSentence(message: string): string {
   const trimmed = message.trim()
   return (trimmed.split(/(?<=[.!?])\s+|\n/)[0] ?? trimmed).trim()
+}
+
+/**
+ * Defensive parse of the declared-facts snapshot off conversation metadata.
+ * Snapshot-only by design: conversations from before the snapshot shipped
+ * (or a malformed value) return null and the upgrade composes without a
+ * numeric delta — never a throw, never a guessed figure.
+ */
+export function parseDeclaredFactsSnapshot(value: unknown): DeclaredReadFacts | null {
+  if (value == null || typeof value !== 'object') return null
+  const v = value as Record<string, unknown>
+  if (
+    typeof v.income !== 'number' ||
+    typeof v.totalFixedCosts !== 'number' ||
+    typeof v.freeCash !== 'number' ||
+    typeof v.currency !== 'string'
+  ) {
+    return null
+  }
+  return {
+    income: v.income,
+    totalFixedCosts: v.totalFixedCosts,
+    freeCash: v.freeCash,
+    goalName: typeof v.goalName === 'string' ? v.goalName : null,
+    goalTargetAmount: typeof v.goalTargetAmount === 'number' ? v.goalTargetAmount : null,
+    goalCurrentAmount: typeof v.goalCurrentAmount === 'number' ? v.goalCurrentAmount : null,
+    goalTargetDate: typeof v.goalTargetDate === 'string' ? v.goalTargetDate : null,
+    monthlyRequiredSaving:
+      typeof v.monthlyRequiredSaving === 'number' ? v.monthlyRequiredSaving : null,
+    percentOfIncome: typeof v.percentOfIncome === 'number' ? v.percentOfIncome : null,
+    unallocated: typeof v.unallocated === 'number' ? v.unallocated : null,
+    currency: v.currency,
+  }
 }
 
 // How many times to attempt markUpgraded before giving up. It's a single
@@ -156,6 +189,11 @@ export async function runDeclaredReadUpgrade(args: {
       firstSentence: priorMsg?.content ? firstSentence(priorMsg.content as string) : null,
     }
 
+    // The declared-facts snapshot (persisted by post-upload when the declared
+    // Read composed) is the BEFORE side of the numeric delta. Snapshot-only:
+    // pre-snapshot conversations parse to null and the delta stays qualitative.
+    const declaredPriorFacts = parseDeclaredFactsSnapshot(meta.declared_facts)
+
     // Compose the transaction-based delta. The composer declines on a thin
     // upload (no usable clusters / no hook candidates) WITHOUT calling the
     // LLM — leave the declared Read as the last word and nudge for a fuller
@@ -166,6 +204,7 @@ export async function runDeclaredReadUpgrade(args: {
       supabase: svc as any,
       mode: 'declared_upgrade',
       priorReadSummary,
+      declaredPriorFacts,
     })
 
     if (composed.insufficientData) {

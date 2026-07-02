@@ -9,7 +9,7 @@ vi.mock('@/lib/ai/compose-first-read', () => ({
   composeFirstRead: (...args: unknown[]) => composeFirstRead(...args),
 }))
 
-import { runDeclaredReadUpgrade } from '../route'
+import { runDeclaredReadUpgrade, parseDeclaredFactsSnapshot } from '../route'
 import {
   UPGRADE_IN_PROGRESS_KEY,
   UPGRADED_KEY,
@@ -395,6 +395,9 @@ describe('runDeclaredReadUpgrade', () => {
       hookMerchantsUsed: [],
       firstSentence: 'Declared first sentence.',
     })
+    // No declared_facts snapshot on this conversation → the numeric delta is
+    // withheld (snapshot-only contract), never guessed.
+    expect(composeArg.declaredPriorFacts).toBeNull()
 
     // Exactly one assistant message appended, with the composed content.
     const inserts = find(client, 'messages', 'insert')
@@ -408,6 +411,44 @@ describe('runDeclaredReadUpgrade', () => {
     const stampMeta = stamp!.metadata as Record<string, unknown>
     expect(stampMeta[UPGRADE_IN_PROGRESS_KEY]).toBe(false)
     expect(stampMeta.first_read_metadata_upgraded).toEqual(GOOD_META)
+  })
+
+  it('threads the declared_facts snapshot into the compose when the conversation carries one', async () => {
+    composeFirstRead.mockResolvedValue({
+      composedMessage: WELL_FORMED,
+      metadata: GOOD_META,
+    })
+    const snapshot = {
+      income: 2800,
+      totalFixedCosts: 900,
+      freeCash: 1900,
+      goalName: 'House deposit',
+      goalTargetAmount: 40_000,
+      goalCurrentAmount: 5_000,
+      goalTargetDate: '2028-03-01',
+      monthlyRequiredSaving: 1750,
+      percentOfIncome: 63,
+      unallocated: 150,
+      currency: 'GBP',
+    }
+    const client = mockClient({
+      conversations: conversationsTable({ layered_read: true, declared_facts: snapshot }),
+      transactions: { count: { count: 42, error: null } },
+      messages: {
+        reads: [{ data: { content: 'Declared first sentence. More.' }, error: null }],
+        insertResult: { data: { id: 'm-new' }, error: null },
+      },
+    })
+    const res = await runDeclaredReadUpgrade({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: client as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      svc: client as any,
+      userId: 'u1',
+    })
+    expect(res.status).toBe(200)
+    const composeArg = composeFirstRead.mock.calls[0][0] as Record<string, unknown>
+    expect(composeArg.declaredPriorFacts).toEqual(snapshot)
   })
 
   it('compose throws → in-progress cleared + 500, no markUpgraded, no append', async () => {
@@ -557,5 +598,55 @@ describe('runDeclaredReadUpgrade', () => {
     expect(res.body).toEqual({ upgraded: false, reason: 'in_progress', conversationId: 'conv1' })
     expect(composeFirstRead).not.toHaveBeenCalled()
     expect(find(client, 'messages', 'insert')).toHaveLength(0)
+  })
+})
+
+describe('parseDeclaredFactsSnapshot', () => {
+  const valid = {
+    income: 2800,
+    totalFixedCosts: 900,
+    freeCash: 1900,
+    goalName: 'House deposit',
+    goalTargetAmount: 40_000,
+    goalCurrentAmount: 5_000,
+    goalTargetDate: '2028-03-01',
+    monthlyRequiredSaving: 1750,
+    percentOfIncome: 63,
+    unallocated: 150,
+    currency: 'GBP',
+  }
+
+  it('round-trips a well-formed snapshot', () => {
+    expect(parseDeclaredFactsSnapshot(valid)).toEqual(valid)
+  })
+
+  it('returns null for absent / non-object values (pre-snapshot conversations)', () => {
+    expect(parseDeclaredFactsSnapshot(undefined)).toBeNull()
+    expect(parseDeclaredFactsSnapshot(null)).toBeNull()
+    expect(parseDeclaredFactsSnapshot('legacy')).toBeNull()
+  })
+
+  it('returns null when a required numeric field is missing or mistyped', () => {
+    expect(parseDeclaredFactsSnapshot({ ...valid, freeCash: undefined })).toBeNull()
+    expect(parseDeclaredFactsSnapshot({ ...valid, totalFixedCosts: '900' })).toBeNull()
+  })
+
+  it('nulls optional fields that are missing or mistyped rather than rejecting', () => {
+    const parsed = parseDeclaredFactsSnapshot({
+      income: 2000,
+      totalFixedCosts: 1200,
+      freeCash: 800,
+      currency: 'EUR',
+      goalTargetAmount: 'not-a-number',
+    })
+    expect(parsed).toMatchObject({
+      income: 2000,
+      totalFixedCosts: 1200,
+      freeCash: 800,
+      currency: 'EUR',
+      goalName: null,
+      goalTargetAmount: null,
+      monthlyRequiredSaving: null,
+    })
   })
 })

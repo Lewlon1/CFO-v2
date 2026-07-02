@@ -132,6 +132,12 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     import_batch_id: importBatchId,
     first_read_metadata: composed.metadata,
   }
+  // Declared mode only — snapshot the facts the Read stood on, so a later
+  // declared→actual upgrade can render a numeric DECLARED → ACTUAL delta
+  // (the snapshot is the BEFORE side; without it the upgrade stays qualitative).
+  if (composed.declaredFacts) {
+    conversationMetadata.declared_facts = composed.declaredFacts
+  }
 
   const { data: conversation, error: convError } = await supabase
     .from('conversations')

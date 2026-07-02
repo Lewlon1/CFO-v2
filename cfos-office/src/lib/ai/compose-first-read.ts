@@ -126,6 +126,11 @@ export async function composeFirstRead(params: {
   priorReadSummary?: PriorReadSummary;
   /** The merchant keys the Value Map actually presented (Phase 1 selection), for the recompose payoff context. */
   valueMapCardKeys?: string[];
+  /** declared_upgrade only — the snapshot the declared Read stood on (from
+   *  conversation metadata). When present, the compose renders a numeric
+   *  DECLARED → ACTUAL block; absent (pre-snapshot conversations), the upgrade
+   *  frames the delta qualitatively. */
+  declaredPriorFacts?: DeclaredReadFacts | null;
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
@@ -242,6 +247,13 @@ export async function composeFirstRead(params: {
     return declaredUpgradeDeclineResult(readRecipe);
   }
 
+  // DECLARED → ACTUAL delta (declared_upgrade with a snapshot only). Computed
+  // server-side so the model cites both sides verbatim (Rule 2).
+  const declaredDelta =
+    isDeclaredUpgrade && params.declaredPriorFacts
+      ? buildDeclaredDelta(params.declaredPriorFacts, financialFacts)
+      : null;
+
   const userPrompt = buildFirstReadUserPrompt({
     userId: params.userId,
     mode,
@@ -267,6 +279,7 @@ export async function composeFirstRead(params: {
     // declared upgrade carries the delta contract only (no sort happened).
     priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
     valueMapCardKeys: isRecompose ? (params.valueMapCardKeys ?? null) : null,
+    declaredDelta,
   });
 
   const systemPrompt = isRecompose
@@ -553,6 +566,12 @@ export interface DeclaredReadFacts {
   totalFixedCosts: number
   freeCash: number
   goalName: string | null
+  /** Goal anchoring figures — already fetched by getActiveGoal; threading them
+   *  here lets the Read cite the target in the user's own terms instead of
+   *  name-dropping the goal (all nullable — goals can lack any of them). */
+  goalTargetAmount: number | null
+  goalCurrentAmount: number | null
+  goalTargetDate: string | null
   monthlyRequiredSaving: number | null
   percentOfIncome: number | null
   /** Free cash left after the goal contribution — a MODELLED cushion (not observed
@@ -565,11 +584,36 @@ export interface DeclaredReadFacts {
 export function buildDeclaredFacts(input: {
   income: number
   totalFixedCosts: number
-  goal: { name: string; monthlyRequiredSaving: number | null } | null
+  goal: {
+    name: string
+    monthlyRequiredSaving: number | null
+    targetAmount?: number | null
+    currentAmount?: number | null
+    targetDate?: string | null
+    type?: string | null
+  } | null
   currency: string
 }): DeclaredReadFacts {
   const freeCash = Math.max(0, input.income - input.totalFixedCosts)
-  const mrs = input.goal?.monthlyRequiredSaving ?? null
+  let mrs = input.goal?.monthlyRequiredSaving ?? null
+  // Straight-line fallback pace when the goal row carries no stored pace but
+  // has a dated target — same netting as computePaceAndOnTrack (pace.ts).
+  // NEVER for investment goals: their pace is compound-growth-aware
+  // (requiredMonthlyBand); a flat split overstates it on long horizons and
+  // would put a second, disagreeing pace source in play (Rule 8).
+  if (
+    mrs == null &&
+    input.goal != null &&
+    input.goal.type !== 'investment' &&
+    input.goal.targetAmount != null &&
+    input.goal.targetDate != null
+  ) {
+    const monthsLeft = monthsBetween(new Date(), new Date(input.goal.targetDate))
+    const remaining = input.goal.targetAmount - (input.goal.currentAmount ?? 0)
+    if (monthsLeft > 0 && remaining > 0) {
+      mrs = Math.round(remaining / monthsLeft)
+    }
+  }
   const percentOfIncome =
     mrs != null && input.income > 0 ? Math.round((mrs / input.income) * 100) : null
   // The cushion left after the goal contribution — computed here so the model
@@ -580,10 +624,53 @@ export function buildDeclaredFacts(input: {
     totalFixedCosts: input.totalFixedCosts,
     freeCash,
     goalName: input.goal?.name ?? null,
+    goalTargetAmount: input.goal?.targetAmount ?? null,
+    goalCurrentAmount: input.goal?.currentAmount ?? null,
+    goalTargetDate: input.goal?.targetDate ?? null,
     monthlyRequiredSaving: mrs,
     percentOfIncome,
     unallocated,
     currency: input.currency,
+  }
+}
+
+/**
+ * Server-computed DECLARED → ACTUAL delta for the declared_upgrade Read: the
+ * snapshot taken when the declared Read composed (no transactions existed, so
+ * its reconciled fixed costs held only profile rent + user-declared bills) set
+ * against the fresh reconciled facts after the upload. Both sides and the
+ * signed differences are computed HERE so the model cites every figure
+ * verbatim and never derives either side of the delta itself (Rule 2).
+ */
+export interface DeclaredActualDelta {
+  /** BEFORE — what the declared Read stood on. */
+  declaredFixedCosts: number
+  declaredFreeCash: number
+  /** AFTER — the reconciled picture at upgrade time. */
+  actualFixedCosts: number | null
+  actualFreeCash: number | null
+  /** Signed differences (actual − declared), whole units; null when the actual side is missing. */
+  fixedCostsDiff: number | null
+  freeCashDiff: number | null
+  currency: string
+}
+
+export function buildDeclaredDelta(
+  declared: Pick<DeclaredReadFacts, 'totalFixedCosts' | 'freeCash' | 'currency'>,
+  actual: Pick<FinancialFacts, 'total_fixed_costs' | 'free_cash_flow'>,
+): DeclaredActualDelta | null {
+  const actualFixedCosts = actual.total_fixed_costs ?? null
+  const actualFreeCash = actual.free_cash_flow ?? null
+  if (actualFixedCosts == null && actualFreeCash == null) return null
+  return {
+    declaredFixedCosts: declared.totalFixedCosts,
+    declaredFreeCash: declared.freeCash,
+    actualFixedCosts,
+    actualFreeCash,
+    fixedCostsDiff:
+      actualFixedCosts != null ? Math.round(actualFixedCosts - declared.totalFixedCosts) : null,
+    freeCashDiff: actualFreeCash != null ? Math.round(actualFreeCash - declared.freeCash) : null,
+    currency: declared.currency,
   }
 }
 
@@ -607,7 +694,14 @@ async function composeDeclaredRead(
     income: facts.net_monthly_income ?? 0,
     totalFixedCosts: facts.total_fixed_costs ?? 0,
     goal: goalRow
-      ? { name: goalRow.name, monthlyRequiredSaving: goalRow.monthly_required_saving }
+      ? {
+          name: goalRow.name,
+          monthlyRequiredSaving: goalRow.monthly_required_saving,
+          targetAmount: goalRow.target_amount,
+          currentAmount: goalRow.current_amount,
+          targetDate: goalRow.target_date,
+          type: goalRow.type,
+        }
       : null,
     currency: facts.currency,
   });
@@ -636,7 +730,9 @@ async function composeDeclaredRead(
     repeated_opening: false,
   };
 
-  return { composedMessage: result.text.trim(), metadata };
+  // declaredFacts rides along so the post-upload route can snapshot it into
+  // conversation metadata — the upgrade Read's DECLARED side of the delta.
+  return { composedMessage: result.text.trim(), metadata, declaredFacts };
 }
 
 /**

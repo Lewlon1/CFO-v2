@@ -17,7 +17,11 @@ import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
-import type { FinancialFacts, DeclaredReadFacts } from '@/lib/ai/compose-first-read';
+import type {
+  FinancialFacts,
+  DeclaredReadFacts,
+  DeclaredActualDelta,
+} from '@/lib/ai/compose-first-read';
 import { currencySymbol, formatMoney } from '@/lib/format/money';
 import { categoryLabel } from '@/lib/analytics/categories';
 
@@ -88,6 +92,13 @@ export type FirstReadComposeInput = {
   priorReadSummary?: PriorReadSummary | null;
   /** The merchant keys actually put in front of the user in the Value Map (Phase 1 selection). */
   valueMapCardKeys?: string[] | null;
+  /**
+   * declared_upgrade mode — the server-computed DECLARED → ACTUAL delta, built
+   * from the declared Read's persisted facts snapshot. When present it renders
+   * as verbatim-citable lines (the only legal source of the declared BEFORE
+   * figures); when null/absent the delta must stay qualitative.
+   */
+  declaredDelta?: DeclaredActualDelta | null;
 };
 
 export type FirstReadMetadata = {
@@ -123,6 +134,12 @@ export type FirstReadComposeOutput = {
    * last word. composedMessage is '' in this case (no LLM call was made).
    */
   insufficientData?: boolean;
+  /**
+   * declared mode only — the server-computed facts the Read stood on. The
+   * post-upload route snapshots this into conversation metadata so a later
+   * declared_upgrade can render a numeric DECLARED → ACTUAL delta.
+   */
+  declaredFacts?: DeclaredReadFacts;
 };
 
 /**
@@ -379,7 +396,7 @@ VOICE — Read-format constraints only (full voice lives in CFO-CONSTITUTION.md 
 HONESTY (NO HALLUCINATION):
 - Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
 - Never attribute a transaction to today's date. The data is a snapshot.
-- The DECLARED figures (the BEFORE side of the delta) come from the DECLARED→ACTUAL DELTA / ALREADY SAID sections verbatim; the ACTUAL figures come from FINANCIAL FACTS and SPENDING BREAKDOWN verbatim. Never recompute either side of the delta in your head.
+- The DECLARED figures (the BEFORE side of the delta) exist ONLY in the DECLARED→ACTUAL DELTA block, when it carries figures — cite them from there verbatim. If that block carries no declared figures, none exist in this prompt: frame the before side qualitatively and NEVER state a declared number. The ACTUAL figures come from FINANCIAL FACTS and SPENDING BREAKDOWN verbatim. Never recompute either side of the delta in your head.
 - Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS. Never compute a sum yourself.
 - Proportions and percentages come verbatim from SPENDING BREAKDOWN. When category coverage is low (a large uncategorised share), lead on named-merchant proportions and absolute amounts instead of a total-spend % you can't support.
 - If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly. Obey the DATA SUFFICIENCY caveats — on a single month of data, frame per-month figures as that one month, not a settled rate.
@@ -391,7 +408,7 @@ LENGTH & FORMAT:
 - The CTA is on its own line, immediately before "— C.".
 - Sign off "— C." on its own line.
 
-SHAPE TO AIM FOR (numbers and merchants are illustrative of the SHAPE only — the DATA below is the real source; never copy these figures):
+SHAPE TO AIM FOR (numbers and merchants are illustrative of the SHAPE only — the DATA below is the real source; never copy these figures. The "you told me €1,850 / statements put them at €2,140 / missed €290" opening is only possible when the DECLARED→ACTUAL DELTA block carries those figures — when it doesn't, open on what moved without stating a declared number):
 > You told me your fixed costs ran about €1,850 a month. The statements put them at €2,140 — the standing bills you listed missed roughly €290 a month in committed spend, so the free cash you'd been counting on is already smaller than the declared picture showed.
 > That tightens the room around the deposit. **Eating and drinking out** ran €680 over the window — 30% of everything tracked and the single biggest discretionary line, bigger than the cushion those two declared numbers left after the goal. The deposit's headroom is thinner than the paper figure, not wider.
 > Two things the statements raise that the declared numbers couldn't:
@@ -409,7 +426,7 @@ Your job: turn those declared numbers into one clear, honest picture — what's 
 
 STRUCTURE (the contract):
 1. THE PICTURE — state it plainly from the FACTS below: income, fixed costs, and the free cash that's left once fixed costs are paid. Use the figures verbatim; never recompute or invent. Never derive your own leftover or residual — if a modelled cushion is given in the FACTS you may cite it verbatim; otherwise do not state one. Make clear this free cash is the pool EVERYTHING ELSE comes out of — including day-to-day living — not pure surplus. A tangible frame is allowed ONLY when it is built from a figure already in the FACTS — the goal's % of take-home, or free cash set against the fixed costs. Do not pad.
-2. THE GOAL (only if a goal is present in the FACTS) — what reaching it needs each month, and how that sits against the free cash: comfortably clear, tight, or short. If a modelled cushion is given, name it as a PAPER figure — what's left before any day-to-day spending — never as money truly spare. Use the figures GIVEN; do not compute your own.
+2. THE GOAL (only if a goal is present in the FACTS) — anchor it in their terms: the target amount and what's already set aside, when given, then what reaching it needs each month and how that sits against the free cash: comfortably clear, tight, or short. If a modelled cushion is given, name it as a PAPER figure — what's left before any day-to-day spending — never as money truly spare. Use the figures GIVEN; do not compute your own.
 3. THE HONEST CLOSE — the biggest thing these two numbers miss is EVERYDAY SPENDING: groceries, transport, eating out — the variable week-to-week living that never gets declared and comes straight out of that same free cash. Name it plainly: the declared picture has no day-to-day spending in it at all, so the cushion isn't real spare until that's seen. (Fixed costs are easy to undercount too — a lighter, secondary point.) Then the stake, tied to their goal: once real spending is in the picture, the room — and that cushion — can be a lot thinner, and the goal slower. Make the upload feel like how they find out whether the plan is real, not a chore. Close on a forward statement, never a question. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Show me my last 3 months[/CTA].
 
 BANNED:
@@ -428,7 +445,7 @@ LENGTH & FORMAT: 70–130 words — shorter than a statement-based Read, because
 
 SHAPE TO AIM FOR (illustrative only — the FACTS below are the real source; never copy these figures):
 > You bring in about €3,100 a month, and the fixed costs you listed come to €1,850 — so roughly €1,250 is left once those are paid. That's the pool everything else has to come out of.
-> Your house deposit wants about €600 a month — close to a fifth of your income, and it fits inside that €1,250 with around €650 over on paper.
+> Your house deposit — €40,000, with €5,000 already set aside — wants about €600 a month. That's close to a fifth of your income, and it fits inside that €1,250 with around €650 over on paper.
 > On paper is the catch. These two numbers don't count a single day of everyday living — groceries, transport, the going-out — and all of it comes out of that same €1,250. So the €650 isn't really spare; it's whatever's left after a month of real spending, and these numbers don't include any of it. Three months of statements show what your week actually costs, and whether the deposit still fits.
 > [CTA:start_statement_upload]Show me my last 3 months[/CTA]
 > — C.`;
@@ -448,6 +465,19 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
 
   if (facts.goalName) {
     sections.push(`GOAL:`, `- ${facts.goalName}`);
+    // Anchoring figures — cite verbatim so the goal reads as THEIR target, not
+    // a name-drop. Each line renders only when the goal row carries the value.
+    if (facts.goalTargetAmount != null) {
+      sections.push(
+        `- Target: ${m(facts.goalTargetAmount)}` +
+          (facts.goalCurrentAmount != null
+            ? ` (${m(facts.goalCurrentAmount)} already set aside)`
+            : ''),
+      );
+    }
+    if (facts.goalTargetDate != null) {
+      sections.push(`- Target date: ${facts.goalTargetDate}`);
+    }
     if (facts.monthlyRequiredSaving != null) {
       sections.push(
         `- Monthly contribution needed: ${m(facts.monthlyRequiredSaving)}/mo` +
@@ -460,7 +490,7 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
       }
     } else {
       sections.push(
-        `- No monthly pace yet (the goal has no target date/amount to pace against). Name the goal, but do NOT invent a monthly figure.`,
+        `- No monthly pace available (the goal lacks a dated target to pace against, or it's an investment goal whose pace needs growth-aware math not computed here). Name the goal — and the target figures above if given — but do NOT invent a monthly figure.`,
       );
     }
     sections.push(``);
@@ -540,9 +570,26 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     // path). Render the DELTA frame + the declared ALREADY-SAID contract so the
     // Read leads on the declared→actual gap and never re-announces the declared
     // figures as newly discovered.
+    if (input.declaredDelta) {
+      // Snapshot path: both sides of the delta are server-computed. The model
+      // cites these lines verbatim — this block is the only legal source of the
+      // declared (BEFORE) figures.
+      sections.push(
+        `DECLARED→ACTUAL DELTA (this is the LEAD — server-computed; cite these figures verbatim, never recompute either side):`,
+        formatDeclaredDelta(input.declaredDelta),
+        `Open on the single biggest gap above ("you told me ≈X — the statements show Y"). Do NOT re-state the declared picture; lead on what moved.`,
+        ``,
+      );
+    } else {
+      // Pre-snapshot conversations: no declared figures exist verbatim in this
+      // prompt. The delta must stay qualitative — inventing a "you told me X"
+      // number would be a hallucinated figure.
+      sections.push(
+        `DECLARED→ACTUAL DELTA (this is the LEAD): the prior Read stood on the user's DECLARED figures, but those figures are NOT available verbatim here — frame what moved QUALITATIVELY (the fixed costs run heavier than the list suggested; the cushion is thinner than the paper figure) and NEVER state a declared number. The FINANCIAL FACTS + SPENDING BREAKDOWN above are the ACTUAL picture; those figures you cite verbatim. Do NOT re-state the declared picture; lead on what moved.`,
+        ``,
+      );
+    }
     sections.push(
-      `DECLARED→ACTUAL DELTA (this is the LEAD): the prior Read stood on the DECLARED figures in ALREADY SAID below; the FINANCIAL FACTS + SPENDING BREAKDOWN above are the ACTUAL picture the statements now show. Open on the single biggest gap between the two ("you told me ≈X — the statements show Y"). Do NOT re-state the declared picture; lead on what moved.`,
-      ``,
       `ALREADY SAID — DO NOT RESTATE (these were in the DECLARED Read; reference in a clause at most):`,
       formatAlreadySaid(input.priorReadSummary ?? null, 'declared Read'),
       ``,
@@ -914,6 +961,30 @@ function formatWhatJustSorted(input: FirstReadComposeInput): string {
  * no merchants (it saw no transactions), so the merchant line falls away and the
  * upgrade is free to name every merchant in the data.
  */
+/**
+ * Renders the server-computed DECLARED → ACTUAL delta as verbatim-citable
+ * lines. Every figure (both sides AND the signed difference) is pre-computed —
+ * the model quotes, never derives (Rule 2). Null sides render nothing.
+ */
+function formatDeclaredDelta(delta: DeclaredActualDelta): string {
+  const m = (v: number) => formatMoney(Math.round(v), delta.currency);
+  const signed = (v: number) => `${v >= 0 ? '+' : '−'}${m(Math.abs(v))}/mo`;
+  const lines: string[] = [];
+  if (delta.actualFixedCosts != null) {
+    lines.push(
+      `- Fixed costs: declared ≈ ${m(delta.declaredFixedCosts)}/mo → the statements reconcile to ${m(delta.actualFixedCosts)}/mo` +
+        (delta.fixedCostsDiff != null ? ` (difference: ${signed(delta.fixedCostsDiff)})` : ''),
+    );
+  }
+  if (delta.actualFreeCash != null) {
+    lines.push(
+      `- Free cash: declared ≈ ${m(delta.declaredFreeCash)}/mo → on the reconciled numbers ${m(delta.actualFreeCash)}/mo` +
+        (delta.freeCashDiff != null ? ` (difference: ${signed(delta.freeCashDiff)})` : ''),
+    );
+  }
+  return lines.join('\n');
+}
+
 function formatAlreadySaid(prior: PriorReadSummary | null, priorLabel = 'first Read'): string {
   if (!prior) return '(no prior Read on file — treat nothing as already said)';
   const isDeclaredPrior = priorLabel === 'declared Read';
