@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveValues, saleNet } from './property'
+import { resolveValues, saleNet, runModel } from './property'
 import { MARKET_DEFAULTS } from '../marketDefaults'
 import type { SlotDefinition, SlotMap } from '../types'
 
@@ -49,5 +49,50 @@ describe('saleNet', () => {
   it('floors the taxable gain at zero when selling below purchase price', () => {
     const result = saleNet(300000, 390000, 210000, { selling_costs_pct: 2.5, cgt_rate_pct: 24 })
     expect(result.cgt).toBe(0)
+  })
+})
+
+// Canonical fixture — pinned against the M1 brief. Hand-verified: myProceeds0
+// = 236400 * 0.3333 = 78,792.12; cgtToday share = 21600 * 0.3333 = 7,199.28;
+// year-1 net rent CF share = (grossRent 22,615.3846 - agent 2,713.8462 -
+// maint 4,800 - own 3,000 - interest 9,450 = profit 2,651.5385, tax 583.3385)
+// * 0.3333 = 689.33. All match the brief's pinned expected values exactly.
+const FIXTURE = {
+  property_value: 480000,
+  purchase_price: 390000,
+  mortgage_balance: 210000,
+  ownership_share_pct: 33.33,
+  monthly_rent: 2000,
+  monthly_costs: 250,
+  horizon_years: 10,
+  appreciation_pct: 3.0,
+  investment_return_pct: 7.0,
+  cash_rate_pct: 3.5,
+  mortgage_rate_pct: 4.5,
+  agent_fee_pct: 12,
+  void_weeks: 3,
+  selling_costs_pct: 2.5,
+  maintenance_pct: 1.0,
+  rental_tax_pct: 22,
+  cgt_rate_pct: 24,
+}
+
+describe('runModel — golden fixture', () => {
+  it('matches the brief-pinned sale-today, year-1 cash flow, and 10-year terminals', () => {
+    const m = runModel(FIXTURE)
+    expect(Math.round(m.myProceeds0)).toBe(78792)
+    expect(Math.round(m.cgtToday)).toBe(7199)
+    expect(Math.round(m.firstYearCF as number)).toBe(689)
+    expect(Math.round(m.terminals.rent)).toBe(133621)
+    expect(Math.round(m.terminals.invest)).toBe(154996)
+    expect(Math.round(m.terminals.cash)).toBe(111144)
+  })
+
+  it('produces 11 rows (year 0 through horizon) and a monotonically increasing invest trajectory', () => {
+    const m = runModel(FIXTURE)
+    expect(m.rows).toHaveLength(11)
+    for (let i = 1; i < m.rows.length; i++) {
+      expect(m.rows[i].invest).toBeGreaterThan(m.rows[i - 1].invest)
+    }
   })
 })
