@@ -25,6 +25,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   'balance-sheet': 'Balance Sheet',
   assets: 'Assets',
   liabilities: 'Liabilities',
+  models: 'Models',
 }
 
 const FOLDER_COLOR_MAP: Record<string, string> = {
