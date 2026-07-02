@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveValues, saleNet, runModel } from './property'
+import { resolveValues, saleNet, runModel, flipPoint } from './property'
 import { MARKET_DEFAULTS } from '../marketDefaults'
 import type { SlotDefinition, SlotMap } from '../types'
 
@@ -94,5 +94,21 @@ describe('runModel — golden fixture', () => {
     for (let i = 1; i < m.rows.length; i++) {
       expect(m.rows[i].invest).toBeGreaterThan(m.rows[i - 1].invest)
     }
+  })
+})
+
+describe('flipPoint', () => {
+  it('finds the appreciation_pct crossover between rent-out and sell-and-invest', () => {
+    const result = flipPoint(FIXTURE, 'appreciation_pct', -2, 12)
+    expect(result).not.toBeNull()
+    expect(result as number).toBeCloseTo(4.157, 2)
+
+    const m = runModel({ ...FIXTURE, appreciation_pct: result as number })
+    expect(Math.abs(m.terminals.rent - m.terminals.invest)).toBeLessThan(1)
+  })
+
+  it('returns null when there is no crossing in the given range', () => {
+    const result = flipPoint(FIXTURE, 'appreciation_pct', 20, 30)
+    expect(result).toBeNull()
   })
 })

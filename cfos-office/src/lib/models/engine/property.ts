@@ -136,3 +136,32 @@ function runRedeploy(v: Record<string, number>, years: number, deposit: number):
   }
   return rows
 }
+
+export function flipPoint(
+  v: Record<string, number>,
+  varId: string,
+  lo: number,
+  hi: number
+): number | null {
+  const gap = (x: number) => {
+    const m = runModel({ ...v, [varId]: x })
+    return m.terminals.rent - m.terminals.invest
+  }
+  let a = lo
+  let b = hi
+  let fa = gap(a)
+  let fb = gap(b)
+  if (fa * fb > 0) return null
+  for (let i = 0; i < 60; i++) {
+    const mid = (a + b) / 2
+    const fm = gap(mid)
+    if (fa * fm <= 0) {
+      b = mid
+      fb = fm
+    } else {
+      a = mid
+      fa = fm
+    }
+  }
+  return (a + b) / 2
+}
