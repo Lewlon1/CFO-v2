@@ -108,6 +108,9 @@ interface ChatContextValue {
   /** Progress-meter result for the in-sheet onboarding beats, or null off-beat.
    *  Threaded from the office layout (see OnboardingProgressMeter). */
   onboardingProgress: OnboardingProgressResult | null
+  /** Already-persisted income/rent for the essentials beat (values save on
+   *  blur; a return mid-beat prefills rather than re-asks — Rule 6). */
+  essentialsPrefill: { income: number | null; rent: number | null } | null
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -147,9 +150,11 @@ interface ChatProviderProps {
   noImport?: boolean
   /** See ChatContextValue.onboardingProgress. */
   onboardingProgress?: OnboardingProgressResult | null
+  /** See ChatContextValue.essentialsPrefill. */
+  essentialsPrefill?: { income: number | null; rent: number | null } | null
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false, onboardingProgress = null }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false, onboardingProgress = null, essentialsPrefill = null }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -615,6 +620,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     onboardingGoal,
     noImport,
     onboardingProgress,
+    essentialsPrefill,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>

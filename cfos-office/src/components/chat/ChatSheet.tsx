@@ -43,6 +43,7 @@ export function ChatSheet() {
     onboardingGoal,
     noImport,
     onboardingProgress,
+    essentialsPrefill,
   } = useChatContext()
 
   const onboardingBeatActive = IN_SHEET_BEAT_STEPS.has(onboardingStep ?? '')
@@ -263,6 +264,7 @@ export function ChatSheet() {
               goal={onboardingGoal}
               noImport={noImport}
               progress={onboardingProgress}
+              essentialsPrefill={essentialsPrefill}
             />
           </div>
         ) : (

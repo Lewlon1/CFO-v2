@@ -21,6 +21,9 @@ type Props = {
   noImport?: boolean
   /** Progress-meter result; rendered above the essentials + confirm beats. */
   progress?: OnboardingProgressResult | null
+  /** Already-persisted income/rent from the profile (values save on blur, so a
+   *  return mid-beat must prefill rather than re-ask — Rule 6). */
+  essentialsPrefill?: { income: number | null; rent: number | null } | null
 }
 
 /**
@@ -31,7 +34,7 @@ type Props = {
  * off reuses the proven ?chat=open&conversationId mechanism (ChatOpenerTrigger)
  * so the composed Read loads into the same sheet.
  */
-export function OnboardingBeatHost({ step, currency, goal, noImport, progress }: Props) {
+export function OnboardingBeatHost({ step, currency, goal, noImport, progress, essentialsPrefill }: Props) {
   const router = useRouter()
   const { openSheet, loadConversation } = useChatContext()
   const readTriggeredRef = useRef(false)
@@ -144,8 +147,8 @@ export function OnboardingBeatHost({ step, currency, goal, noImport, progress }:
         )}
         <EssentialsBeatBlock
           currency={currency}
-          initialIncome={null}
-          initialRent={null}
+          initialIncome={essentialsPrefill?.income ?? null}
+          initialRent={essentialsPrefill?.rent ?? null}
           noImport={noImport}
           // ProcessingForm runs advanceToConfirm itself (→ details_pending); we
           // just refresh so the host advances to the confirm beat.

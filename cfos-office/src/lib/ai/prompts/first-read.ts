@@ -410,7 +410,7 @@ Your job: turn those declared numbers into one clear, honest picture — what's 
 STRUCTURE (the contract):
 1. THE PICTURE — state it plainly from the FACTS below: income, fixed costs, and the free cash that's left once fixed costs are paid. Use the figures verbatim; never recompute or invent. Never derive your own leftover or residual — if a modelled cushion is given in the FACTS you may cite it verbatim; otherwise do not state one. Make clear this free cash is the pool EVERYTHING ELSE comes out of — including day-to-day living — not pure surplus. A tangible frame is allowed ONLY when it is built from a figure already in the FACTS — the goal's % of take-home, or free cash set against the fixed costs. Do not pad.
 2. THE GOAL (only if a goal is present in the FACTS) — what reaching it needs each month, and how that sits against the free cash: comfortably clear, tight, or short. If a modelled cushion is given, name it as a PAPER figure — what's left before any day-to-day spending — never as money truly spare. Use the figures GIVEN; do not compute your own.
-3. THE HONEST CLOSE — the biggest thing these two numbers miss is EVERYDAY SPENDING: groceries, transport, eating out — the variable week-to-week living that never gets declared and comes straight out of that same free cash. Name it plainly: the declared picture has no day-to-day spending in it at all, so the cushion isn't real spare until that's seen. (Fixed costs are easy to undercount too — a lighter, secondary point.) Then the stake, tied to their goal: once real spending is in the picture, the room — and that cushion — can be a lot thinner, and the goal slower. Make the upload feel like how they find out whether the plan is real, not a chore. Close on a forward statement, never a question. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Share my last 3 statements[/CTA].
+3. THE HONEST CLOSE — the biggest thing these two numbers miss is EVERYDAY SPENDING: groceries, transport, eating out — the variable week-to-week living that never gets declared and comes straight out of that same free cash. Name it plainly: the declared picture has no day-to-day spending in it at all, so the cushion isn't real spare until that's seen. (Fixed costs are easy to undercount too — a lighter, secondary point.) Then the stake, tied to their goal: once real spending is in the picture, the room — and that cushion — can be a lot thinner, and the goal slower. Make the upload feel like how they find out whether the plan is real, not a chore. Close on a forward statement, never a question. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Show me my last 3 months[/CTA].
 
 BANNED:
 - Inventing any number not in the FACTS below. If free cash isn't given, do not state one. Do not compute a leftover/residual yourself — only cite the modelled cushion if it is in the FACTS.
@@ -430,7 +430,7 @@ SHAPE TO AIM FOR (illustrative only — the FACTS below are the real source; nev
 > You bring in about €3,100 a month, and the fixed costs you listed come to €1,850 — so roughly €1,250 is left once those are paid. That's the pool everything else has to come out of.
 > Your house deposit wants about €600 a month — close to a fifth of your income, and it fits inside that €1,250 with around €650 over on paper.
 > On paper is the catch. These two numbers don't count a single day of everyday living — groceries, transport, the going-out — and all of it comes out of that same €1,250. So the €650 isn't really spare; it's whatever's left after a month of real spending, and these numbers don't include any of it. Three months of statements show what your week actually costs, and whether the deposit still fits.
-> [CTA:start_statement_upload]Share my last 3 statements[/CTA]
+> [CTA:start_statement_upload]Show me my last 3 months[/CTA]
 > — C.`;
 
 export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
@@ -471,7 +471,7 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
   sections.push(
     `COMPOSE THE DECLARED FIRST READ NOW. State the picture (income, fixed costs, free cash) from the FACTS verbatim` +
       (facts.goalName ? `; then how the goal sits against the free cash` : ``) +
-      `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it — and the [CTA:start_statement_upload]Share my last 3 statements[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
+      `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it — and the [CTA:start_statement_upload]Show me my last 3 months[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
   );
 
   return sections.join('\n');

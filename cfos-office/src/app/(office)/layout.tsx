@@ -245,6 +245,10 @@ export default async function OfficeLayout({ children }: { children: React.React
         onboardingGoal={onboardingGoal}
         noImport={!hasImport}
         onboardingProgress={onboardingProgressResult}
+        essentialsPrefill={{
+          income: profile?.net_monthly_income ?? null,
+          rent: profile?.monthly_rent ?? null,
+        }}
       >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />
