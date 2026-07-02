@@ -16,6 +16,12 @@ import { UpgradeUploadSurface } from './UpgradeUploadSurface'
 import { OnboardingProgressMeter } from '@/components/onboarding-v2/in-sheet/onboarding-progress-meter'
 import { IN_SHEET_BEAT_STEPS } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
+import { formatMoney } from '@/lib/utils/money'
+
+// Once-per-session guard for the declared-pending re-offer (Rule 6 cadence:
+// one pull per session, never a nag). sessionStorage, same pattern as the
+// onboarding banner card.
+const REOFFER_SEEN_KEY = 'cfos_declared_reoffer_seen'
 
 export function ChatSheet() {
   const {
@@ -27,6 +33,7 @@ export function ChatSheet() {
     isSheetOpen,
     closeSheet,
     uploadSurfaceOpen,
+    openUploadSurface,
     startConversation,
     handleOptionSelect,
     handleStructuredSubmit,
@@ -55,7 +62,24 @@ export function ChatSheet() {
   const [conversations, setConversations] = useState<
     Array<{ id: string; title: string | null; updated_at: string }>
   >([])
+  const [reofferVisible, setReofferVisible] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
+
+  // Declared-pending re-offer: one C.-voiced pull per session toward the
+  // upload, shown when the sheet opens for a user whose Read still stands on
+  // declared numbers. The seen-key is set on first show — an ignored banner
+  // does not re-appear until the next session (Rule 6: ask late, ask little).
+  useEffect(() => {
+    if (!isSheetOpen || !declaredPending) return
+    if (onboardingBeatActive || needsEntryStruggle) return
+    try {
+      if (sessionStorage.getItem(REOFFER_SEEN_KEY)) return
+      sessionStorage.setItem(REOFFER_SEEN_KEY, '1')
+    } catch {
+      return // sessionStorage unavailable — skip rather than risk nagging
+    }
+    setReofferVisible(true)
+  }, [isSheetOpen, declaredPending, onboardingBeatActive, needsEntryStruggle])
 
   // Anchor sheet to the visual viewport so the chat input stays pinned above
   // the iOS keyboard. iOS fires BOTH `resize` (when the keyboard appears/disappears)
@@ -152,6 +176,38 @@ export function ChatSheet() {
   )
 
   if (!isSheetOpen) return null
+
+  // The declared-pending pull, C.-voiced with the user's own server-computed
+  // figure (no client math — the cushion rides the flag from the layout).
+  const reofferBanner =
+    reofferVisible && declaredPending ? (
+      <div className="px-4 py-2 bg-office-gold/10 border-t border-office-gold/20 text-office-gold text-sm flex items-center justify-between gap-2">
+        <span>
+          Your read still stands on the two numbers you gave me — three months of
+          statements test whether the{' '}
+          {formatMoney(declaredPending.freeCash, { currency: declaredPending.currency })} of room
+          is real.
+        </span>
+        <div className="flex items-center shrink-0">
+          <button
+            onClick={() => {
+              setReofferVisible(false)
+              openUploadSurface()
+            }}
+            className="font-semibold min-h-[44px] px-2 flex items-center justify-center hover:text-office-text"
+          >
+            Show me
+          </button>
+          <button
+            onClick={() => setReofferVisible(false)}
+            aria-label="Dismiss"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:text-office-text"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+    ) : null
 
   const errorBanner = chatError ? (
     <div className="px-4 py-2 bg-office-gold/10 border-t border-office-gold/20 text-office-gold text-sm flex items-center justify-between">
@@ -307,6 +363,7 @@ export function ChatSheet() {
                 />
               )}
             </div>
+            {reofferBanner}
             {errorBanner}
             <ChatInput
               input={input}

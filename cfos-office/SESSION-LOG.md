@@ -2964,3 +2964,63 @@ whole-feature seam review, all ✅.
 `2f493072-…`/`7c85accf-…` now has 105 txns (no longer a clean 0-txn declared user) — reset it on
 staging (delete txns + import batch + clear the upgrade stamps) before the manual smoke per the plan's
 Fixture Reset section. Also pending: `provider.ts` default model-id divergence (separate task).
+
+## 2026-07-02 — v2.9 review remediation: onboarding friction + declared-loop payoff (12 points, 4 phases)
+
+**What shipped.** Four commits on `claude/cfo-onboarding-engagement-god4e0`, from a
+multi-agent review of the v2.9 work (plan: `~/.claude/plans/write-a-phased-plan-clever-meadow.md`).
+(1) Friction quick wins: the essentials beat's 30s `IMPORT_GRACE_MS` timer is gone (the beat only
+mounts after `/api/upload` awaits the WHOLE pipeline — the gate was pure theatre); the
+"I don't have a statement handy" skip renders inside the uploader too (it was intro-only — a user
+who tapped Upload was stranded); income/rent prefill on return (`essentialsPrefill` threaded
+layout → provider → sheet → host); 44px skip tap targets; `no_transactions` → notify nudge,
+`stamp_failed`+conversationId → `load_and_close`; declared CTA label pinned to the payoff frame
+("Show me my last 3 months") in rule + few-shot + compose instruction.
+(2) Payoff correctness: `DeclaredReadFacts` carries goal target/saved/date + a straight-line
+fallback pace (never for investment goals — compound-growth pace is the only source, Rule 8);
+post-upload snapshots `declared_facts` into conversation metadata; the upgrade route parses it and
+`buildDeclaredDelta` computes both sides + signed diffs server-side, rendered as the ONLY legal
+source of the declared BEFORE figures.
+(3) Meter payoff states: `declared_read_pending {conversationId, freeCash, currency}` on
+`user_profiles.onboarding_progress` (existing jsonb, no migration); meter renders from the upload
+decision through the terminal compose wait and — pinned in the sheet — post-onboarding for
+declared-pending users until "A real month" lands.
+(4) Upgrade reachability: cash-flow `ImportResult` CTA runs the upgrade for declared-pending users;
+once-per-session sheet-open re-offer banner with the server-computed cushion figure.
+
+**Lessons (the load-bearing gotchas).**
+- **The upgrade prompt told the model to cite declared figures "verbatim" from sections containing
+  zero numbers** (`formatAlreadySaid` renders prose flags; the DELTA block was instructions-only).
+  The flagship "you told me ≈X — the statements show Y" moment was structurally number-free or
+  hallucinated. If a prompt demands verbatim citation, grep the actual rendered sections for the
+  figures — the instruction reading well is not the same as the data being there.
+- **`/chat/:id` is a dead route** — `next.config.ts` permanently redirects it to `/office` and DROPS
+  the id. `ImportResult`'s insights CTA had been composing a Read and then stranding the user on the
+  office home with the sheet closed. The working path into the sheet is
+  `/office?chat=open&conversationId=…` (ChatOpenerTrigger). Audit `router.push` targets against
+  next.config redirects.
+- **`onboarding_step='first_read_delivered'` cannot distinguish declared from transaction Reads** —
+  both paths land there. The declared-ness lives only in conversation metadata, which the layout
+  doesn't read. Hence the profile-level `declared_read_pending` flag (cleared as soon as the upgrade
+  Read has APPENDED — a stamp_failed Read is still delivered, so clearing on markUpgraded-success
+  only would leave the meter advertising an upgrade that already landed).
+- **The declared-facts snapshot IS the declared side of the delta by construction**: at
+  declared-compose time `getFinancialFacts.total_fixed_costs` reconciles only profile rent +
+  user-declared bills (no transactions → no detected recurring). Fresh facts at upgrade time are the
+  ACTUAL side. No second bookkeeping needed — but snapshot-only: pre-snapshot conversations stay
+  qualitative (the prompt now explicitly forbids stating a declared number in that case).
+- **Prefill made a latent soft-lock reachable**: `ProcessingForm`'s equal-value blur guard
+  early-returned while a keystroke had already reset status to `'pristine'` — edit-then-settle-back
+  bricked Continue. A guard that is dead code today (initials always null) can become live the day a
+  caller changes; fix the guard when you change the caller.
+- **`ProcessingProgress` with `importComplete` lands on "Ready when you are · 100%"** — killing the
+  fake timer needed no strip changes, just honest input.
+
+**Verified.** Per phase: `npm run typecheck`, `npm run build`, full `npm run test` — final state
+**1256 passing** (106 files). NOT run (runtime follow-ups): live Bedrock end-to-end for the declared
+Read's new goal block and the numeric-delta upgrade Read (needs staging + Bedrock creds; the
+`skip-upload-declared` persona covers the flow, and the existing captured fixture remains valid —
+its goal figures are now legitimately prompt-supplied). The pinned meter + re-offer banner + cash-flow
+upgrade CTA need a staging smoke with a declared-pending user (`declared_read_pending` set by a
+fresh declared Read — pre-existing declared users from before this ship have no flag and see no
+pinned meter, by design/snapshot-only choice).

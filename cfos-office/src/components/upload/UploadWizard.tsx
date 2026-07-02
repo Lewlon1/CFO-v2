@@ -75,6 +75,9 @@ type Props = {
   context?: 'transactions' | 'balance_sheet'
   /** When true, skip review and auto-import after upload. */
   autoImport?: boolean
+  /** Pass-through to ImportResult: the user's first Read still stands on
+   *  declared numbers, so the insights CTA runs the declared→actual upgrade. */
+  declaredPending?: boolean
 }
 
 function headersKey(headers: string[] | undefined | null): string {
@@ -82,7 +85,7 @@ function headersKey(headers: string[] | undefined | null): string {
   return headers.map((h) => h.trim().toLowerCase()).join('|')
 }
 
-export function UploadWizard({ categories, onImported, onDone, context = 'transactions', autoImport }: Props) {
+export function UploadWizard({ categories, onImported, onDone, context = 'transactions', autoImport, declaredPending }: Props) {
   const trackEvent = useTrackEvent()
   const [state, setState] = useState<WizardState>({ step: 'idle' })
   const autoImportFiredRef = useRef(false)
@@ -611,6 +614,7 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
         errors={state.errors}
         importBatchId={state.importBatchId}
         onDone={onDone ?? resetBatch}
+        declaredPending={declaredPending}
       />
     )
   }
