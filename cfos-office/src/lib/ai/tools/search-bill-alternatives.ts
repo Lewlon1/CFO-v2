@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { generateObject } from 'ai'
-import { analysisModel } from '@/lib/ai/provider'
+import { analysisModel, chatModelId } from '@/lib/ai/provider'
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import { braveSearch } from '@/lib/bills/brave-search'
 import { matchProvider, KNOWN_PROVIDERS } from '@/lib/bills/provider-registry'
 import { normaliseToMonthly } from '@/lib/bills/normalise'
@@ -146,6 +147,16 @@ Current situation:
           model: analysisModel,
           schema: alternativesSchema,
           prompt: analysisPrompt,
+        })
+
+        // Usage accounting — this tool makes its OWN Bedrock call inside the
+        // chat tool loop, invisible to the step-level tool_call rows.
+        void trackLLMUsage({
+          userId: ctx.userId,
+          callType: 'bill_alternatives_search',
+          model: chatModelId,
+          inputTokens: result.usage?.inputTokens,
+          outputTokens: result.usage?.outputTokens,
         })
 
         const analysis = result.object

@@ -27,6 +27,7 @@ import { utilityModel, utilityModelId } from '@/lib/ai/provider'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import type {
   FileType,
   FormatTemplate,
@@ -106,6 +107,17 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap.
+  const guardVerdict = await checkLlmAllowed({
+    userId: user.id,
+    surface: 'format_detection',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[detect-format] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   let body: z.infer<typeof RequestSchema>

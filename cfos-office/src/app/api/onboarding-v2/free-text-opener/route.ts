@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateFreeTextOpener } from '@/lib/onboarding-v2/free-text-opener-generator'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 
 export const maxDuration = 30
 
@@ -10,6 +11,19 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap. (The
+  // route's own once-per-conversation return below stays the first-line
+  // idempotency; this bounds fresh opener generations.)
+  const guardVerdict = await checkLlmAllowed({
+    userId: user.id,
+    surface: 'free_text_opener',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[free-text-opener] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
+  }
 
   const { conversationId } = (await req.json()) as { conversationId?: string }
   if (!conversationId) {

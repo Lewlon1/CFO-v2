@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { bedrock, chatModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
 import { getDataWindowEnd, getDataWindowCoverage } from '@/lib/analytics/cluster-behaviour/queries';
@@ -284,6 +285,17 @@ export async function composeFirstRead(params: {
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     temperature: 0.5,
     abortSignal: AbortSignal.timeout(20_000),
+  });
+
+  // Usage accounting — composes were previously invisible to llm_usage_log,
+  // so the cost guard's first_read_compose daily cap had nothing to count.
+  void trackLLMUsage({
+    userId: params.userId,
+    callType: 'first_read_compose',
+    model: COMPOSE_MODEL,
+    inputTokens: result.usage?.inputTokens,
+    outputTokens: result.usage?.outputTokens,
+    metadata: { mode },
   });
 
   const composedMessage = result.text.trim();
@@ -619,6 +631,17 @@ async function composeDeclaredRead(
     maxOutputTokens: DECLARED_MAX_OUTPUT_TOKENS,
     temperature: 0.5,
     abortSignal: AbortSignal.timeout(20_000),
+  });
+
+  // Usage accounting — same first_read_compose bucket as the transaction
+  // composes; the mode in metadata distinguishes them.
+  void trackLLMUsage({
+    userId,
+    callType: 'first_read_compose',
+    model: COMPOSE_MODEL,
+    inputTokens: result.usage?.inputTokens,
+    outputTokens: result.usage?.outputTokens,
+    metadata: { mode: 'declared' },
   });
 
   const metadata: FirstReadMetadata = {

@@ -3,6 +3,7 @@ import { detectLeaks, sanitisePersona } from './persona-sanitiser'
 
 vi.mock('./provider', () => ({
   utilityModel: 'mock-haiku' as unknown as object,
+  utilityModelId: 'mock-haiku-id',
 }))
 
 const generateTextMock = vi.fn()
