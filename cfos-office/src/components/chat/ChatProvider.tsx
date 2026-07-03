@@ -14,6 +14,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
+import { mapChatErrorMessage } from '@/lib/chat/chat-error-message'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 import type { OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
 import type { DeclaredReadPending } from '@/lib/insights/first-read-followup'
@@ -267,14 +268,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
       }),
     }),
     onError: (error) => {
-      const msg = error?.message || ''
-      if (msg.includes('429') || msg.toLowerCase().includes('busy')) {
-        setChatError('Too many requests. Please wait a moment and try again.')
-      } else if (msg.includes('504') || msg.toLowerCase().includes('timeout')) {
-        setChatError('Response timed out. Please try again.')
-      } else {
-        setChatError('Something went wrong. Please try again.')
-      }
+      setChatError(mapChatErrorMessage(error?.message))
     },
     onFinish: ({ messages: finishedMessages }) => {
       // Extract conversationId from assistant metadata
