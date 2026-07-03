@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 
 interface Props {
@@ -40,6 +43,10 @@ const ACTION_TYPES = new Set([
 ])
 
 export function ChatCTA({ type, label, onAction, onNavigate, onOpenUpload }: Props) {
+  // One-shot latch for the action-type button: it fires a full chat turn (a
+  // Bedrock request), so a double-tap must not fire two (incident 2026-07-03).
+  // Navigation/upload CTAs don't need it — they don't send.
+  const [tapped, setTapped] = useState(false)
   // Existing surface — Value Map check-in deep-link. Behaviour preserved.
   if (type === 'value_checkin') {
     return (
@@ -83,10 +90,16 @@ export function ChatCTA({ type, label, onAction, onNavigate, onOpenUpload }: Pro
       <div className="mt-3 px-3">
         <button
           type="button"
-          onClick={() => onAction(label)}
+          disabled={tapped}
+          onClick={() => {
+            if (tapped) return
+            setTapped(true)
+            onAction(label)
+          }}
           className="inline-flex items-center gap-2 px-5 py-3 rounded-xl
                      bg-primary text-primary-foreground text-sm font-semibold
-                     hover:opacity-90 transition-opacity min-h-11"
+                     hover:opacity-90 transition-opacity min-h-11
+                     disabled:opacity-50"
         >
           {label}
         </button>

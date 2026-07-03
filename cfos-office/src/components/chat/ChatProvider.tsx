@@ -49,7 +49,6 @@ interface ChatContextValue {
   input: string
   setInput: (v: string) => void
   handleSend: () => void
-  sendChatMessage: (text: string) => void
   openSheet: () => void
   closeSheet: () => void
   isSheetOpen: boolean
@@ -228,6 +227,15 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
   )
   const autoTriggeredRef = useRef(false)
   const initialLoadDone = useRef(false)
+  // Concurrent-send latch. The AI SDK's sendMessage has NO concurrency guard
+  // (AbstractChat.makeRequest never checks status), so two near-simultaneous
+  // taps fire two overlapping /api/chat requests into the same conversation —
+  // two full Bedrock tool-loop turns (incident 2026-07-03). A ref, not state:
+  // the second tap of a double-tap lands in the same render cycle, before
+  // React has re-rendered with the SDK's 'submitted' status, so only a
+  // synchronously-latched ref can see it (same rationale as
+  // UpgradeUploadSurface's inFlight ref).
+  const sendGuardRef = useRef(false)
 
   // ── useChat hook ──────────────────────────────────────────────────────────
 
@@ -385,6 +393,9 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
         '[System: Post-upload analysis triggered. Deliver your first insight.]'
     }
 
+    // Latch the send guard so a user tap in the same render cycle (before
+    // status flips to 'submitted') can't overlap this auto-trigger's turn.
+    sendGuardRef.current = true
     sendMessage({ text: trigger })
   }, [messages.length, status, sendMessage, pendingTriggerNonce])
 
@@ -501,9 +512,40 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     [setMessages],
   )
 
+  // Release the send latch once the SDK reports the turn settled. 'error' must
+  // release too — status rests there after a failed stream (nothing calls
+  // clearError), and blocking error-recovery sends would brick the chat.
+  useEffect(() => {
+    if (status === 'ready' || status === 'error') {
+      sendGuardRef.current = false
+    }
+  }, [status])
+
+  /**
+   * The ONLY path to sendMessage for user-initiated sends. Returns false (send
+   * rejected) while a turn is in flight — either the SDK already knows
+   * ('submitted'/'streaming', matching ChatInput's disable convention) or the
+   * latch is set (a same-render-cycle double-tap the status can't see yet).
+   * Never gate on status !== 'ready': that would swallow every send after one
+   * stream error, permanently.
+   */
+  const guardedSend = useCallback(
+    (text: string): boolean => {
+      if (status === 'submitted' || status === 'streaming') return false
+      if (sendGuardRef.current) return false
+      sendGuardRef.current = true
+      sendMessage({ text })
+      return true
+    },
+    [status, sendMessage],
+  )
+
   const handleSend = useCallback(() => {
     const text = input.trim()
     if (!text) return
+    // Gate BEFORE clearing the input or logging analytics: a rejected send
+    // must neither destroy the user's typed text nor count as a sent message.
+    if (status === 'submitted' || status === 'streaming' || sendGuardRef.current) return
     setChatError(null)
     setInput('')
     trackEvent('message_sent')
@@ -518,18 +560,8 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
         conversation_id: ctx.conversation_id,
       })
     }
-    sendMessage({ text })
-  }, [input, sendMessage, trackEvent])
-
-  // Direct send (used by quick action pills, option selects, etc.)
-  const sendChatMessage = useCallback(
-    (text: string) => {
-      setChatError(null)
-      trackEvent('message_sent')
-      sendMessage({ text })
-    },
-    [sendMessage, trackEvent],
-  )
+    guardedSend(text)
+  }, [input, status, guardedSend, trackEvent])
 
   const handleOptionSelect = useCallback(
     (text: string) => {
@@ -537,14 +569,14 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
       const isProfilingAgreement =
         /let.s do a few now|sure.*profile|do.*now/i.test(text)
       if (isProfilingAgreement) {
-        sendMessage({
-          text: '[System: User agreed to profiling. IMMEDIATELY call request_structured_input with field="net_monthly_income", input_type="currency_amount", label="What\'s your monthly take-home pay?", rationale="Helps me tell you whether your spending patterns are sustainable". Do not output any text before the tool call — just call the tool now.]',
-        })
+        guardedSend(
+          '[System: User agreed to profiling. IMMEDIATELY call request_structured_input with field="net_monthly_income", input_type="currency_amount", label="What\'s your monthly take-home pay?", rationale="Helps me tell you whether your spending patterns are sustainable". Do not output any text before the tool call — just call the tool now.]',
+        )
       } else {
-        sendMessage({ text })
+        guardedSend(text)
       }
     },
-    [sendMessage],
+    [guardedSend],
   )
 
   const handleStructuredSubmit = useCallback(
@@ -554,9 +586,9 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ field, value }),
       })
-      sendMessage({ text: displayText })
+      guardedSend(displayText)
     },
-    [sendMessage],
+    [guardedSend],
   )
 
   // Fires after LabelTransactionsBlock has POSTed every label to
@@ -570,9 +602,9 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
       labels: Record<string, LabelTransactionsQuadrantId>,
     ) => {
       const trigger = buildLabelRecapTrigger(transactions, labels)
-      sendMessage({ text: trigger })
+      guardedSend(trigger)
     },
-    [sendMessage],
+    [guardedSend],
   )
 
   const dismissError = useCallback(() => setChatError(null), [])
@@ -589,7 +621,6 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     input,
     setInput,
     handleSend,
-    sendChatMessage,
     openSheet,
     closeSheet,
     isSheetOpen,

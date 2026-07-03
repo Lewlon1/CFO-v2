@@ -42,6 +42,37 @@ import { VCR_ON_CONFLICT } from '@/lib/prediction/types';
 
 export const maxDuration = 60;
 
+// ── In-flight turn guard (per warm instance) ─────────────────────────────────
+// One chat turn per conversation at a time. Two overlapping POSTs for the same
+// conversation are a duplicate turn — a double-tap or a buggy client — and the
+// second must be rejected BEFORE any Bedrock work (incident 2026-07-03: two
+// concurrent turns, duplicate replies, 2× tokens). Module-scope state persists
+// per warm Node instance; cross-instance duplicates are rare (same-user rapid
+// requests land on the same warm instance in practice) and are bounded by the
+// durable per-user limits. The TTL is a crash-safety valve: a turn that never
+// released (instance recycled mid-stream, unhandled throw outside the catch)
+// self-heals after 90s instead of locking the conversation.
+const CHAT_IN_FLIGHT_TTL_MS = 90_000;
+const chatTurnsInFlight = new Map<string, number>();
+
+function claimChatTurn(key: string): boolean {
+  const now = Date.now();
+  // Opportunistic sweep so crashed-turn keys can't accumulate unboundedly.
+  if (chatTurnsInFlight.size > 1_000) {
+    for (const [k, startedAt] of chatTurnsInFlight) {
+      if (now - startedAt >= CHAT_IN_FLIGHT_TTL_MS) chatTurnsInFlight.delete(k);
+    }
+  }
+  const startedAt = chatTurnsInFlight.get(key);
+  if (startedAt != null && now - startedAt < CHAT_IN_FLIGHT_TTL_MS) return false;
+  chatTurnsInFlight.set(key, now);
+  return true;
+}
+
+function releaseChatTurn(key: string | null): void {
+  if (key) chatTurnsInFlight.delete(key);
+}
+
 // Fields that the update_user_profile tool is allowed to write
 const ALLOWED_PROFILE_FIELDS = new Set([
   'display_name', 'country', 'city', 'primary_currency', 'age_range',
@@ -54,6 +85,10 @@ const ALLOWED_PROFILE_FIELDS = new Set([
 ]);
 
 export async function POST(req: Request) {
+  // Set once the conversation id is final; the catch releases it, so it must
+  // be visible outside the try. Null means "nothing to release" (rejected
+  // claim, or error before acquisition).
+  let inFlightKey: string | null = null;
   try {
   const supabase = await createClient();
   const {
@@ -201,6 +236,20 @@ export async function POST(req: Request) {
     }
     activeConversationId = data.id;
   }
+
+  // In-flight guard — acquired only now that the conversation id is final and
+  // every non-error early return above is behind us (an entry leaked on an
+  // early return would lock the conversation for the TTL). Released in the
+  // stream's onFinish and in the catch. The 'busy' body is load-bearing: the
+  // client's onError maps that substring to a friendly banner.
+  const claimKey = `${user.id}:${activeConversationId}`;
+  if (!claimChatTurn(claimKey)) {
+    return new Response(JSON.stringify({ error: 'busy' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  inFlightKey = claimKey;
 
   // Save the user's latest message (skip hidden system trigger messages)
   const lastUserMessage = messages[messages.length - 1];
@@ -744,6 +793,12 @@ export async function POST(req: Request) {
     },
     toolChoice: 'auto',
     stopWhen: stepCountIs(5),
+    // Hard per-turn bounds. Real turns peak well under 400 completion tokens
+    // (Reads cap at 700), so 1,500 is generous headroom, not a quality cap.
+    // The abort sits just inside maxDuration=60 so a hung Bedrock call dies
+    // here rather than billing until the platform kills the function.
+    maxOutputTokens: 1_500,
+    abortSignal: AbortSignal.timeout(55_000),
     onStepFinish: ({ toolCalls, usage }) => {
       if (!toolCalls || toolCalls.length === 0) return;
       const toolsInStep = toolCalls.length;
@@ -770,6 +825,9 @@ export async function POST(req: Request) {
       return undefined;
     },
     onFinish: async ({ messages: responseMessages }) => {
+      // Release the in-flight claim FIRST — before any await that could throw.
+      // This fires on both normal flush and client-disconnect cancel.
+      releaseChatTurn(inFlightKey);
       // Get token usage + provider metadata from the stream result
       const usage = await result.usage;
       const providerMetadata = await result.providerMetadata;
@@ -891,6 +949,10 @@ export async function POST(req: Request) {
               messages: retryMessages,
               tools: toolbox,
               toolChoice: { type: 'tool', toolName: 'record_value_classifications' },
+              // Bounded like every other Bedrock call: this is a forced
+              // single tool call, so the caps cost nothing legitimate.
+              maxOutputTokens: 1_000,
+              abortSignal: AbortSignal.timeout(20_000),
             });
 
             // generateText returns toolCalls/toolResults arrays. The tool's
@@ -1109,6 +1171,10 @@ export async function POST(req: Request) {
     },
   });
   } catch (err: unknown) {
+    // The stream never started (or threw synchronously) — release the claim so
+    // the user's retry isn't locked out for the TTL. No-op when nothing was
+    // acquired.
+    releaseChatTurn(inFlightKey);
     console.error('[chat] unhandled error:', err);
     const message = err instanceof Error ? err.message : String(err);
 
