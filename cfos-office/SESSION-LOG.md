@@ -2964,3 +2964,74 @@ whole-feature seam review, all ✅.
 `2f493072-…`/`7c85accf-…` now has 105 txns (no longer a clean 0-txn declared user) — reset it on
 staging (delete txns + import batch + clear the upgrade stamps) before the manual smoke per the plan's
 Fixture Reset section. Also pending: `provider.ts` default model-id divergence (separate task).
+
+## 2026-07-03 — LLM cost control: no user can rack up extreme Bedrock costs (4 phases)
+
+**Incident.** 2026-07-03 08:57 UTC, staging: a double-tap on two clarifier chips fired two
+overlapping /api/chat requests into one conversation — two full tool-loop turns, duplicate
+replies ("Two answers at once — noted."), ~2× tokens. Investigation showed the incident class
+was wide open: the authed chat route had NO rate limit, NO in-flight guard, NO maxOutputTokens;
+`sendMessage` in ai@6 has NO concurrency guard (AbstractChat.makeRequest never checks status);
+recompose-first-read had NO idempotency (its stamp was written but never read back — every POST
+re-composed); the main chat generation and all first-Read composes were absent from
+llm_usage_log; and nothing anywhere read usage to enforce a budget.
+
+**What shipped** (commits `3978765`, `255eb3e`, `920b3dd`, + this one; plan:
+`~/.claude/plans/write-a-phased-plan-clever-meadow.md`).
+Layered defence: (0) client — provider-level `guardedSend` ref-latch + one-shot
+TappableOptions/ChatCTA chips; (1) per-instance in-flight guard on the chat route (429 'busy'
+before any Bedrock work); (2) per-request bounds everywhere (chat maxOutputTokens 1500 + 55s
+abort; forced-retry, categoriser, pdf-vision bounded; recompose idempotent);
+(3) `src/lib/ai/llm-guard.ts` on EVERY user-triggerable LLM route — LLM_DISABLED env kill
+switch, `user_profiles.llm_blocked_at` per-user block, in-memory burst (chat 10/min), durable
+daily caps counted from llm_usage_log (chat 100/day; per-surface tables in the helper);
+(4) full accounting — chat turns get a pre-stream `chat_turn` row (tokens backfilled in
+onFinish), composes/sanitiser/signals/bill calls all log; (5) demo/reading requires a valid
+`session_token` + 3-readings-per-session durable cap (it is the one UNAUTHENTICATED Bedrock
+endpoint, Opus-first).
+
+**Runbook.**
+- **Emergency stop (all spend):** set `LLM_DISABLED=1` in Vercel env (staging or prod) —
+  every guarded route refuses with the friendly block in seconds, no deploy. Computed pages
+  keep working (Rule 6). Unset to restore.
+- **Stop one account:** `update user_profiles set llm_blocked_at = now() where id = '<uuid>';`
+  (clear with `= null`). Column ships in migration 074.
+- **Who spent what today:** `select call_type, count(*), sum(total_tokens) from llm_usage_log
+  where user_id = '<uuid>' and created_at >= date_trunc('day', now()) group by 1;`
+- **⚠️ MANUAL STEP OUTSTANDING:** migration `074_llm_guard.sql` is NOT yet applied to staging
+  (the MCP permission prompt failed on an infra error) — run it in the staging SQL editor
+  (`qlbhvlssksnrhsleadzn`). Safe in either order: the guard fails open until the column exists.
+  `prod-backfill-074_llm_guard.sql` is the usual Lewis-manual prod companion.
+
+**Lessons (load-bearing gotchas).**
+- **ai@6 `sendMessage` has no concurrency guard** — `makeRequest` unconditionally pushes the
+  user message and fires the fetch; two same-tick calls = two concurrent POSTs, and the second
+  AbortController OVERWRITES the first (stop() can then only abort the newer stream). Any send
+  surface must carry its own latch; `status` alone can't see a same-render-cycle double-tap.
+- **Never gate sends on `status !== 'ready'`** — after a stream error, status rests at 'error'
+  forever (nothing calls clearError); that gate would brick chat after one failure. Gate on
+  submitted/streaming and reset the latch on ready OR error.
+- **A messages-table daily cap is dodgeable**: the chat route skips persisting `[System:`
+  -prefixed user messages while still running the full turn. Count something written
+  unconditionally per invocation (the pre-stream chat_turn row), not a side effect.
+- **429 body copy doesn't reach the user by magic** — the AI SDK transport surfaces the raw
+  response body as error.message; the client's onError must JSON-parse it (mapChatErrorMessage)
+  or the friendly block renders as the generic failure string.
+- **In-flight guards on streaming routes can't use try/finally** — the handler returns the
+  Response while Bedrock is still streaming; release in the stream's onFinish (fires on flush
+  AND client-disconnect cancel) + the route catch, and acquire only after the conversation id
+  is final so early returns can't leak the claim.
+- **An idempotency stamp nobody reads is not idempotency** — recompose wrote
+  `first_read_metadata_recomposed` on every run and never checked it; the fix is a pre-check +
+  a null-aware conditional-update claim (`key.is.null,key.neq.true` — plain .neq excludes
+  absent keys, migration-072 lesson applies here too).
+- **Vitest module mocks are strict**: adding an import (`utilityModelId`) to a mocked module
+  throws "No export is defined on the mock" inside the code under test — it surfaces as the
+  FEATURE failing (caught by its own try/catch), not as a mock error at the test site.
+
+**Verified.** Per phase: `npm run typecheck && npm run build`, full vitest — final **1277
+passing** (llm-guard decision table, chat-error-message mapping, recompose idempotency ×5,
+upgrade-response, one-shot chips via typecheck). NOT run (staging follow-ups): the manual smoke
+list in the plan's Verification section (double-tap, concurrent curl, burst loop, block flag,
+kill switch, [System:] cap counting, chat_turn token backfill) — needs the staging deploy +
+migration 074 applied.
