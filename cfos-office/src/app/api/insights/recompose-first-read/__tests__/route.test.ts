@@ -8,7 +8,9 @@ const composeFirstRead = vi.fn()
 vi.mock('@/lib/ai/compose-first-read', () => ({
   composeFirstRead: (...args: unknown[]) => composeFirstRead(...args),
 }))
-const checkLlmAllowed = vi.fn(async () => ({ allowed: true }))
+const checkLlmAllowed = vi.fn<
+  (...args: unknown[]) => Promise<{ allowed: boolean; reason?: string }>
+>(async () => ({ allowed: true }))
 vi.mock('@/lib/ai/llm-guard', () => ({
   checkLlmAllowed: (...args: unknown[]) => checkLlmAllowed(...args),
   LLM_LIMIT_MESSAGE: 'limit-copy',
@@ -141,7 +143,8 @@ describe('recompose-first-read idempotency', () => {
       .filter((c: Call) => c.table === 'conversations' && c.method === 'update')
       .map((c: Call) => c.value as Record<string, unknown>)
     const stamp = updates.find(
-      (u) => (u.metadata as Record<string, unknown>)?.first_read_metadata_recomposed != null,
+      (u: Record<string, unknown>) =>
+        (u.metadata as Record<string, unknown>)?.first_read_metadata_recomposed != null,
     )
     expect(stamp).toBeDefined()
     expect((stamp!.metadata as Record<string, unknown>).recompose_in_progress).toBe(false)
@@ -157,7 +160,7 @@ describe('recompose-first-read idempotency', () => {
       .filter((c: Call) => c.table === 'conversations' && c.method === 'update')
       .map((c: Call) => c.value as Record<string, unknown>)
     const clear = updates.find(
-      (u) =>
+      (u: Record<string, unknown>) =>
         (u.metadata as Record<string, unknown>)?.recompose_in_progress === false &&
         (u.metadata as Record<string, unknown>)?.first_read_metadata_recomposed == null,
     )
