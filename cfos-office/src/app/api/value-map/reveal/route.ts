@@ -4,6 +4,7 @@ import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/chat/rate-limit'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 
 const OPUS_MODEL = process.env.BEDROCK_OPUS_MODEL ?? 'eu.anthropic.claude-opus-4-6'
 
@@ -66,6 +67,18 @@ export async function POST(req: Request) {
 
   if (!user) {
     return new Response('Unauthorized', { status: 401 })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap. The
+  // route's own 10/60s limiter below stays as an extra layer.
+  const guardVerdict = await checkLlmAllowed({
+    userId: user.id,
+    surface: 'value_map_reveal',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[value-map-reveal] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return Response.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   const limit = await checkRateLimit(`vm-reveal:${user.id}`, { limit: 10, windowMs: 60_000 })

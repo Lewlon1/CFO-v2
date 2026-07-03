@@ -1,6 +1,7 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { utilityModel } from '@/lib/ai/provider';
+import { utilityModel, utilityModelId } from '@/lib/ai/provider';
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import type { ChatSignalType } from './types';
 
 // Haiku-based fallback for ambiguous chat messages where pattern matching
@@ -65,6 +66,14 @@ Each signal requires:
 - target_merchant / target_category: nullable; only set when attribution is clear
 
 Return an empty array if the message contains no clear signals.`,
+  });
+
+  // Usage accounting (previously invisible to llm_usage_log).
+  void trackLLMUsage({
+    callType: 'chat_signal_fallback',
+    model: utilityModelId,
+    inputTokens: result.usage?.inputTokens,
+    outputTokens: result.usage?.outputTokens,
   });
 
   return result.object.signals;

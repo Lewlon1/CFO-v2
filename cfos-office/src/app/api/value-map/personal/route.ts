@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { getTimeContext } from '@/lib/utils/time-context'
 import { selectRetakeCandidates } from '@/lib/value-map/retake-candidates'
@@ -97,6 +98,14 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // LLM cost guard — the retake's after() hook regenerates the archetype
+  // (Bedrock), so this route shares the archetype surface's caps.
+  const guardVerdict = await checkLlmAllowed({ userId: user.id, surface: 'archetype', supabase })
+  if (!guardVerdict.allowed) {
+    console.warn(`[value-map-personal] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
+  }
 
   let body: PersonalRetakePayload
   try {

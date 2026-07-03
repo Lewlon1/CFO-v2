@@ -13,6 +13,7 @@ import {
   LLM_LIMIT_MESSAGE,
 } from '@/lib/ai/llm-guard';
 import { logBedrockUsage } from '@/lib/ai/usage-logger';
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { logToolCall } from '@/lib/observability/llm-usage-log';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
@@ -990,6 +991,16 @@ export async function POST(req: Request) {
               // single tool call, so the caps cost nothing legitimate.
               maxOutputTokens: 1_000,
               abortSignal: AbortSignal.timeout(20_000),
+            });
+
+            // Usage accounting (previously invisible to llm_usage_log).
+            void trackLLMUsage({
+              userId: user.id,
+              callType: 'chat_forced_retry',
+              model: 'claude-sonnet-4-6',
+              inputTokens: retry.usage?.inputTokens,
+              outputTokens: retry.usage?.outputTokens,
+              metadata: { conversation_id: activeConversationId },
             });
 
             // generateText returns toolCalls/toolResults arrays. The tool's

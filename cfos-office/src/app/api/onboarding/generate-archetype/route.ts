@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { bedrock } from '@/lib/ai/provider'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import {
   buildArchetypePrompt,
   getFallbackArchetype,
@@ -89,6 +90,13 @@ export async function POST(req: Request) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap.
+  const guardVerdict = await checkLlmAllowed({ userId: user.id, surface: 'archetype', supabase })
+  if (!guardVerdict.allowed) {
+    console.warn(`[generate-archetype] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   const body = await req.json()

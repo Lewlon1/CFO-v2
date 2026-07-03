@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead, type ComposeFirstReadMode } from '@/lib/ai/compose-first-read'
 import { setDeclaredReadPending } from '@/lib/insights/first-read-followup'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -97,6 +98,20 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
 
   if (existing?.id) {
     return NextResponse.json({ conversationId: existing.id, reused: true, layered: true })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap.
+  // Deliberately AFTER the reuse check: re-opening an already-composed Read
+  // costs nothing and must never be blocked (a mid-onboarding refresh
+  // re-POSTs this route; blocking the reuse path would strand the user).
+  const guardVerdict = await checkLlmAllowed({
+    userId,
+    surface: 'first_read_compose',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[post-upload] llm-guard blocked user ${userId}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   // Mark any stale (non-layered) typed conversations completed so the user's

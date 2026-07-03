@@ -23,6 +23,7 @@ import { z } from 'zod'
 import { utilityModel, utilityModelId } from '@/lib/ai/provider'
 import { createClient } from '@/lib/supabase/server'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import type { ParsedTransaction } from '@/lib/parsers/types'
 
 export const runtime = 'nodejs'
@@ -99,6 +100,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
+  // LLM cost guard — each request can fan out to 20 Haiku-vision calls, so
+  // this route gets its own (tight) burst + daily caps.
+  const guardVerdict = await checkLlmAllowed({ userId: user.id, surface: 'pdf_vision', supabase })
+  if (!guardVerdict.allowed) {
+    console.warn(`[extract-pdf] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
+  }
+
   let body: z.infer<typeof RequestSchema>
   try {
     body = RequestSchema.parse(await req.json())
@@ -150,6 +159,9 @@ export async function POST(req: NextRequest) {
           },
         ],
         maxOutputTokens: 4000,
+        // A hung vision call must die here rather than eat the whole route's
+        // maxDuration while later pages go unprocessed.
+        abortSignal: AbortSignal.timeout(25_000),
       })
       text = result.text
       inputTokens = result.usage?.inputTokens

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead, type DeclaredReadFacts } from '@/lib/ai/compose-first-read'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import type { PriorReadSummary } from '@/lib/ai/prompts/first-read'
 import { checkReadHardRules } from '@/lib/ai/read-judge'
 import {
@@ -311,6 +312,19 @@ export async function POST() {
   } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap. Lives
+  // in this thin wrapper (not runDeclaredReadUpgrade) so the orchestration
+  // stays unit-testable without the guard's real in-memory burst limiter.
+  const guardVerdict = await checkLlmAllowed({
+    userId: user.id,
+    surface: 'first_read_compose',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[upgrade-declared-read] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   const svc = createServiceClient()
