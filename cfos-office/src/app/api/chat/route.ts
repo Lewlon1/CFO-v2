@@ -6,6 +6,12 @@ import { after } from 'next/server';
 // Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
 import { chatModel } from '@/lib/ai/provider';
+import {
+  checkLlmAllowed,
+  recordChatTurnStart,
+  completeChatTurn,
+  LLM_LIMIT_MESSAGE,
+} from '@/lib/ai/llm-guard';
 import { logBedrockUsage } from '@/lib/ai/usage-logger';
 import { logToolCall } from '@/lib/observability/llm-usage-log';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
@@ -116,6 +122,19 @@ export async function POST(req: Request) {
     if (textLength > MAX_MESSAGE_LENGTH) {
       return new Response('Message too long. Please keep messages under 10,000 characters.', { status: 413 });
     }
+  }
+
+  // Cost guard — kill switch, per-user block, burst limit, durable daily cap.
+  // Checked BEFORE any conversation/message writes: a capped user's request
+  // must not spawn conversations or persist messages, only receive the
+  // friendly block. The client parses this body and renders `message`.
+  const guardVerdict = await checkLlmAllowed({ userId: user.id, surface: 'chat', supabase });
+  if (!guardVerdict.allowed) {
+    console.warn(`[chat] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`);
+    return new Response(
+      JSON.stringify({ error: 'limit', message: LLM_LIMIT_MESSAGE }),
+      { status: 429, headers: { 'Content-Type': 'application/json' } },
+    );
   }
 
   // Fetch existing conversation to get type + metadata (if one exists)
@@ -250,6 +269,16 @@ export async function POST(req: Request) {
     });
   }
   inFlightKey = claimKey;
+
+  // Accounting row for this turn — inserted BEFORE the stream so the daily
+  // cap counts every attempted invocation (hidden [System:] triggers and
+  // disconnected streams included). onFinish backfills the token usage.
+  const turnStartedAt = Date.now();
+  const chatTurnLogId = await recordChatTurnStart({
+    userId: user.id,
+    conversationId: activeConversationId,
+    model: 'claude-sonnet-4-6',
+  });
 
   // Save the user's latest message (skip hidden system trigger messages)
   const lastUserMessage = messages[messages.length - 1];
@@ -848,6 +877,14 @@ export async function POST(req: Request) {
         userId: user.id,
         conversationId: activeConversationId ?? undefined,
         timestamp: new Date().toISOString(),
+      });
+      // Backfill the turn's accounting row (inserted pre-stream) with the
+      // aggregate usage across all tool-loop steps. Fire-and-forget.
+      void completeChatTurn({
+        rowId: chatTurnLogId,
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        durationMs: Date.now() - turnStartedAt,
       });
       // Save assistant response — get the last assistant message for text
       const assistantMsg = responseMessages
