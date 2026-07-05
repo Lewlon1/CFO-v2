@@ -160,6 +160,35 @@ describe('buildFirstReadUserPrompt — declared_upgrade mode', () => {
     // FINANCIAL FACTS is re-labelled as already-delivered context in this mode.
     expect(prompt).toContain('ALREADY DELIVERED in the declared Read');
   });
+
+  it('renders the server-computed DECLARED → ACTUAL figures when a snapshot delta is present', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...baseInput,
+      declaredDelta: {
+        declaredFixedCosts: 1850,
+        declaredFreeCash: 1250,
+        actualFixedCosts: 2140,
+        actualFreeCash: 960,
+        fixedCostsDiff: 290,
+        freeCashDiff: -290,
+        currency: 'EUR',
+      },
+    });
+    // Both sides and the signed differences are citable lines.
+    expect(prompt).toContain('declared ≈ €1,850/mo');
+    expect(prompt).toContain('€2,140/mo');
+    expect(prompt).toContain('+€290/mo');
+    expect(prompt).toContain('−€290/mo');
+    expect(prompt).toContain('cite these figures verbatim');
+    // The qualitative fallback must NOT render alongside the numeric block.
+    expect(prompt).not.toContain('NOT available verbatim');
+  });
+
+  it('falls back to the qualitative delta frame when no snapshot exists (pre-snapshot conversations)', () => {
+    const prompt = buildFirstReadUserPrompt(baseInput); // no declaredDelta
+    expect(prompt).toContain('NEVER state a declared number');
+    expect(prompt).not.toContain('cite these figures verbatim, never recompute either side');
+  });
 });
 
 describe('FIRST_READ_SYSTEM_PROMPT_DECLARED_UPGRADE', () => {

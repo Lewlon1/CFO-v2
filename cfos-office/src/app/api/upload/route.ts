@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Any Bedrock calls for categorisation use the EU inference profile.
 import { createClient } from '@/lib/supabase/server'
@@ -52,6 +53,18 @@ export async function POST(req: NextRequest) {
 
     // Confirm import
     if (body.action === 'import') {
+      // LLM cost guard — the import pipeline runs Haiku categorisation over
+      // unmatched transactions; bound how often one user can trigger it.
+      const guardVerdict = await checkLlmAllowed({
+        userId: user.id,
+        surface: 'upload_categorisation',
+        supabase,
+      })
+      if (!guardVerdict.allowed) {
+        console.warn(`[upload] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+        return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
+      }
+
       const importBatchId: string = body.importBatchId ?? randomUUID()
       // Map user-reviewed preview data to ImportableTransaction format
       const importTxns: ImportableTransaction[] = (body.transactions as Array<ParsedTransaction & { categoryId?: string | null; valueCategory?: string }>).map((t) => ({

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead, type ComposeFirstReadMode } from '@/lib/ai/compose-first-read'
+import { setDeclaredReadPending } from '@/lib/insights/first-read-followup'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -98,6 +100,20 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     return NextResponse.json({ conversationId: existing.id, reused: true, layered: true })
   }
 
+  // LLM cost guard — kill switch / per-user block / burst / daily cap.
+  // Deliberately AFTER the reuse check: re-opening an already-composed Read
+  // costs nothing and must never be blocked (a mid-onboarding refresh
+  // re-POSTs this route; blocking the reuse path would strand the user).
+  const guardVerdict = await checkLlmAllowed({
+    userId,
+    surface: 'first_read_compose',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[post-upload] llm-guard blocked user ${userId}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
+  }
+
   // Mark any stale (non-layered) typed conversations completed so the user's
   // list isn't cluttered when the new layered conversation appears.
   await supabase
@@ -132,6 +148,12 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     import_batch_id: importBatchId,
     first_read_metadata: composed.metadata,
   }
+  // Declared mode only — snapshot the facts the Read stood on, so a later
+  // declared→actual upgrade can render a numeric DECLARED → ACTUAL delta
+  // (the snapshot is the BEFORE side; without it the upgrade stays qualitative).
+  if (composed.declaredFacts) {
+    conversationMetadata.declared_facts = composed.declaredFacts
+  }
 
   const { data: conversation, error: convError } = await supabase
     .from('conversations')
@@ -147,6 +169,18 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
   if (convError || !conversation) {
     console.error('[post-upload.layered] conversation insert failed:', convError)
     return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
+  }
+
+  // Declared mode delivered a Read that stands on self-reported numbers —
+  // flag the profile so post-onboarding surfaces (pinned meter, re-offer
+  // banner) can pull toward the upload. Non-fatal; carries the cushion figure
+  // so those surfaces need no extra query and no client math.
+  if (composed.declaredFacts) {
+    await setDeclaredReadPending(svc, userId, {
+      conversationId: conversation.id,
+      freeCash: composed.declaredFacts.freeCash,
+      currency: composed.declaredFacts.currency,
+    })
   }
 
   // Pre-write the composed message so the auto-trigger guard skips firing.

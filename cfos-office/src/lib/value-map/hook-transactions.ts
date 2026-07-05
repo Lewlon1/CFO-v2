@@ -9,14 +9,19 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
+import { getDataWindowEnd, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries'
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks'
 import type { ValueMapTransaction } from './types'
 
+type HookMetaSlice = { hook_candidates?: HookCandidate[] | null } | null
 type ConversationMetadata = {
   hook_candidates?: HookCandidate[] | null
-  first_read_metadata?: {
-    hook_candidates?: HookCandidate[] | null
-  } | null
+  first_read_metadata?: HookMetaSlice
+  // The declared→actual upgrade writes its composition metadata (hook_candidates
+  // included) under a DISTINCT key from the initial value-first Read. A declared-
+  // path user who then upgraded has their real hooks here, NOT under
+  // first_read_metadata (that one is the declared Read, which saw no txns → null).
+  first_read_metadata_upgraded?: HookMetaSlice
 }
 
 /**
@@ -40,14 +45,19 @@ export async function getHookCandidatesForUser(
 
   if (!data) return null
   const meta = data.metadata as ConversationMetadata | null
-  // hook_candidates may live at the top level OR nested under
-  // first_read_metadata depending on which composition path wrote them.
-  const hooks =
-    meta?.hook_candidates ??
-    meta?.first_read_metadata?.hook_candidates ??
-    null
-  if (!hooks || hooks.length === 0) return null
-  return hooks
+  // hook_candidates can live under several keys depending on which composition
+  // path last wrote a Read into this conversation. Prefer the freshest real-
+  // transaction Read — the declared→actual upgrade — then the initial value-first
+  // Read, then a bare top-level list. Pick the first NON-EMPTY list: a path that
+  // saw no transactions writes hook_candidates: null/[] (the declared Read does),
+  // and that must not shadow a populated list — a plain ?? chain stops on [].
+  const candidateLists: Array<HookCandidate[] | null | undefined> = [
+    meta?.first_read_metadata_upgraded?.hook_candidates,
+    meta?.hook_candidates,
+    meta?.first_read_metadata?.hook_candidates,
+  ]
+  const hooks = candidateLists.find((list) => Array.isArray(list) && list.length > 0)
+  return hooks ?? null
 }
 
 /**
@@ -62,9 +72,15 @@ export async function buildRealTransactionsFromHooks(
   userId: string,
   hooks: HookCandidate[],
   currency: string,
+  dataWindowEnd?: string | null,
 ): Promise<ValueMapTransaction[]> {
   if (hooks.length === 0) return []
-  const since = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10)
+  // Anchor the 90-day window to the user's latest transaction, not today, so a
+  // stale upload's hook merchants still resolve to a representative row (a today-
+  // anchored window returned nothing for data ending >90d ago → the value map
+  // fell back to samples). Mirrors the composer + select-cards windowing.
+  const windowEnd = dataWindowEnd ?? (await getDataWindowEnd(supabase, userId))
+  const since = windowStartISO(90, windowEnd)
   const { data: txns } = await supabase
     .from('transactions')
     .select('id, description, amount, date, is_recurring, category_id, currency')

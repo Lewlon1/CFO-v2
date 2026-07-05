@@ -56,6 +56,11 @@ If you cannot confidently assign a category, omit that transaction from the resu
     const result = await generateText({
       model: utilityModel,
       messages: [{ role: 'user', content: prompt }],
+      // Hard bounds (previously unbounded): the response is a JSON array of at
+      // most 50 small objects — 4,000 tokens is generous headroom — and a hung
+      // Bedrock call must die rather than bill until the platform timeout.
+      maxOutputTokens: 4_000,
+      abortSignal: AbortSignal.timeout(30_000),
     })
     text = result.text
     const usage = result.usage

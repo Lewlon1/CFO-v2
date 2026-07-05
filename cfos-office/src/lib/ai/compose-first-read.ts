@@ -15,9 +15,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { bedrock, chatModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
-import { getDataWindowEnd, getDataWindowCoverage } from '@/lib/analytics/cluster-behaviour/queries';
+import { getDataWindowEnd, getDataWindowCoverage, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
@@ -126,6 +127,11 @@ export async function composeFirstRead(params: {
   priorReadSummary?: PriorReadSummary;
   /** The merchant keys the Value Map actually presented (Phase 1 selection), for the recompose payoff context. */
   valueMapCardKeys?: string[];
+  /** declared_upgrade only — the snapshot the declared Read stood on (from
+   *  conversation metadata). When present, the compose renders a numeric
+   *  DECLARED → ACTUAL block; absent (pre-snapshot conversations), the upgrade
+   *  frames the delta qualitatively. */
+  declaredPriorFacts?: DeclaredReadFacts | null;
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
@@ -141,12 +147,19 @@ export async function composeFirstRead(params: {
     return composeDeclaredRead(supabase, params.userId);
   }
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, financialFacts, benchmarkObservation, entry] = await Promise.all([
+  // Resolve the data window end first — the user's latest transaction date. It
+  // anchors the cluster-selection and transaction-count windows below (and the
+  // breakdown/coverage windows further down) so an upload whose statements end
+  // weeks or months ago windows onto its OWN activity rather than an empty
+  // [today − 90d, today] range. Anchoring those to today is what declined a
+  // genuine 3-month upload as "thin" whenever the data wasn't bang up to date.
+  const dataWindowEnd = await getDataWindowEnd(supabase, params.userId);
+
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
-    getTopMerchantKeys(supabase, params.userId),
+    getTopMerchantKeys(supabase, params.userId, dataWindowEnd),
     getActiveGoal(supabase, params.userId),
-    getTransactionCount(supabase, params.userId, WINDOW_DAYS),
-    getDataWindowEnd(supabase, params.userId),
+    getTransactionCount(supabase, params.userId, WINDOW_DAYS, dataWindowEnd),
     getFinancialFacts(supabase, params.userId),
     getTopBenchmarkObservation(supabase, params.userId),
     getEntryStruggle(supabase, params.userId),
@@ -242,6 +255,13 @@ export async function composeFirstRead(params: {
     return declaredUpgradeDeclineResult(readRecipe);
   }
 
+  // DECLARED → ACTUAL delta (declared_upgrade with a snapshot only). Computed
+  // server-side so the model cites both sides verbatim (Rule 2).
+  const declaredDelta =
+    isDeclaredUpgrade && params.declaredPriorFacts
+      ? buildDeclaredDelta(params.declaredPriorFacts, financialFacts)
+      : null;
+
   const userPrompt = buildFirstReadUserPrompt({
     userId: params.userId,
     mode,
@@ -267,6 +287,7 @@ export async function composeFirstRead(params: {
     // declared upgrade carries the delta contract only (no sort happened).
     priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
     valueMapCardKeys: isRecompose ? (params.valueMapCardKeys ?? null) : null,
+    declaredDelta,
   });
 
   const systemPrompt = isRecompose
@@ -284,6 +305,17 @@ export async function composeFirstRead(params: {
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     temperature: 0.5,
     abortSignal: AbortSignal.timeout(20_000),
+  });
+
+  // Usage accounting — composes were previously invisible to llm_usage_log,
+  // so the cost guard's first_read_compose daily cap had nothing to count.
+  void trackLLMUsage({
+    userId: params.userId,
+    callType: 'first_read_compose',
+    model: COMPOSE_MODEL,
+    inputTokens: result.usage?.inputTokens,
+    outputTokens: result.usage?.outputTokens,
+    metadata: { mode },
   });
 
   const composedMessage = result.text.trim();
@@ -308,8 +340,13 @@ export async function composeFirstRead(params: {
 async function getTopMerchantKeys(
   supabase: SupabaseClient,
   userId: string,
+  dataWindowEnd?: string | null,
 ): Promise<string[]> {
-  const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  // Anchor the 90-day merchant window to the data's latest month, not today, so
+  // a stale upload's aggregates still fall inside it (a today-anchored window
+  // returned zero merchant keys for any dataset ending >90d ago → no usable
+  // clusters → the upgrade declined as "thin").
+  const since = windowStartISO(WINDOW_DAYS, dataWindowEnd);
   const { data, error } = await supabase
     .from('merchant_aggregates')
     .select('merchant_key, transaction_count, last_seen, first_seen')
@@ -553,6 +590,12 @@ export interface DeclaredReadFacts {
   totalFixedCosts: number
   freeCash: number
   goalName: string | null
+  /** Goal anchoring figures — already fetched by getActiveGoal; threading them
+   *  here lets the Read cite the target in the user's own terms instead of
+   *  name-dropping the goal (all nullable — goals can lack any of them). */
+  goalTargetAmount: number | null
+  goalCurrentAmount: number | null
+  goalTargetDate: string | null
   monthlyRequiredSaving: number | null
   percentOfIncome: number | null
   /** Free cash left after the goal contribution — a MODELLED cushion (not observed
@@ -565,11 +608,36 @@ export interface DeclaredReadFacts {
 export function buildDeclaredFacts(input: {
   income: number
   totalFixedCosts: number
-  goal: { name: string; monthlyRequiredSaving: number | null } | null
+  goal: {
+    name: string
+    monthlyRequiredSaving: number | null
+    targetAmount?: number | null
+    currentAmount?: number | null
+    targetDate?: string | null
+    type?: string | null
+  } | null
   currency: string
 }): DeclaredReadFacts {
   const freeCash = Math.max(0, input.income - input.totalFixedCosts)
-  const mrs = input.goal?.monthlyRequiredSaving ?? null
+  let mrs = input.goal?.monthlyRequiredSaving ?? null
+  // Straight-line fallback pace when the goal row carries no stored pace but
+  // has a dated target — same netting as computePaceAndOnTrack (pace.ts).
+  // NEVER for investment goals: their pace is compound-growth-aware
+  // (requiredMonthlyBand); a flat split overstates it on long horizons and
+  // would put a second, disagreeing pace source in play (Rule 8).
+  if (
+    mrs == null &&
+    input.goal != null &&
+    input.goal.type !== 'investment' &&
+    input.goal.targetAmount != null &&
+    input.goal.targetDate != null
+  ) {
+    const monthsLeft = monthsBetween(new Date(), new Date(input.goal.targetDate))
+    const remaining = input.goal.targetAmount - (input.goal.currentAmount ?? 0)
+    if (monthsLeft > 0 && remaining > 0) {
+      mrs = Math.round(remaining / monthsLeft)
+    }
+  }
   const percentOfIncome =
     mrs != null && input.income > 0 ? Math.round((mrs / input.income) * 100) : null
   // The cushion left after the goal contribution — computed here so the model
@@ -580,10 +648,53 @@ export function buildDeclaredFacts(input: {
     totalFixedCosts: input.totalFixedCosts,
     freeCash,
     goalName: input.goal?.name ?? null,
+    goalTargetAmount: input.goal?.targetAmount ?? null,
+    goalCurrentAmount: input.goal?.currentAmount ?? null,
+    goalTargetDate: input.goal?.targetDate ?? null,
     monthlyRequiredSaving: mrs,
     percentOfIncome,
     unallocated,
     currency: input.currency,
+  }
+}
+
+/**
+ * Server-computed DECLARED → ACTUAL delta for the declared_upgrade Read: the
+ * snapshot taken when the declared Read composed (no transactions existed, so
+ * its reconciled fixed costs held only profile rent + user-declared bills) set
+ * against the fresh reconciled facts after the upload. Both sides and the
+ * signed differences are computed HERE so the model cites every figure
+ * verbatim and never derives either side of the delta itself (Rule 2).
+ */
+export interface DeclaredActualDelta {
+  /** BEFORE — what the declared Read stood on. */
+  declaredFixedCosts: number
+  declaredFreeCash: number
+  /** AFTER — the reconciled picture at upgrade time. */
+  actualFixedCosts: number | null
+  actualFreeCash: number | null
+  /** Signed differences (actual − declared), whole units; null when the actual side is missing. */
+  fixedCostsDiff: number | null
+  freeCashDiff: number | null
+  currency: string
+}
+
+export function buildDeclaredDelta(
+  declared: Pick<DeclaredReadFacts, 'totalFixedCosts' | 'freeCash' | 'currency'>,
+  actual: Pick<FinancialFacts, 'total_fixed_costs' | 'free_cash_flow'>,
+): DeclaredActualDelta | null {
+  const actualFixedCosts = actual.total_fixed_costs ?? null
+  const actualFreeCash = actual.free_cash_flow ?? null
+  if (actualFixedCosts == null && actualFreeCash == null) return null
+  return {
+    declaredFixedCosts: declared.totalFixedCosts,
+    declaredFreeCash: declared.freeCash,
+    actualFixedCosts,
+    actualFreeCash,
+    fixedCostsDiff:
+      actualFixedCosts != null ? Math.round(actualFixedCosts - declared.totalFixedCosts) : null,
+    freeCashDiff: actualFreeCash != null ? Math.round(actualFreeCash - declared.freeCash) : null,
+    currency: declared.currency,
   }
 }
 
@@ -607,7 +718,14 @@ async function composeDeclaredRead(
     income: facts.net_monthly_income ?? 0,
     totalFixedCosts: facts.total_fixed_costs ?? 0,
     goal: goalRow
-      ? { name: goalRow.name, monthlyRequiredSaving: goalRow.monthly_required_saving }
+      ? {
+          name: goalRow.name,
+          monthlyRequiredSaving: goalRow.monthly_required_saving,
+          targetAmount: goalRow.target_amount,
+          currentAmount: goalRow.current_amount,
+          targetDate: goalRow.target_date,
+          type: goalRow.type,
+        }
       : null,
     currency: facts.currency,
   });
@@ -619,6 +737,17 @@ async function composeDeclaredRead(
     maxOutputTokens: DECLARED_MAX_OUTPUT_TOKENS,
     temperature: 0.5,
     abortSignal: AbortSignal.timeout(20_000),
+  });
+
+  // Usage accounting — same first_read_compose bucket as the transaction
+  // composes; the mode in metadata distinguishes them.
+  void trackLLMUsage({
+    userId,
+    callType: 'first_read_compose',
+    model: COMPOSE_MODEL,
+    inputTokens: result.usage?.inputTokens,
+    outputTokens: result.usage?.outputTokens,
+    metadata: { mode: 'declared' },
   });
 
   const metadata: FirstReadMetadata = {
@@ -636,7 +765,9 @@ async function composeDeclaredRead(
     repeated_opening: false,
   };
 
-  return { composedMessage: result.text.trim(), metadata };
+  // declaredFacts rides along so the post-upload route can snapshot it into
+  // conversation metadata — the upgrade Read's DECLARED side of the delta.
+  return { composedMessage: result.text.trim(), metadata, declaredFacts };
 }
 
 /**
@@ -686,8 +817,12 @@ async function getTransactionCount(
   supabase: SupabaseClient,
   userId: string,
   windowDays: number,
+  dataWindowEnd?: string | null,
 ): Promise<number> {
-  const since = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+  // Count within the same data-anchored window the Read is composed from, so the
+  // cited transaction total reflects the upload even when it's stale (a today-
+  // anchored count returned ~0 for older statements and the Read undercounted).
+  const since = windowStartISO(windowDays, dataWindowEnd);
   const { count } = await supabase
     .from('transactions')
     .select('id', { count: 'exact', head: true })

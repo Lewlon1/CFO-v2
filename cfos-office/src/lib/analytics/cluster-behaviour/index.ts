@@ -64,11 +64,15 @@ export async function getClusterBehaviour(params: {
     }
   }
 
-  // Pull aggregates + raw dates/amounts
+  // Pull aggregates + raw dates/amounts. Anchor the window to dataWindowEnd (the
+  // user's latest transaction) rather than today, so a stale upload windows onto
+  // its own activity instead of an empty [today − N, today] range — the same
+  // reference the lifecycle/dormancy derivation already uses. Without this a
+  // dataset ending weeks/months ago reads as having no in-window spend at all.
   const aggregatesPromise =
     params.clusterType === 'merchant'
-      ? getMerchantAggregates(supabase, params.userId, params.clusterId, effectiveWindow)
-      : getCategoryAggregates(supabase, params.userId, params.clusterId, effectiveWindow);
+      ? getMerchantAggregates(supabase, params.userId, params.clusterId, effectiveWindow, dataWindowEnd)
+      : getCategoryAggregates(supabase, params.userId, params.clusterId, effectiveWindow, dataWindowEnd);
 
   const [aggregates, txDetails] = await Promise.all([
     aggregatesPromise,
@@ -78,6 +82,7 @@ export async function getClusterBehaviour(params: {
       params.clusterType,
       params.clusterId,
       effectiveWindow,
+      dataWindowEnd,
     ),
   ]);
 

@@ -316,6 +316,39 @@ export async function POST(req: Request) {
       return Response.json({ error: 'No results provided' }, { status: 400 })
     }
 
+    // A valid session_token is REQUIRED before any LLM spend. It was optional
+    // (used only for a fire-and-forget update), which meant the per-session
+    // reading cap below could be dodged entirely by omitting it — and this is
+    // the one UNAUTHENTICATED Bedrock endpoint, with Opus as first attempt.
+    // The legit demo flow always holds a token.
+    if (!session_token) {
+      return Response.json({ error: 'Session required' }, { status: 400 })
+    }
+    const svc = createServiceClient()
+    const { data: session } = await svc
+      .from('demo_sessions')
+      .select('id')
+      .eq('session_token', session_token)
+      .maybeSingle()
+    if (!session?.id) {
+      return Response.json({ error: 'Session required' }, { status: 400 })
+    }
+
+    // Durable per-session reading cap (the in-memory IP limiter above is
+    // per-instance and IP-rotatable). 3 readings covers honest retries; the
+    // count keys on llm_usage_log rows stamped with this session's token.
+    const { count: readingCount } = await svc
+      .from('llm_usage_log')
+      .select('id', { head: true, count: 'exact' })
+      .eq('call_type', 'value_map_reading')
+      .eq('metadata->>session_token', session_token)
+    if ((readingCount ?? 0) >= 3) {
+      return Response.json(
+        { error: 'Too many requests. Try again shortly.' },
+        { status: 429 },
+      )
+    }
+
     // Timing validation
     const timed = results.filter((r) => r.first_tap_ms !== null && r.first_tap_ms > 0)
     const avgFirstTap = timed.length > 0
@@ -354,7 +387,8 @@ ${JSON.stringify(stats, null, 2)}`
     // Try AI models (Opus → Sonnet → deterministic)
     const { text: aiReading, fallback: aiFailed, model: usedModel, usage: readingUsage, durationMs: readingDurationMs } = await tryGenerateReading(userMessage)
 
-    // Track LLM usage if an AI model succeeded
+    // Track LLM usage if an AI model succeeded. session_token in metadata is
+    // what the per-session cap above counts — do not drop it.
     if (usedModel && readingUsage) {
       void trackLLMUsage({
         callType: 'value_map_reading',
@@ -362,6 +396,7 @@ ${JSON.stringify(stats, null, 2)}`
         inputTokens: readingUsage.inputTokens,
         outputTokens: readingUsage.outputTokens,
         durationMs: readingDurationMs,
+        metadata: { session_token },
       })
     }
 
@@ -380,17 +415,15 @@ ${JSON.stringify(stats, null, 2)}`
     const observations = generateObservations(results, txForObservations)
 
     // Update session with AI response (fire-and-forget). Keyed on the secret
-    // session_token the client holds, not the enumerable row id.
-    if (session_token) {
-      const supabase = createServiceClient()
-      supabase
-        .from('demo_sessions')
-        .update({ ai_response_shown: reading })
-        .eq('session_token', session_token)
-        .then(({ error }) => {
-          if (error) console.error('[demo/reading] Session update error:', error)
-        })
-    }
+    // session_token the client holds, not the enumerable row id. (The token is
+    // guaranteed present — validated before any LLM work above.)
+    svc
+      .from('demo_sessions')
+      .update({ ai_response_shown: reading })
+      .eq('session_token', session_token)
+      .then(({ error }) => {
+        if (error) console.error('[demo/reading] Session update error:', error)
+      })
 
     return Response.json({
       reading,

@@ -13,7 +13,8 @@
  */
 
 import { generateText } from 'ai'
-import { utilityModel } from './provider'
+import { utilityModel, utilityModelId } from './provider'
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 
 const LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   /\bI'd\b/gi,
@@ -65,11 +66,21 @@ export async function sanitisePersona(text: string): Promise<SanitiseResult> {
   }
 
   try {
-    const { text: rewritten } = await generateText({
+    const result = await generateText({
       model: utilityModel,
       temperature: 0.2,
       prompt: REWRITE_PROMPT(text),
       maxOutputTokens: 800,
+    })
+    const rewritten = result.text
+
+    // Usage accounting (previously invisible to llm_usage_log).
+    void trackLLMUsage({
+      callType: 'persona_sanitiser',
+      model: utilityModelId,
+      inputTokens: result.usage?.inputTokens,
+      outputTokens: result.usage?.outputTokens,
+      metadata: { leaks_detected: report.count },
     })
 
     return {

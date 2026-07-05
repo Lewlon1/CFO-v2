@@ -14,6 +14,7 @@ vi.mock('@/lib/supabase/service', () => ({
 
 vi.mock('@/lib/ai/provider', () => ({
   utilityModel: { mock: true },
+  utilityModelId: 'mock-haiku-id',
 }));
 
 vi.mock('ai', async () => {

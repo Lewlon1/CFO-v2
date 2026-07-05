@@ -90,7 +90,7 @@ export function UploadIntro({ goal, onContinue }: Props) {
           type="button"
           onClick={handleSkip}
           disabled={busy}
-          className="w-full text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary disabled:opacity-40 transition-colors"
+          className="w-full min-h-11 py-3 text-xs text-text-muted underline underline-offset-2 hover:text-text-secondary disabled:opacity-40 transition-colors"
         >
           {busy ? 'One moment…' : "I don't have a statement handy"}
         </button>
