@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/server';
 
-function adminEmails(): string[] {
+export function adminEmails(): string[] {
   return (process.env.ADMIN_EMAILS ?? '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
