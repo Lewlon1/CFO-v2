@@ -12,6 +12,7 @@ import {
   markUpgraded,
   UPGRADED_KEY,
 } from '@/lib/insights/first-read-followup'
+import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
 import { NextResponse } from 'next/server'
 
 /**
@@ -111,6 +112,10 @@ export async function runDeclaredReadUpgrade(args: {
     .eq('user_id', userId)
   if (txnCountError) {
     console.error('[upgrade-declared-read] transaction count failed:', txnCountError)
+    await trackOnboardingError(supabase, userId, 'upgrade_declared', txnCountError, {
+      reason: 'count_failed',
+      conversation_id: conversationId,
+    })
     return { status: 500, body: { upgraded: false, reason: 'count_failed', conversationId } }
   }
   if ((txnCount ?? 0) === 0) {
@@ -187,6 +192,11 @@ export async function runDeclaredReadUpgrade(args: {
         '[upgrade-declared-read] composed Read failed hard rules:',
         failed.map((r) => `${r.ruleId}${r.detail ? ` (${r.detail})` : ''}`).join('; '),
       )
+      await trackOnboardingError(supabase, userId, 'upgrade_declared', new Error('composed Read failed hard rules'), {
+        reason: 'bad_close',
+        conversation_id: conversationId,
+        rules_failed: failed.map((r) => r.ruleId),
+      })
       await safeClear(conversationId)
       return { status: 500, body: { upgraded: false, reason: 'bad_close', conversationId } }
     }
@@ -227,6 +237,11 @@ export async function runDeclaredReadUpgrade(args: {
     if (stampErr) throw stampErr
 
     // Success.
+    await trackFunnelEvent(supabase, {
+      profileId: userId,
+      eventType: 'declared_upgrade_done',
+      payload: { conversation_id: conversationId },
+    })
     return { status: 200, body: { upgraded: true, conversationId } }
   } catch (err) {
     console.error('[upgrade-declared-read] upgrade failed:', err)
@@ -246,12 +261,20 @@ export async function runDeclaredReadUpgrade(args: {
       // duplicating an in-chat Read, and trivially resolvable by clearing the
       // in-progress flag on the conversation. The loud log above is the signal to
       // do so.
+      await trackOnboardingError(supabase, userId, 'upgrade_declared', err, {
+        reason: 'stamp_failed',
+        conversation_id: conversationId,
+      })
       return { status: 500, body: { upgraded: false, reason: 'stamp_failed', conversationId } }
     }
 
     // Nothing was appended (compose/judge/append itself threw before delivery):
     // clear the in-progress flag so a retry can succeed, and never markUpgraded.
     await safeClear(conversationId)
+    await trackOnboardingError(supabase, userId, 'upgrade_declared', err, {
+      reason: 'compose_failed',
+      conversation_id: conversationId,
+    })
     return { status: 500, body: { upgraded: false, reason: 'compose_failed', conversationId } }
   }
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead, type ComposeFirstReadMode } from '@/lib/ai/compose-first-read'
+import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -12,6 +13,12 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  await trackFunnelEvent(supabase, {
+    profileId: user.id,
+    eventType: 'first_read_requested',
+    payload: {},
+  })
 
   // Body is optional — onboarding-v2 archetype calls this with no payload.
   let importBatchId: string | null = null
@@ -95,6 +102,11 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     .maybeSingle()
 
   if (existing?.id) {
+    await trackFunnelEvent(supabase, {
+      profileId: userId,
+      eventType: 'read_composed',
+      payload: { mode, conversation_id: existing.id, reused: true },
+    })
     return NextResponse.json({ conversationId: existing.id, reused: true, layered: true })
   }
 
@@ -124,6 +136,7 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     composed = await composeFirstRead({ userId, supabase: svc, mode })
   } catch (err) {
     console.error('[post-upload.layered] composeFirstRead failed:', err)
+    await trackOnboardingError(supabase, userId, 'post_upload', err, { stage: 'compose' })
     return NextResponse.json({ error: 'Failed to compose first read' }, { status: 500 })
   }
 
@@ -146,6 +159,7 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
 
   if (convError || !conversation) {
     console.error('[post-upload.layered] conversation insert failed:', convError)
+    await trackOnboardingError(supabase, userId, 'post_upload', convError, { stage: 'conversation_insert' })
     return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
   }
 
@@ -163,10 +177,21 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
 
   if (msgError) {
     console.error('[post-upload.layered] message insert failed:', msgError)
+    await trackFunnelEvent(supabase, {
+      profileId: userId,
+      eventType: 'read_composed',
+      payload: { mode, conversation_id: conversation.id, reused: false },
+    })
     // Soft-fail: return the conversation anyway. The ChatProvider will fall
     // through to its default "deliver your first insight" trigger.
     return NextResponse.json({ conversationId: conversation.id, layered: true, message_persisted: false })
   }
+
+  await trackFunnelEvent(supabase, {
+    profileId: userId,
+    eventType: 'read_composed',
+    payload: { mode, conversation_id: conversation.id, reused: false },
+  })
 
   return NextResponse.json({ conversationId: conversation.id, layered: true, message_persisted: true })
 }

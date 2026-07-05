@@ -5,6 +5,7 @@ import { getPrimaryGoal } from '@/lib/goals/primary-goal'
 import { advanceStep } from '@/app/onboarding-v2/actions-step'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 import { syncTotalFixedCosts } from '@/lib/analytics/monthly-snapshot'
+import { trackOnboardingError } from '@/lib/events/track-funnel-event'
 
 export type InstantPayback =
   | { kind: 'goal_pace'; goal_name: string; monthly_required_saving: number; percent_of_income: number | null; currency: string }
@@ -33,6 +34,7 @@ export async function submitIncome(income: number): Promise<InstantPayback> {
     .eq('id', user.id)
   if (error) {
     console.error('[processing.submitIncome] update failed', error)
+    await trackOnboardingError(supabase, user.id, 'action:submitIncome', error, {})
     throw new Error('Failed to save income')
   }
 
@@ -77,6 +79,7 @@ export async function submitRent(rent: number): Promise<void> {
     .eq('id', user.id)
   if (error) {
     console.error('[processing.submitRent] update failed', error)
+    await trackOnboardingError(supabase, user.id, 'action:submitRent', error, {})
     throw new Error('Failed to save rent')
   }
 }

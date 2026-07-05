@@ -36,6 +36,7 @@ import type {
 import { randomUUID } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendAlert } from '@/lib/alerts/notify'
+import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -59,80 +60,91 @@ export async function POST(req: NextRequest) {
         presetCategoryId: t.categoryId,
         presetValueCategory: t.valueCategory,
       }))
-      const stats = await runImportPipeline(importTxns, supabase, {
-        userId: user.id,
-        importBatchId,
-        skipDuplicates: false, // user already reviewed and selected
-      })
-
-      // Post-import analytics
-      const months = extractAffectedMonths(importTxns.map((t) => t.date))
-      // Enrich location before snapshots so future aggregations can read
-      // location data off the same batch without a second pass.
-      await enrichLocation(supabase, user.id, importBatchId)
-      await refreshMonthlySnapshots(supabase, user.id, months)
-      await detectAndFlagRecurring(supabase, user.id)
-
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('primary_currency')
-        .eq('id', user.id)
-        .single()
-      const primaryCurrency = profile?.primary_currency ?? 'EUR'
-      await detectAndFlagHolidaySpend(supabase, user.id, primaryCurrency, importBatchId)
-
-      // Check for payday (salary deposit) in imported transactions.
-      // Fire-and-forget: a failure here must not block the import response,
-      // but we want it visible in logs rather than silently swallowed.
-      evaluatePaydaySavings(supabase, user.id).catch((err) => {
-        console.error('[upload] evaluatePaydaySavings failed:', err)
-      })
-
-      // Check if CFO should propose a personal Value Map retake (cooldown-gated)
-      evaluateValueMapRetake(supabase, user.id).catch((err) => {
-        console.error('[upload] evaluateValueMapRetake failed:', err)
-      })
-
-      // Permissive onboarding completion — fire-and-forget.
-      if (stats.imported > 0) {
-        markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
-          console.error('[upload] markOnboardingCompleteIfReady failed:', err)
+      try {
+        const stats = await runImportPipeline(importTxns, supabase, {
+          userId: user.id,
+          importBatchId,
+          skipDuplicates: false, // user already reviewed and selected
         })
-      }
 
-      // Session 32 (A) — refresh merchant_aggregates so the layered Read tools
-      // have fresh data immediately for this user. Without this, new users
-      // would wait until the 03:00 UTC nightly cron before get_cluster_behaviour
-      // could return anything. Fire-and-forget; pipeline does not block on it.
-      // Uses service-role client because the RPC is locked down to service_role.
-      if (stats.imported > 0) {
-        const svc = createServiceClient()
-        svc.rpc('refresh_merchant_aggregates').then(({ error }) => {
-          if (error) console.error('[upload] refresh_merchant_aggregates failed:', error)
+        await trackFunnelEvent(supabase, {
+          profileId: user.id,
+          eventType: 'statements_imported',
+          payload: { import_batch_id: importBatchId, imported_count: stats.imported },
         })
+
+        // Post-import analytics
+        const months = extractAffectedMonths(importTxns.map((t) => t.date))
+        // Enrich location before snapshots so future aggregations can read
+        // location data off the same batch without a second pass.
+        await enrichLocation(supabase, user.id, importBatchId)
+        await refreshMonthlySnapshots(supabase, user.id, months)
+        await detectAndFlagRecurring(supabase, user.id)
+
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('primary_currency')
+          .eq('id', user.id)
+          .single()
+        const primaryCurrency = profile?.primary_currency ?? 'EUR'
+        await detectAndFlagHolidaySpend(supabase, user.id, primaryCurrency, importBatchId)
+
+        // Check for payday (salary deposit) in imported transactions.
+        // Fire-and-forget: a failure here must not block the import response,
+        // but we want it visible in logs rather than silently swallowed.
+        evaluatePaydaySavings(supabase, user.id).catch((err) => {
+          console.error('[upload] evaluatePaydaySavings failed:', err)
+        })
+
+        // Check if CFO should propose a personal Value Map retake (cooldown-gated)
+        evaluateValueMapRetake(supabase, user.id).catch((err) => {
+          console.error('[upload] evaluateValueMapRetake failed:', err)
+        })
+
+        // Permissive onboarding completion — fire-and-forget.
+        if (stats.imported > 0) {
+          markOnboardingCompleteIfReady(supabase, user.id).catch((err) => {
+            console.error('[upload] markOnboardingCompleteIfReady failed:', err)
+          })
+        }
+
+        // Session 32 (A) — refresh merchant_aggregates so the layered Read tools
+        // have fresh data immediately for this user. Without this, new users
+        // would wait until the 03:00 UTC nightly cron before get_cluster_behaviour
+        // could return anything. Fire-and-forget; pipeline does not block on it.
+        // Uses service-role client because the RPC is locked down to service_role.
+        if (stats.imported > 0) {
+          const svc = createServiceClient()
+          svc.rpc('refresh_merchant_aggregates').then(({ error }) => {
+            if (error) console.error('[upload] refresh_merchant_aggregates failed:', error)
+          })
+        }
+
+        // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
+        const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([
+          supabase
+            .from('monthly_snapshots')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id),
+          supabase
+            .from('monthly_snapshots')
+            .select('month')
+            .eq('user_id', user.id)
+            .is('reviewed_at', null)
+            .order('month', { ascending: false })
+            .limit(1)
+            .single(),
+        ])
+
+        return NextResponse.json({
+          ...stats,
+          review_available: (snapshotCount ?? 0) >= 2 && unreviewedSnap !== null,
+          review_month: unreviewedSnap?.month?.slice(0, 7) ?? null,
+        })
+      } catch (err) {
+        await trackOnboardingError(supabase, user.id, 'upload_api', err, { import_batch_id: importBatchId })
+        throw err
       }
-
-      // Check if monthly review is available (2+ months of snapshots, latest unreviewed)
-      const [{ count: snapshotCount }, { data: unreviewedSnap }] = await Promise.all([
-        supabase
-          .from('monthly_snapshots')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id),
-        supabase
-          .from('monthly_snapshots')
-          .select('month')
-          .eq('user_id', user.id)
-          .is('reviewed_at', null)
-          .order('month', { ascending: false })
-          .limit(1)
-          .single(),
-      ])
-
-      return NextResponse.json({
-        ...stats,
-        review_available: (snapshotCount ?? 0) >= 2 && unreviewedSnap !== null,
-        review_month: unreviewedSnap?.month?.slice(0, 7) ?? null,
-      })
     }
 
     // Confirm a balance sheet import (holdings / single asset / liability)
@@ -307,6 +319,13 @@ export async function POST(req: NextRequest) {
       details: `Raw multipart CSV/XLSX upload hit /api/upload for "${filename}" — client should parse client-side via the universal pipeline.`,
       metadata: { filename, fileSize: file.size, isXlsx },
     }).catch(() => {})
+    await trackOnboardingError(
+      supabase,
+      user.id,
+      'upload_api',
+      `Raw multipart CSV/XLSX upload hit /api/upload for "${filename}" — client should parse client-side via the universal pipeline.`,
+      { http_status: 422 },
+    )
     return NextResponse.json(
       {
         error:
@@ -333,6 +352,13 @@ export async function POST(req: NextRequest) {
       details: `No parser matched for file "${filename}" (${file.size} bytes).`,
       metadata: { filename, fileSize: file.size },
     }).catch(() => {})
+    await trackOnboardingError(
+      supabase,
+      user.id,
+      'upload_api',
+      `No parser matched for file "${filename}" (${file.size} bytes).`,
+      { http_status: 422 },
+    )
     return NextResponse.json({ error: 'Could not parse file.' }, { status: 422 })
   }
 
@@ -344,6 +370,13 @@ export async function POST(req: NextRequest) {
       details: `Parser returned error for "${filename}": ${parseResult.error}`,
       metadata: { filename, fileSize: file.size, error: parseResult.error },
     }).catch(() => {})
+    await trackOnboardingError(
+      supabase,
+      user.id,
+      'upload_api',
+      `Parser returned error for "${filename}": ${parseResult.error}`,
+      { http_status: 422 },
+    )
     return NextResponse.json({ error: parseResult.error }, { status: 422 })
   }
 

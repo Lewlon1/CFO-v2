@@ -8,6 +8,7 @@ import {
   appendAssistantFollowup,
   snapshotConversationMetadata,
 } from '@/lib/insights/first-read-followup'
+import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
 import { NextResponse } from 'next/server'
 
 /**
@@ -106,6 +107,7 @@ export async function POST() {
     })
   } catch (err) {
     console.error('[recompose-first-read] composeFirstRead failed:', err)
+    await trackOnboardingError(supabase, user.id, 'recompose', err, { stage: 'compose' })
     return NextResponse.json({ error: 'Failed to recompose' }, { status: 500 })
   }
 
@@ -119,6 +121,7 @@ export async function POST() {
     })
   } catch (err) {
     console.error('[recompose-first-read] message insert failed:', err)
+    await trackOnboardingError(supabase, user.id, 'recompose', err, { stage: 'append' })
     return NextResponse.json({ error: 'Failed to persist message' }, { status: 500 })
   }
 
@@ -130,6 +133,12 @@ export async function POST() {
   await snapshotConversationMetadata(supabase, {
     conversationId: conversation.id,
     metadata: { first_read_metadata_recomposed: composed.metadata },
+  })
+
+  await trackFunnelEvent(supabase, {
+    profileId: user.id,
+    eventType: 'read_recomposed',
+    payload: { conversation_id: conversation.id },
   })
 
   return NextResponse.json({
