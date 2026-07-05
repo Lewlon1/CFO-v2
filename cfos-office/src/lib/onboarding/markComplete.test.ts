@@ -19,6 +19,7 @@ function mockSupabase(opts: {
   vmSessionCount: number
 }) {
   const updates: Array<Record<string, unknown>> = []
+  const eventInserts: Array<Record<string, unknown>> = []
 
   const userProfilesChain = {
     select: vi.fn((cols: string) => ({
@@ -51,7 +52,10 @@ function mockSupabase(opts: {
   }
 
   const userEventsChain = {
-    insert: vi.fn(async () => ({ error: null })),
+    insert: vi.fn(async (payload: Record<string, unknown>) => {
+      eventInserts.push(payload)
+      return { error: null }
+    }),
   }
 
   return {
@@ -62,6 +66,7 @@ function mockSupabase(opts: {
       throw new Error(`Unexpected table: ${table}`)
     }),
     _updates: updates,
+    _eventInserts: eventInserts,
   }
 }
 
@@ -80,6 +85,11 @@ describe('markOnboardingCompleteIfReady', () => {
     await markOnboardingCompleteIfReady(supabase as any, 'u1')
     expect(supabase._updates).toHaveLength(1)
     expect(supabase._updates[0]).toHaveProperty('onboarding_completed_at')
+    expect(supabase._eventInserts).toHaveLength(1)
+    expect(supabase._eventInserts[0]).toMatchObject({
+      event_type: 'onboarding_completed',
+      payload: { trigger_step: 'first_read_shown' },
+    })
   })
 
   it('stamps completion when a value_map_sessions row exists even without read step', async () => {
@@ -95,6 +105,11 @@ describe('markOnboardingCompleteIfReady', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await markOnboardingCompleteIfReady(supabase as any, 'u1')
     expect(supabase._updates).toHaveLength(1)
+    expect(supabase._eventInserts).toHaveLength(1)
+    expect(supabase._eventInserts[0]).toMatchObject({
+      event_type: 'onboarding_completed',
+      payload: { trigger_step: 'value_map_done' },
+    })
   })
 
   it('does NOT stamp completion when neither read step nor VM session', async () => {
@@ -110,6 +125,7 @@ describe('markOnboardingCompleteIfReady', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await markOnboardingCompleteIfReady(supabase as any, 'u1')
     expect(supabase._updates).toHaveLength(0)
+    expect(supabase._eventInserts).toHaveLength(0)
   })
 
   it('is a no-op when already completed', async () => {
@@ -125,6 +141,7 @@ describe('markOnboardingCompleteIfReady', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await markOnboardingCompleteIfReady(supabase as any, 'u1')
     expect(supabase._updates).toHaveLength(0)
+    expect(supabase._eventInserts).toHaveLength(0)
   })
 
   it('is a no-op when user is anonymised', async () => {
@@ -140,6 +157,7 @@ describe('markOnboardingCompleteIfReady', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await markOnboardingCompleteIfReady(supabase as any, 'u1')
     expect(supabase._updates).toHaveLength(0)
+    expect(supabase._eventInserts).toHaveLength(0)
   })
 
   it('stamps completion when step is "complete" (e.g. set by advanceStep on Continue)', async () => {
@@ -155,5 +173,10 @@ describe('markOnboardingCompleteIfReady', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await markOnboardingCompleteIfReady(supabase as any, 'u1')
     expect(supabase._updates).toHaveLength(1)
+    expect(supabase._eventInserts).toHaveLength(1)
+    expect(supabase._eventInserts[0]).toMatchObject({
+      event_type: 'onboarding_completed',
+      payload: { trigger_step: 'complete' },
+    })
   })
 })
