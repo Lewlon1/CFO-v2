@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveValues, saleNet, runModel, flipPoint } from './property'
+import { resolveValues, saleNet, runModel, flipPoint, leaderChanges } from './property'
 import { MARKET_DEFAULTS } from '../marketDefaults'
 import type { SlotDefinition, SlotMap } from '../types'
 
@@ -189,5 +189,109 @@ describe('runModel — scenario 4 (sell & redeploy into a new home)', () => {
     const m = runModel(FIXTURE)
     expect(m.terminals.redeploy).toBeNull()
     expect(m.rows[1].redeploy).toBeNull()
+  })
+})
+
+describe('runModel — trajectory extended past the stated horizon', () => {
+  it('computes rows out to computeYears while leaving the verdict tied to the stated horizon', () => {
+    const base = runModel(FIXTURE)
+    const extended = runModel(FIXTURE, 20)
+
+    // 21 rows (year 0..20); terminals unchanged (still the 10-year values).
+    expect(extended.rows).toHaveLength(21)
+    expect(extended.terminals).toEqual(base.terminals)
+    expect(extended.firstYearCF).toBe(base.firstYearCF)
+    expect(extended.horizonYears).toBe(10)
+
+    // The overlapping prefix (year 0..10) is byte-identical to the un-extended run.
+    expect(extended.rows.slice(0, 11)).toEqual(base.rows)
+
+    // Invest keeps compounding monotonically past the horizon.
+    for (let i = 1; i < extended.rows.length; i++) {
+      expect(extended.rows[i].invest).toBeGreaterThan(extended.rows[i - 1].invest)
+    }
+  })
+
+  it('computeYears shorter than the horizon does not truncate the trajectory', () => {
+    const m = runModel(FIXTURE, 3)
+    expect(m.rows).toHaveLength(11)
+    expect(m.terminals).toEqual(runModel(FIXTURE).terminals)
+  })
+
+  it('extends the redeploy trajectory while keeping its terminal at the stated horizon', () => {
+    const withRedeploy = {
+      ...FIXTURE,
+      new_property_price: 320000,
+      current_rent_paid_monthly: 1100,
+      new_buying_costs_pct: 11,
+      new_mortgage_rate_pct: 3.5,
+      new_property_appreciation_pct: 3.0,
+    }
+    const m = runModel(withRedeploy, 20)
+    expect(m.rows[20].redeploy).not.toBeNull()
+    expect(Math.round(m.terminals.redeploy as number)).toBe(141579)
+  })
+})
+
+describe('runModel — breakdown', () => {
+  it('mirrors the headline figures and reconciles the rent scenario', () => {
+    const m = runModel(FIXTURE)
+    const b = m.breakdown
+
+    expect(b.saleToday.myProceeds).toBe(m.myProceeds0)
+    expect(b.saleToday.myCgt).toBe(m.cgtToday)
+    expect(b.rent.yearOne.netShare).toBe(m.firstYearCF)
+    expect(b.rent.total).toBe(m.terminals.rent)
+    expect(b.invest.end).toBe(m.terminals.invest)
+    expect(b.cash.end).toBe(m.terminals.cash)
+
+    // Year-1 rent intermediates pinned to the hand-check in the fixture comment.
+    expect(b.rent.yearOne.grossRent).toBeCloseTo(22615.3846, 3)
+    expect(b.rent.yearOne.agentFee).toBeCloseTo(2713.8462, 3)
+    expect(b.rent.yearOne.maintenance).toBeCloseTo(4800, 6)
+    expect(b.rent.yearOne.mortgageInterest).toBeCloseTo(9450, 6)
+    expect(b.rent.yearOne.ownCosts).toBeCloseTo(3000, 6)
+    expect(b.rent.yearOne.tax).toBeCloseTo(583.3385, 3)
+
+    // Terminal reconciles: net sale share at the horizon + the rent pot.
+    expect(b.rent.saleNetShareAtHorizon + b.rent.rentPotAtHorizon).toBeCloseTo(b.rent.total, 6)
+  })
+
+  it('describes the redeploy scenario and reconciles equity + pot', () => {
+    const withRedeploy = {
+      ...FIXTURE,
+      new_property_price: 320000,
+      current_rent_paid_monthly: 1100,
+      new_buying_costs_pct: 11,
+      new_mortgage_rate_pct: 3.5,
+      new_property_appreciation_pct: 3.0,
+    }
+    const b = runModel(withRedeploy).breakdown.redeploy
+    expect(b).not.toBeNull()
+    expect(b!.buyingCosts).toBeCloseTo(35200, 6)
+    expect(b!.newMortgage).toBeCloseTo(276407.88, 2)
+    expect(b!.yearOne.netBenefit).toBeCloseTo(325.72, 2)
+    expect(b!.equityAtHorizon + b!.potAtHorizon).toBeCloseTo(b!.total, 6)
+  })
+
+  it('leaves the redeploy breakdown null when the scenario is not active', () => {
+    expect(runModel(FIXTURE).breakdown.redeploy).toBeNull()
+  })
+})
+
+describe('leaderChanges', () => {
+  it('detects the leading strategy switching over a long trajectory', () => {
+    // At 4.2%/yr appreciation the leverage of keeping-and-renting leads early,
+    // but selling & investing (steady 7%) overtakes it in year 14. Below that
+    // appreciation the invest curve leads throughout; above it, rent leads
+    // throughout — so this mid-band produces a genuine single crossover.
+    const m = runModel({ ...FIXTURE, appreciation_pct: 4.2 }, 20)
+    const changes = leaderChanges(m.rows)
+    expect(changes).toEqual([{ year: 14, from: 'rent', to: 'invest' }])
+  })
+
+  it('reports no leadership change when invest leads at every year', () => {
+    const m = runModel({ ...FIXTURE, appreciation_pct: 3 }, 20)
+    expect(leaderChanges(m.rows)).toEqual([])
   })
 })

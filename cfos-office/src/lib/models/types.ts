@@ -38,8 +38,90 @@ export interface ModelRow {
   redeploy: number | null
 }
 
+export type ScenarioKey = 'rent' | 'invest' | 'cash' | 'redeploy'
+
+/** The year in which the leading strategy changes, and which way. */
+export interface LeaderChange {
+  year: number
+  from: ScenarioKey
+  to: ScenarioKey
+}
+
+export interface SaleTodayBreakdown {
+  propertyValue: number
+  sellingCosts: number
+  cgt: number
+  mortgageBalance: number
+  netTotal: number
+  sharePct: number
+  myProceeds: number
+  myCgt: number
+}
+
+export interface RentYearOneBreakdown {
+  grossRentFull: number
+  voidLoss: number
+  grossRent: number
+  agentFee: number
+  maintenance: number
+  ownCosts: number
+  mortgageInterest: number
+  profitPreTax: number
+  tax: number
+  netTotal: number
+  netShare: number
+}
+
+export interface RentBreakdown {
+  yearOne: RentYearOneBreakdown
+  appreciationPct: number
+  cashRatePct: number
+  propertyValueAtHorizon: number
+  saleNetShareAtHorizon: number
+  rentPotAtHorizon: number
+  total: number
+}
+
+/** Shared shape for the two "sell then grow a lump sum" scenarios (invest, cash). */
+export interface GrowthBreakdown {
+  start: number
+  ratePct: number
+  years: number
+  end: number
+}
+
+export interface RedeployBreakdown {
+  deposit: number
+  newPropertyPrice: number
+  buyingCosts: number
+  cashNeeded: number
+  newMortgage: number
+  leftoverPot: number
+  yearOne: {
+    avoidedRent: number
+    interest: number
+    maintenance: number
+    netBenefit: number
+  }
+  appreciationPct: number
+  newPriceAtHorizon: number
+  equityAtHorizon: number
+  /** Running savings pot at the horizon — can be negative (an accumulated shortfall). */
+  potAtHorizon: number
+  total: number
+}
+
+export interface ModelBreakdown {
+  saleToday: SaleTodayBreakdown
+  rent: RentBreakdown
+  invest: GrowthBreakdown
+  cash: GrowthBreakdown
+  redeploy: RedeployBreakdown | null
+}
+
 export interface ModelResult {
   rows: ModelRow[]
+  horizonYears: number
   myProceeds0: number
   cgtToday: number
   firstYearCF: number | null
@@ -49,6 +131,7 @@ export interface ModelResult {
     cash: number
     redeploy: number | null
   }
+  breakdown: ModelBreakdown
 }
 
 export interface InterviewNode {

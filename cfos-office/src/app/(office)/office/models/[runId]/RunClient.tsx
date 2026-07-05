@@ -7,7 +7,8 @@ import { VerdictPanel } from '@/components/models/VerdictPanel'
 import { PROPERTY_SLOTS } from '@/lib/models/registry'
 import { MARKET_DEFAULTS } from '@/lib/models/marketDefaults'
 import { resolveRunValues } from '@/lib/models/resolve'
-import { runModel, flipPoint } from '@/lib/models/engine/property'
+import { runModel, flipPoint, leaderChanges } from '@/lib/models/engine/property'
+import { horizonsToShow } from '@/lib/models/horizons'
 import type { SlotMap } from '@/lib/models/types'
 
 interface RunData {
@@ -37,10 +38,14 @@ export function RunClient({
   const filledRequired = requiredIds.filter((id) => resolved.values[id] !== null)
   const ready = filledRequired.length === requiredIds.length
 
-  const model = ready ? runModel(resolved.values as Record<string, number>) : null
+  const horizons = ready ? horizonsToShow(resolved.values.horizon_years as number) : []
+  const model = ready
+    ? runModel(resolved.values as Record<string, number>, Math.max(...horizons))
+    : null
   const flips = ready
     ? [flipPoint(resolved.values as Record<string, number>, 'appreciation_pct', -2, 12)]
     : []
+  const changes = model ? leaderChanges(model.rows) : []
 
   const onEdit = async (slotId: string, value: number) => {
     setAssumptions((prev) => ({ ...prev, [slotId]: { value, origin: 'edited' } }))
@@ -90,7 +95,7 @@ export function RunClient({
           />
         </div>
         <div className={`${tab === 'verdict' ? 'block' : 'hidden'} md:block md:col-span-2 h-full overflow-y-auto`}>
-          <VerdictPanel model={model} resolved={resolved} flips={flips} filledCount={filledRequired.length} totalRequired={requiredIds.length} />
+          <VerdictPanel model={model} resolved={resolved} flips={flips} horizons={horizons} changes={changes} filledCount={filledRequired.length} totalRequired={requiredIds.length} />
         </div>
       </div>
     </div>
