@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { JetBrains_Mono, DM_Sans, Cormorant_Garamond } from 'next/font/google'
+import { SessionTracker } from '@/components/analytics/SessionTracker'
 
 // Mirrors the office layout's font setup (src/app/(office)/layout.tsx) so the
 // full-page onboarding routes (value-map / first-read / archetype) render in the
@@ -28,6 +29,7 @@ const cormorantGaramond = Cormorant_Garamond({
 export default function OnboardingV2Layout({ children }: { children: ReactNode }) {
   return (
     <div className={`${jetbrainsMono.variable} ${dmSans.variable} ${cormorantGaramond.variable} font-ui`}>
+      <SessionTracker />
       {children}
     </div>
   )

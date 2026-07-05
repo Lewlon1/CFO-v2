@@ -12,6 +12,7 @@ import { onboardingProgress, type OnboardingProgressResult } from '@/lib/onboard
 // display name) — must re-render on every request, never cache at the route
 // level so onboarding-state changes are reflected immediately.
 export const dynamic = 'force-dynamic'
+import { SessionTracker } from '@/components/analytics/SessionTracker'
 import { CFOAvatar } from '@/components/brand/CFOAvatar'
 import { ChatProvider } from '@/components/chat/ChatProvider'
 import { ChatBar } from '@/components/chat/ChatBar'
@@ -209,6 +210,8 @@ export default async function OfficeLayout({ children }: { children: React.React
     <div
       className={`${jetbrainsMono.variable} ${dmSans.variable} ${cormorantGaramond.variable} h-dvh flex flex-col overflow-hidden bg-office-bg text-office-text font-ui`}
     >
+      <SessionTracker />
+
       {/* Header */}
       <header className="flex items-center gap-[11px] px-4 pt-4 pb-1.5 shrink-0 bg-bg-base z-10">
         <CFOAvatar size={48} withOnlineDot />
