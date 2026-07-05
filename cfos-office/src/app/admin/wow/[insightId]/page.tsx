@@ -5,31 +5,11 @@
 // session as a complete story.
 
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
-import { createClient } from '@/lib/supabase/server';
+import { assertAdmin } from '@/lib/admin/assert-admin';
 import { createServiceClient } from '@/lib/supabase/service';
 
 export const dynamic = 'force-dynamic';
-
-function adminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-async function assertAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const email = user?.email?.toLowerCase() ?? null;
-  const allowed = adminEmails();
-  if (!email || !allowed.includes(email)) {
-    notFound();
-  }
-}
 
 type Params = { insightId: string };
 
@@ -70,13 +50,15 @@ export default async function AdminWowDetailPage({
     );
   }
 
-  // Parallel data fetch: profile, insight body, events, follow-up messages.
-  const [profile, insightRow, events, conversationRow, followUps] = await Promise.all([
+  // Parallel data fetch: profile, admin user record (for email — user_profiles
+  // has no email column), insight body, events, follow-up messages.
+  const [profile, adminUserResult, insightRow, events, conversationRow, followUps] = await Promise.all([
     svc
       .from('user_profiles')
-      .select('email, display_name, country, primary_currency')
+      .select('display_name, country, primary_currency')
       .eq('id', assessment.user_id)
       .maybeSingle(),
+    svc.auth.admin.getUserById(assessment.user_id),
     svc
       .from('messages')
       .select('id, content, role, created_at, tools_used, actions_created')
@@ -104,7 +86,7 @@ export default async function AdminWowDetailPage({
 
   const insight = insightRow.data;
   const conversation = conversationRow.data;
-  const userEmail = profile.data?.email ?? assessment.user_id;
+  const userEmail = adminUserResult.data?.user?.email ?? assessment.user_id;
   const profileLine = profile.data
     ? `${userEmail} · ${profile.data.country ?? '—'} · ${profile.data.primary_currency ?? '—'}`
     : userEmail;

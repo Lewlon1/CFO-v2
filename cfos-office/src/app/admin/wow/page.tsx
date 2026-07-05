@@ -8,32 +8,11 @@
 // can't infer the URL exists.
 
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
-import { createClient } from '@/lib/supabase/server';
+import { assertAdmin } from '@/lib/admin/assert-admin';
 import { createServiceClient } from '@/lib/supabase/service';
 
 export const dynamic = 'force-dynamic';
-
-function adminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-async function assertAdmin(): Promise<{ email: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const email = user?.email?.toLowerCase() ?? null;
-  const allowed = adminEmails();
-  if (!email || !allowed.includes(email)) {
-    notFound();
-  }
-  return { email };
-}
 
 type AssessmentRow = {
   id: string;
@@ -92,12 +71,11 @@ export default async function AdminWowIndexPage() {
   const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
   const emailByUserId = new Map<string, string>();
   if (userIds.length > 0) {
-    const { data: profiles } = await svc
-      .from('user_profiles')
-      .select('id, email')
-      .in('id', userIds);
-    for (const p of (profiles ?? []) as Array<{ id: string; email: string | null }>) {
-      if (p.email) emailByUserId.set(p.id, p.email);
+    // Email lives on auth.users, not user_profiles (which has no email
+    // column). One call is sufficient at this beta's scale (tens of users).
+    const { data: listResult } = await svc.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of listResult?.users ?? []) {
+      if (u.email) emailByUserId.set(u.id, u.email);
     }
   }
 
