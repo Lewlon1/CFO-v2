@@ -85,6 +85,26 @@ type LayeredHandlerArgs = {
   mode: ComposeFirstReadMode
 }
 
+// Single emission point for `read_composed` so the three 200-returning paths
+// (idempotent reuse, message-persist soft-fail, full success) can't drift out
+// of sync on a future payload change. `message_persisted` lets the soft-fail
+// path stay distinguishable in the event data without giving up the
+// mode/conversation signal a later task's path-attribution logic depends on.
+async function emitReadComposed(
+  supabase: LayeredHandlerArgs['supabase'],
+  userId: string,
+  mode: ComposeFirstReadMode,
+  conversationId: string,
+  reused: boolean,
+  messagePersisted: boolean
+): Promise<void> {
+  await trackFunnelEvent(supabase, {
+    profileId: userId,
+    eventType: 'read_composed',
+    payload: { mode, conversation_id: conversationId, reused, message_persisted: messagePersisted },
+  })
+}
+
 async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }: LayeredHandlerArgs) {
   // Idempotency: if a layered first_read conversation already exists for
   // this user, return it. (Identified by metadata.layered_read = true, which
@@ -102,11 +122,7 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
     .maybeSingle()
 
   if (existing?.id) {
-    await trackFunnelEvent(supabase, {
-      profileId: userId,
-      eventType: 'read_composed',
-      payload: { mode, conversation_id: existing.id, reused: true },
-    })
+    await emitReadComposed(supabase, userId, mode, existing.id, true, true)
     return NextResponse.json({ conversationId: existing.id, reused: true, layered: true })
   }
 
@@ -177,21 +193,17 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
 
   if (msgError) {
     console.error('[post-upload.layered] message insert failed:', msgError)
-    await trackFunnelEvent(supabase, {
-      profileId: userId,
-      eventType: 'read_composed',
-      payload: { mode, conversation_id: conversation.id, reused: false },
+    await emitReadComposed(supabase, userId, mode, conversation.id, false, false)
+    await trackOnboardingError(supabase, userId, 'post_upload', msgError, {
+      stage: 'message_persist',
+      conversation_id: conversation.id,
     })
     // Soft-fail: return the conversation anyway. The ChatProvider will fall
     // through to its default "deliver your first insight" trigger.
     return NextResponse.json({ conversationId: conversation.id, layered: true, message_persisted: false })
   }
 
-  await trackFunnelEvent(supabase, {
-    profileId: userId,
-    eventType: 'read_composed',
-    payload: { mode, conversation_id: conversation.id, reused: false },
-  })
+  await emitReadComposed(supabase, userId, mode, conversation.id, false, true)
 
   return NextResponse.json({ conversationId: conversation.id, layered: true, message_persisted: true })
 }
