@@ -78,6 +78,7 @@ export function ChatSheet() {
     } catch {
       return // sessionStorage unavailable — skip rather than risk nagging
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional once-per-session reveal; the sessionStorage seen-key set above makes this fire at most once, so it cannot cascade.
     setReofferVisible(true)
   }, [isSheetOpen, declaredPending, onboardingBeatActive, needsEntryStruggle])
 
