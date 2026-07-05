@@ -2964,3 +2964,90 @@ whole-feature seam review, all ✅.
 `2f493072-…`/`7c85accf-…` now has 105 txns (no longer a clean 0-txn declared user) — reset it on
 staging (delete txns + import batch + clear the upgrade stamps) before the manual smoke per the plan's
 Fixture Reset section. Also pending: `provider.ts` default model-id divergence (separate task).
+
+## 2026-07-05 — Beta-round onboarding-funnel observability (F&F prep)
+
+**What shipped.** First-party (no third-party analytics) instrumentation of the whole value-first
+onboarding funnel, plus an `/admin/beta` dashboard, ahead of a friends-and-family beta. Zero migrations —
+reuses the existing `user_events` table and its already-valid `funnel|system|session` categories.
+Built subagent-driven (9 tasks + 1 live-verification fix, two-stage review each) from the plan at
+`~/.claude/plans/help-me-prepare-this-piped-sketch.md`. Pieces:
+- `src/lib/events/track-funnel-event.ts` — `trackFunnelEvent`/`trackOnboardingError`, fire-and-forget,
+  never throws (every call site elsewhere depends on this).
+- Instrumented all 5 `onboarding_step` write sites (`actions-step.ts`, `actions.ts`,
+  `goal-beat-actions.ts` ×2, `chat/route.ts` stall handler) plus `skip-upload-actions.ts`
+  (new `upload_skipped` event — needed because it lands on the SAME step, `upload_processing`, that a
+  real upload also reaches) and `markComplete.ts` (`onboarding_completed`, gated on the UPDATE actually
+  stamping a row via `.select('id')`).
+- Instrumented 4 API routes + 2 beat actions for funnel progression + error capture (`/api/upload`,
+  `post-upload`, `recompose-first-read`, `upgrade-declared-read`, `processing-actions.ts`).
+  `confirm-actions.ts` was investigated and left untouched — it has no existing error-throw branch to
+  hook (every write there is already fire-and-forget); adding one would've been an unrequested behaviour
+  change, not instrumentation.
+- `SessionTracker.tsx` (mounted in `(office)/layout.tsx` + `onboarding-v2/layout.tsx`) — one
+  `session_started` per browser-tab session (dedup key deliberately separate from the existing
+  `cfo_session_id`), feeding return-visit/retention metrics.
+- `src/lib/admin/assert-admin.ts` — extracted the `/admin/wow` guard (was duplicated verbatim across two
+  files); also fixed both `/admin/wow` pages' silently-broken email lookup (`user_profiles.email` doesn't
+  exist — never did; the trigger only inserts `id`) to use `svc.auth.admin.listUsers()`/`getUserById()`.
+- `src/lib/admin/beta-funnel.ts` — pure, DB-free aggregation (stage ordinals over the 18-member
+  `OnboardingStep` union via `satisfies Record<OnboardingStep, number>`; `resolveFirstPath()` — the
+  declared-vs-upload-first cohort attribution the user explicitly asked for, 3-tier priority:
+  decisive `read_composed.mode` → intent events → upgrade-marker/txn-count fallback; funnel counts;
+  conversion/retention metrics with UTC-day bucketing and week-2/3 eligibility gating; stuck-user
+  detection). 51 unit tests, no mocking needed.
+- `src/app/admin/beta/page.tsx` — the dashboard: 3-cohort funnel table, per-user journey list
+  (admins de-emphasized not hidden), stuck-users view, conversion panel + declared→actual upgrade rate,
+  recent-errors table.
+
+**Gotchas (Phase 0 + live verification).**
+- **`user_profiles` has no `email` column** — confirmed live on staging, not just absent from migration
+  files. Both `/admin/wow` pages had been silently failing this lookup since they were written; fixed as
+  part of the guard extraction since we were already touching those files.
+- **`user_events_event_category_check`** live constraint matches `018_analytics.sql` exactly
+  (`explicit|behavioural|system|session|correction|engagement|upload|funnel`) — zero-migration path
+  confirmed before writing any instrumentation code.
+- **`.env.example` is gitignored in this repo** (blanket `.env*`, no tracked example file at all, in
+  either checkout). "Add `ADMIN_EMAILS` to `.env.example`" from the plan can't ship via commit — noted,
+  not treated as a blocker.
+- **PostgREST `.in(col, [])` 400s** rather than returning an empty result — every `.in(...)` call in the
+  new dashboard against a possibly-empty `profileIds` array is guarded.
+- **A `read_composed` event fires on 3 response paths in `post-upload/route.ts`, not 2** — the
+  message-persist "soft-fail" path (200, compose succeeded, only the message insert failed) still needs
+  `mode` recorded for path-attribution; deleting it (as a reviewer initially proposed) would have quietly
+  broken cohort tracking for that branch. Fixed by keeping the emission, adding `message_persisted: false`
+  to distinguish it in the data, and ALSO firing `onboarding_error` on the same branch — a soft-fail is
+  both "a Read was composed" and "something degraded," and needs both signals.
+- **Live staging data had a 9th, unmapped `onboarding_step` value**: `reality_check_delivered`, on 6 real
+  profiles, from a fully-removed onboarding mechanism (`52efdfc`, "OB-3: statement-check mission +
+  reality-check Read") with zero remaining code references. `stageForProfile`'s defensive `?? 0` fallback
+  meant these users would silently show as "Signed up" instead of their true progress. Fixed with a
+  separate `LEGACY_STEP_ORDINALS` table (deliberately NOT merged into the type-exhaustive
+  `STEP_ORDINALS`, which must stay 1:1 with the current `OnboardingStep` union) — this is exactly the
+  kind of gap that only a live query against real data catches; reading the TS type file alone would
+  never have surfaced it. Chose a code-side interpretive lookup over a DB backfill: this is read-only
+  reporting logic, and rewriting `onboarding_step` on those rows would falsify what actually happened
+  operationally, for the sole benefit of one dashboard's aggregation.
+- **Migration numbering has drifted between disk and staging** (`073_secure_export_user_data.sql` on
+  disk vs. `073_models_feature` applied on staging by timestamp; `074`/`075` present live) — not relevant
+  to this round (no migration added), but flagged for whoever adds the next one: reconcile before
+  numbering, don't assume the next free number.
+
+**Verified.** `npm run typecheck`, `npm run build` (real exit code, not piped through `tail`), full
+`npm run test` = **1307 passing** (110 files, up from 1236 at session start). Every task went through
+independent spec-compliance review (reads the actual diff, doesn't trust the implementer's report) +
+code-quality review (Strengths/Critical/Important/Minor + a clear merge verdict), with one re-review
+loop each on: the `read_composed` soft-fail handling (Task 4), the `/admin/beta` messages fetch window
+(Task 8, was silently 90d instead of the plan's 30d), and the `reality_check_delivered` legacy-step fix.
+Smoke-tested the admin guard live (`next dev` in this worktree, not `.claude`'s — `/admin/beta` and
+`/admin/wow` both correctly 404 unauthenticated, no crash, no data leak).
+**NOT run (needs Lewis, credential-gated):** the full authenticated walkthrough — two fresh staging
+users through signup → struggle → goal → upload (once real, once "I'll estimate" skip) → essentials →
+confirm → first read, confirming they land in the Upload-first/Declared-first funnel columns with the
+right `read_composed.mode`; forcing one failure to confirm an `onboarding_error` row; a return visit to
+confirm `session_started`; then `/admin/beta` itself as the real `ADMIN_EMAILS` account. None of this is
+automatable without real staging credentials and an ADMIN_EMAILS-listed session.
+**Also flagged, out of scope for this branch:** uploaded filenames flow verbatim into
+`onboarding_error.message` in `/api/upload/route.ts` (pre-existing pattern, predates this branch) — the
+new dashboard is what makes these newly visible to a human; spawned as a separate follow-up task rather
+than scope-creeping a fix into this branch.
