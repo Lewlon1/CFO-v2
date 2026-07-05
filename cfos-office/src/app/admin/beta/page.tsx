@@ -39,9 +39,21 @@ export default async function AdminBetaPage() {
   const adminEmailSet = new Set(adminEmails())
 
   const now = new Date()
+  // Beyond 90 days, older activity drops out of this view entirely — a
+  // long-tenured user who's gone quiet won't show any history past this
+  // window. Acceptable for a beta-stage funnel view; revisit if the beta
+  // runs long enough for that to start hiding real signal.
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString()
+  // `messages` is by far the highest-volume table here (one row per chat
+  // turn vs. discrete funnel milestones for events) and is only used for the
+  // last-seen cross-check + activity-day fallback, which doesn't need more
+  // than 30 days — keep its window narrower than user_events's 90 days.
+  const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString()
 
-  // 1. Profiles (non-anonymised only).
+  // 1. Profiles (non-anonymised only). Deliberately unbounded (no .limit()):
+  // at this beta's scale (tens of users) a full scan is cheap, and a limit
+  // would silently truncate the per-user journey list rather than degrade
+  // gracefully.
   const { data: profileRows, error: profilesErr } = await svc
     .from('user_profiles')
     .select(
@@ -71,6 +83,10 @@ export default async function AdminBetaPage() {
   }
 
   // 3. Events — the categories this observability effort writes to.
+  // Deliberately unbounded (no .limit(), unlike /admin/wow's .limit(200)):
+  // at this beta's scale (tens of users, 90-day window) row volume stays
+  // low, and a limit here would silently drop events mid-window rather than
+  // degrade a specific section gracefully.
   const { data: eventRows } = await svc
     .from('user_events')
     .select('profile_id, event_type, event_category, payload, created_at')
@@ -104,13 +120,16 @@ export default async function AdminBetaPage() {
   const upgradedSet = new Set((upgradeRows ?? []).map((r) => r.user_id))
 
   // 6. Messages — last-seen cross-check + activity-day fallback source.
+  // Narrower 30-day window (not since90d): messages is the highest-volume
+  // table here (one row per chat turn), and this data only feeds a last-seen
+  // check + activity-day fallback that doesn't need more than 30 days.
   const { data: messageRows } =
     profileIds.length > 0
       ? await svc
           .from('messages')
           .select('user_id, created_at')
           .in('user_id', profileIds)
-          .gte('created_at', since90d)
+          .gte('created_at', since30d)
       : { data: [] }
   const lastMessageAtByUser = new Map<string, string>()
   const messageDaysByUser = new Map<string, Set<string>>()
