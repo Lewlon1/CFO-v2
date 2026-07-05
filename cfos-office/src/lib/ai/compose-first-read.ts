@@ -18,7 +18,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
-import { getDataWindowEnd, getDataWindowCoverage } from '@/lib/analytics/cluster-behaviour/queries';
+import { getDataWindowEnd, getDataWindowCoverage, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
@@ -147,12 +147,19 @@ export async function composeFirstRead(params: {
     return composeDeclaredRead(supabase, params.userId);
   }
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, financialFacts, benchmarkObservation, entry] = await Promise.all([
+  // Resolve the data window end first — the user's latest transaction date. It
+  // anchors the cluster-selection and transaction-count windows below (and the
+  // breakdown/coverage windows further down) so an upload whose statements end
+  // weeks or months ago windows onto its OWN activity rather than an empty
+  // [today − 90d, today] range. Anchoring those to today is what declined a
+  // genuine 3-month upload as "thin" whenever the data wasn't bang up to date.
+  const dataWindowEnd = await getDataWindowEnd(supabase, params.userId);
+
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
-    getTopMerchantKeys(supabase, params.userId),
+    getTopMerchantKeys(supabase, params.userId, dataWindowEnd),
     getActiveGoal(supabase, params.userId),
-    getTransactionCount(supabase, params.userId, WINDOW_DAYS),
-    getDataWindowEnd(supabase, params.userId),
+    getTransactionCount(supabase, params.userId, WINDOW_DAYS, dataWindowEnd),
     getFinancialFacts(supabase, params.userId),
     getTopBenchmarkObservation(supabase, params.userId),
     getEntryStruggle(supabase, params.userId),
@@ -333,8 +340,13 @@ export async function composeFirstRead(params: {
 async function getTopMerchantKeys(
   supabase: SupabaseClient,
   userId: string,
+  dataWindowEnd?: string | null,
 ): Promise<string[]> {
-  const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  // Anchor the 90-day merchant window to the data's latest month, not today, so
+  // a stale upload's aggregates still fall inside it (a today-anchored window
+  // returned zero merchant keys for any dataset ending >90d ago → no usable
+  // clusters → the upgrade declined as "thin").
+  const since = windowStartISO(WINDOW_DAYS, dataWindowEnd);
   const { data, error } = await supabase
     .from('merchant_aggregates')
     .select('merchant_key, transaction_count, last_seen, first_seen')
@@ -805,8 +817,12 @@ async function getTransactionCount(
   supabase: SupabaseClient,
   userId: string,
   windowDays: number,
+  dataWindowEnd?: string | null,
 ): Promise<number> {
-  const since = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+  // Count within the same data-anchored window the Read is composed from, so the
+  // cited transaction total reflects the upload even when it's stale (a today-
+  // anchored count returned ~0 for older statements and the Read undercounted).
+  const since = windowStartISO(windowDays, dataWindowEnd);
   const { count } = await supabase
     .from('transactions')
     .select('id', { count: 'exact', head: true })

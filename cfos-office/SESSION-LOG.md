@@ -3095,3 +3095,58 @@ upgrade-response, one-shot chips via typecheck). NOT run (staging follow-ups): t
 list in the plan's Verification section (double-tap, concurrent curl, burst loop, block flag,
 kill switch, [System:] cap counting, chat_turn token backfill) — needs the staging deploy +
 migration 074 applied.
+
+---
+
+## 2026-07-05 — declared→actual upgrade wrongly declined as "thin" for non-current data
+
+**Report.** `lewis@tester12.com` took the declared path, then uploading his last 3 months of
+statements to sharpen it hit *"These statements were a bit thin to sharpen the picture — try a
+full 3-month export."* (`INSUFFICIENT_DATA_NUDGE`). The statements were not thin: **188 live
+txns, 28 Feb → 29 Apr 2026, 120 distinct merchants.**
+
+**Root cause — window anchored to the clock, not the data.** The upgrade declines when
+`isDeclaredUpgradeInsufficient(usableClusters, hookCandidates)` is true (compose-first-read.ts),
+and `usableClusters` was empty because the cluster-selection path windowed off `Date.now()`.
+`getTopMerchantKeys` filtered `merchant_aggregates.month_start >= today − 90d = 2026-04-06`;
+his data ends 2026-04-29 (~67 days stale vs the 2026-07-05 "today"), and the MV buckets
+`month_start` to the 1st, so even his April spend (bucket `2026-04-01`) sat 5 days before the
+cutoff. Result: **0 aggregate rows in window → 0 merchant keys → 0 usable clusters → declined.**
+Confirmed on staging: old window `>= 2026-04-06` → 0 rows; data-anchored `>= 2026-01-29` → 129
+rows / 120 keys. The breakdown/coverage path already anchored to `dataWindowEnd` (with a comment
+naming this exact "windows into an empty range" trap); the cluster path just never adopted it —
+the same class of inconsistency as the lifecycle-dormancy anchor that WAS fixed there.
+
+**Fix (product call: accept any 3-month upload regardless of age, let the Read date-stamp it).**
+Thread `dataWindowEnd` (the user's latest txn) as the window anchor through the whole cluster
+path: `windowStartISO(windowDays, windowEnd?)` (now exported), `getMerchantAggregates` /
+`getCategoryAggregates` / `getTransactionDatesForCluster` (optional `windowEnd`), and
+`getClusterBehaviour` passes its already-resolved `dataWindowEnd` in. In compose, `getDataWindowEnd`
+now resolves BEFORE the parallel fan-out so `getTopMerchantKeys` + `getTransactionCount` can anchor
+to it. The stale-data acknowledgement is NOT new code — the existing DATA RECENCY prompt block
+(`formatDataRecency`, `dataAgeDays > 14`) date-stamps the Read "as of <date>"; it just never ran
+because the thin-gate short-circuited compose first.
+
+**Lessons (load-bearing gotchas).**
+- **Anchor analysis windows to the data (`dataWindowEnd`), never to `Date.now()`** — any
+  `today − N` filter silently empties out the moment an upload isn't bang up to date, and the MV's
+  month-bucketing (`month_start` = 1st) pushes even in-range spend out at the boundary. If one
+  read path adopts the data anchor (breakdown/coverage/lifecycle here), the sibling read paths
+  MUST too, or you get exactly this split-brain decline.
+- **No upper bound needed when anchoring to `dataWindowEnd`** — it IS the max txn date, so
+  `>= since` alone suffices. Deliberately skipped `.lte` to avoid a timestamp-truncation bug
+  (`.lte('date','YYYY-MM-DD')` drops same-day non-midnight rows) AND to keep the cluster-behaviour
+  test mock unchanged (its passthroughs are `select/gte/order/is` — no `lte`).
+- **`data_completeness` left on `Date.now()` on purpose** — it gates `usableClusters` at ≥0.3 and
+  the clock anchor is strictly MORE permissive for stale data (bigger `daysAvailable`), which is
+  aligned with "accept anything"; moving it would also collide with the test mock conflating
+  `getDataWindowEnd`/`getFirstSeenForCluster` (both `limit(1)`).
+- **The "thin" nudge conflates three states** — not-enough-data, data-too-old, and
+  data-is-fine-just-stale. This fix stops the third (and old data) from reading as the first; if a
+  genuine "too old to be useful" ceiling is ever wanted, that's a *second* gate on `dataAgeDays`,
+  not a narrowing of this one.
+
+**Verified.** `npm run typecheck` (0 errors) + `npm run build` (exit 0) + full vitest **1079
+passing**; the fix reproduced end-to-end against Lewis's staging rows (0 → 129 in-window
+aggregate rows; top clusters Aldi €225/12, Claude.ai €257/7, Moloneys €61/4 all clear the
+discretionary hook floor). Staging/prod data untouched — read-only diagnosis (Rule 3).
