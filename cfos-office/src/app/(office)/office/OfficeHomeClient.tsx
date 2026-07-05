@@ -8,6 +8,7 @@ import { ValuesSection } from '@/components/office/sections/ValuesSection'
 import { NetWorthSection } from '@/components/office/sections/NetWorthSection'
 import { GoalsSection } from '@/components/office/sections/GoalsSection'
 import { InboxRow } from '@/components/office/InboxRow'
+import { ModelsRow } from '@/components/office/ModelsRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderColors } from '@/lib/tokens'
 import type { PrimaryGoal } from '@/lib/goals/primary-goal'
@@ -128,6 +129,8 @@ export function OfficeHomeClient({
           hasData={hasBalanceSheet}
         />
       </FolderSection>
+
+      <ModelsRow />
     </div>
   )
 }
