@@ -3150,3 +3150,50 @@ because the thin-gate short-circuited compose first.
 passing**; the fix reproduced end-to-end against Lewis's staging rows (0 → 129 in-window
 aggregate rows; top clusters Aldi €225/12, Claude.ai €257/7, Moloneys €61/4 all clear the
 discretionary hook floor). Staging/prod data untouched — read-only diagnosis (Rule 3).
+
+---
+
+## 2026-07-05 — post-upgrade Value Map ran on SAMPLE data, not the user's hooks
+
+**Report (same user, next step).** After the anchor fix above let `lewis@tester12.com`'s
+declared→actual upgrade compose, the follow-on Value Map presented the curated
+`SAMPLE_TRANSACTIONS`, not his real flagged merchants.
+
+**Root cause — hooks written under a key the loader never reads.** The Value Map page loads its
+cards via `getHookCandidatesForUser` (hook-transactions.ts); empty → `SAMPLE_TRANSACTIONS`. That
+loader only checked `metadata.hook_candidates` and `metadata.first_read_metadata.hook_candidates`.
+But the two composition paths persist to DIFFERENT keys: `post-upload` (value-first) writes
+`first_read_metadata`, while `upgrade-declared-read` writes **`first_read_metadata_upgraded`**
+(route.ts). For a declared-path user the `first_read_metadata` on file is the DECLARED Read
+(mode `declared`, `hook_candidates: null` — it saw no txns); the real hooks live only under
+`first_read_metadata_upgraded`. Confirmed on Lewis's conversation: `first_read_metadata` hooks
+null, `first_read_metadata_upgraded` hooks = [Aldi €257, Claude.ai €257, Uber €127]. Loader read
+the null key → returned null → samples.
+
+**Fixes (hook-transactions.ts).**
+1. `getHookCandidatesForUser` now checks `first_read_metadata_upgraded` FIRST (freshest real-txn
+   Read), then top-level, then `first_read_metadata`, and picks the first **non-empty** list —
+   NOT a `??` chain (a path that saw no txns writes `[]`, e.g. `first_read_metadata_recomposed`
+   here; `??` treats `[]` as present and would shadow a populated list → samples).
+2. `buildRealTransactionsFromHooks` (the fallback card builder) windowed off `Date.now()` — the
+   same today-anchor class as the composer bug. Now anchors to `dataWindowEnd`. Lewis narrowly
+   escaped it (each hook had ≥1 txn after today−90), but a slightly older upload resolves zero
+   representative rows → samples. `select-cards.ts` (the PRIMARY card path) was already
+   dataWindowEnd-correct, so no change there.
+
+**Lessons.**
+- **A "may live in several places" metadata reader must enumerate ALL writer keys** — three
+  routes stamp first-read metadata under three distinct keys (`first_read_metadata`,
+  `_upgraded`, `_recomposed`); a consumer that hard-codes two of them silently drops the third.
+  When adding a composition path, grep every reader of the metadata it writes.
+- **`??` is the wrong operator when `[]` is a meaningful "empty" value** — coalesce chains over
+  arrays must pick first-non-empty (`Array.isArray(x) && x.length > 0`), or an empty list from
+  one path shadows a populated one from another.
+- **The today-anchor bug has copies** — it lived in the composer (fixed above), the value-map
+  card fallback (fixed here), and would hide anywhere else a `Date.now() − N` window filters a
+  user's own uploaded data. Anchor to `dataWindowEnd`.
+
+**Verified.** typecheck (0) + build (exit 0) + full vitest **1079 passing**; replayed the new
+loader precedence against Lewis's real metadata → resolves the 3 real hooks (was null), so
+`selectValueMapCards` now runs on his 129 in-window aggregate rows instead of the samples.
+Read-only against staging (Rule 3).
