@@ -72,6 +72,12 @@ describe('stageForProfile', () => {
   it('maps a known step to its expected ordinal', () => {
     expect(stageForProfile({ onboarding_step: 'details_confirmed', onboarding_completed_at: null })).toBe(5)
   })
+
+  it('maps the legacy reality_check_delivered step to ordinal 6 (Read delivered)', () => {
+    expect(
+      stageForProfile({ onboarding_step: 'reality_check_delivered', onboarding_completed_at: null }),
+    ).toBe(6)
+  })
 })
 
 describe('stageFromEvents', () => {
@@ -109,6 +115,13 @@ describe('stageFromEvents', () => {
       { event_type: 'step_transition', payload: { to_step: 123 }, created_at: '2026-01-03T00:00:00Z' },
     ]
     expect(stageFromEvents(events)).toBe(0)
+  })
+
+  it('resolves a step_transition to the legacy reality_check_delivered value via LEGACY_STEP_ORDINALS', () => {
+    const events: FunnelEvent[] = [
+      { event_type: 'step_transition', payload: { to_step: 'reality_check_delivered' }, created_at: '2026-01-01T00:00:00Z' },
+    ]
+    expect(stageFromEvents(events)).toBe(6)
   })
 })
 

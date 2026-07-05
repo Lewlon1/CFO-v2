@@ -63,8 +63,25 @@ export const STEP_ORDINALS = {
 } satisfies Record<OnboardingStep, number>
 
 /**
+ * Legacy onboarding_step values that predate the current OnboardingStep union
+ * (i.e. from removed code paths) but still exist on real profile rows.
+ * `reality_check_delivered` is from an earlier onboarding mechanism (a
+ * "reality-check Read" that predates the current value-first flow) — mapped
+ * to the same stage as first_read_delivered/first_read_shown since it's the
+ * same "a Read was delivered" milestone under a different, now-removed name.
+ * Add new entries here (never to STEP_ORDINALS) if a future audit finds more
+ * legacy values — STEP_ORDINALS must stay exhaustive over the CURRENT
+ * OnboardingStep union only.
+ */
+const LEGACY_STEP_ORDINALS: Record<string, number> = {
+  reality_check_delivered: 6,
+}
+
+/**
  * Resolves a profile's funnel stage from the DB's own onboarding_step
  * column. `onboarding_completed_at` set overrides everything → stage 7.
+ * Checks current STEP_ORDINALS first, then LEGACY_STEP_ORDINALS (for step
+ * values from removed onboarding mechanisms that still exist on real rows).
  * Unrecognised/null step strings defensively fall back to stage 0 rather
  * than throwing, since DB data isn't statically guaranteed to match
  * OnboardingStep.
@@ -75,7 +92,8 @@ export function stageForProfile(profile: {
 }): number {
   if (profile.onboarding_completed_at) return 7
   if (!profile.onboarding_step) return 0
-  return (STEP_ORDINALS as Record<string, number>)[profile.onboarding_step] ?? 0
+  const ordinals = STEP_ORDINALS as Record<string, number>
+  return ordinals[profile.onboarding_step] ?? LEGACY_STEP_ORDINALS[profile.onboarding_step] ?? 0
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +121,7 @@ export function stageFromEvents(events: FunnelEvent[]): number {
     if (e.event_type === 'step_transition') {
       const toStep = e.payload?.to_step
       if (typeof toStep === 'string') {
-        const ord = (STEP_ORDINALS as Record<string, number>)[toStep]
+        const ord = (STEP_ORDINALS as Record<string, number>)[toStep] ?? LEGACY_STEP_ORDINALS[toStep]
         if (ord !== undefined) max = Math.max(max, ord)
       }
     }
