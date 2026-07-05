@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { trackFunnelEvent } from '@/lib/events/track-funnel-event'
 
 /**
  * Permissive onboarding completion. Fire-and-forget from any write site
@@ -56,13 +57,21 @@ export async function markOnboardingCompleteIfReady(
   }
   if (!eligible) return
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('user_profiles')
     .update({ onboarding_completed_at: new Date().toISOString() })
     .eq('id', userId)
     .is('onboarding_completed_at', null)
     .is('anonymised_at', null)
+    .select('id')
   if (error) {
     console.error('[onboarding] markOnboardingCompleteIfReady update failed:', error)
+  }
+  if (!error && data && data.length > 0) {
+    await trackFunnelEvent(supabase, {
+      profileId: userId,
+      eventType: 'onboarding_completed',
+      payload: { trigger_step: profile.onboarding_step },
+    })
   }
 }

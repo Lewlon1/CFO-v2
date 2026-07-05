@@ -32,6 +32,10 @@ function mockSupabase(opts: {
       const chain = {
         eq: vi.fn(() => chain),
         is: vi.fn(() => chain),
+        select: vi.fn(() => ({
+          then: (resolve: (v: { data: Array<{ id: string }>; error: null }) => unknown) =>
+            resolve({ data: [{ id: opts.profile?.id ?? 'u1' }], error: null }),
+        })),
         then: (resolve: (v: { error: null }) => unknown) => resolve({ error: null }),
       }
       return chain
@@ -46,10 +50,15 @@ function mockSupabase(opts: {
     })),
   }
 
+  const userEventsChain = {
+    insert: vi.fn(async () => ({ error: null })),
+  }
+
   return {
     from: vi.fn((table: string) => {
       if (table === 'user_profiles') return userProfilesChain
       if (table === 'value_map_sessions') return vmSessionsChain
+      if (table === 'user_events') return userEventsChain
       throw new Error(`Unexpected table: ${table}`)
     }),
     _updates: updates,

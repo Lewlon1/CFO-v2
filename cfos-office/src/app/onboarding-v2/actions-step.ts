@@ -3,11 +3,19 @@
 import { createClient } from '@/lib/supabase/server'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
+import { trackFunnelEvent } from '@/lib/events/track-funnel-event'
 
 export async function advanceStep(next: OnboardingStep): Promise<void> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
+
+  const { data: currentProfile } = await supabase
+    .from('user_profiles')
+    .select('onboarding_step')
+    .eq('id', user.id)
+    .maybeSingle()
+  const fromStep = currentProfile?.onboarding_step ?? null
 
   const { error } = await supabase
     .from('user_profiles')
@@ -17,6 +25,12 @@ export async function advanceStep(next: OnboardingStep): Promise<void> {
     console.error('[onboarding-v2] advanceStep failed', { next, error })
     throw new Error('Failed to advance onboarding step')
   }
+
+  await trackFunnelEvent(supabase, {
+    profileId: user.id,
+    eventType: 'step_transition',
+    payload: { from_step: fromStep, to_step: next, source: 'advance_step' },
+  })
 
   // Reaching the first-read terminal state (or the explicit 'complete' state
   // on Continue) is the completion signal — the Value Map is no longer a

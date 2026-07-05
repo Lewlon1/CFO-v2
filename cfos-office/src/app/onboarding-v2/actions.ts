@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { StruggleOptionId } from '@/lib/onboarding-v2/labels'
+import { trackFunnelEvent } from '@/lib/events/track-funnel-event'
 
 export type SubmitStruggleInput = {
   selectedOption: StruggleOptionId | null
@@ -47,6 +48,13 @@ export async function submitStruggle(
     entryStruggle === 'dont_know' ? 'value_map' : 'chat'
   const entryStruggleText = hasOption ? null : trimmedText
 
+  const { data: currentProfile } = await supabase
+    .from('user_profiles')
+    .select('onboarding_step')
+    .eq('id', user.id)
+    .maybeSingle()
+  const fromStep = currentProfile?.onboarding_step ?? null
+
   const { error: updateErr } = await supabase
     .from('user_profiles')
     .update({
@@ -61,6 +69,17 @@ export async function submitStruggle(
     console.error('[onboarding-v2] entry_struggle update failed', updateErr)
     throw new Error('Failed to save entry struggle')
   }
+
+  await trackFunnelEvent(supabase, {
+    profileId: user.id,
+    eventType: 'struggle_submitted',
+    payload: { entry_struggle: entryStruggle, route, free_text_length: hasText ? trimmedText.length : null },
+  })
+  await trackFunnelEvent(supabase, {
+    profileId: user.id,
+    eventType: 'step_transition',
+    payload: { from_step: fromStep, to_step: 'goal_chat_started', source: 'submit_struggle' },
+  })
 
   // Create the goal-derive-and-confirm conversation. The CFO opens it via
   // the auto-trigger registered for type='onboarding_goal_chat' in

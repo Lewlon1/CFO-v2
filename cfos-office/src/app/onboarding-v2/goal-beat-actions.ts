@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
+import { trackFunnelEvent } from '@/lib/events/track-funnel-event'
 
 export type CompleteGoalBeatResult = {
   redirectTo: string | null
@@ -67,6 +68,12 @@ export async function completeGoalBeat(): Promise<CompleteGoalBeatResult> {
     throw new Error('Failed to complete goal beat')
   }
 
+  await trackFunnelEvent(supabase, {
+    profileId: user.id,
+    eventType: 'step_transition',
+    payload: { from_step: currentStep, to_step: 'upload_pending', source: 'goal_beat_complete' },
+  })
+
   return { redirectTo: '/onboarding-v2/upload', alreadyComplete: false }
 }
 
@@ -86,6 +93,13 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('onboarding_step')
+    .eq('id', user.id)
+    .maybeSingle()
+  const fromStep = profile?.onboarding_step ?? null
+
   await supabase
     .from('conversations')
     .update({ status: 'completed', updated_at: new Date().toISOString() })
@@ -102,6 +116,12 @@ export async function skipGoalBeat(): Promise<{ redirectTo: string | null }> {
     console.error('[onboarding-v2.goal] skipGoalBeat update failed', updateErr)
     throw new Error('Failed to skip goal beat')
   }
+
+  await trackFunnelEvent(supabase, {
+    profileId: user.id,
+    eventType: 'step_transition',
+    payload: { from_step: fromStep, to_step: 'upload_pending', source: 'goal_beat_skip' },
+  })
 
   return { redirectTo: '/onboarding-v2/upload' }
 }

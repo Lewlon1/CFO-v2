@@ -15,6 +15,7 @@ import { createToolbox, type ToolContext } from '@/lib/ai/tools';
 import { sendAlert, wrapToolsWithAlerts } from '@/lib/alerts/notify';
 import { extractMessageAudit } from '@/lib/ai/audit-trail';
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete';
+import { trackFunnelEvent } from '@/lib/events/track-funnel-event';
 import { extractFromConversation } from '@/lib/ai/portrait-extraction';
 import { extractProfileFields } from '@/lib/ai/profile-extraction';
 import { createServiceClient } from '@/lib/supabase/service';
@@ -331,6 +332,12 @@ export async function POST(req: Request) {
           },
         })
         .eq('id', user.id);
+
+      await trackFunnelEvent(supabase, {
+        profileId: user.id,
+        eventType: 'step_transition',
+        payload: { from_step: profileForChat?.onboarding_step ?? null, to_step: 'goal_chat_tentative', source: 'chat_stall' },
+      });
 
       stallSystemNote =
         '[SYSTEM] The user would rather just see where their money goes for now ' +
