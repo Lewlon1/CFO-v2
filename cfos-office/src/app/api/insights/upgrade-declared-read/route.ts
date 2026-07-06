@@ -75,6 +75,15 @@ export function parseDeclaredFactsSnapshot(value: unknown): DeclaredReadFacts | 
     goalTargetAmount: typeof v.goalTargetAmount === 'number' ? v.goalTargetAmount : null,
     goalCurrentAmount: typeof v.goalCurrentAmount === 'number' ? v.goalCurrentAmount : null,
     goalTargetDate: typeof v.goalTargetDate === 'string' ? v.goalTargetDate : null,
+    goalType: typeof v.goalType === 'string' ? v.goalType : null,
+    // On-track/funded-at-plan framing needs explicit evidence in the snapshot —
+    // older snapshots predate these fields, and false/null is the safe default
+    // (the prompt then simply skips the on-track branch).
+    fundedAtPlan: v.fundedAtPlan === true,
+    planRatePct: typeof v.planRatePct === 'number' ? v.planRatePct : null,
+    stressRatePct: typeof v.stressRatePct === 'number' ? v.stressRatePct : null,
+    stressMonthly: typeof v.stressMonthly === 'number' ? v.stressMonthly : null,
+    stressCovered: typeof v.stressCovered === 'boolean' ? v.stressCovered : null,
     monthlyRequiredSaving:
       typeof v.monthlyRequiredSaving === 'number' ? v.monthlyRequiredSaving : null,
     percentOfIncome: typeof v.percentOfIncome === 'number' ? v.percentOfIncome : null,

@@ -458,7 +458,17 @@ describe('runDeclaredReadUpgrade', () => {
     })
     expect(res.status).toBe(200)
     const composeArg = composeFirstRead.mock.calls[0][0] as Record<string, unknown>
-    expect(composeArg.declaredPriorFacts).toEqual(snapshot)
+    // Snapshots that predate the goalType/funded-at-plan fields parse with the
+    // safe defaults appended (fundedAtPlan false → on-track framing never fires).
+    expect(composeArg.declaredPriorFacts).toEqual({
+      ...snapshot,
+      goalType: null,
+      fundedAtPlan: false,
+      planRatePct: null,
+      stressRatePct: null,
+      stressMonthly: null,
+      stressCovered: null,
+    })
   })
 
   it('compose throws → in-progress cleared + 500, no markUpgraded, no append', async () => {
@@ -637,8 +647,16 @@ describe('parseDeclaredFactsSnapshot', () => {
     currency: 'GBP',
   }
 
-  it('round-trips a well-formed snapshot', () => {
-    expect(parseDeclaredFactsSnapshot(valid)).toEqual(valid)
+  it('round-trips a well-formed snapshot (new fields defaulted for older snapshots)', () => {
+    expect(parseDeclaredFactsSnapshot(valid)).toEqual({
+      ...valid,
+      goalType: null,
+      fundedAtPlan: false,
+      planRatePct: null,
+      stressRatePct: null,
+      stressMonthly: null,
+      stressCovered: null,
+    })
   })
 
   it('returns null for absent / non-object values (pre-snapshot conversations)', () => {
