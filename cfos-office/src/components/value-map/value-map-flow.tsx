@@ -72,6 +72,11 @@ export function ValueMapFlow({
 }: ValueMapFlowProps) {
   const router = useRouter()
   const trackEvent = useTrackEvent()
+  // Same signal handleStart uses to choose real transactions over samples: a
+  // value-first journey passes the user's own flagged transactions. When it
+  // does, the "you'll start with samples" expectation-setting in the intro is
+  // false, so that section is dropped (see the intro render below).
+  const hasRealTransactions = !!(realTransactions && realTransactions.length > 0)
   const [step, setStep] = useState<FlowStep>(
     mode === 'checkin' ? 'checkin_loading' : mode === 'personal' ? 'personal_loading' : 'intro',
   )
@@ -782,23 +787,27 @@ export function ValueMapFlow({
         </div>
 
         {/* How the exercise works — sets expectations about samples seeding a
-            baseline + the Unsure escape hatch. */}
-        <div className="space-y-3">
-          <p className="text-caption font-medium uppercase tracking-wide text-text-muted">How it works</p>
-          {VALUE_MAP_INTRO_HOW.map((bullet) => (
-            <div
-              key={bullet.title}
-              className="rounded-card border border-[var(--border-subtle)] bg-bg-elevated px-4 py-3"
-            >
-              <h3 className="text-[17px] leading-[1.25] text-text-primary">
-                {bullet.title}
-              </h3>
-              <p className="mt-1 text-[13.5px] leading-[1.5] text-text-secondary">
-                {bullet.body}
-              </p>
-            </div>
-          ))}
-        </div>
+            baseline + the Unsure escape hatch. Skipped in the value-first
+            journey: those cards are the user's own real transactions, so the
+            "you'll start with samples" framing would be false. */}
+        {!hasRealTransactions && (
+          <div className="space-y-3">
+            <p className="text-caption font-medium uppercase tracking-wide text-text-muted">How it works</p>
+            {VALUE_MAP_INTRO_HOW.map((bullet) => (
+              <div
+                key={bullet.title}
+                className="rounded-card border border-[var(--border-subtle)] bg-bg-elevated px-4 py-3"
+              >
+                <h3 className="text-[17px] leading-[1.25] text-text-primary">
+                  {bullet.title}
+                </h3>
+                <p className="mt-1 text-[13.5px] leading-[1.5] text-text-secondary">
+                  {bullet.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* CTA */}
         <div className="flex justify-center pt-2">
