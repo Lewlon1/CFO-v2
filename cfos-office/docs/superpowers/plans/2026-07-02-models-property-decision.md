@@ -17,7 +17,7 @@ The brief's paths and a few assumptions don't match the repo. Per the brief's ow
 1. **Route is `/office/models`, not `/models`.** There is no `app/(app)/` group. The authenticated shell is `src/app/(office)/layout.tsx`; every existing feature nests at `src/app/(office)/office/<slug>/` (e.g. `office/goals`, `office/cash-flow`). Models follows the same pattern: `src/app/(office)/office/models/`.
 2. **Mutations are API routes, not server actions.** Confirmed against Goals (`app/api/goals/delete/route.ts`, `app/api/goals/contributions/route.ts`) and Upload (`app/api/upload/route.ts`) — both use client `fetch()` → API route → Supabase, scoped by `.eq('user_id', user.id)`. Server actions exist only in the separate `onboarding-v2` subsystem. Models uses API routes throughout: `app/api/models/runs/route.ts` (create), `app/api/models/runs/[id]/route.ts` (patch), `app/api/models/interviewer/route.ts`.
 3. **Auth pattern:** every `(office)` page/route calls `await createClient()` from `@/lib/supabase/server`, then `await supabase.auth.getUser()`, then redirects/401s if absent. There is no `middleware.ts`. All new pages/routes follow this exactly.
-4. **Next migration number is `073`, not the brief's placeholder timestamp.** Latest is `072_demo_session_claim_guard.sql`. New file: `supabase/migrations/073_models_feature.sql`.
+4. **Next migration number is `073`, not the brief's placeholder timestamp.** Latest is `072_demo_session_claim_guard.sql`. New file: `supabase/migrations/076_models_feature.sql` (originally authored as `073_`; renumbered to `076_` on the v2.9 merge because the v2.9 line also shipped a `073_secure_export_user_data.sql` — see below).
 5. **FK target is `public.user_profiles(id)`, not `auth.users(id)`.** The brief's draft SQL used `auth.users(id)`; every migration from the last two months (`063`, `065`, `066`, `067`) FKs `user_id` to `public.user_profiles(id) on delete cascade` instead. This plan's migration matches that. RLS style also matches `067_user_declared_fixed_costs.sql` exactly: 4 separate policies per table (select/insert/update/delete), `(select auth.uid()) = user_id`, `updated_at` application-managed (no DB trigger).
 6. **UI does not reuse the prototype's styling.** The prototype hardcodes raw hex colours (`#17513D`, `#B07C24`, `#9E3B2F`...), an inline `<style>` block, and a Google Fonts `@import`. This trips the CI-enforced `cfo/visual-token-guards` ESLint rule (`src/**` — no raw hex/rgb, no arbitrary Tailwind colour brackets, no `rounded-[≥4px]`) documented in `UI-DIRECTION.md`. The port keeps the prototype's **behaviour and structure** (three-panel layout, mobile tabs, provenance chips, ledger row edit-in-place, flip-point cards, caveats box) but is rebuilt with `src/components/ui/{Card,Badge,Input,CurrencyInput,button}.tsx` and `src/lib/tokens.ts` (`colors`, not raw hex). Zero `dark:` classes (inert per CLAUDE.md — theme is `data-theme` only).
 7. **Models is not a 5th accented home-folder card.** `OfficeHomeClient.tsx` renders exactly four `FolderSection` cards (Goals/Cash Flow/Values/Net Worth) using the CLAUDE.md-locked four-folder palette ("the load-bearing visual identity of the office home — divergence creates inconsistency"). Models gets a new, non-accented entry row on the home page, following the existing `InboxRow.tsx` pattern (plain `Card`, no `folderColors` entry) but always rendered, not conditional on unread state. New component: `src/components/office/ModelsRow.tsx`.
@@ -38,7 +38,7 @@ Tasks 1–20 below are the brief's "everything above the stop line" (§1–§7 o
 ### Task 1: Migration file (staging only)
 
 **Files:**
-- Create: `cfos-office/supabase/migrations/073_models_feature.sql`
+- Create: `cfos-office/supabase/migrations/076_models_feature.sql`
 
 - [ ] **Step 1: Write the migration**
 
@@ -133,7 +133,7 @@ create policy model_runs_delete
 - [ ] **Step 2: Commit**
 
 ```bash
-git add cfos-office/supabase/migrations/073_models_feature.sql
+git add cfos-office/supabase/migrations/076_models_feature.sql
 git commit -m "feat(models): add user_financial_profile + model_runs tables (staging migration)"
 ```
 
@@ -145,7 +145,7 @@ git commit -m "feat(models): add user_financial_profile + model_runs tables (sta
 
 - [ ] **Step 1: Apply the migration to staging**
 
-Use the Supabase MCP `apply_migration` tool with `project_id: "qlbhvlssksnrhsleadzn"`, `name: "073_models_feature"`, and the SQL from Task 1. Confirm success via `list_tables` (`project_id: "qlbhvlssksnrhsleadzn"`) — expect `user_financial_profile` and `model_runs` to appear.
+Use the Supabase MCP `apply_migration` tool with `project_id: "qlbhvlssksnrhsleadzn"`, `name: "076_models_feature"`, and the SQL from Task 1. Confirm success via `list_tables` (`project_id: "qlbhvlssksnrhsleadzn"`) — expect `user_financial_profile` and `model_runs` to appear.
 
 - [ ] **Step 2: Find two real staging users to test with**
 

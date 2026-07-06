@@ -6,7 +6,7 @@
 
 ## What shipped
 
-- **Migration** (`supabase/migrations/073_models_feature.sql`) — `user_financial_profile` + `model_runs` tables, RLS enabled, applied to Supabase staging (`qlbhvlssksnrhsleadzn`) and independently RLS-verified twice with two different real user pairs. Production (`iccelmjenljanqrhhzdv`) was never contacted this session.
+- **Migration** (`supabase/migrations/076_models_feature.sql`) — `user_financial_profile` + `model_runs` tables, RLS enabled, applied to Supabase staging (`qlbhvlssksnrhsleadzn`) and independently RLS-verified twice with two different real user pairs. Production (`iccelmjenljanqrhhzdv`) was never contacted this session. (Renumbered from `073_` on the v2.9 merge to avoid a filename collision with `073_secure_export_user_data.sql`.)
 - **Deterministic engine** (`lib/models/engine/property.ts`) — `resolveValues`, `saleNet`, `runModel` (rent / invest / cash / redeploy scenarios), `flipPoint` bisection. 17 tests, all pinned against a hand-verified golden fixture and independently re-derived by reviewers from scratch (not just re-run).
 - **Registry + resolver** — `lib/models/registry.ts` (23-slot closed variable set, relevance predicates), `lib/models/marketDefaults.ts`, `lib/models/resolve.ts` (three-tier `run > profile > market` precedence, 4 tests).
 - **API routes** — `POST /api/models/runs` (create), `PATCH /api/models/runs/[id]` (ledger edit), `POST /api/models/interviewer` (Bedrock-backed LLM extraction, zod-validated, closed-world slot-id filtering, retry-once-then-apologise on unparseable output).
