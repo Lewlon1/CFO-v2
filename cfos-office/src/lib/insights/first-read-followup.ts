@@ -311,3 +311,75 @@ export async function markUpgraded(
     },
   })
 }
+
+// ── Declared-pending flag (user_profiles.onboarding_progress) ────────────────
+//
+// `onboarding_step = 'first_read_delivered'` is shared by the declared (skip-
+// upload) and transaction paths, so the office layout cannot tell from the step
+// alone that a user's first Read still stands on declared numbers. This flag —
+// on the EXISTING `user_profiles.onboarding_progress` jsonb (Rule 3: no new
+// migrations) — marks that state and carries the server-computed cushion figure
+// so post-onboarding surfaces (pinned meter, re-offer banner) need no extra
+// conversations query and no client math (Rule 2). Cleared once the upgrade
+// Read has APPENDED (delivered beats stamped — a stamp_failed Read is still in
+// the chat, and the flag must not keep advertising an upgrade that landed).
+
+export const DECLARED_READ_PENDING_KEY = 'declared_read_pending'
+
+/** What post-onboarding surfaces need to re-offer the upgrade. */
+export type DeclaredReadPending = {
+  conversationId: string
+  /** Declared free cash (income − declared fixed costs), server-computed. */
+  freeCash: number
+  currency: string
+}
+
+/** Defensive parse of the flag off `onboarding_progress` jsonb. */
+export function parseDeclaredReadPending(value: unknown): DeclaredReadPending | null {
+  if (value == null || typeof value !== 'object') return null
+  const v = value as Record<string, unknown>
+  if (
+    typeof v.conversationId !== 'string' ||
+    typeof v.freeCash !== 'number' ||
+    typeof v.currency !== 'string'
+  ) {
+    return null
+  }
+  return { conversationId: v.conversationId, freeCash: v.freeCash, currency: v.currency }
+}
+
+/**
+ * Set or clear the flag via read-modify-write on `onboarding_progress` (same
+ * spread pattern as the chat route's goal_chat_tentative_at write). Non-fatal:
+ * logs and returns on error — the flag drives re-engagement surfaces, and a
+ * failed write must never fail the Read that triggered it. The conversation-
+ * level upgrade stamps remain the source of truth for the upgrade itself.
+ */
+export async function setDeclaredReadPending(
+  svc: AnySupabase,
+  userId: string,
+  pending: DeclaredReadPending | null,
+): Promise<void> {
+  try {
+    const { data: row, error: readError } = await svc
+      .from('user_profiles')
+      .select('onboarding_progress')
+      .eq('id', userId)
+      .maybeSingle()
+    if (readError) {
+      console.error('[first-read-followup] declared-pending read failed:', readError)
+      return
+    }
+    const prev = (row?.onboarding_progress as Record<string, unknown> | null) ?? {}
+    const merged = { ...prev, [DECLARED_READ_PENDING_KEY]: pending }
+    const { error: writeError } = await svc
+      .from('user_profiles')
+      .update({ onboarding_progress: merged })
+      .eq('id', userId)
+    if (writeError) {
+      console.error('[first-read-followup] declared-pending write failed:', writeError)
+    }
+  } catch (err) {
+    console.error('[first-read-followup] declared-pending update threw:', err)
+  }
+}

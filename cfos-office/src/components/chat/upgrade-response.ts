@@ -12,6 +12,14 @@
  *   in_progress  → 409 { upgraded:false, reason:'in_progress', conversationId? }
  *   server error → 500 { upgraded:false, reason:'bad_close'|'compose_failed'
  *                        |'stamp_failed'|'count_failed', conversationId? }
+ *
+ * Two reasons get special treatment here:
+ *   - 'no_transactions' and 'insufficient_data' each earn a user-facing nudge —
+ *     the user just watched "Reading your statements…", so a silent close reads
+ *     as a broken upload.
+ *   - 'stamp_failed' is a delivered Read whose final metadata stamp didn't land
+ *     (the route only returns it AFTER the follow-up message appended) — the
+ *     client shows the Read, never an error.
  */
 
 export type UpgradeResponseBody = {
@@ -27,7 +35,8 @@ export type UpgradeResponseBody = {
  *     close. `conversationId` is always present here.
  *   - 'close'          — close the surface, leaving the declared Read in place;
  *     no scary error. Optionally loadConversation first if one was returned.
- *   - 'notify_close'   — close, then show a brief, kind nudge (thin upload).
+ *   - 'notify_close'   — close, then show a brief, kind nudge (thin upload or
+ *     zero-row import).
  *   - 'retry'          — show a retryable error; "Try again" re-POSTs the same
  *     route WITHOUT re-uploading.
  */
@@ -41,6 +50,12 @@ export type UpgradeAction =
 // (a fuller export) without advice or alarm.
 export const INSUFFICIENT_DATA_NUDGE =
   'These statements were a bit thin to sharpen the picture — try a full 3-month export.'
+
+// The zero-row-import nudge. The file parsed but added nothing readable — the
+// user's effort gets a response, not a silent close indistinguishable from
+// success.
+export const NO_TRANSACTIONS_NUDGE =
+  "That file didn't add any transactions I could read — try a CSV export covering your last 3 months."
 
 /**
  * Decide the client action from the HTTP status + parsed body.
@@ -59,10 +74,24 @@ export function decideUpgradeAction(
 
   const reason = body?.reason
 
-  // Thin upload — the only decline that earns a user-facing nudge. Leave the
-  // declared Read as the last word and invite a fuller export.
+  // Thin upload — earns a user-facing nudge. Leave the declared Read as the
+  // last word and invite a fuller export.
   if (reason === 'insufficient_data') {
     return { kind: 'notify_close', message: INSUFFICIENT_DATA_NUDGE }
+  }
+
+  // Zero-row import — the upload "worked" but added nothing readable. The
+  // declared Read is unchanged, so a reload adds nothing; the nudge is what
+  // tells the user their effort registered and what to try instead.
+  if (reason === 'no_transactions') {
+    return { kind: 'notify_close', message: NO_TRANSACTIONS_NUDGE }
+  }
+
+  // Delivered-but-unstamped: the route returns stamp_failed ONLY after the
+  // follow-up Read appended, so the happy outcome exists — show it. (A retry
+  // here would 409 against the deliberately-held in-progress claim anyway.)
+  if (reason === 'stamp_failed' && body?.conversationId) {
+    return { kind: 'load_and_close', conversationId: body.conversationId }
   }
 
   // Benign declines + already-claimed in-flight: close quietly. If the route
@@ -70,7 +99,6 @@ export function decideUpgradeAction(
   // prior run, may have already appended the Read) — otherwise just close.
   if (
     reason === 'already_upgraded' ||
-    reason === 'no_transactions' ||
     reason === 'no_layered_read' ||
     reason === 'in_progress'
   ) {
@@ -79,8 +107,9 @@ export function decideUpgradeAction(
       : { kind: 'close' }
   }
 
-  // Everything else — the 500 family (bad_close / compose_failed / stamp_failed
-  // / count_failed) and any unrecognised/unparseable response — is retryable.
-  // The transactions are already imported, so retry re-POSTs without re-upload.
+  // Everything else — the 500 family (bad_close / compose_failed /
+  // count_failed, or a stamp_failed missing its conversationId) and any
+  // unrecognised/unparseable response — is retryable. The transactions are
+  // already imported, so retry re-POSTs without re-upload.
   return { kind: 'retry' }
 }

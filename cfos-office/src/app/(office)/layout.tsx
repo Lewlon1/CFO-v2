@@ -7,6 +7,11 @@ import { recomputeIfStale } from '@/lib/goals/recompute'
 import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
 import { onboardingProgress, type OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
+import {
+  parseDeclaredReadPending,
+  DECLARED_READ_PENDING_KEY,
+  type DeclaredReadPending,
+} from '@/lib/insights/first-read-followup'
 
 // Layout reads per-user profile from Supabase (onboarding state, currency,
 // display name) — must re-render on every request, never cache at the route
@@ -54,7 +59,7 @@ export default async function OfficeLayout({ children }: { children: React.React
   // trip — it's read below to decide whether to fire a per-session recompute.
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step, goals_last_synced_at, net_monthly_income, monthly_rent')
+    .select('primary_currency, display_name, onboarding_completed_at, entry_struggle, onboarding_step, goals_last_synced_at, net_monthly_income, monthly_rent, onboarding_progress')
     .eq('id', user.id)
     .single()
 
@@ -161,16 +166,30 @@ export default async function OfficeLayout({ children }: { children: React.React
     hasImport = (txnCount ?? 0) > 0
   }
 
-  // Progress meter for the essentials + confirm beats. Goal and income fill as
-  // the user supplies them; fixed costs is EARNED only when the confirm beat
-  // commits (step → details_confirmed), NOT when rent lands in the essentials
-  // beat. Keying it off monthly_rent lit the chip a beat early — the confirm
-  // screen read 60% when goal+income = 40% is correct, since rent is persisted
-  // in essentials. Both steps that render the meter are pre-confirm, so fixed
-  // costs is always still pending here; the +20 lands as the user leaves for
-  // the Read (where the meter no longer shows).
+  // Progress meter across the in-sheet beats. Goal and income fill as the user
+  // supplies them; fixed costs is EARNED only when the confirm beat commits
+  // (step → details_confirmed), NOT when rent lands in the essentials beat —
+  // keying it off monthly_rent lit the chip a beat early. The meter renders at
+  // every beat from the upload decision through the terminal compose wait, so
+  // its two payoff states are actually seen: "A real month" sits unlit at the
+  // exact moment the user decides whether to upload, and the earned total
+  // shows during the compose instead of vanishing as the user leaves for the
+  // Read.
   let onboardingProgressResult: OnboardingProgressResult | null = null
-  if (onboardingStep === 'upload_processing' || onboardingStep === 'details_pending') {
+  if (onboardingStep === 'upload_pending' || onboardingStep === 'essentials_done') {
+    // Upload decision beats — the active goal was already fetched above for
+    // the bridge intro; derive hasGoal from it rather than a duplicate query.
+    onboardingProgressResult = onboardingProgress({
+      hasGoal: onboardingGoal != null,
+      hasIncome: profile?.net_monthly_income != null,
+      hasFixedCosts: false,
+      hasUpload: hasImport,
+    })
+  } else if (
+    onboardingStep === 'upload_processing' ||
+    onboardingStep === 'details_pending' ||
+    onboardingStep === 'details_confirmed'
+  ) {
     const { count: goalCount } = await supabase
       .from('goals')
       .select('id', { head: true, count: 'exact' })
@@ -180,8 +199,43 @@ export default async function OfficeLayout({ children }: { children: React.React
     onboardingProgressResult = onboardingProgress({
       hasGoal: (goalCount ?? 0) > 0,
       hasIncome: profile?.net_monthly_income != null,
-      hasFixedCosts: false,
+      hasFixedCosts: onboardingStep === 'details_confirmed',
       hasUpload: hasImport,
+    })
+  }
+
+  // Post-onboarding declared-pending state: the user's first Read stands on
+  // declared numbers (skip-upload path) and no upgrade Read has landed. Keep
+  // the meter alive — pinned in the chat sheet with "A real month" as the one
+  // thing left — and hand the sheet the server-computed cushion figure for the
+  // once-per-session re-offer. Two gated count queries, declared-pending
+  // users only. hasUpload derives from the REAL transactions count, not the
+  // flag: an upload through any surface lights "A real month" honestly even
+  // before the upgrade Read runs.
+  const declaredPending: DeclaredReadPending | null = parseDeclaredReadPending(
+    ((profile?.onboarding_progress as Record<string, unknown> | null) ?? {})[
+      DECLARED_READ_PENDING_KEY
+    ],
+  )
+  if (declaredPending && !onboardingBeatActive && onboardingProgressResult == null) {
+    const [{ count: goalCount }, { count: txnCount }] = await Promise.all([
+      supabase
+        .from('goals')
+        .select('id', { head: true, count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .is('deleted_at', null),
+      supabase
+        .from('transactions')
+        .select('id', { head: true, count: 'exact' })
+        .eq('user_id', user.id),
+    ])
+    onboardingProgressResult = onboardingProgress({
+      hasGoal: (goalCount ?? 0) > 0,
+      hasIncome: profile?.net_monthly_income != null,
+      // The declared path only reaches its Read through the confirm beat.
+      hasFixedCosts: true,
+      hasUpload: (txnCount ?? 0) > 0,
     })
   }
 
@@ -245,6 +299,11 @@ export default async function OfficeLayout({ children }: { children: React.React
         onboardingGoal={onboardingGoal}
         noImport={!hasImport}
         onboardingProgress={onboardingProgressResult}
+        declaredPending={declaredPending}
+        essentialsPrefill={{
+          income: profile?.net_monthly_income ?? null,
+          rent: profile?.monthly_rent ?? null,
+        }}
       >
         {/* Persistent chat bar — always visible, between header and nav */}
         <ChatBar />

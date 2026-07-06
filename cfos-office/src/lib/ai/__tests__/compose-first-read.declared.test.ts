@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildDeclaredFacts } from '../compose-first-read'
+import { buildDeclaredFacts, buildDeclaredDelta } from '../compose-first-read'
+import { monthsBetween } from '@/lib/goals/pace'
 
 describe('buildDeclaredFacts', () => {
   it('computes free cash and goal pace from declared numbers', () => {
@@ -43,5 +44,113 @@ describe('buildDeclaredFacts', () => {
       currency: 'GBP',
     })
     expect(facts.percentOfIncome).toBeNull()
+  })
+
+  it('threads the goal target / saved / date figures through', () => {
+    const facts = buildDeclaredFacts({
+      income: 2800,
+      totalFixedCosts: 900,
+      goal: {
+        name: 'House deposit',
+        monthlyRequiredSaving: 1750,
+        targetAmount: 40_000,
+        currentAmount: 5_000,
+        targetDate: '2028-03-01',
+      },
+      currency: 'GBP',
+    })
+    expect(facts.goalTargetAmount).toBe(40_000)
+    expect(facts.goalCurrentAmount).toBe(5_000)
+    expect(facts.goalTargetDate).toBe('2028-03-01')
+  })
+
+  it('falls back to a straight-line pace when the goal has a dated target but no stored pace', () => {
+    const targetDate = '2032-06-01' // far future so monthsLeft > 0 for the test's lifetime
+    const facts = buildDeclaredFacts({
+      income: 2800,
+      totalFixedCosts: 900,
+      goal: {
+        name: 'House deposit',
+        monthlyRequiredSaving: null,
+        targetAmount: 40_000,
+        currentAmount: 5_000,
+        targetDate,
+      },
+      currency: 'GBP',
+    })
+    // Same netting as computePaceAndOnTrack: (target − current) / monthsLeft.
+    const expected = Math.round((40_000 - 5_000) / monthsBetween(new Date(), new Date(targetDate)))
+    expect(facts.monthlyRequiredSaving).toBe(expected)
+    expect(facts.unallocated).toBe(Math.max(0, facts.freeCash - expected))
+  })
+
+  it('never straight-lines an investment goal (compound-growth pace is the only source)', () => {
+    const facts = buildDeclaredFacts({
+      income: 2800,
+      totalFixedCosts: 900,
+      goal: {
+        name: 'Index pot',
+        monthlyRequiredSaving: null,
+        targetAmount: 100_000,
+        currentAmount: 10_000,
+        targetDate: '2040-01-01',
+        type: 'investment',
+      },
+      currency: 'GBP',
+    })
+    expect(facts.monthlyRequiredSaving).toBeNull()
+    expect(facts.goalTargetAmount).toBe(100_000) // target still cited, pace withheld
+  })
+
+  it('no fallback pace when the target is already reached', () => {
+    const facts = buildDeclaredFacts({
+      income: 2800,
+      totalFixedCosts: 900,
+      goal: {
+        name: 'Done goal',
+        monthlyRequiredSaving: null,
+        targetAmount: 5_000,
+        currentAmount: 6_000,
+        targetDate: '2032-06-01',
+      },
+      currency: 'GBP',
+    })
+    expect(facts.monthlyRequiredSaving).toBeNull()
+  })
+})
+
+describe('buildDeclaredDelta', () => {
+  const snapshot = { totalFixedCosts: 1850, freeCash: 1250, currency: 'EUR' }
+
+  it('computes both signed differences from snapshot vs fresh facts', () => {
+    const delta = buildDeclaredDelta(snapshot, {
+      total_fixed_costs: 2140,
+      free_cash_flow: 960,
+    })
+    expect(delta).toEqual({
+      declaredFixedCosts: 1850,
+      declaredFreeCash: 1250,
+      actualFixedCosts: 2140,
+      actualFreeCash: 960,
+      fixedCostsDiff: 290,
+      freeCashDiff: -290,
+      currency: 'EUR',
+    })
+  })
+
+  it('returns null when the actual side is entirely missing', () => {
+    expect(
+      buildDeclaredDelta(snapshot, { total_fixed_costs: null, free_cash_flow: null }),
+    ).toBeNull()
+  })
+
+  it('carries a null diff for the missing half when only one actual figure exists', () => {
+    const delta = buildDeclaredDelta(snapshot, {
+      total_fixed_costs: 2140,
+      free_cash_flow: null,
+    })
+    expect(delta?.fixedCostsDiff).toBe(290)
+    expect(delta?.actualFreeCash).toBeNull()
+    expect(delta?.freeCashDiff).toBeNull()
   })
 })

@@ -2995,6 +2995,66 @@ whole-feature seam review, all ✅.
 staging (delete txns + import batch + clear the upgrade stamps) before the manual smoke per the plan's
 Fixture Reset section. Also pending: `provider.ts` default model-id divergence (separate task).
 
+## 2026-07-02 — v2.9 review remediation: onboarding friction + declared-loop payoff (12 points, 4 phases)
+
+**What shipped.** Four commits on `claude/cfo-onboarding-engagement-god4e0`, from a
+multi-agent review of the v2.9 work (plan: `~/.claude/plans/write-a-phased-plan-clever-meadow.md`).
+(1) Friction quick wins: the essentials beat's 30s `IMPORT_GRACE_MS` timer is gone (the beat only
+mounts after `/api/upload` awaits the WHOLE pipeline — the gate was pure theatre); the
+"I don't have a statement handy" skip renders inside the uploader too (it was intro-only — a user
+who tapped Upload was stranded); income/rent prefill on return (`essentialsPrefill` threaded
+layout → provider → sheet → host); 44px skip tap targets; `no_transactions` → notify nudge,
+`stamp_failed`+conversationId → `load_and_close`; declared CTA label pinned to the payoff frame
+("Show me my last 3 months") in rule + few-shot + compose instruction.
+(2) Payoff correctness: `DeclaredReadFacts` carries goal target/saved/date + a straight-line
+fallback pace (never for investment goals — compound-growth pace is the only source, Rule 8);
+post-upload snapshots `declared_facts` into conversation metadata; the upgrade route parses it and
+`buildDeclaredDelta` computes both sides + signed diffs server-side, rendered as the ONLY legal
+source of the declared BEFORE figures.
+(3) Meter payoff states: `declared_read_pending {conversationId, freeCash, currency}` on
+`user_profiles.onboarding_progress` (existing jsonb, no migration); meter renders from the upload
+decision through the terminal compose wait and — pinned in the sheet — post-onboarding for
+declared-pending users until "A real month" lands.
+(4) Upgrade reachability: cash-flow `ImportResult` CTA runs the upgrade for declared-pending users;
+once-per-session sheet-open re-offer banner with the server-computed cushion figure.
+
+**Lessons (the load-bearing gotchas).**
+- **The upgrade prompt told the model to cite declared figures "verbatim" from sections containing
+  zero numbers** (`formatAlreadySaid` renders prose flags; the DELTA block was instructions-only).
+  The flagship "you told me ≈X — the statements show Y" moment was structurally number-free or
+  hallucinated. If a prompt demands verbatim citation, grep the actual rendered sections for the
+  figures — the instruction reading well is not the same as the data being there.
+- **`/chat/:id` is a dead route** — `next.config.ts` permanently redirects it to `/office` and DROPS
+  the id. `ImportResult`'s insights CTA had been composing a Read and then stranding the user on the
+  office home with the sheet closed. The working path into the sheet is
+  `/office?chat=open&conversationId=…` (ChatOpenerTrigger). Audit `router.push` targets against
+  next.config redirects.
+- **`onboarding_step='first_read_delivered'` cannot distinguish declared from transaction Reads** —
+  both paths land there. The declared-ness lives only in conversation metadata, which the layout
+  doesn't read. Hence the profile-level `declared_read_pending` flag (cleared as soon as the upgrade
+  Read has APPENDED — a stamp_failed Read is still delivered, so clearing on markUpgraded-success
+  only would leave the meter advertising an upgrade that already landed).
+- **The declared-facts snapshot IS the declared side of the delta by construction**: at
+  declared-compose time `getFinancialFacts.total_fixed_costs` reconciles only profile rent +
+  user-declared bills (no transactions → no detected recurring). Fresh facts at upgrade time are the
+  ACTUAL side. No second bookkeeping needed — but snapshot-only: pre-snapshot conversations stay
+  qualitative (the prompt now explicitly forbids stating a declared number in that case).
+- **Prefill made a latent soft-lock reachable**: `ProcessingForm`'s equal-value blur guard
+  early-returned while a keystroke had already reset status to `'pristine'` — edit-then-settle-back
+  bricked Continue. A guard that is dead code today (initials always null) can become live the day a
+  caller changes; fix the guard when you change the caller.
+- **`ProcessingProgress` with `importComplete` lands on "Ready when you are · 100%"** — killing the
+  fake timer needed no strip changes, just honest input.
+
+**Verified.** Per phase: `npm run typecheck`, `npm run build`, full `npm run test` — final state
+**1256 passing** (106 files). NOT run (runtime follow-ups): live Bedrock end-to-end for the declared
+Read's new goal block and the numeric-delta upgrade Read (needs staging + Bedrock creds; the
+`skip-upload-declared` persona covers the flow, and the existing captured fixture remains valid —
+its goal figures are now legitimately prompt-supplied). The pinned meter + re-offer banner + cash-flow
+upgrade CTA need a staging smoke with a declared-pending user (`declared_read_pending` set by a
+fresh declared Read — pre-existing declared users from before this ship have no flag and see no
+pinned meter, by design/snapshot-only choice).
+
 ## 2026-07-03 — LLM cost control: no user can rack up extreme Bedrock costs (4 phases)
 
 **Incident.** 2026-07-03 08:57 UTC, staging: a double-tap on two clarifier chips fired two
@@ -3065,6 +3125,110 @@ upgrade-response, one-shot chips via typecheck). NOT run (staging follow-ups): t
 list in the plan's Verification section (double-tap, concurrent curl, burst loop, block flag,
 kill switch, [System:] cap counting, chat_turn token backfill) — needs the staging deploy +
 migration 074 applied.
+
+---
+
+## 2026-07-05 — declared→actual upgrade wrongly declined as "thin" for non-current data
+
+**Report.** `lewis@tester12.com` took the declared path, then uploading his last 3 months of
+statements to sharpen it hit *"These statements were a bit thin to sharpen the picture — try a
+full 3-month export."* (`INSUFFICIENT_DATA_NUDGE`). The statements were not thin: **188 live
+txns, 28 Feb → 29 Apr 2026, 120 distinct merchants.**
+
+**Root cause — window anchored to the clock, not the data.** The upgrade declines when
+`isDeclaredUpgradeInsufficient(usableClusters, hookCandidates)` is true (compose-first-read.ts),
+and `usableClusters` was empty because the cluster-selection path windowed off `Date.now()`.
+`getTopMerchantKeys` filtered `merchant_aggregates.month_start >= today − 90d = 2026-04-06`;
+his data ends 2026-04-29 (~67 days stale vs the 2026-07-05 "today"), and the MV buckets
+`month_start` to the 1st, so even his April spend (bucket `2026-04-01`) sat 5 days before the
+cutoff. Result: **0 aggregate rows in window → 0 merchant keys → 0 usable clusters → declined.**
+Confirmed on staging: old window `>= 2026-04-06` → 0 rows; data-anchored `>= 2026-01-29` → 129
+rows / 120 keys. The breakdown/coverage path already anchored to `dataWindowEnd` (with a comment
+naming this exact "windows into an empty range" trap); the cluster path just never adopted it —
+the same class of inconsistency as the lifecycle-dormancy anchor that WAS fixed there.
+
+**Fix (product call: accept any 3-month upload regardless of age, let the Read date-stamp it).**
+Thread `dataWindowEnd` (the user's latest txn) as the window anchor through the whole cluster
+path: `windowStartISO(windowDays, windowEnd?)` (now exported), `getMerchantAggregates` /
+`getCategoryAggregates` / `getTransactionDatesForCluster` (optional `windowEnd`), and
+`getClusterBehaviour` passes its already-resolved `dataWindowEnd` in. In compose, `getDataWindowEnd`
+now resolves BEFORE the parallel fan-out so `getTopMerchantKeys` + `getTransactionCount` can anchor
+to it. The stale-data acknowledgement is NOT new code — the existing DATA RECENCY prompt block
+(`formatDataRecency`, `dataAgeDays > 14`) date-stamps the Read "as of <date>"; it just never ran
+because the thin-gate short-circuited compose first.
+
+**Lessons (load-bearing gotchas).**
+- **Anchor analysis windows to the data (`dataWindowEnd`), never to `Date.now()`** — any
+  `today − N` filter silently empties out the moment an upload isn't bang up to date, and the MV's
+  month-bucketing (`month_start` = 1st) pushes even in-range spend out at the boundary. If one
+  read path adopts the data anchor (breakdown/coverage/lifecycle here), the sibling read paths
+  MUST too, or you get exactly this split-brain decline.
+- **No upper bound needed when anchoring to `dataWindowEnd`** — it IS the max txn date, so
+  `>= since` alone suffices. Deliberately skipped `.lte` to avoid a timestamp-truncation bug
+  (`.lte('date','YYYY-MM-DD')` drops same-day non-midnight rows) AND to keep the cluster-behaviour
+  test mock unchanged (its passthroughs are `select/gte/order/is` — no `lte`).
+- **`data_completeness` left on `Date.now()` on purpose** — it gates `usableClusters` at ≥0.3 and
+  the clock anchor is strictly MORE permissive for stale data (bigger `daysAvailable`), which is
+  aligned with "accept anything"; moving it would also collide with the test mock conflating
+  `getDataWindowEnd`/`getFirstSeenForCluster` (both `limit(1)`).
+- **The "thin" nudge conflates three states** — not-enough-data, data-too-old, and
+  data-is-fine-just-stale. This fix stops the third (and old data) from reading as the first; if a
+  genuine "too old to be useful" ceiling is ever wanted, that's a *second* gate on `dataAgeDays`,
+  not a narrowing of this one.
+
+**Verified.** `npm run typecheck` (0 errors) + `npm run build` (exit 0) + full vitest **1079
+passing**; the fix reproduced end-to-end against Lewis's staging rows (0 → 129 in-window
+aggregate rows; top clusters Aldi €225/12, Claude.ai €257/7, Moloneys €61/4 all clear the
+discretionary hook floor). Staging/prod data untouched — read-only diagnosis (Rule 3).
+
+---
+
+## 2026-07-05 — post-upgrade Value Map ran on SAMPLE data, not the user's hooks
+
+**Report (same user, next step).** After the anchor fix above let `lewis@tester12.com`'s
+declared→actual upgrade compose, the follow-on Value Map presented the curated
+`SAMPLE_TRANSACTIONS`, not his real flagged merchants.
+
+**Root cause — hooks written under a key the loader never reads.** The Value Map page loads its
+cards via `getHookCandidatesForUser` (hook-transactions.ts); empty → `SAMPLE_TRANSACTIONS`. That
+loader only checked `metadata.hook_candidates` and `metadata.first_read_metadata.hook_candidates`.
+But the two composition paths persist to DIFFERENT keys: `post-upload` (value-first) writes
+`first_read_metadata`, while `upgrade-declared-read` writes **`first_read_metadata_upgraded`**
+(route.ts). For a declared-path user the `first_read_metadata` on file is the DECLARED Read
+(mode `declared`, `hook_candidates: null` — it saw no txns); the real hooks live only under
+`first_read_metadata_upgraded`. Confirmed on Lewis's conversation: `first_read_metadata` hooks
+null, `first_read_metadata_upgraded` hooks = [Aldi €257, Claude.ai €257, Uber €127]. Loader read
+the null key → returned null → samples.
+
+**Fixes (hook-transactions.ts).**
+1. `getHookCandidatesForUser` now checks `first_read_metadata_upgraded` FIRST (freshest real-txn
+   Read), then top-level, then `first_read_metadata`, and picks the first **non-empty** list —
+   NOT a `??` chain (a path that saw no txns writes `[]`, e.g. `first_read_metadata_recomposed`
+   here; `??` treats `[]` as present and would shadow a populated list → samples).
+2. `buildRealTransactionsFromHooks` (the fallback card builder) windowed off `Date.now()` — the
+   same today-anchor class as the composer bug. Now anchors to `dataWindowEnd`. Lewis narrowly
+   escaped it (each hook had ≥1 txn after today−90), but a slightly older upload resolves zero
+   representative rows → samples. `select-cards.ts` (the PRIMARY card path) was already
+   dataWindowEnd-correct, so no change there.
+
+**Lessons.**
+- **A "may live in several places" metadata reader must enumerate ALL writer keys** — three
+  routes stamp first-read metadata under three distinct keys (`first_read_metadata`,
+  `_upgraded`, `_recomposed`); a consumer that hard-codes two of them silently drops the third.
+  When adding a composition path, grep every reader of the metadata it writes.
+- **`??` is the wrong operator when `[]` is a meaningful "empty" value** — coalesce chains over
+  arrays must pick first-non-empty (`Array.isArray(x) && x.length > 0`), or an empty list from
+  one path shadows a populated one from another.
+- **The today-anchor bug has copies** — it lived in the composer (fixed above), the value-map
+  card fallback (fixed here), and would hide anywhere else a `Date.now() − N` window filters a
+  user's own uploaded data. Anchor to `dataWindowEnd`.
+
+**Verified.** typecheck (0) + build (exit 0) + full vitest **1079 passing**; replayed the new
+loader precedence against Lewis's real metadata → resolves the 3 real hooks (was null), so
+`selectValueMapCards` now runs on his 129 in-window aggregate rows instead of the samples.
+Read-only against staging (Rule 3).
+
+---
 
 ## 2026-07-06 — v2.9 launch prep: security + observability assembled onto one branch
 

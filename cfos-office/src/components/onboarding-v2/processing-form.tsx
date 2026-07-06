@@ -63,7 +63,13 @@ export function ProcessingForm({
   async function handleIncomeBlur() {
     const value = parseMoneyInput(income)
     if (value == null || value <= 0) return
-    if (initialIncome === value) return
+    if (initialIncome === value) {
+      // Already persisted server-side. A keystroke resets status to 'pristine',
+      // so a user who edits and settles back on the prefilled number must land
+      // on 'saved' again — returning silently would soft-lock Continue.
+      setIncomeStatus('saved')
+      return
+    }
     setIncomeStatus('saving')
     try {
       const result = await submitIncome(value)
@@ -78,7 +84,11 @@ export function ProcessingForm({
   async function handleRentBlur() {
     const value = parseMoneyInput(rent)
     if (value == null || value < 0) return
-    if (initialRent === value) return
+    if (initialRent === value) {
+      // Same re-save guard as income: the value is on file, restore 'saved'.
+      setRentStatus('saved')
+      return
+    }
     setRentStatus('saving')
     try {
       await submitRent(value)

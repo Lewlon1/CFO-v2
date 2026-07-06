@@ -5,8 +5,19 @@ import type { AggregateRow, ClusterType } from './types';
 // materialized view has no RLS, so application-level user_id filtering is
 // the only guard — it MUST be applied on every read.
 
-function windowStartISO(windowDays: number): string {
-  const start = new Date();
+/**
+ * Lower bound (ISO YYYY-MM-DD) of an N-day analysis window. Anchored to
+ * `windowEnd` — the user's latest transaction date — when provided, otherwise to
+ * today. Anchoring to the DATA rather than the clock is what lets a stale upload
+ * (statements that end weeks or months ago) window onto its own activity instead
+ * of an empty [today − N, today] range. This mirrors the dormancy reference the
+ * lifecycle derivation already keys off dataWindowEnd; the windowed reads simply
+ * never adopted the same anchor, which wrongly declined the declared → actual
+ * upgrade as "thin" for any dataset that wasn't bang up to date. No upper bound is
+ * needed: dataWindowEnd IS the latest transaction, so nothing sits beyond it.
+ */
+export function windowStartISO(windowDays: number, windowEnd?: string | null): string {
+  const start = windowEnd ? new Date(windowEnd) : new Date();
   start.setUTCDate(start.getUTCDate() - windowDays);
   return start.toISOString().slice(0, 10);
 }
@@ -47,8 +58,9 @@ export async function getMerchantAggregates(
   userId: string,
   merchantKey: string,
   windowDays: number,
+  windowEnd?: string | null,
 ): Promise<AggregateRow[]> {
-  const since = windowStartISO(windowDays);
+  const since = windowStartISO(windowDays, windowEnd);
 
   // Resolve the hint to actual merchant_keys (1+ variants).
   const keys = await resolveMerchantKeys(supabase, userId, merchantKey);
@@ -74,12 +86,13 @@ export async function getCategoryAggregates(
   userId: string,
   categoryId: string,
   windowDays: number,
+  windowEnd?: string | null,
 ): Promise<AggregateRow[]> {
   // Category-level aggregation rolls up across merchants. We rely on the MV's
   // dominant_category_id (mode per merchant-month). For analytical purposes
   // this is acceptable; a merchant whose category drifts will show in whichever
   // category it spends most months in.
-  const since = windowStartISO(windowDays);
+  const since = windowStartISO(windowDays, windowEnd);
   const { data, error } = await supabase
     .from('merchant_aggregates')
     .select('month_start, transaction_count, total_amount, mean_amount, stddev_amount, first_seen, last_seen, dow_array')
@@ -99,8 +112,9 @@ export async function getTransactionDatesForCluster(
   clusterType: ClusterType,
   clusterId: string,
   windowDays: number,
+  windowEnd?: string | null,
 ): Promise<{ dates: string[]; amounts: number[] }> {
-  const since = windowStartISO(windowDays);
+  const since = windowStartISO(windowDays, windowEnd);
   let q = supabase
     .from('transactions')
     .select('date, amount')

@@ -21,6 +21,9 @@ type Props = {
   noImport?: boolean
   /** Progress-meter result; rendered above the essentials + confirm beats. */
   progress?: OnboardingProgressResult | null
+  /** Already-persisted income/rent from the profile (values save on blur, so a
+   *  return mid-beat must prefill rather than re-ask — Rule 6). */
+  essentialsPrefill?: { income: number | null; rent: number | null } | null
 }
 
 /**
@@ -31,7 +34,7 @@ type Props = {
  * off reuses the proven ?chat=open&conversationId mechanism (ChatOpenerTrigger)
  * so the composed Read loads into the same sheet.
  */
-export function OnboardingBeatHost({ step, currency, goal, noImport, progress }: Props) {
+export function OnboardingBeatHost({ step, currency, goal, noImport, progress, essentialsPrefill }: Props) {
   const router = useRouter()
   const { openSheet, loadConversation } = useChatContext()
   const readTriggeredRef = useRef(false)
@@ -122,15 +125,24 @@ export function OnboardingBeatHost({ step, currency, goal, noImport, progress }:
 
   if (step === 'upload_pending' || step === 'essentials_done') {
     return (
-      <UploadBeatBlock
-        goal={goal}
-        onImported={() => {}}
-        onDone={() => {
-          void advanceStep('upload_processing')
-            .then(() => router.refresh())
-            .catch((err) => console.error('[onboarding-beat-host] upload advance failed', err))
-        }}
-      />
+      <>
+        {/* "A real month" sits unlit at the exact moment the user decides
+            whether to upload — the +40 pull, visible where it matters. */}
+        {progress && (
+          <div className="px-4 pt-4">
+            <OnboardingProgressMeter result={progress} />
+          </div>
+        )}
+        <UploadBeatBlock
+          goal={goal}
+          onImported={() => {}}
+          onDone={() => {
+            void advanceStep('upload_processing')
+              .then(() => router.refresh())
+              .catch((err) => console.error('[onboarding-beat-host] upload advance failed', err))
+          }}
+        />
+      </>
     )
   }
 
@@ -144,8 +156,8 @@ export function OnboardingBeatHost({ step, currency, goal, noImport, progress }:
         )}
         <EssentialsBeatBlock
           currency={currency}
-          initialIncome={null}
-          initialRent={null}
+          initialIncome={essentialsPrefill?.income ?? null}
+          initialRent={essentialsPrefill?.rent ?? null}
           noImport={noImport}
           // ProcessingForm runs advanceToConfirm itself (→ details_pending); we
           // just refresh so the host advances to the confirm beat.
@@ -170,6 +182,42 @@ export function OnboardingBeatHost({ step, currency, goal, noImport, progress }:
     )
   }
 
-  // details_confirmed — Read composing/handoff in flight.
-  return <CfoThinking variant="block" />
+  // details_confirmed — Read composing/handoff in flight. The longest wait in
+  // onboarding is the payoff moment, not dead air: the meter shows everything
+  // just earned (fixed costs' +20 included), and the labels + expectation line
+  // mirror the UpgradeUploadSurface treatment. The transaction compose is the
+  // long one; the declared compose is a single fast call.
+  return (
+    <>
+      {progress && (
+        <div className="px-4 pt-4">
+          <OnboardingProgressMeter result={progress} />
+        </div>
+      )}
+      <div className="px-4 py-8 flex flex-col items-center text-center gap-3">
+        <CfoThinking
+          variant="block"
+          labels={
+            noImport
+              ? [
+                  'Weighing the numbers you gave me…',
+                  'Sizing up your month…',
+                  'Writing your first read…',
+                ]
+              : [
+                  'Reading your three months…',
+                  'Finding the patterns…',
+                  'Weighing it against your goal…',
+                  'Writing your first read…',
+                ]
+          }
+        />
+        <p className="text-sm text-text-secondary leading-snug max-w-xs">
+          {noImport
+            ? 'One moment — putting your first read together.'
+            : "This is the long one — about a minute. I'm reading every line so the picture is sharp."}
+        </p>
+      </div>
+    </>
+  )
 }
