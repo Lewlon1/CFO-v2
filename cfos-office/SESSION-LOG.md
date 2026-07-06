@@ -3447,3 +3447,48 @@ Gates: `npm run typecheck` ✓, `npm run build` ✓, vitest **1257 passing** (10
   dedicated renumber pass before anyone runs a from-scratch `supabase db push`.
 - An append-only log can still lie by omission across branches: when cherry-picking, carry
   only the entries whose code travels with them.
+
+## 2026-07-06 — v2.9 launch prep, round 2: everything except Models M1 folded in
+
+**Decision (Lewis):** the beta branch carries ALL outstanding work except the Models M1
+feature. `claude/v2.9-launch-prep-e6ekyf` now = round 1 (guards + 077 lockdown)
++ `origin/main` (the v2.8 bump — the eventual merge to main is now conflict-free; version
+kept at 2.9.0) + `claude/statement-sharing-error-9jc3be` (the four onboarding-engagement
+commits AND the three 07-05 fixes) + `claude/review-nancy-tester-user-s2sjfg` (accelerate
+lever, income provenance, hook re-derive, parallel PDF vision) + `claude/model-data-response-u8ckjx`
+(drop the samples intro) + `claude/peaceful-goodall-l912it` (one persistence path for the
+real-transaction Value Map via /api/value-map/classify).
+Still excluded: Models M1 (`claude/v2.9-security-review-5sl67r` / `models-property-decision-m1`;
+carry `aa1ca47`'s 073→076 renumber with it when it lands) and `claude/nifty-carson-4jzdl2`
+(estimates-first onboarding rework, WIP tip — not release material). `claude/loving-shannon-588hf8`
+verified fully redundant (its EU-alias fix is 1f9f4ee; its extra CLAUDE.md hunk targets text
+that no longer exists).
+
+**Merge reconciliations (the load-bearing ones).**
+- `DeclaredReadFacts` gained fields from BOTH sides (engagement: goal target/saved/date;
+  nancy: goalType + fundedAtPlan/planRatePct/stress*). Union taken; the declared prompt now
+  anchors the goal in their terms AND carries the on-track/funded-at-plan branch; the
+  funded-at-plan SHAPE example was re-derived with the pinned CTA label ("Show me my last
+  3 months" — the cd26545 product call — replacing the older "Share my last 3 statements").
+- `parseDeclaredFactsSnapshot` defaults the new fields (fundedAtPlan STRICTLY false unless
+  the snapshot says true) so pre-existing snapshots can never trigger on-track framing.
+- extract-pdf: nancy's parallel `runPage` pool adopted; 920b3dd's 25s per-call
+  `AbortSignal.timeout` re-applied inside `runPage` (her version had only maxOutputTokens).
+- **Another duplicate migration prefix caught at merge time**: nancy's `074_import_attempts`
+  collided with `074_llm_guard` → renumbered to `078_import_attempts` (076 stays reserved
+  for Models). Staging unaffected (applied by name). This is the THIRD 07x collision;
+  numeric-prefix migrations across parallel branches are a standing hazard — check
+  `ls | grep -o '^[0-9]*' | sort | uniq -d` at every merge.
+- peaceful-goodall merged conflict-free; verified the llm-guard survived its
+  `/api/value-map/personal` rewrite and the classify route is deterministic (no guard needed).
+
+**Gates:** `npm run typecheck` ✓, `npm run build` ✓ (70/70 pages), vitest **1289 passing**
+(109 files).
+
+**Pre-beta prod checklist — UPDATED (all Lewis-manual, Rule 3).** Staging verified to have
+ALL of: llm_blocked_at, import_attempts, income_provenance, hardened RPCs. Prod verified to
+have NONE. Run with/before the deploy: `prod-backfill-071` (atomic with deploy),
+`prod-backfill-073` + `prod-backfill-077` (security, before any beta user),
+`prod-backfill-074` (llm_blocked_at), `prod-backfill-075` (income_provenance — the income
+reconciliation writes it), `prod-backfill-078` (import_attempts — PDF upload logs to it).
+070 already applied.
