@@ -19,16 +19,13 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import {
-  loadCurrentBudget,
-  loadAverageDiscretionary,
-  loadActiveGoals,
-} from '@/lib/ai/tools/helpers';
+import { loadCurrentBudget, loadActiveGoals } from '@/lib/ai/tools/helpers';
 import type { ToolContext } from '@/lib/ai/tools/types';
 import { DISCRETIONARY_CATEGORY_IDS, categoryLabel } from '@/lib/analytics/categories';
 import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
 import { requiredMonthlyBand } from '@/lib/finance/compound-growth';
 import { monthsBetween } from '@/lib/goals/pace';
+import { getFinancialPosition } from '@/lib/finance/financial-position';
 
 const DAYS_PER_MONTH = 30.44;
 // A `cut` lever suggests trimming a quarter of a discretionary category — a
@@ -143,7 +140,7 @@ export async function deriveLevers(args: {
   // emit an `accelerate` lever instead, so the Read frames the real choice (direct
   // the spare cash, cover the stress case, or move to the next goal) rather than a
   // gap that doesn't exist. Only the not-funded path derives a cut.
-  const accelerate = await deriveAccelerateLever(ctx, activeGoal, budget);
+  const accelerate = await deriveAccelerateLever(ctx, activeGoal);
   if (accelerate) {
     levers.push(accelerate);
   } else {
@@ -261,20 +258,22 @@ type SurplusResult = { surplus: number; basis: 'observed' | 'modelled' };
  * spend. The ONE definition of surplus — pace.ts, the cut lever's impact, and the
  * accelerate gate must all agree (one source of truth). Null when income is absent.
  *
- * `basis` is 'modelled' when no snapshot history exists yet — the surplus
- * then only nets fixed costs off income (assumes zero discretionary spend),
- * same fallback financial-position.ts uses. Callers that frame this as a
- * "funded" verdict must hedge accordingly; see the accelerate lever below.
+ * Reads `getFinancialPosition` DIRECTLY rather than going through
+ * `loadCurrentBudget` + a separate `loadAverageDiscretionary` call. That
+ * detour re-derived the surplus from `budget.fixedCosts`, which defaults to
+ * 0 when `reconcileFixedCosts` throws (financial-position.ts is careful to
+ * null out `freeCash`/mark `basis: 'modelled'` on that failure, but the
+ * detour never read either field — it recomputed independently and could
+ * emit a confident "observed" surplus off a silently-zeroed fixed-cost
+ * total, exactly the false-funded bug class this module exists to close).
+ * Going straight to `position.freeCash`/`position.basis` means a reconcile
+ * failure now correctly surfaces here as `null` (no lever), not as a
+ * fabricated windfall.
  */
-async function computeCurrentSurplus(
-  ctx: ToolContext,
-  budget: Budget,
-): Promise<SurplusResult | null> {
-  if (budget.netIncome == null) return null;
-  const avgDiscretionary = await loadAverageDiscretionary(ctx);
-  const totalIncome = budget.netIncome + budget.partnerContribution;
-  const basis: 'observed' | 'modelled' = avgDiscretionary != null ? 'observed' : 'modelled';
-  return { surplus: totalIncome - budget.fixedCosts - (avgDiscretionary ?? 0), basis };
+async function computeCurrentSurplus(ctx: ToolContext): Promise<SurplusResult | null> {
+  const position = await getFinancialPosition(ctx.supabase, ctx.userId);
+  if (position.freeCash == null) return null;
+  return { surplus: position.freeCash, basis: position.basis };
 }
 
 /**
@@ -299,9 +298,8 @@ async function computeCurrentSurplus(
 async function deriveAccelerateLever(
   ctx: ToolContext,
   goal: ActiveGoalRow,
-  budget: Budget,
 ): Promise<Lever | null> {
-  const position = await computeCurrentSurplus(ctx, budget);
+  const position = await computeCurrentSurplus(ctx);
   if (position == null) return null;
   const { surplus: currentSurplus, basis } = position;
 
@@ -361,7 +359,7 @@ async function computeGoalImpactMonths(
   const remaining = Number(goal.target_amount) - Number(goal.current_amount ?? 0);
   if (remaining <= 0) return null;
 
-  const position = await computeCurrentSurplus(ctx, budget);
+  const position = await computeCurrentSurplus(ctx);
   if (position == null || position.surplus <= 0) return null;
   const currentSurplus = position.surplus;
 

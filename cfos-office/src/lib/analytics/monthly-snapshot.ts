@@ -147,6 +147,27 @@ export async function refreshMonthlySnapshots(
  * refreshMonthlySnapshots is a no-op on the first import because the
  * recurring detector hasn't run yet at that point).
  */
+/**
+ * NULL, not floored to 0, when a month's own total_spending is below the
+ * CURRENT reconciled fixed-cost total. That combination means the month's
+ * data doesn't reconcile with what's on file today — a partial upload
+ * missing an account the fixed bills are paid from, or fixed costs that
+ * have since risen — not "this user spent nothing on top of their bills."
+ * Flooring that case to a confident 0 was itself a relocated version of the
+ * exact bug being fixed: `average()` in financial-position.ts treats a run
+ * of 0s as real observed history (basis: 'observed'), so a Read could state
+ * an unhedged, overstated free-cash figure with high confidence. NULL
+ * correctly falls out of the average and pushes basis back to 'modelled'.
+ */
+export function computeTotalDiscretionaryForRow(
+  totalSpending: number | null,
+  totalFixedCostsMonthly: number,
+): number | null {
+  return totalSpending != null && totalSpending >= totalFixedCostsMonthly
+    ? totalSpending - totalFixedCostsMonthly
+    : null
+}
+
 export async function syncTotalFixedCosts(
   supabase: SupabaseClient,
   userId: string,
@@ -171,8 +192,7 @@ export async function syncTotalFixedCosts(
 
   for (const row of rows ?? []) {
     const totalSpending = typeof row.total_spending === 'number' ? row.total_spending : null
-    const totalDiscretionary =
-      totalSpending != null ? Math.max(0, totalSpending - totalFixedCostsMonthly) : null
+    const totalDiscretionary = computeTotalDiscretionaryForRow(totalSpending, totalFixedCostsMonthly)
     const { error } = await supabase
       .from('monthly_snapshots')
       .update({

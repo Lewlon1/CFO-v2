@@ -391,22 +391,42 @@ export async function composeFirstRead(params: {
  * Issue 1.4: assert the accelerate lever's `surplusOverRequired` reconciles
  * with FINANCIAL FACTS' free_cash_flow minus the goal's monthly requirement.
  * Both are computed from the unified financial-position module, but via two
- * independent calls (deriveLevers' own loadCurrentBudget/loadAverageDiscretionary
+ * independent calls (deriveLevers' own loadActiveGoals/loadCurrentBudget
  * round-trip vs getFinancialFacts' direct call) — a silent divergence between
  * them is exactly the "two disagreeing sources of truth for the same fact"
  * failure mode the dorcas/lewis review found. On mismatch, drop the lever
  * (never the fact) and log both values so a regression is diagnosable.
+ *
+ * Also checks the lever's `goalId` against `goalRow.id`: deriveLevers and
+ * getActiveGoal resolve "the" active goal via two separate queries, so a
+ * user with 2+ active goals could — before both queries were pinned to the
+ * same newest-first ordering — have them disagree on WHICH goal, making the
+ * numeric comparison below meaningless (comparing two different goals'
+ * figures as if they were one). Belt-and-suspenders: even with matching
+ * ordering, a same-instant created_at tie could still diverge.
  */
 export function reconcileLeverPackageWithFacts(
   leverPackage: LeverPackage,
   financialFacts: FinancialFacts,
-  goalRow: { monthly_required_saving: number | null } | null,
+  goalRow: { id: string | null; monthly_required_saving: number | null } | null,
   userId: string,
 ): LeverPackage {
   const accelerate = leverPackage.levers.find(
     (l): l is Extract<Lever, { type: 'accelerate' }> => l.type === 'accelerate',
   );
   if (!accelerate) return leverPackage;
+
+  if (goalRow?.id != null && accelerate.goalId !== goalRow.id) {
+    console.error(
+      '[compose-first-read] consistency assertion failed: accelerate lever is for a DIFFERENT goal than the Read — dropping the lever',
+      { userId, leverGoalId: accelerate.goalId, readGoalId: goalRow.id },
+    );
+    return {
+      levers: leverPackage.levers.filter((l) => l !== accelerate),
+      blocker: leverPackage.blocker,
+    };
+  }
+
   if (financialFacts.free_cash_flow == null || goalRow?.monthly_required_saving == null) {
     return leverPackage;
   }
@@ -560,6 +580,7 @@ async function getActiveGoal(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{
+  id: string;
   name: string;
   target_amount: number | null;
   current_amount: number | null;
@@ -567,9 +588,13 @@ async function getActiveGoal(
   type: string | null;
   monthly_required_saving: number | null;
 } | null> {
+  // Ordered newest-first — MUST match loadActiveGoals' ordering (helpers.ts)
+  // so the lever engine and this Read narrate the SAME goal when a user has
+  // 2+ active goals. reconcileLeverPackageWithFacts below cross-checks the
+  // id as a second line of defence.
   const { data } = await supabase
     .from('goals')
-    .select('name, target_amount, current_amount, target_date, type, monthly_required_saving')
+    .select('id, name, target_amount, current_amount, target_date, type, monthly_required_saving')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -577,6 +602,7 @@ async function getActiveGoal(
     .maybeSingle();
   return data
     ? {
+        id: data.id as string,
         name: data.name as string,
         target_amount: data.target_amount as number | null,
         current_amount: data.current_amount as number | null,

@@ -528,7 +528,7 @@ describe('reconcileLeverPackageWithFacts — Issue 1.4 compose-time consistency 
     const result = reconcileLeverPackageWithFacts(
       packageWith(accelerateLever),
       baseFacts,
-      { monthly_required_saving: 500 },
+      { id: 'g1', monthly_required_saving: 500 },
       'user-1',
     );
     expect(result.levers).toHaveLength(1);
@@ -539,7 +539,7 @@ describe('reconcileLeverPackageWithFacts — Issue 1.4 compose-time consistency 
     const result = reconcileLeverPackageWithFacts(
       packageWith({ ...accelerateLever, surplusOverRequired: 699 }),
       baseFacts,
-      { monthly_required_saving: 500 },
+      { id: 'g1', monthly_required_saving: 500 },
       'user-1',
     );
     expect(result.levers).toHaveLength(1);
@@ -551,7 +551,7 @@ describe('reconcileLeverPackageWithFacts — Issue 1.4 compose-time consistency 
     const result = reconcileLeverPackageWithFacts(
       packageWith({ ...accelerateLever, surplusOverRequired: 2867 }),
       baseFacts,
-      { monthly_required_saving: 500 },
+      { id: 'g1', monthly_required_saving: 500 },
       'user-1',
     );
     expect(result.levers.find((l) => l.type === 'accelerate')).toBeUndefined();
@@ -570,7 +570,7 @@ describe('reconcileLeverPackageWithFacts — Issue 1.4 compose-time consistency 
     const result = reconcileLeverPackageWithFacts(
       packageWith(cutLever),
       baseFacts,
-      { monthly_required_saving: 500 },
+      { id: 'g1', monthly_required_saving: 500 },
       'user-1',
     );
     expect(result.levers).toHaveLength(1);
@@ -581,7 +581,30 @@ describe('reconcileLeverPackageWithFacts — Issue 1.4 compose-time consistency 
     const result = reconcileLeverPackageWithFacts(
       packageWith(accelerateLever),
       { ...baseFacts, free_cash_flow: null },
-      { monthly_required_saving: 500 },
+      { id: 'g1', monthly_required_saving: 500 },
+      'user-1',
+    );
+    expect(result.levers).toHaveLength(1);
+  });
+
+  it('drops the lever when it is for a DIFFERENT goal than the Read (goal-selection mismatch)', () => {
+    // The lever engine and getActiveGoal resolve "the" active goal via two
+    // separate queries — a user with 2+ active goals could have them
+    // disagree. Numbers "matching" here would be coincidence, not proof.
+    const result = reconcileLeverPackageWithFacts(
+      packageWith(accelerateLever), // goalId: 'g1'
+      baseFacts, // free_cash_flow 1200, which would "match" 700 required 500 by luck
+      { id: 'g2', monthly_required_saving: 500 }, // the Read is about a DIFFERENT goal
+      'user-1',
+    );
+    expect(result.levers.find((l) => l.type === 'accelerate')).toBeUndefined();
+  });
+
+  it('does not drop the lever when goalRow.id is null (id not threaded through, e.g. legacy caller)', () => {
+    const result = reconcileLeverPackageWithFacts(
+      packageWith(accelerateLever),
+      baseFacts,
+      { id: null, monthly_required_saving: 500 },
       'user-1',
     );
     expect(result.levers).toHaveLength(1);

@@ -46,12 +46,24 @@ export async function loadAverageDiscretionary(ctx: ToolContext): Promise<number
   return position.avgDiscretionaryMonthly;
 }
 
+/**
+ * Ordered newest-first so `goals[0]` (how levers.ts picks "the" active goal)
+ * agrees with `getActiveGoal` in compose-first-read.ts, which independently
+ * queries `order('created_at', {ascending:false}).limit(1)` for the Read's
+ * own goal. Before this ordering existed, a user with 2+ active goals could
+ * have the lever engine and the Read narrating DIFFERENT goals — the
+ * compose-time consistency assertion (Issue 1.4) compared numbers from two
+ * goals as if they were one, either falsely flagging a mismatch or, worse,
+ * passing by coincidence while the Read cited one goal's figures next to a
+ * lever sized for another.
+ */
 export async function loadActiveGoals(ctx: ToolContext) {
   const { data } = await ctx.supabase
     .from('goals')
     .select('*')
     .eq('user_id', ctx.userId)
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
 
   return data || [];
 }

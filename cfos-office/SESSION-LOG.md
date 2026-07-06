@@ -3643,3 +3643,48 @@ each independently call `getFinancialPosition` when used together (common patter
 this pass. Full unchecked-Supabase-error sweep (Issue 6.3) is Phase 3 per the plan. No true
 browser E2E for the 3-file upload-batch flow (Issue 2.4) — covered at the pure-logic level
 only.
+
+**Opus-tier adversarial review (per the plan's own guidance for Issue 1 + Issue 7) — 4
+confirmed bugs found and fixed, all in the Issue 1 diff.** The review's central point:
+the compose-time consistency assertion checks that the lever and FINANCIAL FACTS *agree*,
+not that either is *correct* — since both now read the same module, they'll agree even on a
+shared wrong input. Two of the four findings are exactly that failure mode reappearing one
+layer down:
+1. **Goal-selection mismatch.** `deriveLevers` picked `loadActiveGoals()[0]` (no ORDER BY —
+   nondeterministic) while `compose-first-read.ts`'s `getActiveGoal` picked
+   `order('created_at' DESC).limit(1)`. A user with 2+ active goals could have the lever
+   engine and the Read narrating DIFFERENT goals, and the consistency assertion compared
+   their numbers as if they were the same fact. Fixed: `loadActiveGoals` now orders
+   `created_at DESC` to match; `getActiveGoal` now also selects `id`; the assertion
+   cross-checks `accelerate.goalId === goalRow.id` and drops the lever on a mismatch as a
+   second line of defence.
+2. **Reconcile failure silently zeroed fixed costs in the lever path.** `financial-position.ts`
+   correctly nulls `freeCash`/marks `basis:'modelled'` when `reconcileFixedCosts` throws —
+   but `levers.ts`'s `computeCurrentSurplus` never read either field. It re-derived the
+   surplus from `loadCurrentBudget`'s `fixedCosts` (which defaults to 0 on that same
+   failure) plus a separate `loadAverageDiscretionary` call, so a reconcile exception could
+   still produce a confident "observed, funded" accelerate lever off a fabricated windfall
+   — the exact bug class relocated one call deeper. Fixed: `computeCurrentSurplus` now
+   calls `getFinancialPosition` directly and returns null whenever `position.freeCash` is
+   null, inheriting the failure-aware basis instead of re-deriving it.
+3. **`total_discretionary`'s `Math.max(0, …)` floor conflated "spent nothing" with "current
+   fixed costs exceed this month's own spend."** A partial upload (an account the fixed
+   bills are paid from wasn't uploaded) or fixed costs that rose since would floor to a
+   confident 0 rather than surface as unknown — and `average()` treats 0 as real observed
+   history, so `basis` stayed `'observed'` on a fabricated figure. Fixed: extracted
+   `computeTotalDiscretionaryForRow` (now unit-tested) — returns NULL, not 0, when
+   `total_spending &lt; totalFixedCostsMonthly` for that row.
+4. **`pace.ts`'s persisted `on_track` flag** confidently claimed `true` off an
+   avgDiscretionary `?? 0` coercion — pre-existing behaviour, not a new regression, but it
+   persists to a field other surfaces (goal UI badges) read as a settled fact, independent
+   of the accelerate lever's now-fixed live check. Fixed: `on_track` stays `null` (not
+   `true`) when no discretionary history exists and the modelled zero-spend surplus would
+   otherwise clear the requirement; a modelled shortfall still safely resolves to `false`
+   (the safe-direction error). `model-scenario.ts`/`plan-event.ts`'s equivalent `?? 0`
+   sites were left alone per the review's own lower-severity framing and this session's
+   already-stated scope decision — flagged, not fixed.
+
+Regression tests added for all four: `levers.test.ts` (goal-id-mismatch drop),
+`compose-first-read.test.ts` (same), `monthly-snapshot.test.ts` (the new pure function),
+`pace.test.ts` (on_track null/true/false across the three bases). Gates re-verified after
+the fixes: `npm run typecheck` ✓, `npm run build` ✓, vitest **1323 passing** (113 files).
