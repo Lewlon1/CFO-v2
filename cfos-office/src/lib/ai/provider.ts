@@ -29,8 +29,36 @@ export function assertEuBedrockModel(modelId: string, label: string): string {
   return modelId
 }
 
-function resolveEuModel(envValue: string | undefined, fallback: string, label: string): string {
-  return assertEuBedrockModel(envValue || fallback, label)
+/**
+ * Rule 5 is a runtime data-residency invariant — no user data flows anywhere
+ * during `next build`. But build collects page data by importing every API
+ * route, which evaluates this module with the BUILD environment's env vars,
+ * so throwing here turns a runtime misconfiguration into a failed deploy
+ * (exactly how the claude/remediation-plan-beta-blockers deploy died:
+ * "Failed to collect page data for /api/bills/upload"). During the build
+ * phase, log the violation loudly and continue; the module re-evaluates at
+ * every runtime cold start with the runtime env, where the assert throws
+ * before a single request is served — the failure mode the guard was
+ * designed for. NEXT_PHASE is set by `next build` and inherited by its
+ * page-data workers; it is absent in the deployed function runtime.
+ */
+export function resolveEuModel(
+  envValue: string | undefined,
+  fallback: string,
+  label: string,
+): string {
+  const modelId = envValue || fallback
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    if (!modelId.startsWith('eu.') && process.env.ALLOW_NON_EU_BEDROCK !== '1') {
+      console.error(
+        `[provider] Rule 5 warning: ${label} resolved to a non-EU Bedrock inference profile ` +
+          `("${modelId}") in the BUILD environment. If the runtime environment matches, every ` +
+          `LLM route will throw at cold start — fix the BEDROCK_* env var to an eu. profile.`,
+      )
+    }
+    return modelId
+  }
+  return assertEuBedrockModel(modelId, label)
 }
 
 export const chatModelId = resolveEuModel(

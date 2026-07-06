@@ -3688,3 +3688,44 @@ Regression tests added for all four: `levers.test.ts` (goal-id-mismatch drop),
 `compose-first-read.test.ts` (same), `monthly-snapshot.test.ts` (the new pure function),
 `pace.test.ts` (on_track null/true/false across the three bases). Gates re-verified after
 the fixes: `npm run typecheck` ✓, `npm run build` ✓, vitest **1323 passing** (113 files).
+
+## 2026-07-06 — Deploy fix: Rule 5 guard was failing `next build`, not just cold start
+
+**Symptom.** Vercel deploy of the remediation branch died in "Collecting page data"
+with `Rule 5 violation: chat model resolved to a non-EU Bedrock inference profile
+("[REDACTED]")` → `Failed to collect page data for /api/bills/upload`. Reproduced
+locally byte-for-byte with `BEDROCK_CLAUDE_MODEL=global.anthropic.claude-sonnet-4-6
+npm run build`.
+
+**Two causes, one deliberate.** (1) The Vercel environment for that deployment still
+has a non-EU `BEDROCK_CLAUDE_MODEL` — the exact misconfiguration the dorcas/lewis
+review caught and the guard exists to catch. That env var fix is remediation-plan
+Issue 3.1, manual, Lewis — still outstanding. (2) The guard threw at **module scope**,
+and `next build` collects page data by importing every API route, so a runtime
+data-residency invariant was being enforced against the BUILD environment and killed
+the whole deploy — including deploys of unrelated fixes.
+
+**Fix.** `resolveEuModel` now branches on `process.env.NEXT_PHASE ===
+'phase-production-build'`: during build it logs a loud `Rule 5 warning` (once per
+model per worker) and continues; at every runtime cold start the module re-evaluates
+with the runtime env and `assertEuBedrockModel` throws exactly as designed, before a
+single request is served. Verified all three ways: poisoned-env build passes with the
+warning in the log; poisoned-env `next start` + POST `/api/bills/upload` → 500 with
+the Rule 5 violation in the server log; clean build/typecheck/tests green.
+
+**Gotchas for next time.**
+- `NEXT_PHASE` is set by `next build` and inherited by its page-data workers
+  (verified empirically on Next 16.2.2 / Turbopack); it is absent in the deployed
+  function runtime — that asymmetry is what makes the branch safe.
+- A module-scope `throw` in anything imported by an API route is a build-breaker,
+  not just a cold-start-breaker. Enforce runtime invariants with a build-phase
+  carve-out, or lazily at first use.
+- During the runtime repro, a missing Supabase env made `/api/bills/upload` 500
+  BEFORE provider.ts evaluated — an earlier module-scope throw can mask a later
+  one, so "no Rule 5 error in the log" does not mean the model env is clean.
+- Even with this fix, the staging deploy will build but every LLM route will 500 at
+  cold start until the Vercel env var is corrected to an `eu.` profile (or removed —
+  the code defaults are all `eu.`). `ALLOW_NON_EU_BEDROCK=1` remains local-dev-only.
+
+**Gates:** `npm run typecheck` ✓, `npm run build` ✓, vitest **1327 passing** (113
+files; +4 `resolveEuModel` build-phase/runtime tests in `provider.test.ts`).
