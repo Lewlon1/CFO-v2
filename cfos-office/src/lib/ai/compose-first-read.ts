@@ -380,6 +380,11 @@ export type FinancialFacts = {
   /** 'variable' means income swings — surface it instead of a flat monthly figure. */
   income_shape: string | null;
   t3m_income_monthly: number | null;
+  /**
+   * Where the income figure came from: 'observed' (seen landing), 'declared_unverified'
+   * (user stated it, no deposit seen), or 'unknown'. Drives the declared-income hedge.
+   */
+  income_provenance: string | null;
 };
 
 async function getFinancialFacts(
@@ -389,7 +394,7 @@ async function getFinancialFacts(
   const [profileRes, snapshotRes] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, country')
+      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, income_provenance, country')
       .eq('id', userId)
       .maybeSingle(),
     supabase
@@ -451,6 +456,10 @@ async function getFinancialFacts(
     t3m_income_monthly:
       typeof profileRes.data?.t3m_income_monthly === 'number'
         ? profileRes.data.t3m_income_monthly
+        : null,
+    income_provenance:
+      typeof profileRes.data?.income_provenance === 'string'
+        ? profileRes.data.income_provenance
         : null,
   };
 }
@@ -596,12 +605,24 @@ export interface DeclaredReadFacts {
   goalTargetAmount: number | null
   goalCurrentAmount: number | null
   goalTargetDate: string | null
+  goalType: string | null
   monthlyRequiredSaving: number | null
   percentOfIncome: number | null
   /** Free cash left after the goal contribution — a MODELLED cushion (not observed
    *  spend). null when there's no goal pace to subtract. Computed server-side so the
    *  model cites it verbatim instead of doing the arithmetic itself (Rule 2). */
   unallocated: number | null
+  /** Investment goal whose existing pot reaches the target at the plan rate → £0/mo
+   *  needed. Frame as ON TRACK, not "no contribution attached". */
+  fundedAtPlan: boolean
+  /** Moderate (plan) annual return rate the £0/mo verdict rests on. */
+  planRatePct: number | null
+  /** Conservative (stress-test) annual return rate. */
+  stressRatePct: number | null
+  /** Monthly contribution the conservative case would need (server-computed). */
+  stressMonthly: number | null
+  /** Whether declared free cash covers the conservative-case monthly. */
+  stressCovered: boolean | null
   currency: string
 }
 
@@ -643,6 +664,45 @@ export function buildDeclaredFacts(input: {
   // The cushion left after the goal contribution — computed here so the model
   // never derives it itself (Rule 2). null when there's no pace to subtract.
   const unallocated = mrs != null ? Math.max(0, freeCash - mrs) : null
+
+  // Investment goal funded at plan: the existing pot is projected to reach the
+  // target on its own at the moderate rate, so monthly_required_saving (compound)
+  // came back 0. Frame it as ON TRACK, not "no contribution attached". The stress
+  // figures come from the SAME band the post-upload Read uses (Rule 8).
+  const goalType = input.goal?.type ?? null
+  let fundedAtPlan = false
+  let planRatePct: number | null = null
+  let stressRatePct: number | null = null
+  let stressMonthly: number | null = null
+  let stressCovered: boolean | null = null
+  if (
+    goalType === 'investment' &&
+    mrs != null &&
+    mrs <= 0 &&
+    input.goal?.targetAmount != null &&
+    input.goal?.targetDate != null
+  ) {
+    const monthsLeft = monthsBetween(new Date(), new Date(input.goal.targetDate))
+    if (monthsLeft > 0) {
+      fundedAtPlan = true
+      planRatePct = INVESTMENT_DEFAULT_RATE_PCT
+      const band = requiredMonthlyBand({
+        targetAmount: input.goal.targetAmount,
+        currentAmount: input.goal.currentAmount ?? 0,
+        months: monthsLeft,
+      })
+      const conservative = band.reduce(
+        (min, b) => (b.ratePct < min.ratePct ? b : min),
+        band[0],
+      )
+      if (conservative) {
+        stressRatePct = conservative.ratePct
+        stressMonthly = conservative.monthly != null ? Math.round(conservative.monthly) : null
+        stressCovered = stressMonthly != null ? freeCash >= stressMonthly : null
+      }
+    }
+  }
+
   return {
     income: input.income,
     totalFixedCosts: input.totalFixedCosts,
@@ -651,9 +711,15 @@ export function buildDeclaredFacts(input: {
     goalTargetAmount: input.goal?.targetAmount ?? null,
     goalCurrentAmount: input.goal?.currentAmount ?? null,
     goalTargetDate: input.goal?.targetDate ?? null,
+    goalType,
     monthlyRequiredSaving: mrs,
     percentOfIncome,
     unallocated,
+    fundedAtPlan,
+    planRatePct,
+    stressRatePct,
+    stressMonthly,
+    stressCovered,
     currency: input.currency,
   }
 }

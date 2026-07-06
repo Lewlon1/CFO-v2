@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildDeclaredFacts, buildDeclaredDelta } from '../compose-first-read'
+import { buildDeclaredUserPrompt } from '../prompts/first-read'
 import { monthsBetween } from '@/lib/goals/pace'
 
 describe('buildDeclaredFacts', () => {
@@ -116,6 +117,81 @@ describe('buildDeclaredFacts', () => {
       currency: 'GBP',
     })
     expect(facts.monthlyRequiredSaving).toBeNull()
+  })
+
+  it('non-investment goals are never funded-at-plan', () => {
+    const facts = buildDeclaredFacts({
+      income: 3100,
+      totalFixedCosts: 1850,
+      goal: { name: 'House deposit', type: 'savings', monthlyRequiredSaving: 600 },
+      currency: 'GBP',
+    })
+    expect(facts.fundedAtPlan).toBe(false)
+    expect(facts.stressMonthly).toBeNull()
+  })
+
+  it('flags an investment goal funded at plan (£0/mo) as on track, with a conservative stress case', () => {
+    const facts = buildDeclaredFacts({
+      income: 3500,
+      totalFixedCosts: 495,
+      goal: {
+        name: 'Retirement pot',
+        type: 'investment',
+        targetAmount: 600000,
+        currentAmount: 400000,
+        targetDate: '2034-06-18',
+        monthlyRequiredSaving: 0,
+      },
+      currency: 'GBP',
+    })
+    expect(facts.fundedAtPlan).toBe(true)
+    expect(facts.monthlyRequiredSaving).toBe(0)
+    expect(typeof facts.planRatePct).toBe('number')
+    // conservative rate is the cautious end, below the plan rate
+    expect(facts.stressRatePct).not.toBeNull()
+    expect(facts.stressRatePct! < facts.planRatePct!).toBe(true)
+    // 400k → 600k at the cautious rate still needs a positive monthly
+    expect(facts.stressMonthly).not.toBeNull()
+    expect(facts.stressMonthly!).toBeGreaterThan(0)
+    expect(typeof facts.stressCovered).toBe('boolean')
+  })
+
+  it('an investment goal with a real monthly requirement is NOT funded-at-plan', () => {
+    const facts = buildDeclaredFacts({
+      income: 3500,
+      totalFixedCosts: 495,
+      goal: {
+        name: 'Retirement pot',
+        type: 'investment',
+        targetAmount: 600000,
+        currentAmount: 50000,
+        targetDate: '2034-06-18',
+        monthlyRequiredSaving: 2500,
+      },
+      currency: 'GBP',
+    })
+    expect(facts.fundedAtPlan).toBe(false)
+  })
+
+  it('the prompt frames a funded-at-plan goal as on track, never "unspoken-for"', () => {
+    const facts = buildDeclaredFacts({
+      income: 3500,
+      totalFixedCosts: 495,
+      goal: {
+        name: 'Retirement pot',
+        type: 'investment',
+        targetAmount: 600000,
+        currentAmount: 400000,
+        targetDate: '2034-06-18',
+        monthlyRequiredSaving: 0,
+      },
+      currency: 'GBP',
+    })
+    const prompt = buildDeclaredUserPrompt(facts)
+    expect(prompt).toMatch(/ON TRACK|FUNDED AT PLAN/)
+    // The funded-at-plan branch replaces the "£0/mo + unspoken-for cushion" lines
+    expect(prompt).not.toMatch(/Monthly contribution needed/)
+    expect(prompt).not.toMatch(/is still unspoken-for/)
   })
 })
 

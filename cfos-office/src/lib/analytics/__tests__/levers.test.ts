@@ -238,3 +238,77 @@ describe('deriveLevers — cut lever targets the biggest discretionary category'
     expect(levers.find((l) => l.type === 'cut')).toBeUndefined();
   });
 });
+
+describe('deriveLevers — accelerate lever when the goal is funded at plan', () => {
+  // Retirement pot funded by growth: pace.ts persists on_track=true and
+  // monthly_required_saving=0. The lever engine must NOT manufacture a cut.
+  const onTrackData = {
+    goals: [
+      {
+        id: 'g1',
+        name: 'Retirement pot',
+        type: 'investment',
+        target_amount: 600000,
+        current_amount: 400000,
+        target_date: '2034-06-18',
+        monthly_required_saving: 0,
+        on_track: true,
+        status: 'active',
+      },
+    ],
+    user_profiles: { net_monthly_income: 3500, partner_monthly_contribution: 0, monthly_rent: 400, gross_salary: null },
+    recurring_expenses: [],
+    monthly_snapshots: [{ total_discretionary: 500 }],
+  };
+
+  it('emits an accelerate lever (not a cut) when on_track is true, sized to the spare cash', async () => {
+    const { levers, blocker } = await deriveLevers({
+      supabase: makeSupabase(onTrackData),
+      userId: 'u1',
+      currency: 'GBP',
+      windowDays: 90,
+      spendingBreakdown: breakdown([{ category: 'eat_drinking_out', total: 600, pct: 20 }]),
+    });
+    expect(blocker).toBeNull();
+    expect(levers.find((l) => l.type === 'cut')).toBeUndefined();
+    const acc = levers.find((l) => l.type === 'accelerate');
+    expect(acc).toBeDefined();
+    if (acc && acc.type === 'accelerate') {
+      // surplus = 3500 − 0 fixed − 500 discretionary = 3000; required 0 → 3000 spare
+      expect(acc.surplusOverRequired).toBe(3000);
+      expect(acc.goalName).toBe('Retirement pot');
+      // investment goal → conservative stress gap is computed (a number, not null)
+      expect(acc.stressTestGap).not.toBeNull();
+    }
+  });
+
+  it('still derives a cut when surplus does NOT cover the requirement (on_track null fallback)', async () => {
+    const data = {
+      ...onTrackData,
+      goals: [
+        {
+          id: 'g1',
+          name: 'House deposit',
+          type: 'savings',
+          target_amount: 20000,
+          current_amount: 0,
+          target_date: '2028-01-01',
+          monthly_required_saving: 5000,
+          on_track: null,
+          status: 'active',
+        },
+      ],
+      monthly_snapshots: [{ total_discretionary: 1500 }],
+    };
+    const { levers } = await deriveLevers({
+      supabase: makeSupabase(data),
+      userId: 'u1',
+      currency: 'GBP',
+      windowDays: 90,
+      spendingBreakdown: breakdown([{ category: 'eat_drinking_out', total: 600, pct: 20 }]),
+    });
+    // surplus = 3500 − 0 − 1500 = 2000 < 5000 required → not funded at plan
+    expect(levers.find((l) => l.type === 'accelerate')).toBeUndefined();
+    expect(levers.find((l) => l.type === 'cut')).toBeDefined();
+  });
+});

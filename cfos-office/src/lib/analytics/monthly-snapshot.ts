@@ -258,6 +258,23 @@ export async function updateIncomeShape(
 
   const result = detectIncomeShape(txns ?? [])
 
+  // Provenance: did we actually SEE income land, or are we leaning on a figure
+  // the user declared? When no income deposits are detected but the user
+  // declared a net monthly income, mark it 'declared_unverified' so the Read
+  // frames that number as stated-not-observed and asks where the salary lands.
+  let income_provenance: string
+  if (result.shape !== 'unknown') {
+    income_provenance = 'observed'
+  } else {
+    const { data: prof } = await supabase
+      .from('user_profiles')
+      .select('net_monthly_income')
+      .eq('id', userId)
+      .maybeSingle()
+    income_provenance =
+      prof?.net_monthly_income != null ? 'declared_unverified' : 'unknown'
+  }
+
   const { error: upsertError } = await supabase
     .from('user_profiles')
     .update({
@@ -265,6 +282,7 @@ export async function updateIncomeShape(
       income_volatility: result.volatility,
       income_shape_deposit_count: result.deposit_count,
       income_shape_detected_at: new Date().toISOString(),
+      income_provenance,
     })
     .eq('id', userId)
 

@@ -2124,6 +2124,7 @@ export type Database = {
           has_bonus_months: boolean | null
           housing_type: string | null
           id: string
+          income_provenance: string | null
           income_shape: string | null
           income_shape_deposit_count: number | null
           income_shape_detected_at: string | null
@@ -2185,6 +2186,7 @@ export type Database = {
           has_bonus_months?: boolean | null
           housing_type?: string | null
           id: string
+          income_provenance?: string | null
           income_shape?: string | null
           income_shape_deposit_count?: number | null
           income_shape_detected_at?: string | null
@@ -2246,6 +2248,7 @@ export type Database = {
           has_bonus_months?: boolean | null
           housing_type?: string | null
           id?: string
+          income_provenance?: string | null
           income_shape?: string | null
           income_shape_deposit_count?: number | null
           income_shape_detected_at?: string | null

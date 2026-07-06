@@ -175,6 +175,7 @@ STRUCTURE (this is the contract):
    - If no blocker, lead with the most actionable observation that moves the active goal forward.
 2. BODY — at most 2 supporting observations. Each must add to the picture. Statistical loudness is not enough; the observation must connect to a lever, a value-map divergence worth naming, or context that sharpens the lead.
 3. CLOSE — one sized lever the system computed (frame the number you were handed; do not improvise magnitudes) PLUS exactly one tappable CTA emitted on its own line as [CTA:type]label[/CTA]. The label is written from the USER's point of view — what tapping it means the user is saying. Examples: [CTA:supply_input]Here's my monthly take-home[/CTA], [CTA:cut_lever]Trim 40 from streaming[/CTA], [CTA:supply_input]Set a target date for the deposit[/CTA]. The close is one lever + one CTA — never a menu, never empty-handed.
+   - If the LEVERS section contains an 'accelerate' lever, the goal is already FUNDED AT PLAN. Do NOT manufacture a cut or a gap. The close becomes the real choice: the spare cash beyond what the goal needs, framed as landing sooner / covering the conservative stress case if it's still short / turning to the next goal. Still one lever + one CTA.
 
 BANNED IN THE READ:
 - Narration of the act of observing: "I see", "I notice", "On reviewing your data". State what's true.
@@ -231,7 +232,7 @@ Your job: write the user's first Read. Not a summary — a move. Tight, specific
 
 STRUCTURE (this is the contract — POSITION, then one action, then clarifiers, then levers):
 1. POSITION — open on the numbers that set the stakes: free cash flow from FINANCIAL FACTS, and where the goal sits against it (what it needs per month vs what's free). Use the FINANCIAL FACTS and GOAL figures verbatim; do NOT recompute or improvise. If the goal math gives a compound-growth band, show the range ONCE so the options are visible, then LOCK the moderate middle case (the rate flagged in the GOAL block) as the plan and size the position against THAT — not the worst-case figure. Say in one line where that rate comes from (the GOAL block gives it), and name the conservative case as the stress test, not the default.
-2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it.
+2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it. If the LEVERS section instead contains an 'accelerate' lever, the goal is ALREADY FUNDED AT PLAN — do NOT manufacture a trim or a gap: the ONE ACTION becomes the real choice — name the spare cash beyond what the goal needs and frame the move as getting there sooner, covering the conservative stress case if it's still short, or turning to the next goal. If FINANCIAL FACTS marks income as DECLARED (not seen landing), say plainly that this on-track read rests on the figure they gave you, not one you can see arrive.
 3. CLARIFIERS — one or two things the data can't settle on its own, posed as DIRECT QUESTIONS on the HOOK CANDIDATES. Cite the merchant, amount, and period_hint verbatim, then ask the either/or: "Aldi, €431 over 90 days, irregular — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
 4. LEVERS + HANDOFF — name the levers worth pulling next as HEADLINES only (e.g. recurring bills, a spend-pattern change like two no-spend days a week) — named, not walked through. Position the Value Map as where these get prioritised against what the user actually values, and note the clarifiers above still gate that precision. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
 
@@ -427,7 +428,9 @@ Your job: turn those declared numbers into one clear, honest picture — what's 
 STRUCTURE (the contract):
 1. THE PICTURE — state it plainly from the FACTS below: income, fixed costs, and the free cash that's left once fixed costs are paid. Use the figures verbatim; never recompute or invent. Never derive your own leftover or residual — if a modelled cushion is given in the FACTS you may cite it verbatim; otherwise do not state one. Make clear this free cash is the pool EVERYTHING ELSE comes out of — including day-to-day living — not pure surplus. A tangible frame is allowed ONLY when it is built from a figure already in the FACTS — the goal's % of take-home, or free cash set against the fixed costs. Do not pad.
 2. THE GOAL (only if a goal is present in the FACTS) — anchor it in their terms: the target amount and what's already set aside, when given, then what reaching it needs each month and how that sits against the free cash: comfortably clear, tight, or short. If a modelled cushion is given, name it as a PAPER figure — what's left before any day-to-day spending — never as money truly spare. Use the figures GIVEN; do not compute your own.
+   - If the FACTS mark the goal ON TRACK / FUNDED AT PLAN (£0/mo needed at plan), say so plainly — they are on track. Explain the £0 in ONE line: the already-saved pot is projected to reach the target on its own at a moderate return. Name the conservative stress case from the FACTS (the cautious-rate monthly and whether their free cash covers it). NEVER frame £0 as "no contribution attached" or the free cash as "unspoken-for because the goal has no pace" — that misreads being on track as a gap.
 3. THE HONEST CLOSE — the biggest thing these two numbers miss is EVERYDAY SPENDING: groceries, transport, eating out — the variable week-to-week living that never gets declared and comes straight out of that same free cash. Name it plainly: the declared picture has no day-to-day spending in it at all, so the cushion isn't real spare until that's seen. (Fixed costs are easy to undercount too — a lighter, secondary point.) Then the stake, tied to their goal: once real spending is in the picture, the room — and that cushion — can be a lot thinner, and the goal slower. Make the upload feel like how they find out whether the plan is real, not a chore. Close on a forward statement, never a question. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Show me my last 3 months[/CTA].
+   - When the goal is ON TRACK / FUNDED AT PLAN, the unseen spending bears on LIFESTYLE HEADROOM and on confirming the income actually lands — NOT on whether the goal survives. Do NOT say real spending makes "the goal slower": a funded-at-plan goal draws nothing monthly, so spending can't slow it. Frame the upload as how they see what daily life really leaves and confirm the income lands, with the retirement plan already standing on the pot's growth.
 
 BANNED:
 - Inventing any number not in the FACTS below. If free cash isn't given, do not state one. Do not compute a leftover/residual yourself — only cite the modelled cushion if it is in the FACTS.
@@ -447,6 +450,13 @@ SHAPE TO AIM FOR (illustrative only — the FACTS below are the real source; nev
 > You bring in about €3,100 a month, and the fixed costs you listed come to €1,850 — so roughly €1,250 is left once those are paid. That's the pool everything else has to come out of.
 > Your house deposit — €40,000, with €5,000 already set aside — wants about €600 a month. That's close to a fifth of your income, and it fits inside that €1,250 with around €650 over on paper.
 > On paper is the catch. These two numbers don't count a single day of everyday living — groceries, transport, the going-out — and all of it comes out of that same €1,250. So the €650 isn't really spare; it's whatever's left after a month of real spending, and these numbers don't include any of it. Three months of statements show what your week actually costs, and whether the deposit still fits.
+> [CTA:start_statement_upload]Show me my last 3 months[/CTA]
+> — C.
+
+SHAPE TO AIM FOR — ON-TRACK / FUNDED-AT-PLAN goal (illustrative only; never copy these figures):
+> £3,500 comes in each month, and the fixed costs you listed sit at £495 — so about £3,005 is left once those are paid.
+> On the retirement goal you're on track: the £400k you've already got is projected to reach your £600k target on its own by 2034 at a moderate 7% return, so nothing extra is needed each month at plan. Even at a cautious 4%, it'd want around £440 a month — which your £3,005 comfortably covers. The pot's growth does the work here, not your monthly saving.
+> What these two numbers don't show is a single day of everyday living — groceries, transport, going out — and that's what really decides how much breathing room £3,005 leaves you. Three months of statements show what your week actually costs and confirm your pay lands as expected; the retirement plan itself already stands on the pot.
 > [CTA:start_statement_upload]Show me my last 3 months[/CTA]
 > — C.`;
 
@@ -478,7 +488,25 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
     if (facts.goalTargetDate != null) {
       sections.push(`- Target date: ${facts.goalTargetDate}`);
     }
-    if (facts.monthlyRequiredSaving != null) {
+    if (facts.fundedAtPlan) {
+      // Investment goal funded at plan (£0/mo needed). Frame as ON TRACK, not
+      // "no contribution attached". Figures are server-computed — cite verbatim.
+      sections.push(
+        `- ON TRACK / FUNDED AT PLAN: the already-saved pot is projected to reach the target on its own at a moderate ${facts.planRatePct}% annual return, so £0/mo is needed at plan. Say plainly that they're on track; explain the £0 in one line (the pot grows to the target on its own). Do NOT frame this as "no contribution attached" or the free cash as "unspoken-for".`,
+      );
+      if (facts.stressMonthly != null) {
+        sections.push(
+          `- Conservative stress test: at a cautious ${facts.stressRatePct}% return, about ${m(facts.stressMonthly)}/mo would be needed — on what they've told you, their free cash ${facts.stressCovered ? 'comfortably covers that' : `falls short of that by ${m(Math.max(0, facts.stressMonthly - facts.freeCash))}/mo`}. Cite these figures verbatim; never recompute them.`,
+        );
+      } else {
+        sections.push(
+          `- Conservative stress test: even at a cautious ${facts.stressRatePct}% return the existing pot does the work — no monthly contribution is needed either way.`,
+        );
+      }
+      sections.push(
+        `- This goal draws NOTHING from monthly free cash — day-to-day spending does not slow it. The spending caveat below is about LIFESTYLE headroom and confirming the income lands, NOT whether the goal survives.`,
+      );
+    } else if (facts.monthlyRequiredSaving != null) {
       sections.push(
         `- Monthly contribution needed: ${m(facts.monthlyRequiredSaving)}/mo` +
           (facts.percentOfIncome != null ? ` (${facts.percentOfIncome}% of take-home)` : ''),
@@ -498,10 +526,14 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
     sections.push(`GOAL: (none set yet — close on the room they have and the upload, not a goal.)`, ``);
   }
 
+  const closeDirective = facts.fundedAtPlan
+    ? `; then the honest close — say plainly they're on track for this goal at plan, then note these two numbers don't include any day-to-day spending (food, transport, going out), so the free cash isn't real spare yet; real statements show what week-to-week actually costs and confirm the income lands — about lifestyle headroom, NOT whether the goal survives (it draws nothing monthly)`
+    : `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it`;
   sections.push(
     `COMPOSE THE DECLARED FIRST READ NOW. State the picture (income, fixed costs, free cash) from the FACTS verbatim` +
       (facts.goalName ? `; then how the goal sits against the free cash` : ``) +
-      `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it — and the [CTA:start_statement_upload]Show me my last 3 months[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
+      closeDirective +
+      ` — and the [CTA:start_statement_upload]Show me my last 3 months[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
   );
 
   return sections.join('\n');
@@ -648,8 +680,8 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
       : isDeclaredUpgrade
       ? `COMPOSE THE DECLARED UPGRADE NOW. LEAD on the DECLARED→ACTUAL DELTA — the single biggest gap between what they told you (ALREADY SAID) and what the statements show (FINANCIAL FACTS + SPENDING BREAKDOWN), framed "you told me ≈X — the statements show Y". Do NOT re-announce income / fixed costs / free cash / goal pace as new — they are the BEFORE side of the delta. Then 1-2 SHARPENED observations the real data makes possible (the biggest discretionary category from SPENDING BREAKDOWN, or a pattern from BEHAVIOURAL CLUSTERS), tied back to the goal pace they already know. Then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES. Then close by positioning the Value Map as where this real spending gets weighed against what they value, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Hard cap 250 words; aim tighter. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
       : isValueFirst
-      ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
-      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
+      ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN — UNLESS the LEVERS section has an \`accelerate\` lever, in which case the goal is funded at plan: lead the action on the spare-cash choice, never a trim), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
+      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask (if the lever is an \`accelerate\` lever, the goal is funded at plan — close on the spare-cash choice, not a trim). Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   );
 
   return sections.join('\n');
@@ -674,6 +706,13 @@ function formatFinancialFacts(
         (t3m
           ? ` Trailing-3-month average ≈ ${t3m}/mo — cite it as a trailing average, and note income swings month to month.`
           : ` Treat income as uncertain and avoid a precise monthly figure.`),
+    );
+  } else if (facts.income_provenance === 'declared_unverified') {
+    // The user declared an income figure but no salary deposit was seen in the
+    // statements. Frame it as DECLARED, not observed, and pose the clarifier —
+    // any free-cash or on-track read rests on this stated number.
+    lines.push(
+      `- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'} — DECLARED by the user, NOT seen landing in this account (no salary deposit in the statements). State it as the figure they gave you, not one you can see arrive, and pose the clarifier: is the salary paid into another account? Any free-cash or on-track read here rests on this declared number.`,
     );
   } else {
     lines.push(`- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'}`);
@@ -867,6 +906,25 @@ function formatLever(lever: Lever): string {
         `  - goal impact: ${impact}`,
         `  - CTA template: [CTA:cut_lever]Trim ${lever.suggestedCut} from ${lever.category}[/CTA]`,
       ].join('\n');
+    }
+    case 'accelerate': {
+      const lines = [
+        `- accelerate lever (the goal is ALREADY FUNDED AT PLAN — do NOT manufacture a cut; THIS is the close):`,
+        `  - goal: ${lever.goalName}`,
+        `  - spare cash beyond what the goal needs at plan: ${lever.surplusOverRequired}/month`,
+      ];
+      if (lever.stressTestGap != null) {
+        lines.push(
+          lever.stressTestGap > 0
+            ? `  - conservative (stress-test) case: still SHORT ${lever.stressTestGap}/month if returns come in low`
+            : `  - conservative (stress-test) case: also COVERED — funded even if returns come in low`,
+        );
+      }
+      lines.push(
+        `  - The ONE ACTION is the real choice, NOT a trim: direct the spare toward the goal to land sooner, cover the stress case if it's short, or turn to the next goal.`,
+        `  - CTA template (user's voice): [CTA:open_chat]What should I do with the spare ${lever.surplusOverRequired} a month?[/CTA]`,
+      );
+      return lines.join('\n');
     }
     case 'shift':
       return `- shift lever: ${lever.category} (${lever.rationale})`;

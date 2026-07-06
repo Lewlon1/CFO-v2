@@ -112,6 +112,7 @@ const baseInput: FirstReadComposeInput = {
     currency: 'EUR',
     income_shape: null,
     t3m_income_monthly: null,
+    income_provenance: null,
   },
   spendingBreakdown: {
     total_spend: 3000,
