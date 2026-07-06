@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { extractCompositionMetadata, buildGoalSummary } from '../compose-first-read';
+import {
+  extractCompositionMetadata,
+  buildGoalSummary,
+  reconcileLeverPackageWithFacts,
+  type FinancialFacts,
+} from '../compose-first-read';
+import type { Lever, LeverPackage } from '@/lib/analytics/levers';
 import {
   buildFirstReadUserPrompt,
   FIRST_READ_SYSTEM_PROMPT,
@@ -311,6 +317,7 @@ describe('buildFirstReadUserPrompt — recompose mode', () => {
       monthly_rent: 1200,
       total_fixed_costs: 1800,
       free_cash_flow: 1200,
+      free_cash_flow_basis: 'observed',
       currency: 'EUR',
       income_shape: null,
       t3m_income_monthly: null,
@@ -487,5 +494,151 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
     );
     expect(summary).not.toContain('PLAN AROUND the 7%');
     expect(summary).toContain('straight-line');
+  });
+});
+
+describe('reconcileLeverPackageWithFacts — Issue 1.4 compose-time consistency assertion', () => {
+  const baseFacts: FinancialFacts = {
+    net_monthly_income: 3000,
+    monthly_rent: 1200,
+    total_fixed_costs: 1800,
+    free_cash_flow: 1200,
+    free_cash_flow_basis: 'observed',
+    currency: 'EUR',
+    income_shape: null,
+    t3m_income_monthly: null,
+    income_provenance: null,
+  };
+
+  const accelerateLever: Lever = {
+    type: 'accelerate',
+    goalId: 'g1',
+    goalName: 'House deposit',
+    surplusOverRequired: 700,
+    stressTestGap: null,
+    basis: 'observed',
+  };
+
+  function packageWith(lever: Lever): LeverPackage {
+    return { levers: [lever], blocker: null };
+  }
+
+  it('keeps the lever when it reconciles with FINANCIAL FACTS (free_cash_flow − required)', () => {
+    // free_cash_flow 1200 − required 500 = 700, matches the lever exactly.
+    const result = reconcileLeverPackageWithFacts(
+      packageWith(accelerateLever),
+      baseFacts,
+      { monthly_required_saving: 500 },
+      'user-1',
+    );
+    expect(result.levers).toHaveLength(1);
+    expect(result.levers[0]).toBe(accelerateLever);
+  });
+
+  it('tolerates a 1-unit rounding gap', () => {
+    const result = reconcileLeverPackageWithFacts(
+      packageWith({ ...accelerateLever, surplusOverRequired: 699 }),
+      baseFacts,
+      { monthly_required_saving: 500 },
+      'user-1',
+    );
+    expect(result.levers).toHaveLength(1);
+  });
+
+  it('drops the lever when it disagrees with FINANCIAL FACTS beyond tolerance (the dorcas/lewis bug class)', () => {
+    // free_cash_flow 1200 − required 500 = 700 expected; the lever claims 2867 —
+    // exactly the shape of the false "funded / spare cash" figures the review caught.
+    const result = reconcileLeverPackageWithFacts(
+      packageWith({ ...accelerateLever, surplusOverRequired: 2867 }),
+      baseFacts,
+      { monthly_required_saving: 500 },
+      'user-1',
+    );
+    expect(result.levers.find((l) => l.type === 'accelerate')).toBeUndefined();
+    expect(result.levers).toHaveLength(0);
+  });
+
+  it('leaves non-accelerate levers (cut, supply_input) untouched', () => {
+    const cutLever: Lever = {
+      type: 'cut',
+      category: 'eating & drinking out',
+      currentMonthly: 400,
+      suggestedCut: 100,
+      goalImpactMonths: 2,
+      goalId: 'g1',
+    };
+    const result = reconcileLeverPackageWithFacts(
+      packageWith(cutLever),
+      baseFacts,
+      { monthly_required_saving: 500 },
+      'user-1',
+    );
+    expect(result.levers).toHaveLength(1);
+    expect(result.levers[0]).toBe(cutLever);
+  });
+
+  it('is a no-op when free_cash_flow or monthly_required_saving is unavailable', () => {
+    const result = reconcileLeverPackageWithFacts(
+      packageWith(accelerateLever),
+      { ...baseFacts, free_cash_flow: null },
+      { monthly_required_saving: 500 },
+      'user-1',
+    );
+    expect(result.levers).toHaveLength(1);
+  });
+});
+
+describe('buildFirstReadUserPrompt — Issue 5: declared-income hedge', () => {
+  const minimalInput: FirstReadComposeInput = {
+    userId: 'u1',
+    valueProfile: {
+      by_category: {},
+      signal_count: {},
+      by_merchant: {},
+      signal_count_by_merchant: {},
+      has_value_map: false,
+      has_any_leak_signal: false,
+    },
+    goalSummary: null,
+    topClusterBehaviours: [],
+    transactionCountTotal: 240,
+    windowDays: 90,
+    dataWindowEnd: '2026-04-30',
+    dataAgeDays: 5,
+    financialFacts: {
+      net_monthly_income: 3200,
+      monthly_rent: 1200,
+      total_fixed_costs: 1492,
+      free_cash_flow: 1708,
+      free_cash_flow_basis: 'modelled',
+      currency: 'EUR',
+      income_shape: null,
+      t3m_income_monthly: 0,
+      income_provenance: 'declared_unverified',
+    },
+    spendingBreakdown: null,
+    readRecipe: 'visibility',
+  };
+
+  it('renders the declared-not-observed hedge when income_provenance is declared_unverified (declared income, zero observed income)', () => {
+    const prompt = buildFirstReadUserPrompt(minimalInput);
+    expect(prompt).toContain('DECLARED by the user, NOT seen landing');
+    expect(prompt).toContain('is the salary paid into another account?');
+  });
+
+  it('does NOT render the hedge when income_provenance is observed', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...minimalInput,
+      financialFacts: { ...minimalInput.financialFacts!, income_provenance: 'observed' },
+    });
+    expect(prompt).not.toContain('DECLARED by the user, NOT seen landing');
+  });
+
+  it('does NOT render the hedge when income_provenance is unknown/null', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...minimalInput,
+      financialFacts: { ...minimalInput.financialFacts!, income_provenance: null },
+    });
+    expect(prompt).not.toContain('DECLARED by the user, NOT seen landing');
   });
 });

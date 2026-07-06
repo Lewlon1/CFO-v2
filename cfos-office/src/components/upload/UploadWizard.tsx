@@ -8,6 +8,7 @@ import { TransactionPreview } from './TransactionPreview'
 import { HoldingsPreview } from './HoldingsPreview'
 import { ImportResult } from './ImportResult'
 import { BatchSummary, type BatchResult } from './BatchSummary'
+import { summariseBatchTelemetry } from './batch-telemetry'
 import type { PreviewTransaction, Category, ParsedHolding } from '@/lib/parsers/types'
 import { parseFileOnClient, fileTypeFromName } from '@/lib/parsers/format-detect-client'
 import type {
@@ -163,12 +164,17 @@ export function UploadWizard({ categories, onImported, onDone, context = 'transa
     incrementCompletedFiles()
     if (queueRef.current.length === 0) {
       // Final file done. For a single-file batch, don't show the batch summary —
-      // the existing per-file 'done' UI is already rendered by the render function.
+      // the existing per-file 'done' UI is already rendered by the render function,
+      // and there's no "batch" to report telemetry on.
       if (totalFilesRef.current <= 1) return
       // Multi-file autoImport: only skip the batch summary when every file
       // imported cleanly. If any failed, we still render the summary so the
       // user can see what landed and what didn't before the modal moves on.
       const allSucceeded = batchResultsRef.current.every((r) => r.ok)
+      trackEvent(
+        'upload_batch_completed',
+        summariseBatchTelemetry(batchResultsRef.current, totalFilesRef.current),
+      )
       if (autoImport && onDone && allSucceeded) {
         onDone()
         return

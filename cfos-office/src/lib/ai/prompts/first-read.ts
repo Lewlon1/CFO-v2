@@ -366,6 +366,7 @@ Your job: write the DELTA. Lead on what the statements change versus what they t
 
 STRUCTURE (this is the contract — DELTA, then the sharpened picture, then clarifiers, then handoff):
 1. THE DELTA — open on the single biggest gap between what they DECLARED and what the statements actually show. Use the DECLARED→ACTUAL DELTA and FINANCIAL FACTS / SPENDING BREAKDOWN figures verbatim. The frame is "you told me ≈X — the statements show Y": e.g. declared fixed costs vs reconciled fixed costs, or the declared free-cash cushion vs how much real everyday spending eats into it. Name the number that moved and what it means for the room they have. This is the LEAD — never re-announce income / fixed costs / free cash as if they were new.
+   - If the DECLARED→ACTUAL DELTA shows little or no movement (the two figures land within a rounding difference of each other), do NOT claim the declared bills are "confirmed" or that there's "no gap there" — the reconcile can only compare what it found against what was declared; it did not independently verify every declared bill against an observed transaction. Say instead that the statements don't contradict what was declared, and move the LEAD to the sharpened picture (the biggest discretionary category, or a behavioural pattern) instead of a confirmation claim.
 2. THE SHARPENED PICTURE — at most 1-2 observations the real data makes possible that the declared numbers could not: the biggest discretionary category from SPENDING BREAKDOWN (name it, its share of tracked spend, the absolute figure), or a behavioural pattern in the BEHAVIOURAL CLUSTERS. Tie it back to the goal pace they already know — the cushion is thinner / the deposit is slower than the declared picture implied. Frame the magnitudes you were handed; never compute a new one.
 3. CLARIFIERS — one or two things the statements raise that the data still can't settle on its own, posed as DIRECT either/or questions on the HOOK CANDIDATES. Cite the merchant, amount, and pattern hint verbatim: "Aldi, €431 — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
 4. HANDOFF — position the Value Map as where this real spending gets weighed against what they actually value, and note the clarifiers above sharpen it. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
@@ -386,6 +387,7 @@ BANNED IN THE DECLARED UPGRADE:
 - Product names or buy/sell/switch calls on instruments.
 - Inventing magnitudes. If the data didn't compute a number, you don't have it.
 - Putting the CLARIFIER transactions anywhere but the clarifiers — they are the hook the Read turns on.
+- Claiming the declared bills "landed exactly where you declared them" or are "confirmed" when the delta is near-zero. A near-zero delta means the reconcile found nothing to contradict the declared figure — that is NOT the same as independently verifying it against an observed transaction. Say the statements don't contradict the declared picture, never that they confirm it.
 
 BOUNDARY (felt, not stated):
 Directness applies to behaviour and cash flow — name the gap, name the biggest line, ask the clarifier. It does NOT cross into regulated territory: a contribution figure is a calculation ("the goal needs €948/mo"), never an instruction to fund a product. You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies.
@@ -719,6 +721,11 @@ function formatFinancialFacts(
   }
   lines.push(`- Total fixed costs / month: ${m(facts.total_fixed_costs) ?? '(not on file)'}`);
   lines.push(`- Free cash flow / month: ${m(facts.free_cash_flow) ?? '(not computable until both income and fixed costs are on file)'}`);
+  if (facts.free_cash_flow != null && facts.free_cash_flow_basis === 'modelled') {
+    lines.push(
+      `- This free cash figure is MODELLED, not observed — no real spending history exists yet, so it assumes zero day-to-day spending beyond the fixed bills above. Do NOT present it as confirmed spare cash; frame it as a paper estimate that real statements would sharpen.`,
+    );
+  }
   if (facts.monthly_rent != null) {
     lines.push(`- (of which) Housing: ${m(facts.monthly_rent)}`);
   }
@@ -909,7 +916,7 @@ function formatLever(lever: Lever): string {
     }
     case 'accelerate': {
       const lines = [
-        `- accelerate lever (the goal is ALREADY FUNDED AT PLAN — do NOT manufacture a cut; THIS is the close):`,
+        `- accelerate lever (the goal is FUNDED AT PLAN on this figure — do NOT manufacture a cut; THIS is the close):`,
         `  - goal: ${lever.goalName}`,
         `  - spare cash beyond what the goal needs at plan: ${lever.surplusOverRequired}/month`,
       ];
@@ -918,6 +925,15 @@ function formatLever(lever: Lever): string {
           lever.stressTestGap > 0
             ? `  - conservative (stress-test) case: still SHORT ${lever.stressTestGap}/month if returns come in low`
             : `  - conservative (stress-test) case: also COVERED — funded even if returns come in low`,
+        );
+      }
+      if (lever.basis === 'modelled') {
+        lines.push(
+          `  - BASIS: MODELLED, not observed — there is no real spending history yet, so this figure assumes zero day-to-day spending beyond the fixed bills. Do NOT say "funded" or "covered" as a settled fact. Say it plainly as a paper estimate ("on the numbers you've given me, this looks funded — real statements would confirm it") and do NOT claim the stress case is "covered" off this basis.`,
+        );
+      } else {
+        lines.push(
+          `  - BASIS: observed — this nets out real discretionary spending history, so "funded" / "covered" can be stated as fact.`,
         );
       }
       lines.push(
@@ -1024,6 +1040,14 @@ function formatWhatJustSorted(input: FirstReadComposeInput): string {
  * lines. Every figure (both sides AND the signed difference) is pre-computed —
  * the model quotes, never derives (Rule 2). Null sides render nothing.
  */
+// A fixed-costs difference this small (or smaller) means the reconcile found
+// nothing to CONTRADICT the declared figure — never treat that as
+// independent CONFIRMATION (Issue 8: the "landed exactly where you declared
+// them — no gap there" claim was circular when the "actual" side was itself
+// just a passthrough of the declared bills the detector never matched).
+const NEGLIGIBLE_FIXED_COSTS_DIFF_FLOOR = 10;
+const NEGLIGIBLE_FIXED_COSTS_DIFF_PCT = 0.03;
+
 function formatDeclaredDelta(delta: DeclaredActualDelta): string {
   const m = (v: number) => formatMoney(Math.round(v), delta.currency);
   const signed = (v: number) => `${v >= 0 ? '+' : '−'}${m(Math.abs(v))}/mo`;
@@ -1033,6 +1057,15 @@ function formatDeclaredDelta(delta: DeclaredActualDelta): string {
       `- Fixed costs: declared ≈ ${m(delta.declaredFixedCosts)}/mo → the statements reconcile to ${m(delta.actualFixedCosts)}/mo` +
         (delta.fixedCostsDiff != null ? ` (difference: ${signed(delta.fixedCostsDiff)})` : ''),
     );
+    const negligibleThreshold = Math.max(
+      NEGLIGIBLE_FIXED_COSTS_DIFF_FLOOR,
+      delta.declaredFixedCosts * NEGLIGIBLE_FIXED_COSTS_DIFF_PCT,
+    );
+    if (delta.fixedCostsDiff != null && Math.abs(delta.fixedCostsDiff) <= negligibleThreshold) {
+      lines.push(
+        `  (this near-zero difference means the reconcile found nothing to CONTRADICT the declared figure — it did NOT independently confirm every declared bill against an observed transaction. Say the statements don't contradict what was declared; never "confirmed" or "landed exactly where you declared them".)`,
+      );
+    }
   }
   if (delta.actualFreeCash != null) {
     lines.push(

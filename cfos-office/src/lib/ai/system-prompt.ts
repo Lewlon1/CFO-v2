@@ -147,6 +147,7 @@ Specifically forbidden:
 - Forward projections ("15,000 over 48 months = 313/month"). Call \`compute_goal_pace\` for goal-related projections.
 - Halvings or per-period averaging ("167 over 2 months = 84/month"). Call \`compute_period_average\`.
 - Multi-value sums beyond a single line. Call \`get_balance_sheet\` for net-worth and balance-sheet totals.
+- Subtracting one tool's figure from another to answer "did month X cover the goal" / "was I on track last month" (e.g. a budget tool's discretionary-budget figure minus a spending-summary tool's total — this double-counts fixed costs, since the first figure already nets them out). Call \`compare_month_to_goal\`; it reads that month's own surplus and the goal's own requirement and returns the verdict — never assemble this comparison yourself from two different tools' numbers.
 
 When a number is needed that is not already in your context, call the appropriate tool. If no tool exists for the calculation you need, say "Not enough data to say" rather than computing it yourself.
 

@@ -5,7 +5,7 @@ import { after } from 'next/server';
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
-import { chatModel } from '@/lib/ai/provider';
+import { chatModel, chatModelId } from '@/lib/ai/provider';
 import {
   checkLlmAllowed,
   recordChatTurnStart,
@@ -278,7 +278,7 @@ export async function POST(req: Request) {
   const chatTurnLogId = await recordChatTurnStart({
     userId: user.id,
     conversationId: activeConversationId,
-    model: 'claude-sonnet-4-6',
+    model: chatModelId,
   });
 
   // Save the user's latest message (skip hidden system trigger messages)
@@ -836,7 +836,7 @@ export async function POST(req: Request) {
         void logToolCall({
           userId: user.id,
           toolName: call.toolName,
-          model: 'claude-sonnet-4-6',
+          model: chatModelId,
           conversationId: activeConversationId,
           messageId: assistantMessageDbId,
           stepInputTokens: usage?.inputTokens,
@@ -858,8 +858,15 @@ export async function POST(req: Request) {
       // Release the in-flight claim FIRST — before any await that could throw.
       // This fires on both normal flush and client-disconnect cancel.
       releaseChatTurn(inFlightKey);
-      // Get token usage + provider metadata from the stream result
-      const usage = await result.usage;
+      // Get token usage + provider metadata from the stream result.
+      // `result.usage` is documented as "the token usage of the LAST step
+      // only" — for a multi-step tool-calling turn (stopWhen: stepCountIs(5)
+      // above), that under-counted every turn that used a tool: a turn with
+      // several tool-call steps followed by a short final text step logged
+      // `completion_tokens: 2` for a ~150-word message (Issue 6.2). Every
+      // consumer below (llm_usage_log, the turn's accounting row, and the
+      // persisted message row) wants the SUM across all steps — `totalUsage`.
+      const usage = await result.totalUsage;
       const providerMetadata = await result.providerMetadata;
       const bedrockMeta = (providerMetadata?.bedrock ?? {}) as {
         usage?: { cacheWriteInputTokens?: number };
@@ -870,7 +877,7 @@ export async function POST(req: Request) {
 
       logBedrockUsage({
         callSite: 'chat',
-        model: 'sonnet',
+        model: 'sonnet', // coarse tier label — logBedrockUsage's own contract (sonnet|haiku|opus), not the resolved model id
         inputTokens: usage?.inputTokens ?? 0,
         outputTokens: usage?.outputTokens ?? 0,
         cacheCreationTokens: cacheWriteTokens,
@@ -997,7 +1004,7 @@ export async function POST(req: Request) {
             void trackLLMUsage({
               userId: user.id,
               callType: 'chat_forced_retry',
-              model: 'claude-sonnet-4-6',
+              model: chatModelId,
               inputTokens: retry.usage?.inputTokens,
               outputTokens: retry.usage?.outputTokens,
               metadata: { conversation_id: activeConversationId },
@@ -1052,21 +1059,25 @@ export async function POST(req: Request) {
         // ── end hallucination guard ──────────────────────────────────────
 
         // ── V2 chat-intelligence validators (Phase 6) ────────────────────
-        // For first_read conversations, run four deterministic guards on
-        // the LLM output:
-        //   - citation grounding (numbers + merchants → tool result/brief)
-        //   - projection grounding (any /year, /month, "saved" framing →
-        //     propose_experiment tool result)
-        //   - voice (banned reflexive CFO phrases)
-        //   - chip validity (no generic / navigation / no-narrative-noun)
+        // Citation grounding (numbers + merchants → tool result/brief) now
+        // runs for EVERY conversation type, not just first_read (Issue 7.2 of
+        // the beta-blockers remediation plan). It used to be first_read-only,
+        // so an ordinary chat turn that assembled its own figure from two
+        // different tool outputs — the exact "$2,900 target / $833 short"
+        // double-count bug — had no numeric grounding check at all. The
+        // Read-specific checks (projection framing, Read voice, chip
+        // validity) stay first_read-gated below — their rules assume Read
+        // structure, not freeform chat.
         //
-        // When the first three fire, a short server-side correction is
-        // appended to the persisted message body and a single user_events
-        // row is logged. Bad chips are stripped from the [OPTIONS] block.
-        if (
-          conversationType === 'first_read' &&
-          textContent
-        ) {
+        // This catches DERIVED numbers the model assembled itself; it cannot
+        // catch a wrong number the server handed it verbatim (that's Issue
+        // 1's consistency assertion). Deliberately conservative: same
+        // dev/staging-only correction-append + always-on telemetry the
+        // first_read path already used — no forced retry. A forced-retry
+        // escalation for ordinary chat is a larger behavioural change (cost,
+        // latency, false-positive risk on freeform conversation) better
+        // proven out via this telemetry first.
+        if (textContent) {
           // Build the ToolResultLike[] from the audit trail. insightsGenerated
           // already carries { tool, output } for every successful structured
           // tool call, which is exactly the shape buildCitationAllowlist wants.
@@ -1085,19 +1096,23 @@ export async function POST(req: Request) {
           const allowlist = buildCitationAllowlist(toolResults, brief);
           const citationCheck = validateCitations(textContent, allowlist);
 
-          // Filter toolResults down to propose_experiment outputs for the
-          // projection validator. Each output has the shape
-          // { monthly_impact: { amount }, annualised_impact: { amount }, ... }.
+          // Projection/voice/length checks are Read-format-specific — the
+          // "banned phrases" and length target were tuned for a first Read,
+          // not ongoing chat, so they stay scoped there.
+          const isFirstRead = conversationType === 'first_read';
           const experimentResults = toolResults
             .filter((r) => r.toolName === 'propose_experiment')
             .map((r) => r.output as {
               monthly_impact?: { amount?: number };
               annualised_impact?: { amount?: number };
             });
-          const projectionCheck = validateProjections(textContent, experimentResults);
-
-          const voiceCheck = validateVoice(textContent);
-          const lengthCheck = validateLength(textContent);
+          const projectionCheck = isFirstRead
+            ? validateProjections(textContent, experimentResults)
+            : { valid: true, unmatched_projections: [] };
+          const voiceCheck = isFirstRead ? validateVoice(textContent) : { valid: true, violations: [] };
+          const lengthCheck = isFirstRead
+            ? validateLength(textContent)
+            : { valid: true, word_count: 0, cap: 0 };
 
           if (
             !citationCheck.valid ||
@@ -1120,10 +1135,11 @@ export async function POST(req: Request) {
             void supabase.from('user_events').insert({
               profile_id: user.id,
               session_id: activeConversationId,
-              event_type: 'first_read_validator_fired',
+              event_type: isFirstRead ? 'first_read_validator_fired' : 'chat_validator_fired',
               event_category: 'validation',
               payload: {
                 message_id: assistantMessageDbId,
+                conversation_type: conversationType,
                 citationCheck,
                 projectionCheck,
                 voiceCheck,
@@ -1132,28 +1148,32 @@ export async function POST(req: Request) {
             });
           }
 
-          // Chip validation runs AFTER the citation/projection/voice append,
-          // because the appended correction can affect chip-narrative-noun
-          // matching (it shouldn't — the appended text is meta — but
-          // running it last keeps the chip check focused on chips alone).
-          const chips = extractChips(textContent);
-          if (chips.length > 0) {
-            const chipCheck = validateChips(chips, textContent);
-            if (!chipCheck.valid) {
-              const invalid = chips.filter((c) => chipCheck.reasons[c]);
-              if (invalid.length > 0) {
-                textContent = removeInvalidChips(textContent, invalid);
-                void supabase.from('user_events').insert({
-                  profile_id: user.id,
-                  session_id: activeConversationId,
-                  event_type: 'first_read_chips_stripped',
-                  event_category: 'validation',
-                  payload: {
-                    message_id: assistantMessageDbId,
-                    invalid_chips: invalid,
-                    reasons: chipCheck.reasons,
-                  },
-                });
+          // Chip validation stays first_read-only — chips are a Read-format
+          // affordance; ordinary chat has no [OPTIONS] block to validate.
+          if (isFirstRead) {
+            // Chip validation runs AFTER the citation/projection/voice append,
+            // because the appended correction can affect chip-narrative-noun
+            // matching (it shouldn't — the appended text is meta — but
+            // running it last keeps the chip check focused on chips alone).
+            const chips = extractChips(textContent);
+            if (chips.length > 0) {
+              const chipCheck = validateChips(chips, textContent);
+              if (!chipCheck.valid) {
+                const invalid = chips.filter((c) => chipCheck.reasons[c]);
+                if (invalid.length > 0) {
+                  textContent = removeInvalidChips(textContent, invalid);
+                  void supabase.from('user_events').insert({
+                    profile_id: user.id,
+                    session_id: activeConversationId,
+                    event_type: 'first_read_chips_stripped',
+                    event_category: 'validation',
+                    payload: {
+                      message_id: assistantMessageDbId,
+                      invalid_chips: invalid,
+                      reasons: chipCheck.reasons,
+                    },
+                  });
+                }
               }
             }
           }

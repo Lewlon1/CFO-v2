@@ -3492,3 +3492,154 @@ have NONE. Run with/before the deploy: `prod-backfill-071` (atomic with deploy),
 `prod-backfill-074` (llm_blocked_at), `prod-backfill-075` (income_provenance — the income
 reconciliation writes it), `prod-backfill-078` (import_attempts — PDF upload logs to it).
 070 already applied.
+
+## 2026-07-06 — Remediation: beta-blocking defects from the dorcas/lewis observability review
+
+Implemented `cfos-office/docs/remediation-plan-beta-blockers.md` end to end (all 8 issues).
+Phase 0 read-only audit first, per Rule 4 — several of the plan's assumptions didn't survive
+contact with the actual code and are corrected below; where the plan and the code disagreed,
+the code's reality won and the plan's framing was adapted, not the other way round (Rule 8's
+sibling principle).
+
+**Issue 1 (P0) — the keystone.** New `src/lib/finance/financial-position.ts` exposes
+`getFinancialPosition(supabase, userId)` → `{ income, incomeProvenance, fixedCostsMonthly,
+avgObservedSpendMonthly, avgDiscretionaryMonthly, freeCash, observedSurplus, basis }`, built
+on the already-correct `reconcileFixedCosts`. `basis` is `'observed'` only when real
+`monthly_snapshots.total_discretionary` history exists; `'modelled'` (income − fixed costs
+only, discretionary assumed zero) otherwise — replaces the old silent `?? 0` coercion that
+made "no data yet" indistinguishable from "spends nothing."
+- `helpers.ts`'s `loadCurrentBudget`/`loadAverageDiscretionary` are now thin wrappers over the
+  module — this transitively fixes every existing caller (`pace.ts`'s `computePaceAndOnTrack`,
+  `plan-event.ts`, `model-scenario.ts`) without touching their own surplus arithmetic. Their
+  formulas were already "income − fixedCosts − avgDiscretionary"; only the INPUTS were wrong.
+  Deliberately left their call sites alone — rewriting five what-if scenario branches in
+  `model-scenario.ts` was out of proportion for this pass and not named in the plan; flag as
+  a follow-up to migrate them to read `getFinancialPosition().freeCash` directly.
+- `levers.ts`'s accelerate-lever gate no longer trusts a persisted `goal.on_track===true` at
+  all (it could be stale — computed once at goal creation, often before any transaction
+  history existed, when discretionary spend was necessarily assumed 0). It now ALWAYS
+  requires a live `surplus >= monthly_required_saving` check from the unified module. The
+  lever carries a `basis` field; the first-Read prompt hedges "funded"/"stress case covered"
+  language when basis is `'modelled'` instead of stating it as settled fact.
+- `compose-first-read.ts`'s `getFinancialFacts` now sources `total_fixed_costs`/
+  `free_cash_flow` from the same module (previously: `income − totalFixed` with no
+  discretionary netted out at all — the likely direct source of dorcas's false headline).
+  Added `reconcileLeverPackageWithFacts` (Issue 1.4): asserts the accelerate lever's
+  `surplusOverRequired` reconciles with FINANCIAL FACTS within a 1-unit rounding tolerance;
+  drops the lever and logs both values on mismatch rather than risk composing on two
+  disagreeing numbers for the same fact.
+- Migration 079 adds `monthly_snapshots.total_discretionary`; `syncTotalFixedCosts` now
+  stamps it per-row as `max(0, that row's total_spending − current reconciled fixed costs)`
+  alongside `total_fixed_costs` (same current-state-applied-retroactively pattern the latter
+  already used). prod-backfill-079 is column-only by design — backfilling historical values
+  needs the same reconcile the app already runs on next ingest; no prod-side recompute.
+- Regression tests in `levers.test.ts` reproduce both users' shape (dorcas: rent + no
+  recurring rows + real observed overspend; lewis: reconciled recurring bills that still
+  fall short of the goal) — both assert NO accelerate lever fires despite a stale
+  `on_track: true` sitting in the goal row. `compose-first-read.test.ts` covers the
+  consistency assertion directly.
+
+**Issue 2 (P0) — upload batch.** `UpgradeUploadSurface` now keys its compose step off
+`UploadWizard`'s `onDone` (fires once per BATCH) instead of `onImported` (fires once per
+FILE) — the latter unmounted the wizard after file 1 of a multi-file batch, silently
+dropping files 2+. `BatchSummary`'s existing partial-failure "Continue" button now works
+correctly for free once `onDone` is wired through (it always called `onDone ?? resetBatch`;
+previously that was always `resetBatch` since `onDone` was never passed). Added
+`upload_batch_completed` telemetry (files attempted/succeeded/failed, transactions
+imported) via a new pure `summariseBatchTelemetry` helper (unit tested — no
+testing-library in this repo, so a true DOM-level 3-file-upload test isn't cheap right now;
+flagging as a gap for the existing Playwright persona harness in `tests/onboarding/` to
+pick up later). `/api/upload`'s `action:import` path now writes one `import_attempts` row
+per attempt — previously only the PDF vision route did.
+
+**Issue 3 (P0) — EU Bedrock guard.** `provider.ts` gained `assertEuBedrockModel`, applied to
+every resolved model id (chat/utility/opus/compose) — throws unless `ALLOW_NON_EU_BEDROCK=1`
+is explicitly set. Also closed a gap the plan didn't call out: SIX other files
+(`balance-sheet-pdf.ts`, `balance-sheet-screenshot.ts`, `regenerate-archetype.ts`,
+`api/onboarding/generate-archetype/route.ts`, `api/demo/reading/route.ts`,
+`api/value-map/reveal/route.ts`) independently re-read `process.env.BEDROCK_CLAUDE_MODEL`/
+`BEDROCK_OPUS_MODEL` with their own inline fallback, bypassing `provider.ts` entirely — a
+misconfigured env var would have broken Rule 5 through any of those six without the guard
+ever running. All six now import the guarded constant from `provider.ts` instead.
+
+**Issue 4 (P1) — recurring dedup.** Root cause was NOT primarily in
+`recurring-detector.ts` (it already normalises + lowercases via `normaliseMerchant` before
+upsert) — it was `api/dashboard/summary/route.ts`'s independent ad-hoc recurring-detection
+block, which grouped by the RAW, case-sensitive transaction `description` and upserted
+`name` verbatim. Every bank statement that spelled a merchant differently across import
+batches (`claude.ai` vs `Claude.ai`) produced a second row under the case-sensitive
+`(user_id, name)` unique constraint. Fixed to group/upsert on `normaliseMerchant(description)`,
+keeping the latest raw description for display only. Migration 080 re-runs the 057-style
+dedupe (case variants kept accumulating after 057 originally ran, from this exact bug).
+`reconcileFixedCosts` already filtered dismissed/wrong-status rows — that part of the plan's
+ask was already satisfied by Issue 1's unified module.
+
+**Issue 5 (P1) — income provenance.** Audited, did not find a live code bug: the hedge
+prompt logic (`income_provenance === 'declared_unverified'` → declared-not-observed framing)
+already exists in `first-read.ts`, `monthly-snapshot.ts`'s `updateIncomeShape` already sets
+the provenance correctly, and the upload/upgrade route ordering already awaits the snapshot
+refresh before composing. Added the regression test the plan asked for
+(`buildFirstReadUserPrompt` — declared income + zero observed income ⇒ hedge line present)
+to lock in the current, apparently-already-correct behaviour. If lewis's live profile still
+shows `'unknown'`, it most likely predates this logic (written before the column/detection
+existed) and needs a one-off re-run of `updateIncomeShape` for existing users, not a code
+fix — flagging for Lewis rather than inventing a speculative change.
+
+**Issue 6 (P1) — observability.** Fixed the two named hardcoded-model-string log sites in
+`api/chat/route.ts` (`recordChatTurnStart`, `logToolCall`) plus a third the plan didn't list
+(`trackLLMUsage` in the forced-retry block) — all now log `chatModelId`. Left
+`logBedrockUsage`'s `model: 'sonnet'` alone on inspection: that field's type is a coarse
+tier enum (`'sonnet'|'haiku'|'opus'`), not the resolved model id — a different contract,
+not the bug. **Confirmed the token-undercount root cause precisely**: the AI SDK's
+`streamText` result exposes both `usage` (docs: "the token usage of the LAST step") and
+`totalUsage` (docs: "sum of all step usages") — the route was reading `usage`. Swapped to
+`totalUsage`. Added error logging to `reconcileFixedCosts`'s three Supabase reads and
+`refreshOneMonth`'s transaction read (previously silent-swallowed, same class as the
+invisible `total_discretionary` failure). A full unchecked-error sweep across the rest of
+the codebase is explicitly Phase 3 in the plan's own sequencing — not attempted here.
+
+**Issue 7 (P1) — arithmetic + validation.** New tool `compare_month_to_goal`: reads a
+month's own already-correct `surplus_deficit` (income − ALL spending, computed once in
+`monthly-snapshot.ts`) against the goal's own `monthly_required_saving`, returning a
+`covered`/`short`/`no_goal_pace` verdict + gap amount — replaces the mixed-frame arithmetic
+(subtracting an all-inclusive spend figure from a post-fixed-costs budget figure,
+double-counting fixed costs) that produced dorcas's impossible "$833 short" when the
+snapshot said $967.50 surplus. `system-prompt.ts`'s arithmetic ban gained a named
+forbidden case pointing at the new tool. Citation/numeric validation (`buildCitationAllowlist`
++ `validateCitations`) now runs for EVERY chat conversation type, not just `first_read` —
+voice/chip/projection/length checks stay first_read-scoped (Read-format-specific rules).
+Also wired the same citation check into `compose-first-read.ts`'s output directly (the
+composer never calls tools, so the allowlist is built from the FINANCIAL FACTS + lever +
+spending-breakdown data already handed to the prompt, via a synthetic tool-result wrapper).
+Both are deliberately non-blocking (log via `console.error`/`user_events`, no forced
+retry) — a forced-regenerate escalation is a bigger behavioural/cost change better proven
+out via this telemetry first; this catches numbers the model derived itself, never a wrong
+number the server handed it verbatim (that's Issue 1's job).
+
+**Issue 8 (P2) — copy.** `declared_upgrade` prompt now explicitly bans "confirmed"/"landed
+exactly where you declared" framing on a near-zero DECLARED→ACTUAL delta (a near-zero diff
+means the reconcile found nothing to CONTRADICT the declared figure, not that it
+independently verified it — `formatDeclaredDelta` renders an inline hedge below the figures
+when the gap is within a floor/percentage threshold). Goal-chat opener: the "Goal draft
+rule" in `context-builder.ts` required drafting on EITHER an amount OR a date being named,
+but the mandatory template always includes `by [date]` — directly contradicting the very
+next paragraph's "if only one is given, ask for the missing piece." Model was resolving
+that contradiction by inventing a date to satisfy the template, then self-correcting.
+Changed the rule to require BOTH before drafting; the 2-question cap's fallback now
+explicitly frames an assumed date as a stated proposal ("say, 3 years out — change it if...")
+rather than a fact.
+
+**Gates:** `npm run typecheck` ✓, `npm run build` ✓ (all routes), vitest **1314 passing**
+(113 files, up from 1289/109 at the last log entry). New migrations: 079
+(`total_discretionary`), 080 (recurring_expenses case-variant re-dedupe) + prod-backfill
+companions for both, marked do-not-apply per Rule 3.
+
+**Follow-ups flagged, not fixed this session:** `model-scenario.ts`/`plan-event.ts` still
+compute their own surplus inline from the (now-correct) budget/discretionary inputs rather
+than reading `getFinancialPosition().freeCash` directly — safe today, but a second
+divergence point if either drifts. `helpers.ts`'s `loadCurrentBudget`+`loadAverageDiscretionary`
+each independently call `getFinancialPosition` when used together (common pattern via
+`Promise.all`), duplicating the position fetch — correctness over micro-optimisation for
+this pass. Full unchecked-Supabase-error sweep (Issue 6.3) is Phase 3 per the plan. No true
+browser E2E for the 3-file upload-batch flow (Issue 2.4) — covered at the pure-logic level
+only.

@@ -1,10 +1,10 @@
 import { generateText } from 'ai'
-import { bedrock } from '@ai-sdk/amazon-bedrock'
 import { calculatePersonality } from '@/lib/value-map/personalities'
 import { generateObservations } from '@/lib/value-map/observations'
 import { createServiceClient } from '@/lib/supabase/service'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import { checkRateLimit, ipRateLimitKey } from '@/lib/chat/rate-limit'
+import { bedrock, chatModelId } from '@/lib/ai/provider'
 import type { ValueMapResult, ValueMapTransaction } from '@/lib/value-map/types'
 
 export const maxDuration = 20
@@ -235,7 +235,7 @@ function buildDeterministicReading(
 
 // ── AI model attempts ──────────────────────────────────────────────────────
 
-const BEDROCK_CLAUDE_MODEL = process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
+const BEDROCK_CLAUDE_MODEL = chatModelId
 
 async function tryGenerateReading(userMessage: string): Promise<{
   text: string;

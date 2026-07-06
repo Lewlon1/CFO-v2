@@ -78,6 +78,27 @@ export async function POST(req: NextRequest) {
         skipDuplicates: false, // user already reviewed and selected
       })
 
+      // One row per import attempt — before this, only the PDF vision route
+      // wrote to import_attempts, so a CSV/XLSX batch that failed or silently
+      // dropped files left no durable trace at all (the exact gap that let
+      // files 2-3 of a multi-file upload disappear with zero error, zero
+      // event, zero record — Issue 2). Non-fatal: never blocks the response.
+      try {
+        const svc = createServiceClient()
+        // Generated types don't yet include `import_attempts` (regenerated from
+        // staging by supabase gen types after 078 lands) — same `as any` cast
+        // the PDF vision route already uses for this table.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (svc.from('import_attempts') as any).insert({
+          user_id: user.id,
+          source: 'statement_import',
+          status: stats.imported > 0 ? 'success' : stats.errors > 0 ? 'failed' : 'no_new_transactions',
+          error: stats.errors > 0 ? `${stats.errors} row(s) failed to import` : null,
+        })
+      } catch (err) {
+        console.error('[upload] import_attempts log failed (non-fatal):', err)
+      }
+
       // Post-import analytics
       const months = extractAffectedMonths(importTxns.map((t) => t.date))
       // Enrich location before snapshots so future aggregations can read

@@ -1,12 +1,12 @@
 import { generateText } from 'ai'
-import { bedrock } from '@ai-sdk/amazon-bedrock'
 import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/chat/rate-limit'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
 import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
+import { bedrock, opusModelId } from '@/lib/ai/provider'
 
-const OPUS_MODEL = process.env.BEDROCK_OPUS_MODEL ?? 'eu.anthropic.claude-opus-4-6'
+const OPUS_MODEL = opusModelId
 
 let cachedAgentId: string | null = null
 

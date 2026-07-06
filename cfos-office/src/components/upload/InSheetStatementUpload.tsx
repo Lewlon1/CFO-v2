@@ -7,12 +7,17 @@ import { createClient } from '@/lib/supabase/client'
 import type { Category } from '@/lib/parsers/types'
 
 type Props = {
-  /** Fires once the import has landed (single-file autoImport), with the import
-   *  batch id + imported count, wired straight from UploadWizard.onImported. */
+  /** Fires after EACH file's import lands, with that file's import batch id +
+   *  imported count, wired straight from UploadWizard.onImported. Per-FILE, not
+   *  per-batch — a multi-file upload fires this once per file. Callers that
+   *  care about batch completion (not just one file landing) must use
+   *  `onDone`, not this — keying batch-level behaviour off onImported was the
+   *  Issue-2 bug (a 3-file batch got torn down after file 1). */
   onImported?: (importBatchId?: string, count?: number) => void
-  /** Fires when the wizard signals completion (autoImport single-file: right
-   *  after onImported). UploadBeatBlock uses this to advance the onboarding
-   *  step; the upgrade flow can ignore it and key off onImported. */
+  /** Fires once per BATCH, when every file has either succeeded (autoImport,
+   *  single- or multi-file) or the user taps "Continue" on a partial-failure
+   *  summary. UploadBeatBlock uses this to advance the onboarding step; the
+   *  chat upgrade flow keys its compose step off this too — NOT onImported. */
   onDone?: () => void
   /** When provided, renders a "Back to chat" control in the header that calls
    *  this. UploadWizard has no cancel of its own, so this is the only escape.

@@ -127,10 +127,20 @@ export async function refreshMonthlySnapshots(
 }
 
 /**
- * Compute the reconciled fixed-cost total once and stamp it across the
- * user's existing monthly_snapshots rows. The value-first onboarding flow
- * is the first writer; legacy users get NULL → recomputed value the next
- * time the upload pipeline runs.
+ * Compute the reconciled fixed-cost total once and stamp it — along with
+ * `total_discretionary` (total_spending minus that same fixed-cost total,
+ * floored at 0) — across the user's existing monthly_snapshots rows. The
+ * value-first onboarding flow is the first writer; legacy users get NULL →
+ * recomputed value the next time the upload pipeline runs.
+ *
+ * `total_discretionary` per row is NOT a per-row update (unlike
+ * total_fixed_costs, which is the same value for every row) — it depends on
+ * that row's own total_spending, so each row is fetched and updated
+ * individually. This is the column financial-position.ts reads as
+ * avgDiscretionaryMonthly; before it existed, every consumer's `?? 0`
+ * fallback silently modelled every user as spending nothing beyond their
+ * fixed bills (the root cause of the false "funded at plan / spare cash"
+ * figures in the dorcas/lewis staging review).
  *
  * Exported so the processing-form server action can call it the moment
  * rent + detected recurring are both on file (the upload-time call inside
@@ -141,17 +151,38 @@ export async function syncTotalFixedCosts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<void> {
+  let totalFixedCostsMonthly: number
   try {
-    const { totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId)
-    const { error } = await supabase
-      .from('monthly_snapshots')
-      .update({ total_fixed_costs: totalFixedCostsMonthly })
-      .eq('user_id', userId)
-    if (error) {
-      console.error('[syncTotalFixedCosts] update failed:', error)
-    }
+    ;({ totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId))
   } catch (err) {
     console.error('[syncTotalFixedCosts] reconcile failed:', err)
+    return
+  }
+
+  const { data: rows, error: readError } = await supabase
+    .from('monthly_snapshots')
+    .select('id, total_spending')
+    .eq('user_id', userId)
+
+  if (readError) {
+    console.error('[syncTotalFixedCosts] failed to load snapshot rows:', readError)
+    return
+  }
+
+  for (const row of rows ?? []) {
+    const totalSpending = typeof row.total_spending === 'number' ? row.total_spending : null
+    const totalDiscretionary =
+      totalSpending != null ? Math.max(0, totalSpending - totalFixedCostsMonthly) : null
+    const { error } = await supabase
+      .from('monthly_snapshots')
+      .update({
+        total_fixed_costs: totalFixedCostsMonthly,
+        total_discretionary: totalDiscretionary,
+      })
+      .eq('id', row.id as string)
+    if (error) {
+      console.error('[syncTotalFixedCosts] update failed for snapshot', row.id, error)
+    }
   }
 }
 
@@ -167,13 +198,20 @@ async function refreshOneMonth(
       ? `${year + 1}-01-01`
       : `${year}-${String(m + 1).padStart(2, '0')}-01`
 
-  const { data: txns } = await supabase
+  const { data: txns, error: txnsError } = await supabase
     .from('transactions')
     .select('amount, category_id, value_category, description')
     .eq('user_id', userId)
     .gte('date', monthStart)
     .lt('date', nextMonth)
 
+  // A real DB error here must not read the same as "no transactions this
+  // month" — that silent conflation is the same failure mode that made a
+  // missing total_discretionary column invisible for its entire life.
+  if (txnsError) {
+    console.error('[refreshOneMonth] transactions read failed:', month, txnsError)
+    return
+  }
   if (!txns || txns.length === 0) return
 
   const {

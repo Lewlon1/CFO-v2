@@ -13,7 +13,7 @@
 import { generateText } from 'ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { bedrock, chatModelId } from '@/lib/ai/provider';
+import { bedrock, composeModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
@@ -21,11 +21,13 @@ import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
 import { getDataWindowEnd, getDataWindowCoverage, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
-import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
+import { deriveLevers, type Lever, type LeverPackage } from '@/lib/analytics/levers';
 import {
   reconcileFixedCosts,
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
+import { getFinancialPosition, type FinancialPositionBasis } from '@/lib/finance/financial-position';
+import { buildCitationAllowlist, validateCitations } from '@/lib/ai/insight-validator';
 import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
@@ -57,13 +59,18 @@ const DAYS_PER_MONTH = 30.44;
 const TOP_CLUSTER_LIMIT = 10;
 const MIN_DATA_COMPLETENESS = 0.3;
 const MAX_OUTPUT_TOKENS = 700;
+// Whole-currency-unit slack for the Issue 1.4 lever/facts consistency
+// assertion — both figures round independently (lever to the nearest whole
+// unit, FINANCIAL FACTS to the nearest cent), so a 1-unit gap is rounding
+// noise, not a real disagreement.
+const LEVER_FACTS_CONSISTENCY_TOLERANCE = 1;
 
 // The declared Read is 70–130 words (it stands on two numbers, not 90 days of
 // data), so it gets a tighter ceiling than the transaction Read — generous
 // enough to never truncate the CTA/sign-off, tight enough to cap a runaway.
 const DECLARED_MAX_OUTPUT_TOKENS = 400;
 
-const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
+const COMPOSE_MODEL = composeModelId;
 
 export type ComposeFirstReadMode =
   | 'default'
@@ -189,7 +196,7 @@ export async function composeFirstRead(params: {
   // Levers run AFTER the breakdown: the cut lever names the biggest discretionary
   // category from it, so the Read's ONE ACTION and the breakdown refer to the
   // same category (was: a recurring_expenses cut that surfaced essentials/renfe).
-  const leverPackage = await deriveLevers({
+  const rawLeverPackage = await deriveLevers({
     supabase,
     userId: params.userId,
     currency: financialFacts.currency,
@@ -197,6 +204,19 @@ export async function composeFirstRead(params: {
     windowDays: WINDOW_DAYS,
     effectiveMonths,
   });
+
+  // Issue 1.4 — compose-time consistency assertion. The lever engine and
+  // FINANCIAL FACTS both read the unified financial-position module, but
+  // they do so via two independent calls, so this is a load-bearing check,
+  // not a nicety: the system must refuse to hand the model two contradicting
+  // numbers for the same fact. On mismatch, drop the lever and compose
+  // without it rather than risk repeating the dorcas/lewis false-surplus bug.
+  const leverPackage = reconcileLeverPackageWithFacts(
+    rawLeverPackage,
+    financialFacts,
+    goalRow,
+    params.userId,
+  );
 
   // Goal-first precedence, mirroring resolveUserIntent() in insight-engine.ts.
   const readRecipe = selectReadRecipe({
@@ -320,6 +340,36 @@ export async function composeFirstRead(params: {
 
   const composedMessage = result.text.trim();
 
+  // Issue 7.2 — numeric grounding for the compose path (recompose included),
+  // not just the chat route. The composer never calls tools (it writes from
+  // pre-computed context), so the allowlist is built from the SAME facts the
+  // prompt handed the model — FINANCIAL FACTS, the lever package, and the
+  // spending breakdown — rather than from tool-call outputs. Catches a
+  // number the model assembled or misquoted itself; it cannot catch a wrong
+  // number the server handed it verbatim (Issue 1's consistency assertion
+  // covers that). Non-blocking for now — logs so a regression is visible in
+  // the same way the chat route's citation check does, rather than forcing
+  // a regenerate (a bigger behavioural change better proven out via this
+  // telemetry first).
+  const citationCheck = validateCitations(
+    composedMessage,
+    buildCitationAllowlist(
+      [
+        { toolName: 'financial_facts', output: financialFacts },
+        { toolName: 'levers', output: leverPackage.levers },
+        { toolName: 'spending_breakdown', output: spendingBreakdown },
+      ],
+      {},
+    ),
+  );
+  if (!citationCheck.valid && citationCheck.unmatched.numbers.length > 0) {
+    console.error('[compose-first-read] citation check found unmatched numbers', {
+      userId: params.userId,
+      mode,
+      unmatched: citationCheck.unmatched.numbers,
+    });
+  }
+
   const metadata = extractCompositionMetadata({
     composedMessage,
     usableClusters,
@@ -336,6 +386,52 @@ export async function composeFirstRead(params: {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Issue 1.4: assert the accelerate lever's `surplusOverRequired` reconciles
+ * with FINANCIAL FACTS' free_cash_flow minus the goal's monthly requirement.
+ * Both are computed from the unified financial-position module, but via two
+ * independent calls (deriveLevers' own loadCurrentBudget/loadAverageDiscretionary
+ * round-trip vs getFinancialFacts' direct call) — a silent divergence between
+ * them is exactly the "two disagreeing sources of truth for the same fact"
+ * failure mode the dorcas/lewis review found. On mismatch, drop the lever
+ * (never the fact) and log both values so a regression is diagnosable.
+ */
+export function reconcileLeverPackageWithFacts(
+  leverPackage: LeverPackage,
+  financialFacts: FinancialFacts,
+  goalRow: { monthly_required_saving: number | null } | null,
+  userId: string,
+): LeverPackage {
+  const accelerate = leverPackage.levers.find(
+    (l): l is Extract<Lever, { type: 'accelerate' }> => l.type === 'accelerate',
+  );
+  if (!accelerate) return leverPackage;
+  if (financialFacts.free_cash_flow == null || goalRow?.monthly_required_saving == null) {
+    return leverPackage;
+  }
+
+  const expectedSurplusOverRequired =
+    financialFacts.free_cash_flow - goalRow.monthly_required_saving;
+  const diff = Math.abs(accelerate.surplusOverRequired - expectedSurplusOverRequired);
+  if (diff > LEVER_FACTS_CONSISTENCY_TOLERANCE) {
+    console.error(
+      '[compose-first-read] consistency assertion failed: accelerate lever disagrees with FINANCIAL FACTS — dropping the lever',
+      {
+        userId,
+        leverSurplusOverRequired: accelerate.surplusOverRequired,
+        expectedFromFacts: expectedSurplusOverRequired,
+        freeCashFlow: financialFacts.free_cash_flow,
+        monthlyRequired: goalRow.monthly_required_saving,
+      },
+    );
+    return {
+      levers: leverPackage.levers.filter((l) => l !== accelerate),
+      blocker: leverPackage.blocker,
+    };
+  }
+  return leverPackage;
+}
 
 async function getTopMerchantKeys(
   supabase: SupabaseClient,
@@ -385,67 +481,45 @@ export type FinancialFacts = {
    * (user stated it, no deposit seen), or 'unknown'. Drives the declared-income hedge.
    */
   income_provenance: string | null;
+  /**
+   * 'observed' — free_cash_flow nets out real discretionary spending history.
+   * 'modelled' — no snapshot history exists yet, so free_cash_flow is only
+   * income minus fixed costs (assumes zero day-to-day spending). See
+   * FinancialPosition.basis — this is that value, carried through verbatim.
+   */
+  free_cash_flow_basis: FinancialPositionBasis;
 };
 
 async function getFinancialFacts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<FinancialFacts> {
-  const [profileRes, snapshotRes] = await Promise.all([
+  // income / fixed costs / free cash ALL come from the unified financial-position
+  // module — this used to read monthly_snapshots.total_fixed_costs directly (with
+  // a live-reconcile fallback) and compute free_cash_flow as a bare
+  // income-minus-fixed-costs subtraction that never netted out discretionary
+  // spend. That divergent formula is exactly what produced the false "spare
+  // cash" figures the dorcas/lewis staging review caught — this Read's headline
+  // number and the accelerate lever's number must be the SAME number (Rule 8).
+  const [profileRes, position] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, income_provenance, country')
+      .select('income_shape, t3m_income_monthly, country, primary_currency')
       .eq('id', userId)
       .maybeSingle(),
-    supabase
-      .from('monthly_snapshots')
-      .select('total_fixed_costs')
-      .eq('user_id', userId)
-      .order('month', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    getFinancialPosition(supabase, userId),
   ]);
   const txnRes = await supabase
     .from('transactions')
     .select('currency')
     .eq('user_id', userId)
     .limit(500);
-  const income =
-    typeof profileRes.data?.net_monthly_income === 'number'
-      ? profileRes.data.net_monthly_income
-      : null;
-  const rent =
-    typeof profileRes.data?.monthly_rent === 'number'
-      ? profileRes.data.monthly_rent
-      : null;
-  let totalFixed: number | null =
-    typeof snapshotRes.data?.total_fixed_costs === 'number'
-      ? snapshotRes.data.total_fixed_costs
-      : null;
-  // Fallback to a live reconcile when the snapshot has no fixed-cost total.
-  // Two scenarios this catches: (1) a fresh user whose first snapshot hasn't
-  // been generated yet, and (2) any historical snapshot written before the
-  // monthly_snapshots.total_fixed_costs column existed (the Supabase insert
-  // silently dropped the field). Without this fallback the Read announces
-  // "fixed costs aren't on file" even when reconcile would produce a number.
-  if (totalFixed == null) {
-    try {
-      const { totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId);
-      totalFixed = totalFixedCostsMonthly ?? null;
-    } catch (err) {
-      console.error('[compose-first-read] reconcile fallback for fixed costs failed:', err);
-      totalFixed = null;
-    }
-  }
-  const freeCashFlow =
-    income != null && totalFixed != null
-      ? Math.round((income - totalFixed) * 100) / 100
-      : null;
   return {
-    net_monthly_income: income,
-    monthly_rent: rent,
-    total_fixed_costs: totalFixed,
-    free_cash_flow: freeCashFlow,
+    net_monthly_income: position.income,
+    monthly_rent: position.monthlyRent,
+    total_fixed_costs: position.fixedCostsMonthly,
+    free_cash_flow: position.freeCash != null ? Math.round(position.freeCash * 100) / 100 : null,
+    free_cash_flow_basis: position.basis,
     currency: resolveUserCurrency(
       (profileRes.data?.country as string | null) ?? null,
       (profileRes.data?.primary_currency as string | null) ?? null,
@@ -457,10 +531,7 @@ async function getFinancialFacts(
       typeof profileRes.data?.t3m_income_monthly === 'number'
         ? profileRes.data.t3m_income_monthly
         : null,
-    income_provenance:
-      typeof profileRes.data?.income_provenance === 'string'
-        ? profileRes.data.income_provenance
-        : null,
+    income_provenance: position.incomeProvenance,
   };
 }
 

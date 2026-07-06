@@ -108,6 +108,7 @@ function makeSupabase(data: Record<string, unknown>): SupabaseClient {
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: () => builder,
+        neq: () => builder,
         in: () => builder,
         is: () => builder,
         order: () => builder,
@@ -274,9 +275,13 @@ describe('deriveLevers — accelerate lever when the goal is funded at plan', ()
     const acc = levers.find((l) => l.type === 'accelerate');
     expect(acc).toBeDefined();
     if (acc && acc.type === 'accelerate') {
-      // surplus = 3500 − 0 fixed − 500 discretionary = 3000; required 0 → 3000 spare
-      expect(acc.surplusOverRequired).toBe(3000);
+      // surplus = 3500 income − 400 rent (the reconciled fixed-cost total —
+      // there are no recurring_expenses rows in this fixture, only the
+      // profile's monthly_rent) − 500 discretionary = 2600; required 0 → 2600 spare
+      expect(acc.surplusOverRequired).toBe(2600);
       expect(acc.goalName).toBe('Retirement pot');
+      // real snapshot history (total_discretionary) is on hand → observed, not modelled
+      expect(acc.basis).toBe('observed');
       // investment goal → conservative stress gap is computed (a number, not null)
       expect(acc.stressTestGap).not.toBeNull();
     }
@@ -307,8 +312,85 @@ describe('deriveLevers — accelerate lever when the goal is funded at plan', ()
       windowDays: 90,
       spendingBreakdown: breakdown([{ category: 'eat_drinking_out', total: 600, pct: 20 }]),
     });
-    // surplus = 3500 − 0 − 1500 = 2000 < 5000 required → not funded at plan
+    // surplus = 3500 income − 400 rent − 1500 discretionary = 1600 < 5000 required → not funded at plan
     expect(levers.find((l) => l.type === 'accelerate')).toBeUndefined();
     expect(levers.find((l) => l.type === 'cut')).toBeDefined();
+  });
+});
+
+// Regression fixtures for the dorcas/lewis staging review (remediation plan,
+// Issue 1). Both users were told a false "funded at plan / spare cash"
+// figure. Both fixtures set `on_track: true` on the goal deliberately — a
+// STALE persisted verdict that the pre-fix accelerate gate trusted outright
+// (`goal.on_track === true` short-circuited the check). The fix requires a
+// live surplus-vs-required comparison from the unified module regardless of
+// what on_track says, so these assert the lever does NOT fire even with a
+// (wrong) on_track: true sitting in the goal row.
+describe('deriveLevers — dorcas/lewis regression (Issue 1): no false "funded" verdict', () => {
+  it('dorcas-style: rent + no recurring rows, real discretionary spend pushes the user over budget', async () => {
+    const dorcasData = {
+      goals: [
+        {
+          id: 'g-dorcas',
+          name: 'Pay off debt',
+          type: 'savings',
+          target_amount: 18000,
+          current_amount: 0,
+          target_date: '2028-05-27',
+          monthly_required_saving: 200,
+          on_track: true, // stale — the live check must still refuse
+          status: 'active',
+        },
+      ],
+      // No rent field is dropped and no declared bills exist in this table
+      // shape, but the point of the regression is: fixed costs must be
+      // sourced from the reconciled total (rent included), NOT a naive
+      // recurring_expenses sum that reads $0 when this table is empty.
+      user_profiles: { net_monthly_income: 4500, partner_monthly_contribution: 0, monthly_rent: 2200, gross_salary: null },
+      recurring_expenses: [],
+      monthly_snapshots: [{ total_discretionary: 2500 }],
+    };
+    const { levers, blocker } = await deriveLevers({
+      supabase: makeSupabase(dorcasData),
+      userId: 'dorcas',
+      currency: 'USD',
+      windowDays: 90,
+      spendingBreakdown: null,
+    });
+    expect(blocker).toBeNull();
+    // surplus = 4500 income − 2200 rent − 2500 observed discretionary = −200 < 200 required.
+    expect(levers.find((l) => l.type === 'accelerate')).toBeUndefined();
+  });
+
+  it('lewis-style: reconciled recurring bills + observed discretionary spend, surplus falls short of the goal requirement', async () => {
+    const lewisData = {
+      goals: [
+        {
+          id: 'g-lewis',
+          name: 'Investment pot',
+          type: 'savings',
+          target_amount: 50000,
+          current_amount: 10000,
+          target_date: '2032-01-01',
+          monthly_required_saving: 1800,
+          on_track: true, // stale — the live check must still refuse
+          status: 'active',
+        },
+      ],
+      user_profiles: { net_monthly_income: 3200, partner_monthly_contribution: 0, monthly_rent: 1200, gross_salary: null },
+      recurring_expenses: [{ name: 'internet', amount: 292, frequency: 'monthly', status: 'tracked' }],
+      monthly_snapshots: [{ total_discretionary: 225 }],
+    };
+    const { levers, blocker } = await deriveLevers({
+      supabase: makeSupabase(lewisData),
+      userId: 'lewis',
+      currency: 'EUR',
+      windowDays: 90,
+      spendingBreakdown: null,
+    });
+    expect(blocker).toBeNull();
+    // surplus = 3200 income − 1492 reconciled fixed (1200 rent + 292 recurring) − 225 discretionary
+    //         = 1483, short of the 1800 requirement by 317 — matches the ~€317/mo shortfall.
+    expect(levers.find((l) => l.type === 'accelerate')).toBeUndefined();
   });
 });

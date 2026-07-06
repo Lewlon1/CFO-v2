@@ -16,10 +16,17 @@ import { decideUpgradeAction } from './upgrade-response'
  *
  * Flow:
  *   idle      → show the uploader.
- *   composing → on import, show a calm "Reading your statements…" affordance and
- *               POST (no body — the route server-derives everything; compose is
- *               ~20–45s). The surface stays mounted for the whole compose so the
- *               user never sees a blank sheet mid-flight.
+ *   composing → on BATCH completion (UploadWizard's onDone — fires once, after
+ *               every file in the batch has either succeeded or the user hits
+ *               "Continue" on a partial-failure summary; never on a single
+ *               file's onImported), show a calm "Reading your statements…"
+ *               affordance and POST (no body — the route server-derives
+ *               everything; compose is ~20–45s). The surface stays mounted for
+ *               the whole compose so the user never sees a blank sheet
+ *               mid-flight. Keying off onImported instead of onDone was the
+ *               Issue-2 bug: onImported fires per file, so a 3-file batch
+ *               unmounted the wizard (and killed files 2–3) the moment file 1
+ *               landed.
  *   on response (decideUpgradeAction maps status+body → action):
  *     load_and_close → loadConversation(id) THEN closeUploadSurface() — close
  *                      only AFTER the POST resolves, so the appended Read is in
@@ -168,7 +175,7 @@ export function UpgradeUploadSurface() {
       )}
       <InSheetStatementUpload
         onCancel={closeUploadSurface}
-        onImported={() => {
+        onDone={() => {
           void runUpgrade()
         }}
       />

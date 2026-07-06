@@ -109,6 +109,7 @@ const baseInput: FirstReadComposeInput = {
     monthly_rent: 1200,
     total_fixed_costs: 1850,
     free_cash_flow: 1250,
+    free_cash_flow_basis: 'observed',
     currency: 'EUR',
     income_shape: null,
     t3m_income_monthly: null,
@@ -189,6 +190,39 @@ describe('buildFirstReadUserPrompt — declared_upgrade mode', () => {
     const prompt = buildFirstReadUserPrompt(baseInput); // no declaredDelta
     expect(prompt).toContain('NEVER state a declared number');
     expect(prompt).not.toContain('cite these figures verbatim, never recompute either side');
+  });
+
+  it('Issue 8: flags a near-zero fixed-costs delta as unconfirmed, not "confirmed"', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...baseInput,
+      declaredDelta: {
+        declaredFixedCosts: 1850,
+        declaredFreeCash: 1250,
+        actualFixedCosts: 1855, // a €5 "difference" — the detector matched nothing new
+        actualFreeCash: 1245,
+        fixedCostsDiff: 5,
+        freeCashDiff: -5,
+        currency: 'EUR',
+      },
+    });
+    expect(prompt).toContain('found nothing to CONTRADICT the declared figure');
+    expect(prompt).toContain("don't contradict what was declared");
+  });
+
+  it('does not render the near-zero hedge when the delta is a real, sizeable gap', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...baseInput,
+      declaredDelta: {
+        declaredFixedCosts: 1850,
+        declaredFreeCash: 1250,
+        actualFixedCosts: 2140,
+        actualFreeCash: 960,
+        fixedCostsDiff: 290,
+        freeCashDiff: -290,
+        currency: 'EUR',
+      },
+    });
+    expect(prompt).not.toContain('found nothing to CONTRADICT the declared figure');
   });
 });
 

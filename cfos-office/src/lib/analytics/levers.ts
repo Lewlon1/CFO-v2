@@ -57,6 +57,14 @@ export type Lever =
        * stress rate; null = not an investment goal / not computable.
        */
       stressTestGap: number | null;
+      /**
+       * 'observed' — the surplus nets out real discretionary spending history.
+       * 'modelled' — no snapshot history exists yet, so the surplus is only
+       * income minus fixed costs (assumes zero day-to-day spending). The
+       * prompt layer MUST hedge "funded" / "stress case covered" language
+       * when this is 'modelled' — never present it as a confirmed fact.
+       */
+      basis: 'observed' | 'modelled';
     }
   | { type: 'shift'; category: string; rationale: 'timing' | 'context'; goalId?: string }
   | { type: 'reallocate'; from: string; to: string; amount: number; goalId: string }
@@ -246,19 +254,27 @@ async function deriveCutLever(
   };
 }
 
+type SurplusResult = { surplus: number; basis: 'observed' | 'modelled' };
+
 /**
  * Monthly free cash: total income minus fixed costs minus average discretionary
  * spend. The ONE definition of surplus — pace.ts, the cut lever's impact, and the
  * accelerate gate must all agree (one source of truth). Null when income is absent.
+ *
+ * `basis` is 'modelled' when no snapshot history exists yet — the surplus
+ * then only nets fixed costs off income (assumes zero discretionary spend),
+ * same fallback financial-position.ts uses. Callers that frame this as a
+ * "funded" verdict must hedge accordingly; see the accelerate lever below.
  */
 async function computeCurrentSurplus(
   ctx: ToolContext,
   budget: Budget,
-): Promise<number | null> {
+): Promise<SurplusResult | null> {
   if (budget.netIncome == null) return null;
-  const avgDiscretionary = (await loadAverageDiscretionary(ctx)) ?? 0;
+  const avgDiscretionary = await loadAverageDiscretionary(ctx);
   const totalIncome = budget.netIncome + budget.partnerContribution;
-  return totalIncome - budget.fixedCosts - avgDiscretionary;
+  const basis: 'observed' | 'modelled' = avgDiscretionary != null ? 'observed' : 'modelled';
+  return { surplus: totalIncome - budget.fixedCosts - (avgDiscretionary ?? 0), basis };
 }
 
 /**
@@ -270,26 +286,30 @@ async function computeCurrentSurplus(
  * model ignores investment growth (the very thing that makes a retirement pot
  * on-track), so it would contradict pace.ts. Both magnitudes here are robust and
  * computed server-side; the LLM only frames them.
+ *
+ * Gates ONLY on a fresh, live surplus-vs-required comparison from the unified
+ * module — it no longer trusts a persisted `goal.on_track` boolean. on_track
+ * can be stale (computed once at goal creation/contribution time, often
+ * before any transaction history exists, when discretionary spend was
+ * necessarily assumed to be 0); trusting it let a "funded at plan" verdict
+ * survive long after real spending history proved otherwise. `basis` rides
+ * along on the emitted lever so the prompt layer can hedge a 'modelled'
+ * verdict instead of presenting it as a confirmed fact.
  */
 async function deriveAccelerateLever(
   ctx: ToolContext,
   goal: ActiveGoalRow,
   budget: Budget,
 ): Promise<Lever | null> {
-  const currentSurplus = await computeCurrentSurplus(ctx, budget);
-  if (currentSurplus == null) return null;
+  const position = await computeCurrentSurplus(ctx, budget);
+  if (position == null) return null;
+  const { surplus: currentSurplus, basis } = position;
 
   const monthlyRequired = goal.monthly_required_saving ?? null;
+  if (monthlyRequired == null) return null;
+  if (currentSurplus < monthlyRequired) return null;
 
-  // "Funded at plan": prefer the persisted on_track verdict (pace.ts computes it
-  // compound-aware for investment goals); fall back to a live surplus-vs-required
-  // comparison only when on_track hasn't been computed yet.
-  const surplusCoversGoal =
-    goal.on_track === true ||
-    (goal.on_track == null && monthlyRequired != null && currentSurplus >= monthlyRequired);
-  if (!surplusCoversGoal) return null;
-
-  const surplusOverRequired = Math.round(currentSurplus - (monthlyRequired ?? 0));
+  const surplusOverRequired = Math.round(currentSurplus - monthlyRequired);
 
   // Investment goals: is the conservative (low-return) stress case also covered?
   let stressTestGap: number | null = null;
@@ -318,6 +338,7 @@ async function deriveAccelerateLever(
     goalName: goal.name,
     surplusOverRequired,
     stressTestGap,
+    basis,
   };
 }
 
@@ -340,8 +361,9 @@ async function computeGoalImpactMonths(
   const remaining = Number(goal.target_amount) - Number(goal.current_amount ?? 0);
   if (remaining <= 0) return null;
 
-  const currentSurplus = await computeCurrentSurplus(ctx, budget);
-  if (currentSurplus == null || currentSurplus <= 0) return null;
+  const position = await computeCurrentSurplus(ctx, budget);
+  if (position == null || position.surplus <= 0) return null;
+  const currentSurplus = position.surplus;
 
   const monthsCurrent = remaining / currentSurplus;
   const monthsWithCut = remaining / (currentSurplus + extraMonthly);

@@ -8,7 +8,7 @@
 // SERVER-ONLY. Never import from a client component.
 
 import { generateObject } from 'ai'
-import { analysisModel } from '@/lib/ai/provider'
+import { analysisModel, chatModelId } from '@/lib/ai/provider'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import {
   balanceSheetDocumentSchema,
@@ -16,8 +16,7 @@ import {
   type BalanceSheetDocument,
 } from './balance-sheet-schema'
 
-const MODEL_ID =
-  process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
+const MODEL_ID = chatModelId
 
 // Keep well under Claude's context budget — 15k chars ≈ ~3.5k tokens.
 const MAX_PDF_TEXT_CHARS = 15_000

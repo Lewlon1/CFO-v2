@@ -5,7 +5,7 @@
 // pattern — Zod gives us structured validation for free.
 
 import { generateObject } from 'ai'
-import { analysisModel } from '@/lib/ai/provider'
+import { analysisModel, chatModelId } from '@/lib/ai/provider'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import {
   balanceSheetDocumentSchema,
@@ -13,8 +13,7 @@ import {
   type BalanceSheetDocument,
 } from './balance-sheet-schema'
 
-const MODEL_ID =
-  process.env.BEDROCK_CLAUDE_MODEL || 'eu.anthropic.claude-sonnet-4-6'
+const MODEL_ID = chatModelId
 
 export type BalanceSheetScreenshotResult =
   | { ok: true; data: BalanceSheetDocument }
