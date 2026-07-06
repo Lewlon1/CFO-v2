@@ -38,8 +38,28 @@ export async function POST(req: Request) {
     .select('onboarding_step')
     .eq('id', user.id)
     .maybeSingle()
+
+  // Skip-upload path: a user who reached details_confirmed with NO imported
+  // transactions gets the declared-numbers Read (income + fixed costs → free
+  // cash + goal pace) instead of the transaction-based value_first Read. A
+  // later statement upload is folded into the data model via the existing
+  // reconcile/dedupe — it does NOT recompose this onboarding Read.
+  const { count: txnCount, error: txnCountError } = await supabase
+    .from('transactions')
+    .select('id', { head: true, count: 'exact' })
+    .eq('user_id', user.id)
+  if (txnCountError) {
+    // Count failed — fall back to declared mode (hasTxns stays false). declared
+    // is the safe fallback: it composes from the declared numbers both user
+    // types have, whereas value_first needs transactions and would render empty.
+    console.error('[post-upload] transaction count failed; using declared mode', txnCountError)
+  }
+  const hasTxns = (txnCount ?? 0) > 0
+
   const mode: ComposeFirstReadMode =
-    stepProfile?.onboarding_step === 'details_confirmed' ? 'value_first' : 'default'
+    stepProfile?.onboarding_step === 'details_confirmed'
+      ? (hasTxns ? 'value_first' : 'declared')
+      : 'default'
   return handleLayeredFirstRead({ supabase, userId: user.id, importBatchId, mode })
 }
 

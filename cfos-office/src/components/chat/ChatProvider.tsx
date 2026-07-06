@@ -15,6 +15,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderKeyFromPath, type FolderKey } from '@/lib/chat/folder-prompts'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
+import type { OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
 import { detectSubstantiveReply } from '@/lib/wow/event-tracker'
 import {
   buildLabelRecapTrigger,
@@ -52,6 +53,12 @@ interface ChatContextValue {
   openSheet: () => void
   closeSheet: () => void
   isSheetOpen: boolean
+  /** In-sheet statement-upload surface (declared-Read upgrade flow). When true
+   *  the sheet swaps its message list + input for the upload uploader. Mirrors
+   *  isSheetOpen — independent of onboarding state. */
+  uploadSurfaceOpen: boolean
+  openUploadSurface: () => void
+  closeUploadSurface: () => void
   startConversation: (type?: string, metadata?: Record<string, string>) => void
   loadConversation: (id: string) => void
   conversationId: string | null
@@ -64,6 +71,11 @@ interface ChatContextValue {
   }) => void
   chatError: string | null
   dismissError: () => void
+  /** Surface a brief, kind notice in the chat's existing banner. Used by the
+   *  declared-Read upgrade flow to nudge after a thin upload, once the upload
+   *  surface has closed and the message-list arm (which renders the banner) is
+   *  back on screen. */
+  notify: (message: string) => void
   /** True while a specific conversation is expected to materialise — the
    *  goal-beat auto-open, or an in-flight loadConversation fetch. Lets the
    *  sheet show a "working on this" state instead of the generic folder
@@ -90,6 +102,12 @@ interface ChatContextValue {
   /** Active goal during the upload beat, threaded from the office layout so the
    *  bridge intro can acknowledge it by name. Null off-beat or on the skip path. */
   onboardingGoal: OnboardingGoalSummary | null
+  /** True when the user has no imported transactions yet (skip-upload path).
+   *  Threaded from the office layout; drives the no-import beat behaviour. */
+  noImport: boolean
+  /** Progress-meter result for the in-sheet onboarding beats, or null off-beat.
+   *  Threaded from the office layout (see OnboardingProgressMeter). */
+  onboardingProgress: OnboardingProgressResult | null
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
@@ -125,9 +143,13 @@ interface ChatProviderProps {
   needsEntryStruggle?: boolean
   /** Active goal during the upload beat (see ChatContextValue). */
   onboardingGoal?: OnboardingGoalSummary | null
+  /** See ChatContextValue.noImport. */
+  noImport?: boolean
+  /** See ChatContextValue.onboardingProgress. */
+  onboardingProgress?: OnboardingProgressResult | null
 }
 
-export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null }: ChatProviderProps) {
+export function ChatProvider({ children, userCurrency, initialSheetOpen, onboardingStep = null, needsEntryStruggle = false, onboardingGoal = null, noImport = false, onboardingProgress = null }: ChatProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -148,6 +170,10 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
 
   // Sheet visibility — seeded open when a chat-landing flow brought us here.
   const [isSheetOpen, setIsSheetOpen] = useState(wantsChatOpen)
+
+  // In-sheet upload surface visibility (declared-Read upgrade flow). Plain
+  // boolean, mirroring isSheetOpen; never seeded open.
+  const [uploadSurfaceOpen, setUploadSurfaceOpen] = useState(false)
 
   // Whether we expect a conversation to arrive imminently. Seeded true on a
   // chat landing so the first paint shows the loading state, not the folder
@@ -371,6 +397,17 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
 
   const closeSheet = useCallback(() => {
     setIsSheetOpen(false)
+    // Reset the upload surface too: a stale-true value would otherwise strand
+    // the user on the uploader the next time the sheet opens.
+    setUploadSurfaceOpen(false)
+  }, [])
+
+  const openUploadSurface = useCallback(() => {
+    setUploadSurfaceOpen(true)
+  }, [])
+
+  const closeUploadSurface = useCallback(() => {
+    setUploadSurfaceOpen(false)
   }, [])
 
   const startConversation = useCallback(
@@ -386,6 +423,8 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
       firstReadCtxRef.current = null
       setChatError(null)
       setInput('')
+      // A new conversation must never inherit a stale-open upload surface.
+      setUploadSurfaceOpen(false)
 
       // If this is a typed conversation that needs auto-trigger, queue it.
       // Such conversations open an opener immediately, so keep the loading
@@ -538,6 +577,10 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
 
   const dismissError = useCallback(() => setChatError(null), [])
 
+  // Brief notice surfaced in the existing chat banner. Distinct from chat send
+  // errors only by intent — both render via chatError; dismissError clears it.
+  const notify = useCallback((message: string) => setChatError(message), [])
+
   // ── Context value ─────────────────────────────────────────────────────────
 
   const value: ChatContextValue = {
@@ -550,6 +593,9 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     openSheet,
     closeSheet,
     isSheetOpen,
+    uploadSurfaceOpen,
+    openUploadSurface,
+    closeUploadSurface,
     startConversation,
     loadConversation,
     conversationId,
@@ -557,6 +603,7 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     registerFirstReadDelivery,
     chatError,
     dismissError,
+    notify,
     isLoadingConversation,
     handleOptionSelect,
     handleStructuredSubmit,
@@ -566,6 +613,8 @@ export function ChatProvider({ children, userCurrency, initialSheetOpen, onboard
     onboardingStep,
     needsEntryStruggle,
     onboardingGoal,
+    noImport,
+    onboardingProgress,
   }
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>

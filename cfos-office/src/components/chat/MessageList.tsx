@@ -49,6 +49,7 @@ import { TappableOptions } from './TappableOptions';
 import { ConfirmFact } from './ConfirmFact';
 import { StatCardBlock } from './StatCardBlock';
 import { ChatCTA } from './ChatCTA';
+import { useChatContext } from './ChatProvider';
 import { StructuredInput, StructuredInputConfig } from './StructuredInput';
 import {
   LabelTransactionsBlock,
@@ -119,13 +120,24 @@ function parseCTA(content: string): { text: string; cta: { type: string; label: 
   // [\s\S] so the label can span newlines; the optional \s* lets us match either form.
   const regex = /\[CTA:(\w+)\]\s*([\s\S]*?)\s*\[\/CTA\]/;
   const match = content.match(regex);
-  if (!match) return { text: content, cta: null };
-  const label = match[2].trim();
-  if (!label) return { text: content, cta: null };
-  return {
-    text: content.replace(regex, '').trim(),
-    cta: { type: match[1], label },
-  };
+  if (match) {
+    const label = match[2].trim();
+    if (!label) return { text: content, cta: null };
+    return {
+      text: content.replace(regex, '').trim(),
+      cta: { type: match[1], label },
+    };
+  }
+  // Streaming: the opening marker has begun but the closing [/CTA] hasn't
+  // arrived yet. Hide the in-progress fragment so the raw "[CTA:type]label"
+  // never flashes as text — the button renders once the block completes on a
+  // later tick. \b anchors to a real opener ([CTA, [CTA:, …), so a stray "["
+  // in prose is left untouched.
+  const partial = content.match(/\[CTA\b[\s\S]*$/);
+  if (partial && partial.index !== undefined) {
+    return { text: content.slice(0, partial.index).trimEnd(), cta: null };
+  }
+  return { text: content, cta: null };
 }
 
 // ── Wow plumbing: first-insight delivery instrumentation ───────────────────
@@ -243,6 +255,11 @@ export function MessageList({
     conversation_id: string;
   }) => void;
 }) {
+  // The sheet is a persistent overlay; navigation CTAs must close it so the
+  // destination page isn't hidden underneath (see ChatCTA.onNavigate). The
+  // start_statement_upload CTA instead opens the in-sheet upload surface in
+  // place (declared-Read upgrade flow).
+  const { closeSheet, openUploadSurface } = useChatContext();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -508,6 +525,8 @@ export function MessageList({
                   type={cta.type}
                   label={cta.label}
                   onAction={optionSelectHandler}
+                  onNavigate={closeSheet}
+                  onOpenUpload={openUploadSurface}
                 />
               )}
 

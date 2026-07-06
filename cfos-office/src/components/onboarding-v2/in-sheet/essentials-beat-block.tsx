@@ -10,6 +10,8 @@ type Props = {
   initialRent: number | null
   /** Fires after the income/rent form advances (step is now details_pending). */
   onAdvance: () => void
+  /** Skip-upload path — no parse to wait for; gates Continue on the two numbers only. */
+  noImport?: boolean
 }
 
 // Hard cap on the perceived parse wait — the background pipeline continues
@@ -24,22 +26,24 @@ const IMPORT_GRACE_MS = 30_000
  * dead spinner. ProcessingForm already takes an onAdvance callback and runs
  * advanceToConfirm itself, so we just react to it.
  */
-export function EssentialsBeatBlock({ currency, initialIncome, initialRent, onAdvance }: Props) {
-  const [importComplete, setImportComplete] = useState(false)
+export function EssentialsBeatBlock({ currency, initialIncome, initialRent, onAdvance, noImport }: Props) {
+  const [importComplete, setImportComplete] = useState(Boolean(noImport))
 
   useEffect(() => {
+    if (noImport) return // nothing parsing — Continue gates on the two numbers only
     const t = setTimeout(() => setImportComplete(true), IMPORT_GRACE_MS)
     return () => clearTimeout(t)
-  }, [])
+  }, [noImport])
 
   return (
     <div className="px-4 py-4 space-y-6">
-      <ProcessingProgress importComplete={importComplete} />
+      {!noImport && <ProcessingProgress importComplete={importComplete} />}
       <ProcessingForm
         initialIncome={initialIncome}
         initialRent={initialRent}
         currency={currency}
         importComplete={importComplete}
+        noImport={noImport}
         onAdvance={onAdvance}
       />
     </div>

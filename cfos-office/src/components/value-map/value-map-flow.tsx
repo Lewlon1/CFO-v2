@@ -607,6 +607,37 @@ export function ValueMapFlow({
               console.error('[value-map] value_category_rules upsert error:', rulesError)
             }
           }
+
+          // Back-propagate the user's call onto the transactions themselves.
+          // The rule above teaches the predictor for FUTURE imports; without
+          // this the existing transaction keeps its category-default value
+          // (often 'leak'), so the classification never reaches the
+          // category-level value profile the first Read reads. Real-transaction
+          // cards only — sample onboarding cards have synthetic ids with no
+          // transaction row. Mirrors api/value-map/personal/route.ts.
+          const txnConfirms = decidedForRules.filter((r) => !cardLookup.has(r.transaction_id))
+          if (txnConfirms.length > 0) {
+            const confirmedAt = new Date().toISOString()
+            const confirmResults = await Promise.all(
+              txnConfirms.map((r) =>
+                supabase2
+                  .from('transactions')
+                  .update({
+                    value_category: r.quadrant,
+                    value_confidence: 1.0,
+                    value_confirmed_by_user: true,
+                    prediction_source: 'user_confirmed',
+                    confirmed_at: confirmedAt,
+                  })
+                  .eq('id', r.transaction_id)
+                  .eq('user_id', currentUser.id),
+              ),
+            )
+            const failed = confirmResults.find((res) => res.error)
+            if (failed?.error) {
+              console.error('[value-map] transaction confirm error:', failed.error)
+            }
+          }
         }
 
         // Persist cut_intent decisions from cut-or-keep exercise

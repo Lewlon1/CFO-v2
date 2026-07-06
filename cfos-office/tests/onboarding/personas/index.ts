@@ -9,6 +9,7 @@ import { aikoLowTransaction } from './aiko-low-transaction'
 import { sofiaChaotic } from './sofia-chaotic'
 import { tomLongHistory } from './tom-long-history'
 import { zaneSpain } from './zane-spain'
+import { skipUploadDeclared } from './skip-upload-declared'
 
 export const PERSONAS: readonly Persona[] = [
   builderClassic,
@@ -24,6 +25,9 @@ export const PERSONAS: readonly Persona[] = [
   sofiaChaotic,
   tomLongHistory,
   zaneSpain,
+  // Optional-upload path: exercises the "I don't have a statement handy"
+  // skip branch added to the upload-intro beat. No CSV; declared Read only.
+  skipUploadDeclared,
 ] as const
 
 export function getPersona(id: string): Persona | undefined {

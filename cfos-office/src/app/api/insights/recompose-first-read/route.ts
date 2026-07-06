@@ -3,6 +3,11 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead } from '@/lib/ai/compose-first-read'
 import type { PriorReadSummary } from '@/lib/ai/prompts/first-read'
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks'
+import {
+  findLayeredFirstRead,
+  appendAssistantFollowup,
+  snapshotConversationMetadata,
+} from '@/lib/insights/first-read-followup'
 import { NextResponse } from 'next/server'
 
 /**
@@ -39,15 +44,7 @@ export async function POST() {
   // Find the active layered first_read conversation. (post-upload marked
   // anything stale as completed before composing, so the active one is the
   // most recent.)
-  const { data: conversation } = await supabase
-    .from('conversations')
-    .select('id, metadata')
-    .eq('user_id', user.id)
-    .eq('type', 'first_read')
-    .eq('metadata->>layered_read', 'true')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const conversation = await findLayeredFirstRead(supabase, user.id)
 
   if (!conversation) {
     return NextResponse.json(
@@ -114,28 +111,26 @@ export async function POST() {
 
   // Append the follow-up message. Use the service client because messages
   // RLS may not accept inserts with role='assistant' from the user session.
-  const { error: msgError } = await svc.from('messages').insert({
-    conversation_id: conversation.id,
-    user_id: user.id,
-    role: 'assistant',
-    content: composed.composedMessage,
-  })
-
-  if (msgError) {
-    console.error('[recompose-first-read] message insert failed:', msgError)
+  try {
+    await appendAssistantFollowup(svc, {
+      conversationId: conversation.id,
+      userId: user.id,
+      content: composed.composedMessage,
+    })
+  } catch (err) {
+    console.error('[recompose-first-read] message insert failed:', err)
     return NextResponse.json({ error: 'Failed to persist message' }, { status: 500 })
   }
 
   // Refresh the conversation's metadata snapshot so dashboards/cron see the
-  // post-Value-Map composition state.
-  const newMeta = {
-    ...prevMeta,
-    first_read_metadata_recomposed: composed.metadata,
-  }
-  await supabase
-    .from('conversations')
-    .update({ metadata: newMeta, updated_at: new Date().toISOString() })
-    .eq('id', conversation.id)
+  // post-Value-Map composition state. Uses the same (user-session) client the
+  // route used before; merges onto current metadata (matching the prior
+  // `...prevMeta` spread — no concurrent metadata write happens between the
+  // lookup above and here).
+  await snapshotConversationMetadata(supabase, {
+    conversationId: conversation.id,
+    metadata: { first_read_metadata_recomposed: composed.metadata },
+  })
 
   return NextResponse.json({
     conversationId: conversation.id,

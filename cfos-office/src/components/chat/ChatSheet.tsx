@@ -12,6 +12,7 @@ import { CHAT_SUBJECTS, getFolderChatMeta, type FolderKey } from '@/lib/chat/fol
 import type { PostureProfile } from '@/lib/analytics/posture-helpers'
 import { OnboardingBeatHost } from '@/components/onboarding-v2/in-sheet/onboarding-beat-host'
 import { StruggleBeatBlock } from '@/components/onboarding-v2/in-sheet/struggle-beat-block'
+import { UpgradeUploadSurface } from './UpgradeUploadSurface'
 import { IN_SHEET_BEAT_STEPS } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingStep } from '@/lib/onboarding-v2/types'
 
@@ -24,6 +25,7 @@ export function ChatSheet() {
     handleSend,
     isSheetOpen,
     closeSheet,
+    uploadSurfaceOpen,
     startConversation,
     handleOptionSelect,
     handleStructuredSubmit,
@@ -39,6 +41,8 @@ export function ChatSheet() {
     onboardingStep,
     needsEntryStruggle,
     onboardingGoal,
+    noImport,
+    onboardingProgress,
   } = useChatContext()
 
   const onboardingBeatActive = IN_SHEET_BEAT_STEPS.has(onboardingStep ?? '')
@@ -228,7 +232,16 @@ export function ChatSheet() {
         </div>
 
         {/* Content */}
-        {showConversations ? (
+        {/* The upload surface is hoisted to the TOP of the chain: it outranks
+            every other arm (including the conversation list), so precedence is
+            positional and no negation guards are needed downstream. */}
+        {uploadSurfaceOpen ? (
+          // In-chat statement upload (declared-Read upgrade flow). REPLACES the
+          // message list + ChatInput entirely — there is no free-text input
+          // while the upload surface is open. The wrapper owns the upgrade POST
+          // + loading / error / retry states; the uploader stays generic.
+          <UpgradeUploadSurface />
+        ) : showConversations ? (
           <ConversationList
             conversations={conversations}
             onBack={() => setShowConversations(false)}
@@ -248,6 +261,8 @@ export function ChatSheet() {
               step={onboardingStep as OnboardingStep | null}
               currency={userCurrency ?? 'EUR'}
               goal={onboardingGoal}
+              noImport={noImport}
+              progress={onboardingProgress}
             />
           </div>
         ) : (

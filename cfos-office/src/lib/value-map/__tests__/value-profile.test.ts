@@ -128,6 +128,41 @@ describe('buildUserValueProfile', () => {
     expect(profile.by_category.health.foundation).toBe(1);
   });
 
+  it('surfaces a category with a single user-confirmed signal, bypassing MIN_SIGNAL', async () => {
+    // A deliberate user classification (value_confirmed_by_user=true) is
+    // confident on its own. The MIN_SIGNAL gate exists to suppress thin
+    // AI-suggested signal, not to bury a category the user explicitly sorted —
+    // so one confirmed transaction (weight 1, below the threshold of 3) still
+    // surfaces its category. This is what lets a merchant the user marked
+    // (back-propagated onto its transaction at classify time) reach the
+    // category-level value profile the first Read reads.
+    const supabase = makeSupabaseStub({
+      transactions: [
+        { category_id: 'eat_drinking_out', value_category: 'investment', value_confirmed_by_user: true },
+      ],
+      sessions: [{ id: 's1' }],
+    });
+    const profile = await buildUserValueProfile(supabase, 'user-1');
+    expect(profile.by_category.eat_drinking_out.investment).toBe(1);
+    expect(profile.signal_count.eat_drinking_out).toBe(1);
+    expect(profile.signal_count.eat_drinking_out).toBeLessThan(MIN_SIGNAL_FOR_CONFIDENCE);
+  });
+
+  it('still gates a low-signal category that has only a rule and no confirmed transaction', async () => {
+    // The exemption is for user-confirmed TRANSACTIONS only. A lone category
+    // rule (weight 2, below threshold) with no confirmed transaction stays
+    // gated — rules can be thin/AI-seeded, so the threshold still applies.
+    const supabase = makeSupabaseStub({
+      rules: [
+        { match_value: 'subscriptions', value_category: 'leak', source: 'value_map', match_type: 'category' },
+      ],
+      sessions: [{ id: 's1' }],
+    });
+    const profile = await buildUserValueProfile(supabase, 'user-1');
+    expect(profile.by_category.subscriptions).toBeUndefined();
+    expect(profile.signal_count.subscriptions).toBe(2);
+  });
+
   it('aggregates merchant rules from the real-transactions Value Map into by_merchant', async () => {
     // The value-first onboarding writes one rule per merchant with
     // source='value_map_personal' and match_type='merchant'. Earlier code

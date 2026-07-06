@@ -17,6 +17,8 @@ type Props = {
   currency: string
   importComplete: boolean
   onAdvance: (redirectTo: string) => void
+  /** Skip-upload path — suppresses parse-implying heading copy. Optional; defaults false. */
+  noImport?: boolean
 }
 
 type FieldStatus = 'pristine' | 'saving' | 'saved' | 'error'
@@ -37,6 +39,7 @@ export function ProcessingForm({
   currency,
   importComplete,
   onAdvance,
+  noImport = false,
 }: Props) {
   const [income, setIncome] = useState<string>(
     initialIncome != null ? String(initialIncome) : '',
@@ -102,7 +105,7 @@ export function ProcessingForm({
     <div className="space-y-6">
       <div className="space-y-2">
         <h2 className="text-lg font-medium text-text-primary leading-tight">
-          While that runs — two quick numbers.
+          {noImport ? 'Two quick numbers and I\'ll size up your month.' : 'While that runs — two quick numbers.'}
         </h2>
         <p className="text-sm text-text-secondary leading-snug">
           These let me pace anything against what you actually have to work with.

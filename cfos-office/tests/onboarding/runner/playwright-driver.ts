@@ -200,23 +200,36 @@ async function runOnboarding(
     await page.goto(`${opts.baseUrl}/office`, { waitUntil: 'domcontentloaded' })
   })
 
-  // 3. Upload beat — UploadBeatBlock (file input) inside the sheet.
+  // 3. Upload beat — UploadIntro renders first (now always); user either clicks
+  //    "Continue" to proceed to the file uploader, or "I don't have a statement
+  //    handy" to skip straight to the essentials beat.
   await driveStage(page, 'upload_done', persona, opts, result, async () => {
-    if (!persona.csv) {
-      throw new Error(`Persona ${persona.id} has no CSV — upload is mandatory in the value-first flow`)
+    if (persona.csv) {
+      // Upload path: click "Continue" on the intro, then upload the file.
+      const continueBtn = page.locator('button:has-text("Continue")')
+      await continueBtn.waitFor({ state: 'visible', timeout: 30_000 })
+      await continueBtn.click()
+      await page.waitForSelector('input[type="file"]', { timeout: 30_000, state: 'attached' })
+      const csvBuf = Buffer.from(persona.csv.contentBase64, 'base64')
+      await page.setInputFiles('input[type="file"]', [{
+        name: persona.csv.filename,
+        mimeType: persona.csv.filename.endsWith('.xlsx')
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'text/csv',
+        buffer: csvBuf,
+      }])
+      // UploadBeatBlock.onDone advances to upload_processing → refresh → the
+      // EssentialsBeatBlock (income/rent). Its income field id is the anchor.
+      await page.waitForSelector('#processing-income', { timeout: 90_000 })
+    } else {
+      // Skip path: click "I don't have a statement handy" on the intro; the
+      // server action (skipUploadToEssentials) advances onboarding_step →
+      // router.refresh() → EssentialsBeatBlock appears at #processing-income.
+      const skipBtn = page.locator("button:has-text(\"I don't have a statement handy\")")
+      await skipBtn.waitFor({ state: 'visible', timeout: 30_000 })
+      await skipBtn.click()
+      await page.waitForSelector('#processing-income', { timeout: 30_000 })
     }
-    await page.waitForSelector('input[type="file"]', { timeout: 30_000, state: 'attached' })
-    const csvBuf = Buffer.from(persona.csv.contentBase64, 'base64')
-    await page.setInputFiles('input[type="file"]', [{
-      name: persona.csv.filename,
-      mimeType: persona.csv.filename.endsWith('.xlsx')
-        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        : 'text/csv',
-      buffer: csvBuf,
-    }])
-    // UploadBeatBlock.onDone advances to upload_processing → refresh → the
-    // EssentialsBeatBlock (income/rent). Its income field id is the anchor.
-    await page.waitForSelector('#processing-income', { timeout: 90_000 })
   })
 
   // 4. Essentials beat — income + rent (blur-to-save), then continue.
@@ -228,6 +241,25 @@ async function runOnboarding(
 
   // 5. Confirm beat — accept the reconciled fixed costs.
   await driveStage(page, 'confirm_done', persona, opts, result, async () => {
+    // Change 4 (optional): for skip-upload personas, assert the progress meter
+    // reads 60% before the user confirms. Goal(20) + Income(20) + Fixed costs(20)
+    // = 60 with no upload — this is the ceiling on declared knowledge.
+    // The meter exposes aria-label="Setup progress: N%" so the check is robust.
+    if (!persona.csv) {
+      const meter = page.locator('[role="status"][aria-label^="Setup progress:"]')
+      const meterVisible = await meter.isVisible().catch(() => false)
+      if (meterVisible) {
+        const ariaLabel = await meter.getAttribute('aria-label').catch(() => null)
+        if (ariaLabel && !ariaLabel.includes('60%')) {
+          // Record as a non-fatal warning rather than crashing the driver.
+          result.errors.push(
+            `confirm beat: progress meter aria-label expected "Setup progress: 60%", got "${ariaLabel}"`,
+          )
+        }
+      }
+      // If meter is not visible, skip silently — it may not render until
+      // the essentials save completes; a missing meter is not a driver failure.
+    }
     await page.click('button:has-text("Looks right")')
     // confirmFixedCosts → details_confirmed → OnboardingBeatHost composes the
     // Read (CfoThinking) then hands it into the sheet.
