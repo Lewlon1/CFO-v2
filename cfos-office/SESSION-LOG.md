@@ -3035,3 +3035,53 @@ upgrade-response, one-shot chips via typecheck). NOT run (staging follow-ups): t
 list in the plan's Verification section (double-tap, concurrent curl, burst loop, block flag,
 kill switch, [System:] cap counting, chat_turn token backfill) — needs the staging deploy +
 migration 074 applied.
+
+## 2026-07-06 — v2.9 launch prep: security + observability assembled onto one branch
+
+**What this branch is.** `claude/v2.9-launch-prep-e6ekyf` = `origin/v2.9` tip (1f9f4ee)
++ the four LLM cost-control/observability commits cherry-picked from
+`claude/cfo-onboarding-engagement-god4e0` (concurrent-send latch, llm-guard kill
+switch/block/burst/daily caps + migration 074, product-wide guard wiring + full
+llm_usage_log accounting + recompose idempotency, demo session-keyed reading cap)
++ the 077 SECURITY DEFINER RPC lockdown from `claude/v2.9-security-review-5sl67r`.
+Gates: `npm run typecheck` ✓, `npm run build` ✓, vitest **1257 passing** (109 files).
+
+**Deliberately NOT included** (each lives on its own branch, user decision pending):
+- The four onboarding-engagement commits under the guard work on `…-god4e0`
+  (friction quick wins, declared-goal citation + server delta, meter payoff states,
+  upgrade reachability) and the three follow-up fixes on `claude/statement-sharing-error-9jc3be`.
+- The two nancy@tester.com defect-fix commits on `claude/review-nancy-tester-user-s2sjfg`.
+- The Models M1 feature (on `claude/v2.9-security-review-5sl67r` via merge). ⚠️ If Models
+  merges later, commit `aa1ca47` (renumber `073_models_feature.sql` → 076) MUST come with it,
+  or file-based replay silently drops the 073 security migration.
+- Cherry-pick conflicts were import-block-only (guards were written as route wrappers);
+  the SESSION-LOG conflict was resolved by keeping only the entry describing code that is
+  actually on this branch — the engagement entry stays on its branch.
+
+**DB audit (2026-07-06, read-only).**
+- Staging (`qlbhvlssksnrhsleadzn`): fully hardened — 074 `llm_blocked_at` present
+  (the "MANUAL STEP OUTSTANDING" note in the 2026-07-03 entry above is now STALE: 074 is
+  applied), `fn_session_feedback` dropped, all four user-data RPCs anon-revoked + guarded.
+- Prod (`iccelmjenljanqrhhzdv`): NOT hardened. All five SECURITY DEFINER RPCs
+  (`export_user_data`, `get_import_history`, `fn_import_batches`, `prediction_metrics_txn`,
+  `fn_session_feedback`) are anon/PUBLIC-executable with no caller guard, and
+  `wow_assessments`/`wow_events` still carry `first_insight_message_id` (071 not run).
+  `llm_usage_log` (+metadata) and `demo_sessions` DO exist on prod, so accounting, daily
+  caps, and the demo cap work as soon as the code deploys.
+
+**Pre-beta launch checklist (prod, Lewis-manual per Rule 3):**
+1. `prod-backfill-071` — first_insight→first_read rename. MUST land atomically with the
+   deploy (code reads only the new names; either alone breaks the Read/wow pipeline).
+2. `prod-backfill-073` — export_user_data guard + anon revoke (GDPR-export dump risk).
+3. `prod-backfill-077` — lock down the other three RPCs + drop fn_session_feedback.
+4. `prod-backfill-074` — `llm_blocked_at` column (safe any time; enables the per-user stop).
+5. Vercel prod env: confirm `CRON_SECRET`, Bedrock EU vars; leave `LLM_DISABLED` unset but
+   know it is the emergency stop (runbook in the 2026-07-03 entry above).
+6. `prod-backfill-070` verified already applied (no leftover tables).
+
+**Lessons.**
+- Duplicate migration numeric prefixes exist on main beyond the 073 case: 045, 052, 055
+  each have two files. Same silent-skip replay hazard class as the 073/076 fix — worth a
+  dedicated renumber pass before anyone runs a from-scratch `supabase db push`.
+- An append-only log can still lie by omission across branches: when cherry-picking, carry
+  only the entries whose code travels with them.
