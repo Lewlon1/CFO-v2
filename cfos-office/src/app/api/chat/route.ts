@@ -887,11 +887,18 @@ export async function POST(req: Request) {
         timestamp: new Date().toISOString(),
       });
       // Backfill the turn's accounting row (inserted pre-stream) with the
-      // aggregate usage across all tool-loop steps. Fire-and-forget.
+      // aggregate usage across all tool-loop steps AND its computed cost. The
+      // cache-token counts extracted above are what prove the Phase-2 cache fix
+      // (a second turn within TTL should show cache_read_tokens > 0). Cost is
+      // computed at write time from the rate table keyed on chatModelId.
+      // Fire-and-forget.
       void completeChatTurn({
         rowId: chatTurnLogId,
+        model: chatModelId,
         inputTokens: usage?.inputTokens,
         outputTokens: usage?.outputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
         durationMs: Date.now() - turnStartedAt,
       });
       // Save assistant response — get the last assistant message for text

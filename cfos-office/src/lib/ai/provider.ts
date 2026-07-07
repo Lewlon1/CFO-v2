@@ -1,10 +1,49 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 
-export const bedrock = createAmazonBedrock({
-  region: process.env.AWS_REGION!,
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-})
+/** The type of a model instance, i.e. the result of `bedrock(modelId)`. */
+type BedrockModel = ReturnType<ReturnType<typeof createAmazonBedrock>>
+
+function requireEnv(name: string): string {
+  const v = process.env[name]
+  if (!v) {
+    throw new Error(`[provider] required env var ${name} is unset — cannot construct the Bedrock client`)
+  }
+  return v
+}
+
+// The Bedrock client is constructed lazily and memoised on first use, NOT at
+// module load. Two reasons:
+//   1. Testability — importing this module to test the pure Rule 5 helpers
+//      (assertEuBedrockModel / resolveEuModel) no longer constructs a client or
+//      reads AWS creds. Tests previously had to vi.mock the whole module to
+//      avoid that side effect.
+//   2. Defense-in-depth on region ordering — the region is read at first
+//      request, not at import, so no import-order quirk can capture
+//      `region: undefined` (the shape the 2026-05-14 harness bug took; the real
+//      fix, not the `set -a` workaround). requireEnv throws loudly if it's unset.
+let _client: ReturnType<typeof createAmazonBedrock> | null = null
+
+function getBedrockClient(): ReturnType<typeof createAmazonBedrock> {
+  if (!_client) {
+    _client = createAmazonBedrock({
+      region: requireEnv('AWS_REGION'),
+      accessKeyId: requireEnv('AWS_ACCESS_KEY_ID'),
+      secretAccessKey: requireEnv('AWS_SECRET_ACCESS_KEY'),
+    })
+    console.log('[bedrock] client constructed — region:', process.env.AWS_REGION)
+  }
+  return _client
+}
+
+/**
+ * Callable model factory — `bedrock(modelId)`. Unchanged call shape for the
+ * five sites that build a model from a resolved id (compose-first-read,
+ * regenerate-archetype, generate-archetype, demo/reading, value-map/reveal);
+ * the client is built on the first call, not at import.
+ */
+export function bedrock(modelId: string): BedrockModel {
+  return getBedrockClient()(modelId)
+}
 
 /**
  * Rule 5 ("EU or nothing") enforcement. A non-`eu.` inference profile means
@@ -90,11 +129,12 @@ export const composeModelId = resolveEuModel(
   'compose model',
 )
 // Log the resolved model IDs once at module load so cold-start logs always
-// record exactly which Bedrock inference profiles are in use. Misconfigured
-// BEDROCK_CLAUDE_MODEL env vars previously surfaced as an opaque
-// "Something went wrong" in the chat UI (Bedrock 400 ValidationException
-// during streaming); this log makes the next occurrence diagnosable in one
-// step via the Vercel function logs.
+// record exactly which Bedrock inference profiles are in use. This does NOT
+// construct the client (that is lazy — see getBedrockClient). Misconfigured
+// BEDROCK_CLAUDE_MODEL env vars previously surfaced as an opaque "Something
+// went wrong" in the chat UI (Bedrock 400 ValidationException during
+// streaming); this log makes the next occurrence diagnosable in one step via
+// the Vercel function logs.
 console.log(
   '[bedrock] chat model:', chatModelId,
   'utility model:', utilityModelId,
@@ -102,6 +142,35 @@ console.log(
   'compose model:', composeModelId,
   'region:', process.env.AWS_REGION,
 )
-export const chatModel = bedrock(chatModelId)
-export const analysisModel = bedrock(chatModelId)
-export const utilityModel = bedrock(utilityModelId)
+
+// Model instances remain plain VALUES (`model: chatModel`) for the ~15 call
+// sites that pass them straight to streamText/generateText/generateObject, but
+// each is a lazy proxy: the underlying model (and therefore the client) is
+// built on first property access, not at import. This keeps every call site
+// unchanged while making a bare `import { ... } from './provider'` free of side
+// effects. analysisModel mirrors the original — a second instance on the chat
+// model id.
+function lazyModel(getId: () => string): BedrockModel {
+  let real: BedrockModel | null = null
+  const resolve = (): BedrockModel => (real ??= getBedrockClient()(getId()))
+  return new Proxy({} as BedrockModel, {
+    get(_t, prop) {
+      const target = resolve() as unknown as Record<PropertyKey, unknown>
+      const value = target[prop]
+      // Bind methods to the real model so `this` is the model, not the proxy.
+      return typeof value === 'function'
+        ? (value as (...a: unknown[]) => unknown).bind(target)
+        : value
+    },
+    has(_t, prop) {
+      return prop in (resolve() as object)
+    },
+    getPrototypeOf() {
+      return Object.getPrototypeOf(resolve() as object)
+    },
+  })
+}
+
+export const chatModel = lazyModel(() => chatModelId)
+export const analysisModel = lazyModel(() => chatModelId)
+export const utilityModel = lazyModel(() => utilityModelId)

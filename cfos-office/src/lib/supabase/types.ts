@@ -1153,8 +1153,11 @@ export type Database = {
       llm_usage_log: {
         Row: {
           anonymised_at: string | null
+          cache_read_tokens: number | null
+          cache_write_tokens: number | null
           call_type: string
           completion_tokens: number | null
+          computed_cost_usd: number | null
           created_at: string | null
           deleted_at: string | null
           duration_ms: number | null
@@ -1162,14 +1165,18 @@ export type Database = {
           metadata: Json | null
           model: string
           prompt_tokens: number | null
+          rate_version: string | null
           tool_name: string | null
           total_tokens: number | null
           user_id: string | null
         }
         Insert: {
           anonymised_at?: string | null
+          cache_read_tokens?: number | null
+          cache_write_tokens?: number | null
           call_type: string
           completion_tokens?: number | null
+          computed_cost_usd?: number | null
           created_at?: string | null
           deleted_at?: string | null
           duration_ms?: number | null
@@ -1177,14 +1184,18 @@ export type Database = {
           metadata?: Json | null
           model: string
           prompt_tokens?: number | null
+          rate_version?: string | null
           tool_name?: string | null
           total_tokens?: number | null
           user_id?: string | null
         }
         Update: {
           anonymised_at?: string | null
+          cache_read_tokens?: number | null
+          cache_write_tokens?: number | null
           call_type?: string
           completion_tokens?: number | null
+          computed_cost_usd?: number | null
           created_at?: string | null
           deleted_at?: string | null
           duration_ms?: number | null
@@ -1192,6 +1203,7 @@ export type Database = {
           metadata?: Json | null
           model?: string
           prompt_tokens?: number | null
+          rate_version?: string | null
           tool_name?: string | null
           total_tokens?: number | null
           user_id?: string | null

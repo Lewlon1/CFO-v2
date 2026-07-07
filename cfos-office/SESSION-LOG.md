@@ -3729,3 +3729,109 @@ the Rule 5 violation in the server log; clean build/typecheck/tests green.
 
 **Gates:** `npm run typecheck` ✓, `npm run build` ✓, vitest **1327 passing** (113
 files; +4 `resolveEuModel` build-phase/runtime tests in `provider.test.ts`).
+
+---
+
+## 2026-07-07 — Session B1: GDPR endpoint + cache seams + cost floor
+
+**Branch:** `claude/session-b1-gdpr-cost-floor-9o8fpq` (designated). ⚠️ This branch
+is **33 commits AHEAD of `origin/v2.9`, 0 behind** — NOT "fresh off main" as the
+plan assumed. It already carried ~60% of B1 (the 2026-07-03 LLM cost-control
+work: EU switch, Rule 5 guard, LLM_DISABLED kill switch, block flag, burst+daily
+caps, in-flight send guard, token logging). Scope was reconciled to the genuine
+gaps; already-shipped items were NOT rebuilt.
+
+### Shipped
+- **Cost meter (the core gap).** New `src/lib/ai/rates.ts`: typed rate table
+  keyed on the exact `eu.` inference-profile strings, `computeCostUsd` that
+  THROWS on any unknown profile (never silent-zero — unit-tested). Cost is
+  computed at write time (Rule 2) at the two logging choke points —
+  `trackLLMUsage` (all non-chat surfaces) and `completeChatTurn` (chat turn) —
+  and persisted to `llm_usage_log`. Chat cache tokens now persisted too.
+- **Migration 081** (`081_llm_usage_cost.sql`): EXTEND `llm_usage_log` (Rule 8 —
+  NOT a new `bedrock_usage_log`) with `computed_cost_usd numeric(10,6)`,
+  `cache_read_tokens`, `cache_write_tokens`, `rate_version`. **G4 RLS:** re-scoped
+  `authenticated`/`anon` SELECT to the 13 non-cost columns (cost/rate are
+  service-role/admin-only); `llm_usage_log_select_own` untouched so the guard's
+  daily-cap `COUNT(id)` still works. Prod companion `prod-backfill-081` marked
+  DO-NOT-APPLY. types.ts hand-extended (Row/Insert/Update).
+- **Lazy Bedrock client** (`provider.ts`, Phase 1.2): `createAmazonBedrock` is
+  memoised behind `getBedrockClient()` and built on first use; `bedrock()` and
+  the `chatModel`/`analysisModel`/`utilityModel` exports are lazy Proxies — so
+  importing the module for a pure-function test no longer constructs a client or
+  reads creds, and region is read at first request (no import-order
+  `region: undefined`). All ~20 call sites unchanged; Rule 5 guard + id
+  resolution preserved verbatim.
+- **CLAUDE.md**: env/model table + Data residency note (dub1/EU, eu. profiles
+  Sonnet+Haiku+Opus, `LLM_DISABLED`, `ALLOW_NON_EU_BEDROCK` local-only).
+- **Runbook** `docs/runbooks/aws-cost-guardrails.md`: exact SNS + CloudWatch
+  invocation-spike alarm (>100/5min, `AWS/Bedrock`, eu-west-1) + AWS Budgets
+  50/80/100% commands. Lewis runs manually (constraint 6).
+
+### Phase 0 findings (G1–G4)
+- **G1 (EU Sonnet profile) — PASS.** No AWS CLI in env; resolved via code:
+  Sonnet already on `eu.anthropic.claude-sonnet-4-6` (shipped v2.9, commit
+  1f9f4ee); Rule 5 guard throws on non-`eu.` at cold start. No live `global.`
+  Sonnet profile (only provider.ts doc-comment + negative tests).
+- **G2 (cache seam) — PASS / no stop.** Single `cachePoint` on the chat system
+  message (route.ts:545), matches the expected shape. BUT `buildSystemPrompt`
+  interleaves volatile per-user data BEFORE the breakpoint → cache prefix
+  collapses (confirms the 2026-07-05 diagnosis). The reorder was scoped OUT (see
+  Deferred).
+- **G3 (call sites) — PASS w/ caveats.** All Bedrock calls flow through
+  provider.ts (zero rogue clients). Caveats deferred: demo/reading:251 hardcodes
+  an Opus literal bypassing the guard; 4 vision surfaces (upload multipart
+  screenshot / balance-sheet screenshot + pdf, bills/upload) are ungated by the
+  kill switch.
+- **G4 (RLS) — DECIDED: extend llm_usage_log, not a new table** (Rule 8 + it
+  already carries GDPR `deleted_at`/`anonymised_at` columns and the guard counts
+  it). Cost cols made service-role/admin-only via a column re-grant; `select_own`
+  kept (load-bearing for the daily-cap count).
+
+### Verified rates + source URL
+Opus 4.6 $5/$25, Sonnet 4.6 $3/$15, Haiku 4.5 $1/$5 per MTok; cache read 0.1x,
+write 1.25x (5-min TTL). Source: the Anthropic model catalogue (Bedrock Claude
+on-demand mirrors it). The AWS Bedrock pricing page
+(https://aws.amazon.com/bedrock/pricing/) returned **HTTP 403** from the build
+env, so rates.ts carries a `TODO(Lewis)` to confirm against the eu-west-1
+Bedrock page. `RATE_VERSION = '2026-07-B1'`.
+
+### Verified (gates)
+- `npm run typecheck` ✓ (after `npm ci` — node_modules was absent on the fresh
+  clone). vitest **1333 passing** (114 files; +6 `rates.test.ts`, incl. the
+  unknown-profile-throws unit).
+- Staging migration 081 applied via `execute_sql` (`apply_migration` hit the same
+  MCP permission-prompt infra failure the 2026-07-03 entry records for migration
+  074). Columns + G4 grants verified live; write path round-trips
+  `numeric(10,6)` (`0.024900`) via an insert+cleanup self-test (no residue). NOT
+  registered in `schema_migrations` — re-run the committed file via CLI to
+  register (idempotent `IF NOT EXISTS`).
+
+### Surprises (load-bearing)
+- **Branch was 33 commits ahead of v2.9, not fresh off main** — plan premise
+  stale; ~60% pre-built. Reconciled scope rather than duplicating.
+- **The model ids are REAL current models** (Sonnet 4.6 / Opus 4.6 / Haiku 4.5),
+  not fictional — so constraint 5 is satisfiable from the catalogue.
+- **Postgres data-modifying CTEs don't see each other's rows**: an
+  insert+delete-in-one-statement "cleanup" left the row (rows_cleaned 0); needed
+  an explicit follow-up DELETE. Watch this for any test-row cleanup on staging.
+- **MCP writes (`apply_migration`, `AskUserQuestion`) fail on a permission-prompt
+  infra error** in this env; `execute_sql` and reads work. Same class as the 074
+  failure.
+
+### Deferred / follow-ups
+- **Phase 2 cache-seam reorder** of `buildSystemPrompt` (static prefix before the
+  cachePoint, volatile after) in the 145KB context-builder.ts — highest cost win,
+  deferred as the riskiest change (touches the prompt the model sees).
+- Close the **4 ungated vision surfaces** (kill switch + daily-cap callTypes) and
+  fix **demo/reading:251** hardcoded Opus literal (G3 caveats).
+- Centralize `maxOutputTokens` into a typed `MAX_TOKENS` map (caps exist
+  per-site today; the plan's judge=1200 bucket has no consumer).
+- Drop the dead `llm_usage_log_insert_own` policy (kept additive this session).
+- **Full staging chat-as-Dorcas smoke** (a row with non-null `computed_cost_usd`;
+  a 2nd turn within TTL with `cache_read_tokens > 0`) — needs the app running
+  against staging; Lewis-manual.
+- **Lewis:** apply `prod-backfill-081`; set the AWS guardrails per the runbook;
+  confirm the four rates against the eu-west-1 Bedrock pricing page.
+
+### Next: B2 (Session 34 + action-item-reminder prod fix ride-along)

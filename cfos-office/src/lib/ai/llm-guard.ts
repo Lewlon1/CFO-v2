@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase/service'
 import { checkRateLimit } from '@/lib/chat/rate-limit'
+import { computeCostUsd, RATE_VERSION } from '@/lib/ai/rates'
 
 /**
  * Per-user LLM cost guard — the durable ceiling on Bedrock spend.
@@ -216,15 +217,38 @@ export async function recordChatTurnStart(args: {
   }
 }
 
-/** Backfill the turn's aggregate token usage once the stream finishes. */
+/**
+ * Backfill the turn's aggregate token usage — and its computed cost — once the
+ * stream finishes. `model` is the resolved inference profile (chatModelId) and
+ * the cache-token counts come from the Bedrock usage metadata; cost is computed
+ * at write time from the typed rate table (Rule 2). An unknown profile throws
+ * in computeCostUsd — caught here so the token backfill still lands with a null
+ * cost. Fire-and-forget: accounting must never block the turn.
+ */
 export async function completeChatTurn(args: {
   rowId: string | null
+  model?: string
   inputTokens?: number
   outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
   durationMs?: number
 }): Promise<void> {
   if (!args.rowId) return
   try {
+    let computedCostUsd: number | null = null
+    if (args.model) {
+      try {
+        computedCostUsd = computeCostUsd(args.model, {
+          inputTokens: args.inputTokens,
+          outputTokens: args.outputTokens,
+          cacheReadTokens: args.cacheReadTokens,
+          cacheWriteTokens: args.cacheWriteTokens,
+        })
+      } catch (err) {
+        console.error('[llm-guard] chat_turn cost skipped:', (err as Error).message)
+      }
+    }
     const svc = createServiceClient()
     await svc
       .from('llm_usage_log')
@@ -232,7 +256,11 @@ export async function completeChatTurn(args: {
         prompt_tokens: args.inputTokens ?? null,
         completion_tokens: args.outputTokens ?? null,
         total_tokens: (args.inputTokens ?? 0) + (args.outputTokens ?? 0) || null,
+        cache_read_tokens: args.cacheReadTokens ?? null,
+        cache_write_tokens: args.cacheWriteTokens ?? null,
         duration_ms: args.durationMs ?? null,
+        computed_cost_usd: computedCostUsd,
+        rate_version: computedCostUsd == null ? null : RATE_VERSION,
       })
       .eq('id', args.rowId)
   } catch (err) {
