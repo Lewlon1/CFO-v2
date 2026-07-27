@@ -1,0 +1,1047 @@
+<title>CFO-v2 · Codebase Atlas</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0D0B08;
+    --surface: #1A1610;
+    --card: #211B12;
+    --card-raised: #262015;
+    --ink: #F4EDD9;
+    --ink-2: rgba(244, 237, 217, 0.62);
+    --ink-3: rgba(244, 237, 217, 0.38);
+    --hairline: rgba(244, 237, 217, 0.09);
+    --hairline-2: rgba(244, 237, 217, 0.16);
+    --accent: #E8A84C;
+    --accent-ink: #E8A84C;
+    --accent-wash: rgba(232, 168, 76, 0.08);
+    --accent-border: rgba(232, 168, 76, 0.28);
+    --cell-label: rgba(13, 11, 8, 0.92);
+    --cell-label-2: rgba(13, 11, 8, 0.6);
+    --shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+    --z-app: #E8A84C;
+    --z-analytics: #06B6D4;
+    --z-db: #d55181;
+    --z-pipeline: #22C55E;
+    --z-ai: #7C4D9E;
+    --z-tests: #d95926;
+    --z-components: #3987e5;
+    --z-domain: #9C7B2C;
+    --z-docs: #8D8778;
+    --z-ops: #7A8794;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:where(:not([data-theme="dark"])) {
+      color-scheme: light;
+      --page: #F6F0E1;
+      --surface: #EDE5D2;
+      --card: #FBF6EA;
+      --card-raised: #FFFDF6;
+      --ink: #1A1610;
+      --ink-2: rgba(26, 22, 16, 0.64);
+      --ink-3: rgba(26, 22, 16, 0.42);
+      --hairline: rgba(26, 22, 16, 0.1);
+      --hairline-2: rgba(26, 22, 16, 0.18);
+      --accent-ink: #8a5f14;
+      --accent-wash: rgba(156, 123, 44, 0.09);
+      --accent-border: rgba(156, 123, 44, 0.32);
+      --cell-label: rgba(13, 11, 8, 0.92);
+      --cell-label-2: rgba(13, 11, 8, 0.6);
+      --shadow: 0 14px 38px rgba(90, 70, 30, 0.18);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page: #F6F0E1;
+    --surface: #EDE5D2;
+    --card: #FBF6EA;
+    --card-raised: #FFFDF6;
+    --ink: #1A1610;
+    --ink-2: rgba(26, 22, 16, 0.64);
+    --ink-3: rgba(26, 22, 16, 0.42);
+    --hairline: rgba(26, 22, 16, 0.1);
+    --hairline-2: rgba(26, 22, 16, 0.18);
+    --accent-ink: #8a5f14;
+    --accent-wash: rgba(156, 123, 44, 0.09);
+    --accent-border: rgba(156, 123, 44, 0.32);
+    --cell-label: rgba(13, 11, 8, 0.92);
+    --cell-label-2: rgba(13, 11, 8, 0.6);
+    --shadow: 0 14px 38px rgba(90, 70, 30, 0.18);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0D0B08;
+    --surface: #1A1610;
+    --card: #211B12;
+    --card-raised: #262015;
+    --ink: #F4EDD9;
+    --ink-2: rgba(244, 237, 217, 0.62);
+    --ink-3: rgba(244, 237, 217, 0.38);
+    --hairline: rgba(244, 237, 217, 0.09);
+    --hairline-2: rgba(244, 237, 217, 0.16);
+    --accent-ink: #E8A84C;
+    --accent-wash: rgba(232, 168, 76, 0.08);
+    --accent-border: rgba(232, 168, 76, 0.28);
+    --shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .serif { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; }
+
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px); }
+
+  /* ---------- Header ---------- */
+  header.masthead { padding: clamp(36px, 6vw, 64px) 0 0; }
+  .eyebrow {
+    font-size: 11.5px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 600;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .eyebrow::after { content: ""; height: 1px; flex: 1; background: var(--hairline-2); }
+  h1.atlas-title {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: clamp(40px, 7vw, 68px); font-weight: 500; line-height: 1.04;
+    margin: 18px 0 0; letter-spacing: -0.01em; text-wrap: balance;
+  }
+  .headline {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-style: italic; font-size: clamp(17px, 2.4vw, 21px); color: var(--ink-2);
+    margin: 14px 0 0; max-width: 62ch; text-wrap: balance;
+  }
+  .overview { color: var(--ink-2); max-width: 68ch; margin: 20px 0 0; }
+  .overview strong { color: var(--ink); font-weight: 600; }
+
+  .statrow {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 1px; background: var(--hairline); border: 1px solid var(--hairline);
+    border-radius: 10px; overflow: hidden; margin: 34px 0 0;
+  }
+  .stat { background: var(--card); padding: 16px 18px 14px; }
+  .stat .n {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: clamp(26px, 3.4vw, 34px); line-height: 1.05; color: var(--ink);
+  }
+  .stat .l {
+    font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-3); margin-top: 6px; font-weight: 600;
+  }
+
+  /* ---------- Tabs ---------- */
+  nav.tabs {
+    position: sticky; top: 0; z-index: 40;
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--hairline);
+    margin-top: 40px;
+  }
+  .tabs-inner { display: flex; gap: 4px; overflow-x: auto; }
+  .tab {
+    appearance: none; background: none; border: none; cursor: pointer;
+    font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-3);
+    padding: 14px 14px 12px; border-bottom: 2px solid transparent;
+    white-space: nowrap; letter-spacing: 0.01em;
+  }
+  .tab:hover { color: var(--ink-2); }
+  .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .tab:focus-visible, button:focus-visible, .crumb:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px;
+  }
+
+  section.panel { padding: 34px 0 10px; }
+  section.panel[hidden] { display: none; }
+  .panel-note { color: var(--ink-3); font-size: 13px; max-width: 74ch; margin: 4px 0 18px; }
+  .panel-note code, .keyfile-path, .crumbs { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .panel-note code { font-size: 12px; color: var(--ink-2); }
+
+  h2.sec {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: clamp(24px, 3.4vw, 32px); font-weight: 500; margin: 0 0 6px;
+  }
+
+  /* ---------- Legend ---------- */
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 14px 0 16px; }
+  .lg {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; color: var(--ink-2); font-weight: 500;
+    background: none; border: 1px solid transparent; border-radius: 999px;
+    padding: 3px 10px 3px 6px; cursor: pointer; font-family: inherit;
+  }
+  .lg .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .lg:hover { border-color: var(--hairline-2); }
+  .lg[aria-pressed="true"] { border-color: var(--accent-border); background: var(--accent-wash); color: var(--ink); }
+  .lg .ct { color: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Treemap ---------- */
+  .crumbs {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 2px;
+    font-size: 12.5px; color: var(--ink-3); margin: 0 0 10px; min-height: 24px;
+  }
+  .crumb {
+    appearance: none; background: none; border: none; cursor: pointer;
+    font: inherit; color: var(--accent-ink); padding: 2px 4px; border-radius: 3px;
+  }
+  .crumb:hover { text-decoration: underline; }
+  .crumb[disabled] { color: var(--ink); cursor: default; text-decoration: none; font-weight: 600; }
+  .crumb-sep { color: var(--ink-3); }
+
+  #treemap {
+    position: relative; width: 100%; height: clamp(420px, 62vh, 640px);
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 12px; overflow: hidden;
+  }
+  .tm-cell { position: absolute; border-radius: 3px; overflow: hidden; }
+  .tm-file { }
+  .tm-cell.dim { opacity: 0.16; }
+  .tm-dir-solid, .tm-file { transition: opacity 0.25s ease; }
+  .tm-label {
+    position: absolute; inset: 0; padding: 3px 5px; pointer-events: none;
+    font-size: 10px; line-height: 1.25; color: var(--cell-label);
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600;
+  }
+  .tm-group {
+    position: absolute; border-radius: 4px; background: color-mix(in srgb, var(--page) 40%, transparent);
+    outline: 1px solid var(--hairline);
+  }
+  .tm-group-hd {
+    position: absolute; left: 0; right: 0; top: 0; height: 17px;
+    display: flex; align-items: center; gap: 6px; padding: 0 6px;
+    font-size: 10.5px; font-weight: 700; color: var(--ink-2);
+    cursor: pointer; border: none; background: none; font-family: inherit;
+    white-space: nowrap; overflow: hidden; text-align: left;
+  }
+  .tm-group-hd:hover { color: var(--ink); background: var(--accent-wash); }
+  .tm-group-hd .loc { font-weight: 400; color: var(--ink-3); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9.5px; }
+  .tm-clickable { cursor: pointer; }
+  .tm-clickable:hover { outline: 2px solid var(--ink); outline-offset: -2px; z-index: 5; }
+
+  #tm-tip, #dg-tip {
+    position: fixed; z-index: 90; pointer-events: none; display: none;
+    background: var(--card-raised); border: 1px solid var(--hairline-2);
+    border-radius: 8px; padding: 9px 12px; max-width: 340px;
+    box-shadow: var(--shadow); font-size: 12.5px; line-height: 1.45;
+  }
+  .tip-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: var(--ink); word-break: break-all; }
+  .tip-meta { color: var(--ink-2); margin-top: 3px; }
+  .tip-meta b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tip-zone { display: inline-flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; color: var(--ink-2); }
+  .tip-zone .sw { width: 9px; height: 9px; border-radius: 2px; }
+
+  .tm-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 0; }
+  .ghostbtn {
+    appearance: none; font: inherit; font-size: 12.5px; font-weight: 600;
+    background: none; color: var(--ink-2); border: 1px solid var(--hairline-2);
+    border-radius: 999px; padding: 5px 14px; cursor: pointer;
+  }
+  .ghostbtn:hover { color: var(--ink); border-color: var(--accent-border); background: var(--accent-wash); }
+  .ghostbtn[aria-pressed="true"] { color: var(--accent-ink); border-color: var(--accent-border); background: var(--accent-wash); }
+
+  /* table view */
+  #tm-table { margin-top: 16px; overflow-x: auto; border: 1px solid var(--hairline); border-radius: 10px; }
+  #tm-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  #tm-table th {
+    text-align: left; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-3); padding: 10px 14px; border-bottom: 1px solid var(--hairline-2);
+    background: var(--card);
+  }
+  #tm-table td { padding: 8px 14px; border-bottom: 1px solid var(--hairline); }
+  #tm-table tr:last-child td { border-bottom: none; }
+  #tm-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  #tm-table td.pathcell { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .zonechip { display: inline-flex; align-items: center; gap: 6px; }
+  .zonechip .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+  /* ---------- Dependency graph ---------- */
+  #depgraph-box {
+    position: relative; background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 12px; overflow: hidden;
+  }
+  #depgraph { display: block; width: 100%; height: clamp(440px, 62vh, 660px); cursor: grab; }
+  #depgraph.dragging { cursor: grabbing; }
+  .dg-node { cursor: pointer; }
+  .dg-node circle { stroke: var(--page); stroke-width: 2px; }
+  .dg-node text {
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10.5px;
+    fill: var(--ink-2); paint-order: stroke; stroke: var(--surface); stroke-width: 3px;
+  }
+  .dg-node.hl text, .dg-node:hover text { fill: var(--ink); font-weight: 700; }
+  .dg-node.small text { display: none; }
+  .dg-node.small:hover text, .dg-node.small.hl text, .dg-node.small.nb text { display: block; fill: var(--ink); }
+  .dg-edge { fill: none; }
+  .dg-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0 14px; }
+  .dg-controls .lbl { font-size: 12px; color: var(--ink-3); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  #dg-detail {
+    margin-top: 16px; border: 1px solid var(--hairline); border-radius: 12px;
+    background: var(--card); padding: 18px 20px; display: none;
+  }
+  #dg-detail.open { display: block; }
+  #dg-detail h3 { margin: 0 0 2px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  #dg-detail h3 .sw { width: 10px; height: 10px; border-radius: 3px; }
+  #dg-detail .role { color: var(--ink-2); font-size: 13.5px; margin: 6px 0 10px; max-width: 72ch; }
+  .dg-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-top: 10px; }
+  .dg-col h4 { margin: 0 0 6px; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+  .dg-col ul { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .dg-col li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed var(--hairline); }
+  .dg-col li:last-child { border-bottom: none; }
+  .dg-col .m { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: var(--ink-2); }
+  .dg-col .c { color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+
+  /* ---------- Subsystem dossiers ---------- */
+  .dossiers { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(430px, 100%), 1fr)); gap: 22px; margin-top: 26px; }
+  .dossier { position: relative; margin-top: 14px; }
+  .dossier-tab {
+    position: absolute; top: -13px; left: 14px; z-index: 2;
+    background: var(--card-raised); border: 1px solid var(--hairline-2); border-bottom-color: var(--card-raised);
+    border-radius: 7px 7px 0 0; padding: 3px 12px 5px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; font-weight: 600;
+    color: var(--ink-2); display: inline-flex; align-items: center; gap: 7px;
+    max-width: calc(100% - 28px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .dossier-tab .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+  .dossier-body {
+    background: var(--card); border: 1px solid var(--hairline-2); border-radius: 4px 10px 10px 10px;
+    padding: 20px 20px 16px; height: 100%;
+  }
+  .dossier .role {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: 16.5px; line-height: 1.4; margin: 2px 0 10px; text-wrap: balance;
+  }
+  .dossier .detail { color: var(--ink-2); font-size: 13.5px; margin: 0 0 14px; }
+  .dossier .stats { display: flex; gap: 16px; font-size: 12px; color: var(--ink-3); margin: 0 0 12px; font-variant-numeric: tabular-nums; }
+  .dossier .stats b { color: var(--ink); font-weight: 600; }
+  .keyfiles { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--hairline); }
+  .keyfiles li { padding: 7px 0; border-bottom: 1px dashed var(--hairline); font-size: 12.5px; }
+  .keyfiles li:last-child { border-bottom: none; }
+  .keyfile-path { font-size: 11.5px; color: var(--ink); word-break: break-all; display: block; }
+  .keyfile-why { color: var(--ink-3); font-size: 12px; }
+  .factnote {
+    margin: 14px 0 0; padding: 10px 12px 10px 14px; position: relative;
+    background: var(--accent-wash); border-radius: 6px;
+    font-size: 12.5px; color: var(--ink-2); line-height: 1.5;
+  }
+  .factnote::before {
+    content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .factnote .fl {
+    display: block; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 700; margin-bottom: 3px;
+  }
+
+  /* ---------- Flows ---------- */
+  .flows { display: flex; flex-direction: column; gap: 26px; margin-top: 26px; }
+  .flow { border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); padding: 20px 22px; }
+  .flow h3 {
+    margin: 0 0 14px; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: 19px; font-weight: 500; display: flex; align-items: baseline; gap: 12px;
+  }
+  .flow h3 .fn { font-size: 12px; color: var(--accent-ink); font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .flowsteps { display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: center; }
+  .fstep {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--hairline-2); border-radius: 999px;
+    padding: 6px 13px; font-size: 12.5px; color: var(--ink-2); line-height: 1.35;
+  }
+  .fstep .idx { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .farrow { color: var(--ink-3); font-size: 13px; padding: 0 1px; }
+
+  footer {
+    margin-top: 60px; padding: 26px 0 44px; border-top: 1px solid var(--hairline);
+    color: var(--ink-3); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 24px; justify-content: space-between;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+  @media (max-width: 640px) {
+    .dossiers { grid-template-columns: 1fr; }
+    .statrow { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow" id="hd-eyebrow">The CFO's Office · Codebase</div>
+    <h1 class="atlas-title">Codebase Atlas</h1>
+    <p class="headline" id="hd-headline"></p>
+    <p class="overview" id="hd-overview"></p>
+    <div class="statrow" id="statrow"></div>
+  </header>
+
+  <nav class="tabs" aria-label="Atlas sections">
+    <div class="wrap tabs-inner" role="tablist" style="padding:0">
+      <button class="tab" role="tab" id="tab-map" aria-controls="panel-map" aria-selected="true">Atlas map</button>
+      <button class="tab" role="tab" id="tab-deps" aria-controls="panel-deps" aria-selected="false">Dependencies</button>
+      <button class="tab" role="tab" id="tab-subs" aria-controls="panel-subs" aria-selected="false">Subsystems</button>
+      <button class="tab" role="tab" id="tab-flows" aria-controls="panel-flows" aria-selected="false">Data flows</button>
+    </div>
+  </nav>
+
+  <section class="panel" id="panel-map" role="tabpanel" aria-labelledby="tab-map">
+    <h2 class="sec">Every file, drawn to scale</h2>
+    <p class="panel-note">Each rectangle is a file, sized by its line count and coloured by the zone it belongs to. Click a directory to step inside it; use the breadcrumb to climb back out. Hover anything for the full path.</p>
+    <div class="legend" id="tm-legend" aria-label="Zones"></div>
+    <div class="crumbs" id="tm-crumbs"></div>
+    <div id="treemap" aria-label="Treemap of the repository"></div>
+    <div class="tm-tools">
+      <button class="ghostbtn" id="tm-tablebtn" aria-pressed="false">Table view</button>
+      <span class="panel-note" style="margin:0">Legend chips spotlight a zone. <code>package-lock.json</code> is excluded.</span>
+    </div>
+    <div id="tm-table" hidden></div>
+  </section>
+
+  <section class="panel" id="panel-deps" role="tabpanel" aria-labelledby="tab-deps" hidden>
+    <h2 class="sec">Who imports whom</h2>
+    <p class="panel-note">Module-level import graph extracted from every <code>from '@/…'</code> statement under <code>cfos-office/src</code>. Node size tracks lines of code; line weight tracks how many import statements link the two modules. Drag nodes to untangle; click one for its dossier.</p>
+    <div class="dg-controls">
+      <span class="lbl">Min imports per link</span>
+      <button class="ghostbtn dg-min" data-min="1" aria-pressed="false">1+</button>
+      <button class="ghostbtn dg-min" data-min="2" aria-pressed="true">2+</button>
+      <button class="ghostbtn dg-min" data-min="4" aria-pressed="false">4+</button>
+      <button class="ghostbtn dg-min" data-min="8" aria-pressed="false">8+</button>
+    </div>
+    <div id="depgraph-box"><svg id="depgraph" role="img" aria-label="Module dependency graph"></svg></div>
+    <div id="dg-detail"></div>
+  </section>
+
+  <section class="panel" id="panel-subs" role="tabpanel" aria-labelledby="tab-subs" hidden>
+    <h2 class="sec">Subsystem dossiers</h2>
+    <p class="panel-note">Twelve field reports, one per subsystem — compiled by reading the code, not the docs. Key files are verified paths relative to <code>cfos-office/src</code> unless noted.</p>
+    <div class="dossiers" id="dossiers"></div>
+  </section>
+
+  <section class="panel" id="panel-flows" role="tabpanel" aria-labelledby="tab-flows" hidden>
+    <h2 class="sec">How the data moves</h2>
+    <p class="panel-note">End-to-end journeys through the system, stitched from the subsystem reports. Steps are ordered — a statement lands as CSV and leaves as guidance.</p>
+    <div class="flows" id="flows"></div>
+  </section>
+
+  <footer>
+    <span>Compiled from a live read of the repository · <span id="ft-date"></span></span>
+    <span class="mono" id="ft-meta"></span>
+  </footer>
+</div>
+
+<div id="tm-tip"></div>
+<div id="dg-tip"></div>
+
+<script>
+window.__DATA__ = /*__DATA__*/null;
+window.__ANALYSES__ = /*__ANALYSES__*/[];
+window.__SYNTHESIS__ = /*__SYNTHESIS__*/null;
+window.__META__ = /*__META__*/null;
+</script>
+<script>
+(function () {
+  'use strict';
+  const DATA = window.__DATA__;
+  const ANALYSES = window.__ANALYSES__ || [];
+  const SYNTHESIS = window.__SYNTHESIS__;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------------- Zones ---------------- */
+  const ZONES = [
+    { id: 'app',        name: 'App routes',     color: 'var(--z-app)',        hex: '#E8A84C' },
+    { id: 'analytics',  name: 'Analytics',      color: 'var(--z-analytics)',  hex: '#06B6D4' },
+    { id: 'db',         name: 'Database',       color: 'var(--z-db)',         hex: '#d55181' },
+    { id: 'pipeline',   name: 'Data pipeline',  color: 'var(--z-pipeline)',   hex: '#22C55E' },
+    { id: 'ai',         name: 'AI layer',       color: 'var(--z-ai)',         hex: '#7C4D9E' },
+    { id: 'tests',      name: 'Tests & eval',   color: 'var(--z-tests)',      hex: '#d95926' },
+    { id: 'components', name: 'Components',     color: 'var(--z-components)', hex: '#3987e5' },
+    { id: 'domain',     name: 'Domain libs',    color: 'var(--z-domain)',     hex: '#9C7B2C' },
+    { id: 'docs',       name: 'Docs & audits',  color: 'var(--z-docs)',       hex: '#8D8778' },
+    { id: 'ops',        name: 'Ops & config',   color: 'var(--z-ops)',        hex: '#7A8794' },
+  ];
+  const ZONE = Object.fromEntries(ZONES.map(z => [z.id, z]));
+
+  function zoneOf(path) {
+    if (/^cfos-office\/src\/app\//.test(path)) return 'app';
+    if (/^cfos-office\/src\/lib\/(ai|chat)\//.test(path)) return 'ai';
+    if (/^cfos-office\/src\/lib\/(analytics|prediction|wow)\//.test(path)) return 'analytics';
+    if (/^cfos-office\/src\/lib\/(parsers|categorisation|upload|bills)\//.test(path)) return 'pipeline';
+    if (/^cfos-office\/src\/components\//.test(path)) return 'components';
+    if (/^cfos-office\/src\/lib\//.test(path)) return 'domain';
+    if (/^cfos-office\/supabase\//.test(path)) return 'db';
+    if (/^cfos-office\/(tests|eval)\//.test(path)) return 'tests';
+    if (/\.test\.(ts|tsx)$/.test(path)) return 'tests';
+    if (/^(docs|audit)\//.test(path)) return 'docs';
+    if (/^cfos-office\/docs\//.test(path)) return 'docs';
+    if (/\.md$/.test(path)) return 'docs';
+    return 'ops';
+  }
+
+  /* module key → zone, for graph nodes (module keys are src-relative) */
+  function moduleZone(mod) { return zoneOf('cfos-office/src/' + mod + '/x.ts'); }
+
+  /* annotate tree: value, zone (dominant for dirs) */
+  function annotate(node) {
+    if (!node.children) {
+      node.value = node.loc || 0;
+      node.zone = zoneOf(node.path);
+      node.files = 1;
+      return { [node.zone]: node.value };
+    }
+    const acc = {};
+    node.files = 0;
+    for (const c of node.children) {
+      const sub = annotate(c);
+      node.files += c.files;
+      for (const k in sub) acc[k] = (acc[k] || 0) + sub[k];
+    }
+    node.value = node.children.reduce((s, c) => s + c.value, 0);
+    node.zone = Object.entries(acc).sort((a, b) => b[1] - a[1])[0]?.[0] || 'ops';
+    return acc;
+  }
+  const zoneTotals = annotate(DATA.tree);
+
+  const fmt = n => n.toLocaleString('en-GB');
+  const pct = (a, b) => (100 * a / b).toFixed(1) + '%';
+
+  /* ---------------- Header ---------------- */
+  if (SYNTHESIS) {
+    document.getElementById('hd-headline').textContent = SYNTHESIS.headline || '';
+    document.getElementById('hd-overview').textContent = SYNTHESIS.overview || '';
+  }
+  const tsFiles = (function count(n) {
+    if (!n.children) return /\.(ts|tsx)$/.test(n.path) ? 1 : 0;
+    return n.children.reduce((s, c) => s + count(c), 0);
+  })(DATA.tree);
+  const META = window.__META__ || {
+    version: '2.8.0', routes: 60, migrations: 84, tests: 100, commits: 86,
+    date: 'July 2026', branch: 'claude/codebase-interactive-viz-jrn1sq',
+  };
+  document.getElementById('hd-eyebrow').textContent = `The CFO's Office · v${META.version} · Codebase`;
+  const STATS = [
+    ['Files', fmt(DATA.totals.files)],
+    ['Lines', fmt(DATA.totals.lines)],
+    ['TypeScript files', fmt(tsFiles)],
+    ['API routes', fmt(META.routes)],
+    ['Migrations', fmt(META.migrations)],
+    ['Test files', fmt(META.tests)],
+    ['Commits', fmt(META.commits)],
+  ];
+  document.getElementById('statrow').innerHTML = STATS.map(([l, n]) =>
+    `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  document.getElementById('ft-date').textContent = META.date;
+  document.getElementById('ft-meta').textContent = 'branch ' + META.branch;
+
+  /* ---------------- Tabs ---------------- */
+  const tabs = [...document.querySelectorAll('.tab')];
+  const panels = { 'tab-map': 'panel-map', 'tab-deps': 'panel-deps', 'tab-subs': 'panel-subs', 'tab-flows': 'panel-flows' };
+  let graphBuilt = false;
+  function selectTab(id) {
+    for (const t of tabs) {
+      const on = t.id === id;
+      t.setAttribute('aria-selected', String(on));
+      document.getElementById(panels[t.id]).hidden = !on;
+    }
+    if (id === 'tab-deps' && !graphBuilt) { graphBuilt = true; buildGraph(); }
+    if (id === 'tab-map') renderTreemap();
+  }
+  tabs.forEach(t => t.addEventListener('click', () => selectTab(t.id)));
+  document.querySelector('[role="tablist"]').addEventListener('keydown', e => {
+    const i = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+    if (e.key === 'ArrowRight') { const n = tabs[(i + 1) % tabs.length]; n.focus(); selectTab(n.id); }
+    if (e.key === 'ArrowLeft') { const n = tabs[(i - 1 + tabs.length) % tabs.length]; n.focus(); selectTab(n.id); }
+  });
+
+  /* ---------------- Legend ---------------- */
+  let spotlight = null;
+  const legendEl = document.getElementById('tm-legend');
+  legendEl.innerHTML = ZONES.map(z => {
+    const tot = zoneTotals[z.id] || 0;
+    return `<button class="lg" data-zone="${z.id}" aria-pressed="false">
+      <span class="sw" style="background:${z.color}"></span>${z.name}
+      <span class="ct">${pct(tot, DATA.totals.lines)}</span></button>`;
+  }).join('');
+  legendEl.addEventListener('click', e => {
+    const b = e.target.closest('.lg'); if (!b) return;
+    spotlight = spotlight === b.dataset.zone ? null : b.dataset.zone;
+    legendEl.querySelectorAll('.lg').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.zone === spotlight)));
+    applySpotlight();
+  });
+  function applySpotlight() {
+    document.querySelectorAll('#treemap .tm-cell').forEach(el => {
+      el.classList.toggle('dim', !!spotlight && el.dataset.zone !== spotlight);
+    });
+  }
+
+  /* ---------------- Squarified treemap ---------------- */
+  function squarify(children, x, y, w, h) {
+    const total = children.reduce((s, c) => s + c.value, 0);
+    if (total <= 0) return [];
+    const scale = (w * h) / total;
+    const items = children.filter(c => c.value > 0).map(c => ({ node: c, area: c.value * scale }));
+    const out = [];
+    let cx = x, cy = y, cw = w, ch = h, row = [], rowArea = 0;
+
+    function worst(row, len) {
+      const s = row.reduce((a, r) => a + r.area, 0);
+      let max = 0;
+      for (const r of row) {
+        const ratio = Math.max((len * len * r.area) / (s * s), (s * s) / (len * len * r.area));
+        if (ratio > max) max = ratio;
+      }
+      return max;
+    }
+    function layoutRow() {
+      const s = rowArea;
+      const horiz = cw < ch;
+      const len = horiz ? cw : ch;
+      const thick = s / len;
+      let off = 0;
+      for (const r of row) {
+        const ext = r.area / thick;
+        if (horiz) out.push({ node: r.node, x: cx + off, y: cy, w: ext, h: thick });
+        else out.push({ node: r.node, x: cx, y: cy + off, w: thick, h: ext });
+        off += ext;
+      }
+      if (horiz) { cy += thick; ch -= thick; } else { cx += thick; cw -= thick; }
+      row = []; rowArea = 0;
+    }
+    for (const it of items) {
+      const len = Math.min(cw, ch);
+      if (row.length && worst(row.concat(it), len) > worst(row, len)) layoutRow();
+      row.push(it); rowArea += it.area;
+    }
+    if (row.length) layoutRow();
+    return out;
+  }
+
+  let tmRoot = DATA.tree;
+  const tmEl = document.getElementById('treemap');
+  const tipEl = document.getElementById('tm-tip');
+  const GAP = 2;
+
+  function findByPath(path) {
+    if (!path) return DATA.tree;
+    const parts = path.split('/');
+    let node = DATA.tree;
+    for (const p of parts) {
+      node = (node.children || []).find(c => c.name === p);
+      if (!node) return DATA.tree;
+    }
+    return node;
+  }
+
+  function renderCrumbs() {
+    const el = document.getElementById('tm-crumbs');
+    const segs = tmRoot.path ? tmRoot.path.split('/') : [];
+    let html = `<button class="crumb" data-path="" ${segs.length ? '' : 'disabled'}>CFO-v2</button>`;
+    let acc = [];
+    for (const s of segs) {
+      acc.push(s);
+      const p = acc.join('/');
+      const last = p === tmRoot.path;
+      html += `<span class="crumb-sep">/</span><button class="crumb" data-path="${p}" ${last ? 'disabled' : ''}>${s}</button>`;
+    }
+    html += `<span style="margin-left:auto;font-variant-numeric:tabular-nums">${fmt(tmRoot.value)} lines · ${fmt(tmRoot.files)} files</span>`;
+    el.innerHTML = html;
+  }
+  document.getElementById('tm-crumbs').addEventListener('click', e => {
+    const b = e.target.closest('.crumb'); if (!b || b.disabled) return;
+    tmRoot = findByPath(b.dataset.path); renderTreemap();
+  });
+
+  function cellDiv(node, x, y, w, h, isDir) {
+    const z = ZONE[node.zone] || ZONE.ops;
+    const d = document.createElement('div');
+    d.className = 'tm-cell ' + (isDir ? 'tm-dir-solid' : 'tm-file') + (isDir ? ' tm-clickable' : '');
+    d.style.cssText = `left:${x}px;top:${y}px;width:${Math.max(0, w - GAP)}px;height:${Math.max(0, h - GAP)}px;background:${z.color}`;
+    d.dataset.zone = node.zone;
+    d.dataset.path = node.path;
+    if (isDir) { d.dataset.dir = '1'; d.setAttribute('role', 'button'); d.tabIndex = 0; }
+    if (w - GAP > 46 && h - GAP > 15) {
+      const lb = document.createElement('div');
+      lb.className = 'tm-label';
+      lb.textContent = (isDir ? node.name + '/' : node.name);
+      d.appendChild(lb);
+    }
+    return d;
+  }
+
+  const HEADER_H = 19;
+  function renderNodeInto(container, node, x, y, w, h) {
+    const isDir = !!node.children;
+    if (!isDir || w < 110 || h < 76) {
+      container.appendChild(cellDiv(node, x, y, w, h, isDir));
+      return;
+    }
+    const g = document.createElement('div');
+    g.className = 'tm-group';
+    g.style.cssText = `left:${x}px;top:${y}px;width:${w - GAP}px;height:${h - GAP}px`;
+    const hd = document.createElement('button');
+    hd.className = 'tm-group-hd';
+    hd.dataset.path = node.path; hd.dataset.dir = '1';
+    hd.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis">${node.name}/</span><span class="loc">${fmt(node.value)}</span>`;
+    g.appendChild(hd);
+    const innerW = w - GAP - 2 * GAP, innerH = h - GAP - HEADER_H - GAP;
+    if (innerW > 10 && innerH > 10) {
+      const cells = squarify(node.children.filter(k => k.value > 0), GAP, HEADER_H, innerW, innerH);
+      for (const c of cells) renderNodeInto(g, c.node, c.x, c.y, c.w, c.h);
+    }
+    container.appendChild(g);
+  }
+
+  function renderTreemap() {
+    const W = tmEl.clientWidth, H = tmEl.clientHeight;
+    if (!W) return;
+    tmEl.innerHTML = '';
+    renderCrumbs();
+    const kids = (tmRoot.children || []).filter(c => c.value > 0);
+    const l1 = squarify(kids, GAP, GAP, W - GAP, H - GAP);
+    for (const c of l1) renderNodeInto(tmEl, c.node, c.x, c.y, c.w, c.h);
+    applySpotlight();
+  }
+
+  tmEl.addEventListener('click', e => {
+    const t = e.target.closest('[data-dir]');
+    if (!t) return;
+    tmRoot = findByPath(t.dataset.path);
+    renderTreemap();
+  });
+  tmEl.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.dir) {
+      e.preventDefault(); tmRoot = findByPath(e.target.dataset.path); renderTreemap();
+    }
+  });
+
+  /* tooltip */
+  function moveTip(el, e) {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const r = el.getBoundingClientRect();
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - pad;
+    if (y + r.height > innerHeight - 8) y = e.clientY - r.height - pad;
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+  }
+  tmEl.addEventListener('mousemove', e => {
+    const t = e.target.closest('.tm-cell, .tm-group-hd');
+    if (!t) { tipEl.style.display = 'none'; return; }
+    const node = findByPath(t.dataset.path);
+    if (!node || !node.path) { tipEl.style.display = 'none'; return; }
+    const z = ZONE[node.zone] || ZONE.ops;
+    const isDir = !!node.children;
+    tipEl.innerHTML = `<div class="tip-path">${node.path}${isDir ? '/' : ''}</div>
+      <div class="tip-meta"><b>${fmt(node.value)}</b> lines${isDir ? ` · <b>${fmt(node.files)}</b> files` : ''} · ${pct(node.value, tmRoot.value)} of view</div>
+      <div class="tip-zone"><span class="sw" style="background:${z.color}"></span>${z.name}${isDir ? ' (dominant)' : ''}${isDir ? ' — click to open' : ''}</div>`;
+    tipEl.style.display = 'block';
+    moveTip(tipEl, e);
+  });
+  tmEl.addEventListener('mouseleave', () => { tipEl.style.display = 'none'; });
+
+  let rsz;
+  addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (!document.getElementById('panel-map').hidden) renderTreemap(); }, 150); });
+
+  /* table view */
+  const tblBtn = document.getElementById('tm-tablebtn');
+  const tblEl = document.getElementById('tm-table');
+  tblBtn.addEventListener('click', () => {
+    const open = tblEl.hidden;
+    tblEl.hidden = !open;
+    tblBtn.setAttribute('aria-pressed', String(open));
+    if (open && !tblEl.innerHTML) {
+      const dirs = [];
+      (function walk(n, depth) {
+        if (!n.children || depth > 2) return;
+        for (const c of n.children) if (c.children) { dirs.push(c); walk(c, depth + 1); }
+      })(DATA.tree, 0);
+      dirs.sort((a, b) => b.value - a.value);
+      tblEl.innerHTML = `<table><thead><tr><th>Directory</th><th>Zone</th><th style="text-align:right">Files</th><th style="text-align:right">Lines</th><th style="text-align:right">Share</th></tr></thead><tbody>` +
+        dirs.slice(0, 32).map(d => {
+          const z = ZONE[d.zone] || ZONE.ops;
+          return `<tr><td class="pathcell">${d.path}/</td>
+            <td><span class="zonechip"><span class="sw" style="background:${z.color}"></span>${z.name}</span></td>
+            <td class="num">${fmt(d.files)}</td><td class="num">${fmt(d.value)}</td><td class="num">${pct(d.value, DATA.totals.lines)}</td></tr>`;
+        }).join('') + '</tbody></table>';
+    }
+  });
+
+  /* ---------------- Dependency graph ---------------- */
+  const moduleLoc = {};
+  (function walk(n) {
+    if (!n.children) {
+      const p = n.path;
+      if (p.startsWith('cfos-office/src/')) {
+        const rel = p.slice('cfos-office/src/'.length).split('/');
+        let key = null;
+        if (rel.length >= 2) key = rel[0] + '/' + rel[1];
+        if (key) moduleLoc[key] = (moduleLoc[key] || 0) + n.value;
+      }
+      return;
+    }
+    n.children.forEach(walk);
+  })(DATA.tree);
+
+  let minCount = 2;
+  const svg = document.getElementById('depgraph');
+  const dgTip = document.getElementById('dg-tip');
+  let sim = null;
+
+  document.querySelectorAll('.dg-min').forEach(b => b.addEventListener('click', () => {
+    minCount = +b.dataset.min;
+    document.querySelectorAll('.dg-min').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    buildGraph();
+  }));
+
+  function buildGraph() {
+    const W = svg.clientWidth || 1000, H = svg.clientHeight || 560;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const edges = DATA.edges.filter(e => e.count >= minCount);
+    const nodeIds = [...new Set(edges.flatMap(e => [e.from, e.to]))];
+    const nodes = nodeIds.map(id => {
+      const loc = moduleLoc[id] || 300;
+      return {
+        id, loc,
+        zone: moduleZone(id),
+        r: Math.min(30, 7 + Math.sqrt(loc) / 6),
+        x: W / 2 + (Math.sin(nodeIds.indexOf(id) * 2.4) * W) / 3.2,
+        y: H / 2 + (Math.cos(nodeIds.indexOf(id) * 2.4) * H) / 3.2,
+        vx: 0, vy: 0, fixed: false,
+      };
+    });
+    const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+    const links = edges.map(e => ({ s: byId[e.from], t: byId[e.to], count: e.count }));
+
+    /* simple force sim */
+    function tick(alpha) {
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i], b = nodes[j];
+          let dx = b.x - a.x, dy = b.y - a.y;
+          let d2 = dx * dx + dy * dy || 1;
+          if (d2 < 420 * 420) {
+            const d = Math.sqrt(d2);
+            const f = (6200 * alpha) / d2;
+            const fx = (dx / d) * f, fy = (dy / d) * f;
+            if (!a.fixed) { a.vx -= fx; a.vy -= fy; }
+            if (!b.fixed) { b.vx += fx; b.vy += fy; }
+          }
+        }
+      }
+      for (const l of links) {
+        const rest = l.s.r + l.t.r + 108;
+        let dx = l.t.x - l.s.x, dy = l.t.y - l.s.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        const f = ((d - rest) / d) * 0.06 * alpha * Math.min(3, Math.sqrt(l.count));
+        if (!l.s.fixed) { l.s.vx += dx * f; l.s.vy += dy * f; }
+        if (!l.t.fixed) { l.t.vx -= dx * f; l.t.vy -= dy * f; }
+      }
+      for (const n of nodes) {
+        if (!n.fixed) {
+          n.vx += (W / 2 - n.x) * 0.0032 * alpha;
+          n.vy += (H / 2 - n.y) * 0.0032 * alpha;
+          n.x += n.vx *= 0.82;
+          n.y += n.vy *= 0.82;
+        }
+        n.x = Math.max(n.r + 4, Math.min(W - n.r - 4, n.x));
+        n.y = Math.max(n.r + 14, Math.min(H - n.r - 16, n.y));
+      }
+    }
+
+    svg.innerHTML = `<defs>${ZONES.map(z =>
+      `<marker id="arr-${z.id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+         <path d="M0,0.6 L7.6,4 L0,7.4 Z" fill="${z.hex}"/></marker>`).join('')}</defs>
+      <g id="dg-edges"></g><g id="dg-nodes"></g>`;
+    const gE = svg.querySelector('#dg-edges');
+    const gN = svg.querySelector('#dg-nodes');
+
+    const edgeEls = links.map(l => {
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const z = ZONE[l.s.zone] || ZONE.ops;
+      p.setAttribute('class', 'dg-edge');
+      p.setAttribute('stroke', z.hex);
+      p.setAttribute('stroke-width', String(1 + Math.log2(l.count) * 0.9));
+      p.setAttribute('opacity', '0.3');
+      p.setAttribute('marker-end', `url(#arr-${z.id})`);
+      gE.appendChild(p);
+      return p;
+    });
+
+    const nodeEls = nodes.map(n => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'dg-node' + (n.r < 10 ? ' small' : ''));
+      g.dataset.id = n.id;
+      const z = ZONE[n.zone] || ZONE.ops;
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('r', String(n.r));
+      c.setAttribute('fill', z.hex);
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('text-anchor', 'middle');
+      t.textContent = n.id;
+      g.appendChild(c); g.appendChild(t);
+      gN.appendChild(g);
+      return g;
+    });
+
+    function draw() {
+      links.forEach((l, i) => {
+        const dx = l.t.x - l.s.x, dy = l.t.y - l.s.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        const sx = l.s.x + (dx / d) * l.s.r, sy = l.s.y + (dy / d) * l.s.r;
+        const txp = l.t.x - (dx / d) * (l.t.r + 3), typ = l.t.y - (dy / d) * (l.t.r + 3);
+        const mx = (sx + txp) / 2 - dy / d * 14, my = (sy + typ) / 2 + dx / d * 14;
+        edgeEls[i].setAttribute('d', `M${sx},${sy} Q${mx},${my} ${txp},${typ}`);
+      });
+      nodes.forEach((n, i) => {
+        const g = nodeEls[i];
+        g.setAttribute('transform', `translate(${n.x},${n.y})`);
+        const t = g.querySelector('text');
+        t.setAttribute('y', String(n.r + 12));
+      });
+    }
+
+    let ticks = 0;
+    const MAX_TICKS = 260;
+    if (reduceMotion) {
+      for (; ticks < MAX_TICKS; ticks++) tick(1 - ticks / MAX_TICKS);
+      draw();
+    } else {
+      (function loop() {
+        if (ticks < MAX_TICKS) {
+          const per = 4;
+          for (let k = 0; k < per && ticks < MAX_TICKS; k++, ticks++) tick(Math.max(0.05, 1 - ticks / MAX_TICKS));
+          draw();
+          requestAnimationFrame(loop);
+        }
+      })();
+    }
+
+    /* hover highlight */
+    function setHighlight(id) {
+      links.forEach((l, i) => {
+        const on = !id || l.s.id === id || l.t.id === id;
+        edgeEls[i].setAttribute('opacity', id ? (on ? '0.92' : '0.05') : '0.3');
+      });
+      nodes.forEach((n, i) => {
+        const nb = !id || n.id === id || links.some(l => (l.s.id === id && l.t.id === n.id) || (l.t.id === id && l.s.id === n.id));
+        nodeEls[i].style.opacity = nb ? '1' : '0.22';
+        nodeEls[i].classList.toggle('hl', !!id && n.id === id);
+        nodeEls[i].classList.toggle('nb', !!id && nb && n.id !== id);
+      });
+    }
+
+    gN.addEventListener('mousemove', e => {
+      const g = e.target.closest('.dg-node');
+      if (!g) return;
+      const n = byId[g.dataset.id];
+      setHighlight(n.id);
+      const ins = links.filter(l => l.t.id === n.id).reduce((s, l) => s + l.count, 0);
+      const outs = links.filter(l => l.s.id === n.id).reduce((s, l) => s + l.count, 0);
+      const z = ZONE[n.zone] || ZONE.ops;
+      dgTip.innerHTML = `<div class="tip-path">${n.id}</div>
+        <div class="tip-meta"><b>${fmt(Math.round(n.loc))}</b> lines · imports out <b>${outs}</b> · imported by <b>${ins}</b></div>
+        <div class="tip-zone"><span class="sw" style="background:${z.color}"></span>${z.name} — click for dossier</div>`;
+      dgTip.style.display = 'block';
+      moveTip(dgTip, e);
+    });
+    svg.addEventListener('mouseleave', () => { setHighlight(null); dgTip.style.display = 'none'; });
+    svg.addEventListener('mousemove', e => { if (!e.target.closest('.dg-node')) { setHighlight(null); dgTip.style.display = 'none'; } });
+
+    /* drag */
+    let dragging = null;
+    function pt(e) {
+      const r = svg.getBoundingClientRect();
+      return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
+    }
+    svg.addEventListener('pointerdown', e => {
+      const g = e.target.closest('.dg-node');
+      if (!g) return;
+      dragging = byId[g.dataset.id];
+      dragging.fixed = true;
+      svg.classList.add('dragging');
+      svg.setPointerCapture(e.pointerId);
+    });
+    svg.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const p = pt(e);
+      dragging.x = p.x; dragging.y = p.y;
+      if (ticks >= MAX_TICKS) draw();
+    });
+    svg.addEventListener('pointerup', () => {
+      if (dragging) { dragging.fixed = false; dragging = null; svg.classList.remove('dragging'); }
+    });
+
+    /* click → detail */
+    gN.addEventListener('click', e => {
+      const g = e.target.closest('.dg-node');
+      if (!g) return;
+      openDetail(byId[g.dataset.id], links);
+    });
+  }
+
+  const MODULE_TO_ANALYSIS = a => a.module;
+  function analysisFor(modId) {
+    return ANALYSES.find(a => a.module.split(' + ').some(part => part.trim() === modId || part.trim().endsWith(modId)))
+      || ANALYSES.find(a => a.module.includes(modId));
+  }
+  function openDetail(n, links) {
+    const el = document.getElementById('dg-detail');
+    const z = ZONE[n.zone] || ZONE.ops;
+    const ins = links.filter(l => l.t.id === n.id).sort((a, b) => b.count - a.count);
+    const outs = links.filter(l => l.s.id === n.id).sort((a, b) => b.count - a.count);
+    const an = analysisFor(n.id);
+    el.innerHTML = `<h3><span class="sw" style="background:${z.color}"></span>${n.id}</h3>
+      ${an ? `<p class="role">${an.role}</p>` : ''}
+      <div class="dg-cols">
+        <div class="dg-col"><h4>Imports from</h4><ul>${outs.length ? outs.map(l => `<li><span class="m">${l.t.id}</span><span class="c">×${l.count}</span></li>`).join('') : '<li><span class="m">—</span></li>'}</ul></div>
+        <div class="dg-col"><h4>Imported by</h4><ul>${ins.length ? ins.map(l => `<li><span class="m">${l.s.id}</span><span class="c">×${l.count}</span></li>`).join('') : '<li><span class="m">—</span></li>'}</ul></div>
+        ${an ? `<div class="dg-col"><h4>Field note</h4><p style="margin:0;font-size:12.5px;color:var(--ink-2)">${an.interestingFact}</p></div>` : ''}
+      </div>`;
+    el.classList.add('open');
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+  }
+
+  /* ---------------- Dossiers ---------------- */
+  const zoneForAnalysis = m => {
+    if (/^lib\/ai/.test(m)) return 'ai';
+    if (/^lib\/analytics/.test(m)) return 'analytics';
+    if (/^app\/api/.test(m)) return 'app';
+    if (/office/.test(m)) return 'app';
+    if (/parsers|categorisation|upload/.test(m)) return 'pipeline';
+    if (/value-map/.test(m)) return 'domain';
+    if (/onboarding/.test(m)) return 'domain';
+    if (/nudges|prediction|goals|balance/.test(m)) return 'domain';
+    if (/components\/chat|dashboard/.test(m)) return 'components';
+    if (/migrations|supabase/.test(m)) return 'db';
+    if (/tests|eval/.test(m)) return 'tests';
+    if (/docs|audit/.test(m)) return 'docs';
+    return 'ops';
+  };
+  document.getElementById('dossiers').innerHTML = ANALYSES.map(a => {
+    const z = ZONE[zoneForAnalysis(a.module)] || ZONE.ops;
+    return `<article class="dossier">
+      <div class="dossier-tab"><span class="sw" style="background:${z.color}"></span>${a.module}</div>
+      <div class="dossier-body">
+        <p class="role serif">${a.role}</p>
+        <p class="detail">${a.detail}</p>
+        <ul class="keyfiles">${(a.keyFiles || []).map(k =>
+          `<li><span class="keyfile-path">${k.path}</span><span class="keyfile-why">${k.why}</span></li>`).join('')}</ul>
+        <div class="factnote"><span class="fl">Field note</span>${a.interestingFact}</div>
+      </div>
+    </article>`;
+  }).join('');
+
+  /* ---------------- Flows ---------------- */
+  if (SYNTHESIS && SYNTHESIS.flows) {
+    document.getElementById('flows').innerHTML = SYNTHESIS.flows.map((f, fi) => `
+      <div class="flow"><h3><span class="fn">${String(fi + 1).padStart(2, '0')}</span>${f.name}</h3>
+        <div class="flowsteps">${f.steps.map((s, i) =>
+          `${i ? '<span class="farrow">→</span>' : ''}<span class="fstep"><span class="idx">${i + 1}</span>${s}</span>`).join('')}</div>
+      </div>`).join('');
+  }
+
+  /* initial render */
+  renderTreemap();
+})();
+</script>
