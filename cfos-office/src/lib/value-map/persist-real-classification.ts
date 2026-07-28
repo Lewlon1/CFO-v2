@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { getTimeContext } from '@/lib/utils/time-context'
 import { processSignals } from '@/lib/prediction/process-signals'
-import { backfillForMerchant } from '@/lib/prediction/backfill'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 import { VCR_ON_CONFLICT, NONE_TIME_CONTEXT } from '@/lib/prediction/types'
 import {
   refreshMonthlySnapshots,
@@ -24,9 +24,11 @@ import {
 //      regress the recompose's "what you just sorted" payoff)
 //   3. a hard transaction confirm (value_confirmed_by_user = true)
 //   4. fresh monthly snapshots for the affected months
-//   5. async per-merchant learning — processSignals + backfillForMerchant —
-//      run by the caller inside after() via runMerchantLearning(), so each
-//      route can chain its own follow-up (archetype regen on the retake).
+//   5. async learning — processSignals per merchant, then one full
+//      rescoreValueCategories pass (VM-2, superseding the deleted
+//      backfillForMerchant) — run by the caller inside after() via
+//      runMerchantLearning(), so each route can chain its own follow-up
+//      (archetype regen on the retake).
 // ─────────────────────────────────────────────────────────────────────────
 
 export const VALID_QUADRANTS = new Set(['foundation', 'investment', 'burden', 'leak'])
@@ -191,11 +193,18 @@ export async function persistRealValueClassifications(
 }
 
 /**
- * Run the async learning pass for each affected merchant — recompute rules
- * from the accumulated signals, then re-score the merchant's other unconfirmed
- * transactions. Designed to be called from a route's after() so the user never
- * waits. Errors per merchant are swallowed (logged) so one failure does not
- * abort the rest.
+ * Run the async learning pass for the affected merchants — recompute rules from
+ * the accumulated signals per merchant, then re-score the user's unconfirmed
+ * transactions ONCE against the refreshed rule set. Designed to be called from a
+ * route's after() so the user never waits. Errors per merchant are swallowed
+ * (logged) so one failure does not abort the rest.
+ *
+ * VM-2 replaced the old per-merchant `backfillForMerchant` (ilike propagation,
+ * deleted with prediction/backfill.ts) with a single `rescoreValueCategories`
+ * pass. That is strictly broader: it applies the refreshed rules retroactively
+ * across ALL history, including the category/global priors processSignals just
+ * moved — which the per-merchant backfill could never reach. It runs once after
+ * the loop rather than per merchant so N merchants cost one scan, not N.
  */
 export async function runMerchantLearning(
   userId: string,
@@ -204,9 +213,14 @@ export async function runMerchantLearning(
   for (const merchant of merchants) {
     try {
       await processSignals(userId, merchant)
-      await backfillForMerchant(userId, merchant)
     } catch (err) {
       console.error(`[value-map learning] ${merchant} failed:`, err)
     }
+  }
+
+  try {
+    await rescoreValueCategories(userId)
+  } catch (err) {
+    console.error('[value-map learning] rescore failed:', err)
   }
 }

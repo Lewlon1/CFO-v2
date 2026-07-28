@@ -16,8 +16,8 @@ import {
 // persistRealValueClassifications — so a real-transaction classification gets
 // the same treatment regardless of which surface it came from: weighted
 // correction_signals, a synchronous merchant value_category_rules row,
-// a hard transaction confirm, fresh snapshots, and async processSignals +
-// backfillForMerchant per merchant.
+// a hard transaction confirm, fresh snapshots, and async processSignals per
+// merchant followed by one full VM-2 rescoreValueCategories pass.
 //
 // Onboarding-specific bookkeeping (value_map_sessions, value_map_results,
 // cut_intent) stays with the client flow, which also drives the post-Value-Map
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not save classifications' }, { status: 500 })
   }
 
-  // Async learning — recompute rules + backfill siblings per merchant. No
+  // Async learning — recompute rules per merchant + one full VM-2 re-score. No
   // archetype regen: the onboarding recompose delivers the post-sort reading.
   after(async () => {
     await runMerchantLearning(user.id, merchantsAffected)

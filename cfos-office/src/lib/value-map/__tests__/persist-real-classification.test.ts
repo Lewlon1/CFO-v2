@@ -10,8 +10,13 @@ vi.mock('@/lib/analytics/monthly-snapshot', () => ({
 vi.mock('@/lib/prediction/process-signals', () => ({
   processSignals: vi.fn(async () => {}),
 }))
-vi.mock('@/lib/prediction/backfill', () => ({
-  backfillForMerchant: vi.fn(async () => {}),
+vi.mock('@/lib/categorisation/value-rescore', () => ({
+  rescoreValueCategories: vi.fn(async () => ({
+    scanned: 0,
+    updated: 0,
+    byRule: {},
+    affectedMonths: [],
+  })),
 }))
 
 import {
@@ -21,7 +26,7 @@ import {
 import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 import { NONE_TIME_CONTEXT } from '@/lib/prediction/types'
 import { processSignals } from '@/lib/prediction/process-signals'
-import { backfillForMerchant } from '@/lib/prediction/backfill'
+import { rescoreValueCategories } from '@/lib/categorisation/value-rescore'
 
 // ── Mock supabase ──────────────────────────────────────────────────────────
 
@@ -211,12 +216,21 @@ describe('persistRealValueClassifications', () => {
 })
 
 describe('runMerchantLearning', () => {
-  it('runs processSignals then backfill for each merchant', async () => {
+  it('runs processSignals per merchant, then ONE full re-score', async () => {
     await runMerchantLearning(USER, ['tesco', 'deliveroo'])
     expect(processSignals).toHaveBeenCalledTimes(2)
-    expect(backfillForMerchant).toHaveBeenCalledTimes(2)
     expect(processSignals).toHaveBeenCalledWith(USER, 'tesco')
-    expect(backfillForMerchant).toHaveBeenCalledWith(USER, 'deliveroo')
+    expect(processSignals).toHaveBeenCalledWith(USER, 'deliveroo')
+    // VM-2: one rescore pass for N merchants, not N — it scans all history
+    // once against the refreshed rule set (superseding per-merchant backfill).
+    expect(rescoreValueCategories).toHaveBeenCalledTimes(1)
+    expect(rescoreValueCategories).toHaveBeenCalledWith(USER)
+  })
+
+  it('still re-scores when a per-merchant processSignals throws', async () => {
+    vi.mocked(processSignals).mockRejectedValueOnce(new Error('boom'))
+    await runMerchantLearning(USER, ['a', 'b'])
+    expect(rescoreValueCategories).toHaveBeenCalledTimes(1)
   })
 
   it('swallows a per-merchant failure and continues', async () => {
