@@ -4330,3 +4330,84 @@ None. `value_map_sessions` / `value_map_results` already carry everything (`cut_
 - VM-4: archetype reveal into the documented slot; decide where the Layer-2 recompose lands for v2 completions.
 - Payback copy may want constitution refinement once seen on-device.
 - Per-card mid-session persistence (true resume) if abandonment telemetry warrants it.
+
+---
+
+## 2026-07-28 — v2.9 synthesis branch: Stack A + Models M1 + VM v2 + the two OB Read devices
+
+**Branch:** `claude/v2.9-synthesis` (off `v2.9`). Goal: one branch carrying every
+capability worth testing, with onboarding kept as short as it already is and the
+wow concentrated in the Read.
+
+### What was assembled
+- **Models M1 (Stack B)** merged onto `v2.9` first — zero conflicts.
+- **Stack A** (`claude/session-b1-gdpr-cost-floor-9o8fpq`) — LLM cost guards, cost
+  meter, friction quick-wins, beta-blocker remediation. 5 conflicts, all keep-both.
+- **VM v2** (VM-1…VM-5 cherry-picked off `claude/nifty-carson-4jzdl2`), `VALUE_MAP_V2`
+  flipped ON by default so it is actually exercised.
+- **The two OB Read devices ported into the SHIPPED flow** (no new screens, step
+  count unchanged): `≈` notation on every self-reported figure, and named per-band
+  miss reconciliation on the declared→actual upgrade Read.
+- **PR #70's OB half deliberately NOT revived** — it was 8 steps vs the shipped 6,
+  and its wins were in the Read output, not the path to it.
+
+### Load-bearing surprises
+- **VM-2 deleted `prediction/backfill.ts`; Stack A's `persist-real-classification.ts`
+  (landed later) still imported it.** Neither branch is wrong alone — the collision
+  only exists once both are on one branch. Caught by typecheck, not by either
+  branch's own tests. Resolved inside `runMerchantLearning` so the "one persistence
+  path" invariant holds: processSignals per merchant, then ONE
+  `rescoreValueCategories` pass (strictly broader than the per-merchant backfill,
+  and one scan for N merchants rather than N).
+- **VM-3 wanted to re-add the client-side merchant-rule upsert** that the 2026-06-16
+  "one persistence path" session deleted as a bug (no correction_signals, no
+  learning pipeline, no hard confirm, different merchant key). Took HEAD. A
+  cherry-pick that reintroduces a fixed bug looks exactly like a clean merge —
+  the SESSION-LOG entry is what settled it.
+- **`git merge-tree` conflict counts predicted every real conflict** (Stack A 4→5,
+  VM 5, Stack B 0). Worth running before committing to a merge order.
+- **`npm run build | tail` masks the exit code** — a typecheck failure read as
+  "exit 0". Always capture `$?` from the command itself, never through a pipe.
+- **A runaway background `ugrep` over `tests/onboarding/baselines/` (238 files) starved
+  I/O for 25 minutes** and looked exactly like dev-server instability: three separate
+  `next dev` startup failures, all of which resolved once it was killed. Check for
+  stray processes before diagnosing a hung server.
+
+### The harness cannot run against `next dev` on this codebase
+Turbopack compiles routes on first hit; the driver's 30s sign-in-redirect budget
+expires while `/office` is still compiling, so every persona dies at sign-in. Running
+against the **production build** (`next start`) answers in 2-7ms and the flow gets
+past sign-in. Added a `cfos-office (prod server, for the onboarding harness)` config
+to `.claude/launch.json`. **Caveat that cost a cycle:** `next start` serves the built
+bundle, so a prompt change needs a rebuild before the harness can observe it.
+
+### Live findings from the first real harness run (NOT a clean baseline)
+- **`≈` device verified live and correct.** Markers landed on income, fixed costs,
+  free cash and the modelled cushion; correctly absent from the goal target, the
+  amount already saved and the pace. The close used the device as intended
+  ("statements replace every ≈ with a real figure").
+- **R9_goal_reference FAILS on `skip-upload-declared`** — the Read said "Your deposit",
+  never the goal's name nor the word "goal", so all three of R9's escape hatches
+  missed. The shipped fixture says "Your House deposit goal", so this is a change on
+  this branch; most likely the longer declared prompt diluting adherence. Prompt
+  fixed (name it as the user named it); **re-verification still outstanding.**
+- **Progress-meter assertion fails: expected 60%, got 40%** at the confirm beat on the
+  skip-upload path. Untriaged — suspect the Stack A "flow-tuned progress model
+  (upload unlocks past 60%)" against the skip path.
+- **9 of 11 personas fail at `upload_done`** waiting on the upload beat's Continue
+  button. Untriaged.
+
+### State at handover
+`typecheck` ✓ · `vitest` **1567 passing (134 files)** ✓ · `next build` ✓. Branch is
+71+ commits ahead of `origin/v2.9`, **nothing pushed**.
+
+**Migrations deliberately NOT renumbered** (Lewis to confirm the branch first): `072`
+and `073` each appear twice (`demo_session_claim_guard`/`vm4_taxonomy_columns`,
+`secure_export_user_data`/`vm5_alignment_columns`). Distinct filenames so nothing
+conflicts, and staging already has all four applied — but reconcile before adding any
+new migration. Staging schema was verified read-only as sufficient to run the branch;
+no DB change is needed to test it.
+
+**Also stale:** `tests/onboarding/fixtures/reads/skip-upload-declared.captured.txt`
+predates the `≈` device. It is a judge INPUT, not an expected output, so the suite
+stays green — but it wants a live re-capture.
