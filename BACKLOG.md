@@ -4,6 +4,18 @@ Items deferred out of completed sessions for future work. Not a roadmap (that li
 
 ---
 
+## Codebase Atlas (2026-07-27) — action items
+
+Six findings from the interactive codebase atlas (`docs/codebase-atlas.html`), verified against the working tree and scoped into five sessions with ready-to-paste prompts: **`docs/audits/2026-07-27-atlas-action-items.md`** (findings detail: `docs/audits/2026-07-27-codebase-atlas-findings.md`). Suggested order S1 → S3 → S2 → S5 → S4.
+
+- **S1 — Persona-sanitiser realignment** (size S). Lifts the existing deferral below ("CFO Directness + Constitution v1.4 — deferrals", first bullet) into a scheduled session — same item, now with a full prompt. Sanitiser bans stance-bearing first person the Constitution (v1.5 §2) explicitly allows; Haiku silently rewrites endorsed phrasing before persist.
+- **S2 — Gap engine convergence** (size M). `analyseGap` v1 still serves three live consumers (`analyse-gap` chat tool, `insights/value-map-complete`, `pattern-detectors.ts:593`) while the first Read uses `analyseGapV2` — same user, two different "Gap" computations. Make v2 canonical, migrate, delete v1.
+- **S3 — Drift cleanup** (size S). 11 files import types from `@/app/api/dashboard/summary/route` (layering inversion — move the contract into `lib/`); CLAUDE.md documents ~8 chat tools vs 43 registered in `createToolbox()`, stale file-structure names, stale "Current" version line.
+- **S4 — context-builder sectioning + token telemetry** (size L). 2,752-line assembler → section modules + per-section token accounting through `[bedrock-usage]`, gated by byte-identical golden snapshots.
+- **S5 — Guard-layer golden tests** (size M). Deterministic (cred-free) unit coverage for `insight-validator`, `value-save-guard`, `read-judge`, `persona-sanitiser` — the layer between a hallucinated number and the user. Run before S4.
+
+---
+
 ## Coaching Cadence (2026-06-02) — deferrals
 
 - ~~**Legacy first-insight de-stack.**~~ Resolved by deletion — the `InsightPayload` first-insight path was removed with the layered-read kill-switch (2026-06-10); the live flow composes via `compose-first-read.ts`.
