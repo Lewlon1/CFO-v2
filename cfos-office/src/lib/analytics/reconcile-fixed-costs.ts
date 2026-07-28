@@ -48,6 +48,15 @@ export type ReconciledBill = FixedCostInput & {
   monthly_equivalent: number
   /** True when this row was the canonical voice for a detected match. */
   matched_detected: boolean
+  /**
+   * What the STATEMENTS say this bill costs per month, when a declared row
+   * band-matched a detected one. The declared amount stays canonical in
+   * `monthly_equivalent` (and in the total) — this is kept purely so the
+   * declared→actual upgrade Read can name the miss with both sides in hand,
+   * server-computed (Rule 2). null when there was nothing to compare against:
+   * an unmatched declaration, or a detected row with no declaration.
+   */
+  observed_monthly_equivalent: number | null
   /** True when this row was the dedupe loser and contributes 0 to the total. */
   superseded: boolean
   /**
@@ -202,6 +211,7 @@ export async function reconcileFixedCosts(
       source: 'rent',
       monthly_equivalent: monthlyRent,
       matched_detected: false,
+      observed_monthly_equivalent: null,
       superseded: false,
       benchmark_verdict: null,
       bill_subtype: null,
@@ -263,6 +273,7 @@ export async function reconcileFixedCosts(
         source: 'declared',
         monthly_equivalent: monthly,
         matched_detected: false,
+        observed_monthly_equivalent: null,
         superseded: true,
         benchmark_verdict: null,
         bill_subtype: null,
@@ -308,6 +319,7 @@ export async function reconcileFixedCosts(
       ...candidate,
       monthly_equivalent: monthly,
       matched_detected: matchedSlot != null,
+      observed_monthly_equivalent: matchedSlot?.monthly_equivalent ?? null,
       superseded: false,
       benchmark_verdict: verdict,
       bill_subtype: resolvedSubtype,
@@ -349,6 +361,7 @@ export async function reconcileFixedCosts(
         ...candidate,
         monthly_equivalent: slot.monthly_equivalent,
         matched_detected: false,
+        observed_monthly_equivalent: null,
         superseded: false,
         benchmark_verdict: null,
         bill_subtype: null,
@@ -365,6 +378,9 @@ export async function reconcileFixedCosts(
       ...candidate,
       monthly_equivalent: slot.monthly_equivalent,
       matched_detected: false,
+      // Detected with no declaration to compare against — the miss here is
+      // "never mentioned", which the band reconciler reads off source+matched.
+      observed_monthly_equivalent: null,
       superseded: false,
       benchmark_verdict: verdict,
       bill_subtype: resolvedSubtype,

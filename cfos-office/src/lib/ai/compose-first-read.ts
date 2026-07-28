@@ -276,10 +276,21 @@ export async function composeFirstRead(params: {
   }
 
   // DECLARED → ACTUAL delta (declared_upgrade with a snapshot only). Computed
-  // server-side so the model cites both sides verbatim (Rule 2).
+  // server-side so the model cites both sides verbatim (Rule 2). The reconciled
+  // bill list drives the per-band miss reconciliation ("you said X, it's Y");
+  // a reconcile failure degrades to the aggregate delta rather than losing the
+  // whole upgrade Read.
+  let reconciledForDelta: ReconciledBill[] = [];
+  if (isDeclaredUpgrade && params.declaredPriorFacts) {
+    try {
+      reconciledForDelta = (await reconcileFixedCosts(supabase, params.userId)).items;
+    } catch (err) {
+      console.error('[compose-first-read] reconcile for declared delta failed:', err);
+    }
+  }
   const declaredDelta =
     isDeclaredUpgrade && params.declaredPriorFacts
-      ? buildDeclaredDelta(params.declaredPriorFacts, financialFacts)
+      ? buildDeclaredDelta(params.declaredPriorFacts, financialFacts, reconciledForDelta)
       : null;
 
   const userPrompt = buildFirstReadUserPrompt({
@@ -829,6 +840,21 @@ export function buildDeclaredFacts(input: {
  * signed differences are computed HERE so the model cites every figure
  * verbatim and never derives either side of the delta itself (Rule 2).
  */
+/**
+ * One named band in the declared→actual reconciliation. Both sides and the
+ * signed difference are computed HERE so the Read can name the miss without
+ * doing arithmetic (Rule 2).
+ */
+export interface BandMiss {
+  label: string
+  declared: number
+  observed: number
+  /** observed − declared, whole units. Negative = they over-estimated. */
+  diff: number
+  /** Which way the miss cuts, from the user's point of view. */
+  direction: 'overestimated' | 'underestimated'
+}
+
 export interface DeclaredActualDelta {
   /** BEFORE — what the declared Read stood on. */
   declaredFixedCosts: number
@@ -839,12 +865,68 @@ export interface DeclaredActualDelta {
   /** Signed differences (actual − declared), whole units; null when the actual side is missing. */
   fixedCostsDiff: number | null
   freeCashDiff: number | null
+  /**
+   * Per-bill misses the statements settled, biggest first. Only bills the user
+   * declared AND the statements matched appear here — those are the only ones
+   * with two comparable sides.
+   */
+  bands: BandMiss[]
+  /** Declared bills the statements could NOT find — still estimates. */
+  unverified: string[]
+  /** Committed costs the statements found that the user never declared. */
+  undeclared: string[]
   currency: string
+}
+
+/** A miss smaller than this is noise, not a finding — don't spend a sentence on it. */
+const BAND_MISS_FLOOR = 5
+
+/**
+ * Reconcile the user's declared bills against what the statements actually
+ * show, per band. Pure over the reconciled item list so it is unit-testable and
+ * the Read never derives either side.
+ */
+export function buildBandReconciliation(items: ReconciledBill[]): Pick<
+  DeclaredActualDelta,
+  'bands' | 'unverified' | 'undeclared'
+> {
+  const live = items.filter((b) => !b.superseded)
+  const bands: BandMiss[] = []
+  const unverified: string[] = []
+  const undeclared: string[] = []
+
+  for (const b of live) {
+    if (b.source === 'declared') {
+      if (b.observed_monthly_equivalent == null) {
+        // Declared, but nothing in the statements matched it — still an estimate.
+        unverified.push(b.label)
+        continue
+      }
+      const diff = Math.round(b.observed_monthly_equivalent - b.monthly_equivalent)
+      if (Math.abs(diff) < BAND_MISS_FLOOR) continue
+      bands.push({
+        label: b.label,
+        declared: Math.round(b.monthly_equivalent),
+        observed: Math.round(b.observed_monthly_equivalent),
+        diff,
+        direction: diff < 0 ? 'overestimated' : 'underestimated',
+      })
+    } else if (b.source === 'detected') {
+      // Found in the statements, never mentioned by the user.
+      undeclared.push(b.label)
+    }
+    // source === 'rent' is the profile's housing line, not a declared bill —
+    // it has no estimate/observation pair, so it belongs in neither list.
+  }
+
+  bands.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
+  return { bands, unverified, undeclared }
 }
 
 export function buildDeclaredDelta(
   declared: Pick<DeclaredReadFacts, 'totalFixedCosts' | 'freeCash' | 'currency'>,
   actual: Pick<FinancialFacts, 'total_fixed_costs' | 'free_cash_flow'>,
+  reconciledItems: ReconciledBill[] = [],
 ): DeclaredActualDelta | null {
   const actualFixedCosts = actual.total_fixed_costs ?? null
   const actualFreeCash = actual.free_cash_flow ?? null
@@ -857,6 +939,7 @@ export function buildDeclaredDelta(
     fixedCostsDiff:
       actualFixedCosts != null ? Math.round(actualFixedCosts - declared.totalFixedCosts) : null,
     freeCashDiff: actualFreeCash != null ? Math.round(actualFreeCash - declared.freeCash) : null,
+    ...buildBandReconciliation(reconciledItems),
     currency: declared.currency,
   }
 }

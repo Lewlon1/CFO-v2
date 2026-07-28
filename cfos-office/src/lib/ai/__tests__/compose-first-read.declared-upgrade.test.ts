@@ -173,6 +173,9 @@ describe('buildFirstReadUserPrompt — declared_upgrade mode', () => {
         actualFreeCash: 960,
         fixedCostsDiff: 290,
         freeCashDiff: -290,
+        bands: [],
+        unverified: [],
+        undeclared: [],
         currency: 'EUR',
       },
     });
@@ -202,6 +205,9 @@ describe('buildFirstReadUserPrompt — declared_upgrade mode', () => {
         actualFreeCash: 1245,
         fixedCostsDiff: 5,
         freeCashDiff: -5,
+        bands: [],
+        unverified: [],
+        undeclared: [],
         currency: 'EUR',
       },
     });
@@ -219,10 +225,77 @@ describe('buildFirstReadUserPrompt — declared_upgrade mode', () => {
         actualFreeCash: 960,
         fixedCostsDiff: 290,
         freeCashDiff: -290,
+        bands: [],
+        unverified: [],
+        undeclared: [],
         currency: 'EUR',
       },
     });
     expect(prompt).not.toContain('found nothing to CONTRADICT the declared figure');
+  });
+
+  it('renders named per-band misses with both sides and the direction', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...baseInput,
+      declaredDelta: {
+        declaredFixedCosts: 1850,
+        declaredFreeCash: 1250,
+        actualFixedCosts: 2140,
+        actualFreeCash: 960,
+        fixedCostsDiff: 290,
+        freeCashDiff: -290,
+        bands: [
+          {
+            label: 'Gym',
+            declared: 90,
+            observed: 48,
+            diff: -42,
+            direction: 'overestimated' as const,
+          },
+          {
+            label: 'Broadband',
+            declared: 35,
+            observed: 61,
+            diff: 26,
+            direction: 'underestimated' as const,
+          },
+        ],
+        unverified: ['Council tax'],
+        undeclared: ['Spotify'],
+        currency: 'EUR',
+      },
+    });
+    expect(prompt).toContain('NAMED MISSES');
+    expect(prompt).toContain('Gym: they estimated ≈ €90/mo, the statements show €48/mo');
+    expect(prompt).toContain('they overestimated');
+    expect(prompt).toContain('Broadband: they estimated ≈ €35/mo, the statements show €61/mo');
+    expect(prompt).toContain('they underestimated');
+    // The unsettled bands are named as still-estimates, not confirmed.
+    expect(prompt).toContain('STILL ESTIMATES');
+    expect(prompt).toContain('Council tax');
+    expect(prompt).toContain('FOUND BUT NEVER DECLARED');
+    expect(prompt).toContain('Spotify');
+  });
+
+  it('omits every band section when the reconciliation found nothing to name', () => {
+    const prompt = buildFirstReadUserPrompt({
+      ...baseInput,
+      declaredDelta: {
+        declaredFixedCosts: 1850,
+        declaredFreeCash: 1250,
+        actualFixedCosts: 2140,
+        actualFreeCash: 960,
+        fixedCostsDiff: 290,
+        freeCashDiff: -290,
+        bands: [],
+        unverified: [],
+        undeclared: [],
+        currency: 'EUR',
+      },
+    });
+    expect(prompt).not.toContain('NAMED MISSES');
+    expect(prompt).not.toContain('STILL ESTIMATES');
+    expect(prompt).not.toContain('FOUND BUT NEVER DECLARED');
   });
 });
 

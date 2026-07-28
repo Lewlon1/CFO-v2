@@ -210,6 +210,11 @@ describe('buildDeclaredDelta', () => {
       actualFreeCash: 960,
       fixedCostsDiff: 290,
       freeCashDiff: -290,
+      // No reconciled items passed — the band reconciliation is empty, never
+      // undefined, so the prompt formatter can branch on length alone.
+      bands: [],
+      unverified: [],
+      undeclared: [],
       currency: 'EUR',
     })
   })
