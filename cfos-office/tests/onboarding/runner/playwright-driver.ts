@@ -201,12 +201,19 @@ async function runOnboarding(
   })
 
   // 3. Upload beat — UploadIntro renders first (now always); user either clicks
-  //    "Continue" to proceed to the file uploader, or "I don't have a statement
-  //    handy" to skip straight to the essentials beat.
+  //    "Upload my statements" to proceed to the file uploader, or "I don't have a
+  //    statement handy" to skip straight to the essentials beat.
   await driveStage(page, 'upload_done', persona, opts, result, async () => {
     if (persona.csv) {
-      // Upload path: click "Continue" on the intro, then upload the file.
-      const continueBtn = page.locator('button:has-text("Continue")')
+      // Upload path: click the primary CTA on the intro, then upload the file.
+      // NOTE: this locator was `has-text("Continue")` and had not matched since
+      // the intro's primary button was renamed to "Upload my statements" — which
+      // silently broke the upload path for all 10 CSV personas (every one failed
+      // at upload_done waiting 30s for a button that no longer existed). The
+      // skip-upload persona kept passing, so the suite never looked wholly dead.
+      // Match on the real label, and anchor it so a future rename fails loudly
+      // here rather than as a timeout.
+      const continueBtn = page.locator('button:has-text("Upload my statements")')
       await continueBtn.waitFor({ state: 'visible', timeout: 30_000 })
       await continueBtn.click()
       await page.waitForSelector('input[type="file"]', { timeout: 30_000, state: 'attached' })
