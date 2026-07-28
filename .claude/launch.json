@@ -7,6 +7,13 @@
       "runtimeArgs": ["-c", "cd /Users/lewislonsdale/Documents/CFO-V2/cfos-office && PATH=/usr/local/bin:/usr/bin:/bin exec node node_modules/.bin/next dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "cfos-office (prod server, for the onboarding harness)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd /Users/lewislonsdale/Documents/CFO-V2/cfos-office && PATH=/usr/local/bin:/usr/bin:/bin exec node node_modules/.bin/next start"],
+      "port": 3000,
+      "autoPort": false
     }
   ]
 }

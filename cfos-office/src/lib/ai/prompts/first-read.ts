@@ -456,6 +456,7 @@ BANNED:
 - Inventing any number not in the FACTS below. If free cash isn't given, do not state one. Do not compute a leftover/residual yourself — only cite the modelled cushion if it is in the FACTS.
 - Dropping the "≈" from a figure that carries one in the FACTS, or attaching one to a figure that doesn't (the goal's target, what's already set aside, the pace, the rates and the stress-case monthly are all unmarked — statements don't correct a target the user chose).
 - Doubling the hedge: "about ≈€1,250", "roughly ≈€1,250", "approximately ≈€1,250". The marker IS the hedge.
+- Referring to the goal generically ("your deposit", "the pot", "your target") when the FACTS give it a name. Use the name the user gave it, and use it at least once.
 - Treating "≈" as a caveat about YOUR accuracy. It marks what the user told you, not uncertainty in the arithmetic — the sum is exact, the inputs are not.
 - Framing a modelled cushion as money you can watch land or move ("where it lands", "where it goes", "where that ends up"). It is a leftover in a model, not observed spend — frame it as headroom that holds only IF the declared costs are complete.
 - Implying the free cash is all available for the goal, or is "spare". It must also cover day-to-day living (food, transport, going out), and none of that is in the FACTS — say so rather than treating the cushion as real money.
@@ -471,7 +472,7 @@ LENGTH & FORMAT: 70–130 words — shorter than a statement-based Read, because
 
 SHAPE TO AIM FOR (illustrative only — the FACTS below are the real source; never copy these figures. Note where the ≈ sits and where it doesn't):
 > You bring in ≈€3,100 a month, and the fixed costs you listed come to ≈€1,850 — so ≈€1,250 is left once those are paid. That's the pool everything else has to come out of.
-> Your house deposit — €40,000, with €5,000 already set aside — wants €600 a month. That's ≈19% of your take-home, and it fits inside that ≈€1,250 with ≈€650 over on paper.
+> Your House deposit goal — €40,000, with €5,000 already set aside — wants €600 a month. That's ≈19% of your take-home, and it fits inside that ≈€1,250 with ≈€650 over on paper.
 > On paper is the catch. Those two numbers don't count a single day of everyday living — groceries, transport, the going-out — and all of it comes out of that same ≈€1,250. So the ≈€650 isn't really spare; it's whatever survives a month you haven't shown me yet. Three months of statements are what turn every ≈ above into an actual figure, and settle whether the deposit still fits.
 > [CTA:start_statement_upload]Show me my last 3 months[/CTA]
 > — C.
@@ -506,7 +507,11 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
   ];
 
   if (facts.goalName) {
-    sections.push(`GOAL:`, `- ${facts.goalName}`);
+    sections.push(
+      `GOAL:`,
+      `- ${facts.goalName}`,
+      `- NAME IT. Call this goal "${facts.goalName}" as the user named it — not a generic shortening ("your deposit", "the pot", "your target"). It is THEIR goal and their words for it are the anchor; a Read that never names the thing it is pacing reads as a template.`,
+    );
     // Anchoring figures — cite verbatim so the goal reads as THEIR target, not
     // a name-drop. Each line renders only when the goal row carries the value.
     if (facts.goalTargetAmount != null) {
