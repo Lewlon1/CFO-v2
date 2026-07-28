@@ -4386,16 +4386,27 @@ bundle, so a prompt change needs a rebuild before the harness can observe it.
   free cash and the modelled cushion; correctly absent from the goal target, the
   amount already saved and the pace. The close used the device as intended
   ("statements replace every ≈ with a real figure").
-- **R9_goal_reference FAILS on `skip-upload-declared`** — the Read said "Your deposit",
-  never the goal's name nor the word "goal", so all three of R9's escape hatches
-  missed. The shipped fixture says "Your House deposit goal", so this is a change on
-  this branch; most likely the longer declared prompt diluting adherence. Prompt
-  fixed (name it as the user named it); **re-verification still outstanding.**
+- **R9_goal_reference failed on `skip-upload-declared`, now FIXED and re-verified.**
+  The Read said "Your deposit", never the goal's name nor the word "goal", so all
+  three of R9's escape hatches missed (note `£40,000` is comma-formatted, so R9's
+  raw `String(targetAmount)` check can never match a formatted figure). The shipped
+  fixture says "Your House deposit goal", so this was a change on this branch — the
+  longer declared prompt diluting adherence. Fixed by instructing the prompt to name
+  the goal as the user named it. Re-verified live after a rebuild: **LLM layer PASS,
+  Likert 5.0 across all five dimensions**, and the `≈` markers all landed correctly
+  (income / fixed costs / free cash / cushion / %-of-take-home marked; target, amount
+  saved and pace correctly unmarked).
+  **Gotcha that cost a cycle:** `next start` serves the built bundle — the first
+  re-probe "failed" only because the prompt fix had not been rebuilt yet.
 - **Progress-meter assertion fails: expected 60%, got 40%** at the confirm beat on the
-  skip-upload path. Untriaged — suspect the Stack A "flow-tuned progress model
-  (upload unlocks past 60%)" against the skip path.
+  skip-upload path. Reproduces on every run including the green one above — it is the
+  ONLY remaining failure for `skip-upload-declared`. Untriaged; suspect the Stack A
+  "flow-tuned progress model (upload unlocks past 60%)" meeting the skip path, where
+  the upload beat never happens. **This is the next thing to look at.**
 - **9 of 11 personas fail at `upload_done`** waiting on the upload beat's Continue
-  button. Untriaged.
+  button. Untriaged — could be the same progress/flow interaction, or harness-side.
+  **No clean 10-persona baseline exists for this branch yet**; the numbers above are a
+  single-persona probe, not a suite result comparable to the 2026-06-12/13 baselines.
 
 ### State at handover
 `typecheck` ✓ · `vitest` **1567 passing (134 files)** ✓ · `next build` ✓. Branch is
