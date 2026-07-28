@@ -4403,10 +4403,42 @@ bundle, so a prompt change needs a rebuild before the harness can observe it.
   ONLY remaining failure for `skip-upload-declared`. Untriaged; suspect the Stack A
   "flow-tuned progress model (upload unlocks past 60%)" meeting the skip path, where
   the upload beat never happens. **This is the next thing to look at.**
-- **9 of 11 personas fail at `upload_done`** waiting on the upload beat's Continue
-  button. Untriaged — could be the same progress/flow interaction, or harness-side.
-  **No clean 10-persona baseline exists for this branch yet**; the numbers above are a
-  single-persona probe, not a suite result comparable to the 2026-06-12/13 baselines.
+- **9 of 11 personas failed at `upload_done`** — FIXED. The driver clicked
+  `button:has-text("Continue")`; the intro's primary button is "Upload my statements"
+  and has been on v2.9 for some time. The locator never matched, so the ENTIRE upload
+  path of the persona suite was dead on v2.9 and Stack A too. The skip-upload persona
+  kept passing (its locator is correct), so the suite still produced output and never
+  looked wholly broken — which is why nobody noticed.
+
+### The baseline, finally (run `synthesis-baseline-2`)
+**Functional 11/11 PASS · Visual 11/11 PASS · LLM 2/11.**
+
+| Dimension | main 2026-06-12 | OB 2026-06-13 | **this branch** |
+|---|---|---|---|
+| warmth | 4.8 | 5.0 | 4.9 |
+| accuracy | 5.0 | 4.85 | 5.0 |
+| on_brand | 4.2 | 4.95 | 4.8 |
+| persona_fit | 4.3 | 4.9 | 4.9 |
+| actionability | 4.4 | 4.85 | 4.9 |
+
+Decisively beats main (on_brand +0.6, persona_fit +0.6, actionability +0.5) and lands
+level with the estimates-first branch — **on 6 steps rather than 8**, which was the
+whole point of the synthesis. Caveat on comparability: main's baseline measured the
+upload-first Read, OB's measured its own estimate Read, this one is 10 upload personas
+plus 1 declared. Same personas, same judge, so it is the closest to like-for-like
+available, but it is not a controlled A/B.
+
+### The one real defect the baseline exposes — PRE-EXISTING, not from this branch
+**`H2_within_word_cap` fails on 9 of 11**: the standard (upload-path) first Read is
+running **283–335 words against a 250 hard cap**, and its own prompt targets 120–220.
+So it is 30–50% over its stated target on nearly every persona.
+
+This is NOT from the Read work on this branch — every prompt edit here is inside the
+DECLARED / DECLARED_UPGRADE constants, which the CSV personas never reach (the two
+personas that PASS are exactly the two on declared paths). It has simply been
+invisible: the harness's upload path has been broken for weeks, so no one has seen a
+statement-based Read scored since 2026-06-12. **Next task: bring the standard Read
+back inside its cap** — that is a live quality problem on the flow most users take.
 
 ### State at handover
 `typecheck` ✓ · `vitest` **1567 passing (134 files)** ✓ · `next build` ✓. Branch is
@@ -4422,3 +4454,16 @@ no DB change is needed to test it.
 **Also stale:** `tests/onboarding/fixtures/reads/skip-upload-declared.captured.txt`
 predates the `≈` device. It is a judge INPUT, not an expected output, so the suite
 stays green — but it wants a live re-capture.
+
+### Harness cleanup now leaks staging users (test-infra only)
+Once personas actually upload, `deleteUser` fails with "Database error deleting user".
+Cause: `messages`, `message_feedback` and `llm_usage_log` hold `NO ACTION` FKs to
+`user_profiles`, so removing the auth user is blocked once the user has a Read or any
+LLM usage. Pre-existing FKs, but Stack A's product-wide usage accounting means far more
+users now have blocking rows.
+
+**The app's GDPR deletion is NOT affected** — verified: `delete_user_account` clears all
+three tables explicitly before deleting. The harness's `user-factory` bypasses that RPC
+and calls the Supabase admin API directly, which is what trips the FKs. Fix is to route
+the factory through `delete_user_account`; not done. Until then the suite leaks ~10 users
+per full run.
