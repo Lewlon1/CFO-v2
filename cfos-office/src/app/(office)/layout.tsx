@@ -6,7 +6,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { recomputeIfStale } from '@/lib/goals/recompute'
 import { isInSheetBeatStep } from '@/lib/onboarding-v2/in-sheet-steps'
 import type { OnboardingGoalSummary } from '@/lib/onboarding-v2/types'
-import { onboardingProgress, type OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
+import { onboardingProgress, fixedCostsKnownAtStep, type OnboardingProgressResult } from '@/lib/onboarding-v2/onboarding-progress'
 import {
   parseDeclaredReadPending,
   DECLARED_READ_PENDING_KEY,
@@ -200,7 +200,12 @@ export default async function OfficeLayout({ children }: { children: React.React
     onboardingProgressResult = onboardingProgress({
       hasGoal: (goalCount ?? 0) > 0,
       hasIncome: profile?.net_monthly_income != null,
-      hasFixedCosts: onboardingStep === 'details_confirmed',
+      // Lights once the essentials are SAVED and the reconciliation is on screen,
+      // not only after the user confirms it — at the confirm beat they have already
+      // supplied income and fixed costs, so 40% understates what C. holds, at the
+      // exact moment the meter is meant to make the upload feel worth it.
+      // Step mapping lives in fixedCostsKnownAtStep so it is unit-tested.
+      hasFixedCosts: fixedCostsKnownAtStep(onboardingStep),
       hasUpload: hasImport,
     })
   }
