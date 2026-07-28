@@ -9,15 +9,41 @@ type Props = {
   errors: number
   importBatchId: string
   onDone: () => void
+  /** True when the user's first Read still stands on declared numbers (no
+   *  upgrade Read yet) — the insights CTA then runs the declared→actual
+   *  upgrade instead of a plain post-upload compose. */
+  declaredPending?: boolean
 }
 
-export function ImportResult({ imported, duplicates, errors, importBatchId, onDone }: Props) {
+export function ImportResult({ imported, duplicates, errors, importBatchId, onDone, declaredPending }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+
+  // Open a conversation in the chat sheet. `/chat/:id` is a dead route —
+  // next.config permanently redirects it to /office and DROPS the id — so the
+  // ?chat=open mechanism (read by ChatOpenerTrigger in the office layout,
+  // which this page shares) is the working path into the sheet.
+  function openConversation(conversationId: string) {
+    router.push(`/office?chat=open&conversationId=${conversationId}`)
+  }
 
   async function handleInsightCTA() {
     setLoading(true)
     try {
+      if (declaredPending) {
+        // Declared-pending: this import is the moment the declared→actual
+        // upgrade was built for. The route is idempotent and server-derived
+        // (no body); any response carrying a conversationId — the upgraded
+        // Read, or a benign decline that still points at the declared
+        // conversation — lands the user in the right chat.
+        const res = await fetch('/api/insights/upgrade-declared-read', { method: 'POST' })
+        const data = await res.json().catch(() => null)
+        if (data?.conversationId) {
+          openConversation(data.conversationId as string)
+          return
+        }
+        // No conversation to open (unexpected) — fall through to post-upload.
+      }
       const res = await fetch('/api/insights/post-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -25,8 +51,10 @@ export function ImportResult({ imported, duplicates, errors, importBatchId, onDo
       })
       const data = await res.json()
       if (data.conversationId) {
-        router.push(`/chat/${data.conversationId}`)
+        openConversation(data.conversationId)
+        return
       }
+      setLoading(false)
     } catch {
       setLoading(false)
     }
@@ -51,7 +79,11 @@ export function ImportResult({ imported, duplicates, errors, importBatchId, onDo
           disabled={loading}
           className="w-full rounded-lg bg-primary text-primary-foreground px-6 py-3 text-sm font-medium min-h-[44px] disabled:opacity-60"
         >
-          {loading ? 'Preparing your insight…' : 'See what your CFO noticed →'}
+          {loading
+            ? 'Preparing your insight…'
+            : declaredPending
+              ? 'Your statements landed — see what they change'
+              : 'See what your CFO noticed →'}
         </button>
         <button
           onClick={onDone}

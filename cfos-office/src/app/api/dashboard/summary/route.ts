@@ -5,6 +5,7 @@ import {
   INCOME_CATEGORY_ID,
   UNCATEGORISED_CATEGORY_ID,
 } from '@/lib/analytics/categories'
+import { normaliseMerchant } from '@/lib/categorisation/normalise-merchant'
 
 type FrequencyResult = { frequency: string; estimated: boolean; monthly_equivalent: number }
 
@@ -215,23 +216,59 @@ export async function GET(req: NextRequest) {
       .eq('user_id', user.id)
       .lt('amount', 0)
 
-    const descMap = new Map<string, { amounts: number[]; dates: string[]; months: Set<string>; category_id: string | null }>()
+    // Group by NORMALISED merchant key, not the raw description — this ad-hoc
+    // detector used to group (and later upsert into recurring_expenses) by the
+    // raw, case-sensitive description. Every bank statement that spelled a
+    // merchant differently across import batches ("claude.ai" vs "Claude.ai",
+    // "vercel" vs "Vercel") produced a SEPARATE group here, and a separate row
+    // in recurring_expenses under the case-sensitive (user_id, name) unique
+    // constraint — phantom-inflating fixed costs (Issue 4 of the remediation
+    // plan). normaliseMerchant is the SAME normaliser the main recurring
+    // detector (recurring-detector.ts) uses, so both writers converge on one
+    // row per merchant instead of racing to create case-variant duplicates.
+    const descMap = new Map<
+      string,
+      {
+        amounts: number[]
+        dates: string[]
+        months: Set<string>
+        category_id: string | null
+        /** Most recent occurrence's raw description — kept for display only. */
+        latestDescription: string
+        latestDate: string
+      }
+    >()
     for (const r of recRows ?? []) {
       // Exclude neutral movements (transfers, debt repayments, savings) so things
       // like "Credit card repayment" never surface as recurring spend.
       if (isNeutralCategory(r.category_id) || r.category_id === INCOME_CATEGORY_ID) continue
-      const key = r.description
-      if (!descMap.has(key)) descMap.set(key, { amounts: [], dates: [], months: new Set(), category_id: r.category_id })
-      const entry = descMap.get(key)!
+      const key = normaliseMerchant(r.description)
+      if (!key) continue
+      let entry = descMap.get(key)
+      if (!entry) {
+        entry = {
+          amounts: [],
+          dates: [],
+          months: new Set(),
+          category_id: r.category_id,
+          latestDescription: r.description,
+          latestDate: r.date,
+        }
+        descMap.set(key, entry)
+      }
       entry.amounts.push(Math.abs(r.amount))
       entry.dates.push(r.date)
       entry.months.add(r.date.slice(0, 7))
+      if (r.date >= entry.latestDate) {
+        entry.latestDescription = r.description
+        entry.latestDate = r.date
+      }
     }
 
     const EXCLUDED_RECURRING_CATEGORIES = new Set(['groceries', 'eat_drinking_out'])
 
-    const items: RecurringItem[] = []
-    for (const [desc, data] of descMap) {
+    const items: Array<RecurringItem & { normalised_name: string }> = []
+    for (const [normalisedName, data] of descMap) {
       if (data.months.size < 2) continue
       if (data.category_id && EXCLUDED_RECURRING_CATEGORIES.has(data.category_id)) continue
       const avg = data.amounts.reduce((s, a) => s + a, 0) / data.amounts.length
@@ -253,7 +290,8 @@ export async function GET(req: NextRequest) {
       )
 
       items.push({
-        description: desc,
+        description: data.latestDescription,
+        normalised_name: normalisedName,
         avg_amount: avgRounded,
         month_count: data.months.size,
         last_charged: sorted[sorted.length - 1],
@@ -269,15 +307,18 @@ export async function GET(req: NextRequest) {
 
     items.sort((a, b) => b.avg_amount - a.avg_amount)
     recurring = {
-      items: items.slice(0, 15),
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      items: items.slice(0, 15).map(({ normalised_name: _normalisedName, ...item }) => item),
       monthly_total: Math.round(items.reduce((s, i) => s + i.monthly_equivalent, 0) * 100) / 100,
     }
 
-    // Persist inferred frequency — best effort, don't block response
+    // Persist inferred frequency — best effort, don't block response. Upserts
+    // on the NORMALISED name so this writer converges with the main detector
+    // instead of racing it into case-variant duplicate rows.
     supabase.from('recurring_expenses').upsert(
       items.map(item => ({
         user_id: user.id,
-        name: item.description,
+        name: item.normalised_name,
         amount: item.avg_amount,
         frequency: item.frequency,
         category_id: item.category_id ?? null,

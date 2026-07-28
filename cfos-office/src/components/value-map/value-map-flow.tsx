@@ -348,6 +348,37 @@ export function ValueMapFlow({
   }, [])
 
   const handleContinue = useCallback(async () => {
+    // Real-transaction classifications (value-first onboarding) go through the
+    // server so they get the SAME learning persistence as the personal retake
+    // path: weighted correction_signals, a synchronous merchant rule (Layer 2
+    // by_merchant — the recompose reads this), a hard transaction confirm, and
+    // async processSignals + backfill. One source of truth for "the user
+    // classified these real transactions". The client keeps only the onboarding
+    // bookkeeping (session + value_map_results below). Awaited so the rule +
+    // confirm have landed before onComplete fires the recompose.
+    if (isRealData && results.length > 0) {
+      const realClassified = results.filter((r) => r.quadrant !== null)
+      if (realClassified.length > 0) {
+        try {
+          await fetch('/api/value-map/classify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              results: realClassified.map((r) => ({
+                transaction_id: r.transaction_id,
+                quadrant: r.quadrant,
+                confidence: r.confidence,
+              })),
+            }),
+          })
+        } catch (err) {
+          console.error('[value-map] classify POST failed:', err)
+          // Non-fatal — session + value_map_results still persist below; a
+          // later check-in / retake can recover the learning pass.
+        }
+      }
+    }
+
     if (results.length > 0) {
       try {
         const supabase = createClient()
@@ -458,15 +489,20 @@ export function ValueMapFlow({
           }
         }
 
-        // Update metadata on existing DB transactions (skip hard-to-decide)
-        const existingUpdates = results.filter(
-          (r) => r.quadrant !== null && !r.transaction_id.startsWith('csv-') && !r.transaction_id.startsWith('ocr-') && !r.transaction_id.startsWith('sample-'),
-        )
-        for (const update of existingUpdates) {
-          await supabase
-            .from('transactions')
-            .update({ metadata: { value_quadrant: update.quadrant } })
-            .eq('id', update.transaction_id)
+        // Update metadata on existing DB transactions (skip hard-to-decide).
+        // Real-data classifications are confirmed server-side (/classify sets
+        // value_category + value_confirmed_by_user, the load-bearing fields);
+        // this write-only metadata flag is the legacy sample/CSV path only.
+        if (!isRealData) {
+          const existingUpdates = results.filter(
+            (r) => r.quadrant !== null && !r.transaction_id.startsWith('csv-') && !r.transaction_id.startsWith('ocr-') && !r.transaction_id.startsWith('sample-'),
+          )
+          for (const update of existingUpdates) {
+            await supabase
+              .from('transactions')
+              .update({ metadata: { value_quadrant: update.quadrant } })
+              .eq('id', update.transaction_id)
+          }
         }
       } catch (err) {
         console.error('Failed to persist value map results:', err)
@@ -537,30 +573,33 @@ export function ValueMapFlow({
 
         // Seed value_category_rules from the quadrant assignments.
         //
-        // This component handles three modes:
-        //   - onboarding: SAMPLE_TRANSACTIONS cards (sample labels, not real
-        //     merchants). Only category-precise cards (granularity: 'category')
-        //     seed rules — and as match_type: 'category' against the DB slug.
-        //     Intent cards (e.g. takeaway / dinner-friends inside
-        //     eat_drinking_out) don't seed; their quadrant doesn't generalise.
-        //   - personal / checkin: REAL transactions the user classifies. Those
-        //     produce legitimate merchant rules and use source='value_map_personal'
-        //     so future sample-card cleanups don't sweep them up.
+        // SAMPLE-card onboarding only. Real-transaction classifications
+        // (value-first onboarding, isRealData) are persisted server-side by
+        // /api/value-map/classify — which writes the merchant rule with the
+        // canonical normalised key, plus correction_signals + confirm +
+        // learning. Doing it here too would mint a duplicate rule under a
+        // different match_value (r.merchant.toLowerCase() vs normaliseMerchant)
+        // and re-introduce the drift this consolidation removes.
         //
-        // Rows with quadrant === null (UI represents "Unsure" as null) don't seed.
-        // The onConflict matches the canonical 4-col unique index
-        // (vcr_unique_match). The prior 3-col form was redundant and dropped
-        // in migration 050.
+        // Sample cards carry sample labels, not real merchants. Only
+        // category-precise cards (granularity: 'category') seed — as
+        // match_type: 'category' against the DB slug. Intent cards (e.g.
+        // takeaway / dinner-friends inside eat_drinking_out) don't seed; their
+        // quadrant doesn't generalise. Rows with quadrant === null ("Unsure")
+        // don't seed. onConflict matches the canonical 4-col unique index
+        // (vcr_unique_match).
         const cardLookup = new Map(SAMPLE_TRANSACTIONS.map((c) => [c.id, c]))
 
-        const decidedForRules = results.filter(
-          (r): r is ValueMapResult & { quadrant: NonNullable<ValueMapResult['quadrant']> } =>
-            r.quadrant !== null,
-        )
+        const decidedForRules = isRealData
+          ? []
+          : results.filter(
+              (r): r is ValueMapResult & { quadrant: NonNullable<ValueMapResult['quadrant']> } =>
+                r.quadrant !== null,
+            )
 
         type VcrInsert = {
           user_id: string
-          match_type: 'category' | 'merchant'
+          match_type: 'category'
           match_value: string
           value_category: NonNullable<ValueMapResult['quadrant']>
           confidence: number
@@ -574,8 +613,7 @@ export function ValueMapFlow({
             const card = cardLookup.get(r.transaction_id)
 
             // Sample card path (onboarding): only category-precise cards seed.
-            if (card) {
-              if (card.granularity !== 'category') return []
+            if (card && card.granularity === 'category') {
               return [{
                 user_id: currentUser.id,
                 match_type: 'category',
@@ -588,18 +626,8 @@ export function ValueMapFlow({
               }]
             }
 
-            // Real-transaction path (personal / checkin): merchant rules are
-            // correct here because the merchant string IS a real merchant.
-            return [{
-              user_id: currentUser.id,
-              match_type: 'merchant',
-              match_value: r.merchant.toLowerCase(),
-              value_category: r.quadrant,
-              confidence: r.confidence / 5,
-              source: 'value_map_personal',
-              last_signal_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }]
+            // Non-category sample cards and any stray real cards don't seed here.
+            return []
           })
 
           if (rules.length > 0) {

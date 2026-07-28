@@ -22,11 +22,22 @@ import { generateText } from 'ai'
 import { z } from 'zod'
 import { utilityModel, utilityModelId } from '@/lib/ai/provider'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import type { ParsedTransaction } from '@/lib/parsers/types'
 
 export const runtime = 'nodejs'
-export const maxDuration = 90
+// Raised from 90 → 300 (Vercel ceiling) as a safety net: the per-page vision
+// loop below is now parallelised with bounded concurrency, but a large
+// statement under Bedrock back-pressure can still run long. 300s prevents a
+// silent platform-level timeout from killing an in-flight extraction.
+export const maxDuration = 300
+
+// Bounded concurrency for the per-page vision calls. ~4-5 keeps us under
+// Bedrock per-account rate limits while collapsing a 5-10 page statement from
+// 30-80s sequential to roughly ceil(pages/PAGE_CONCURRENCY) × per-page latency.
+const PAGE_CONCURRENCY = 5
 
 const RequestSchema = z.object({
   // Each image is a data URL — "data:image/png;base64,..."
@@ -99,6 +110,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
+  // LLM cost guard — each request can fan out to 20 Haiku-vision calls, so
+  // this route gets its own (tight) burst + daily caps.
+  const guardVerdict = await checkLlmAllowed({ userId: user.id, surface: 'pdf_vision', supabase })
+  if (!guardVerdict.allowed) {
+    console.warn(`[extract-pdf] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
+  }
+
   let body: z.infer<typeof RequestSchema>
   try {
     body = RequestSchema.parse(await req.json())
@@ -109,6 +128,7 @@ export async function POST(req: NextRequest) {
 
   const fallbackCurrency = (body.currencyDefault ?? 'GBP').toUpperCase()
   const transactionsByKey = new Map<string, ParsedTransaction>()
+  const pageCount = body.images.length
 
   // Account-level metadata, reduced across pages. First non-null wins
   // for each field — cover page populates period + opening; last page
@@ -119,67 +139,29 @@ export async function POST(req: NextRequest) {
   let statementPeriodEnd: string | null = null
   let accountCurrency: string | null = null
 
-  // PERF TODO: this loop is sequential — each page waits for Haiku vision
-  // (~6–15s) before starting the next. A typical 5–10 page statement therefore
-  // takes 30–80s wall time. Pages have no inter-dependency for extraction, so
-  // the fix is to run them in parallel with `Promise.all` (or `p-limit` capped
-  // to ~5 concurrent calls). When parallelising, preserve page-order semantics
-  // for the metadata reduction below: `openingBalance`/`statementPeriodStart`
-  // take the first non-null, `closingBalance`/`statementPeriodEnd` take the
-  // last non-null, `accountCurrency` is first non-null. Map results back in
-  // page order before reducing.
-  for (let i = 0; i < body.images.length; i++) {
-    const dataUrl = body.images[i]
-    const base64 = extractBase64(dataUrl)
-    if (!base64) continue
+  // The per-page vision loop is now PARALLEL with bounded concurrency
+  // (PAGE_CONCURRENCY). Pages have no inter-dependency for extraction, so they
+  // run concurrently — but the metadata reduction below depends on PAGE ORDER.
+  // `runPage` returns a per-page result (parsed payload, or null on failure);
+  // `runWithConcurrency` preserves index order in its returned array, so we
+  // reduce metadata over pages in order: `openingBalance`/`statementPeriodStart`
+  // take the FIRST non-null, `closingBalance`/`statementPeriodEnd` take the
+  // LAST non-null, `accountCurrency` is FIRST non-null. Transaction
+  // concatenation also walks pages in order.
+  const pageResults = await runWithConcurrency(
+    body.images.map((dataUrl, i) => () => runPage(dataUrl, i, pageCount, user.id)),
+    PAGE_CONCURRENCY,
+  )
 
-    const started = Date.now()
-    let inputTokens: number | undefined
-    let outputTokens: number | undefined
-    let text: string
-    try {
-      const result = await generateText({
-        model: utilityModel,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image', image: base64, mediaType: 'image/png' },
-              { type: 'text', text: EXTRACTION_PROMPT },
-            ],
-          },
-        ],
-        maxOutputTokens: 4000,
-      })
-      text = result.text
-      inputTokens = result.usage?.inputTokens
-      outputTokens = result.usage?.outputTokens
-    } catch (err) {
-      console.error('[extract-pdf-transactions] Haiku vision failed:', err)
-      continue
-    } finally {
-      void trackLLMUsage({
-        userId: user.id,
-        callType: 'pdf_vision_extraction',
-        model: utilityModelId,
-        inputTokens,
-        outputTokens,
-        durationMs: Date.now() - started,
-        metadata: { pageIndex: i, pageCount: body.images.length },
-      })
-    }
+  // Pages that threw or failed schema parse. Surfaced in the response so the
+  // caller can distinguish a partial extraction from a clean one.
+  const failedPages: number[] = []
 
-    const cleaned = text
-      .trim()
-      .replace(/^```json\n?/i, '')
-      .replace(/^```\n?/i, '')
-      .replace(/\n?```$/i, '')
-      .trim()
-
-    let parsed: z.infer<typeof PageSchema>
-    try {
-      parsed = PageSchema.parse(JSON.parse(cleaned))
-    } catch {
+  // Reduce in page order (pageResults is index-aligned with body.images).
+  for (let i = 0; i < pageResults.length; i++) {
+    const parsed = pageResults[i]
+    if (parsed === null) {
+      failedPages.push(i)
       continue
     }
 
@@ -243,6 +225,35 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Overall extraction status:
+  //   'failed'  — every page failed (no usable extraction at all)
+  //   'partial' — some pages succeeded, some failed
+  //   'ok'      — every page parsed
+  const pagesSucceeded = pageCount - failedPages.length
+  const status: 'ok' | 'partial' | 'failed' =
+    pagesSucceeded === 0 ? 'failed' : failedPages.length > 0 ? 'partial' : 'ok'
+
+  // Lightweight import-attempts log. Non-fatal: a logging failure must never
+  // block an upload, so the whole insert is wrapped and swallowed.
+  try {
+    const svc = createServiceClient()
+    // TODO: typed once migration applied to staging. The generated Supabase
+    // types don't yet include `import_attempts` (regenerated from staging by
+    // the lead separately), so the table access is cast to avoid a hard TS
+    // failure on an as-yet-unknown table name.
+    await (svc.from('import_attempts') as any).insert({
+      user_id: user.id,
+      source: 'pdf_vision',
+      page_count: pageCount,
+      pages_succeeded: pagesSucceeded,
+      pages_failed: failedPages,
+      status,
+      error: failedPages.length > 0 ? `${failedPages.length} of ${pageCount} pages failed` : null,
+    })
+  } catch (err) {
+    console.error('[extract-pdf-transactions] import_attempts log failed (non-fatal):', err)
+  }
+
   return NextResponse.json({
     transactions,
     metadata: {
@@ -253,7 +264,97 @@ export async function POST(req: NextRequest) {
       accountCurrency,
     },
     warnings,
+    failedPages,
+    status,
   })
+}
+
+// Run one page through Haiku vision. Returns the parsed page payload, or null
+// if the call threw or the response failed schema validation. Always emits the
+// per-page trackLLMUsage record (in `finally`), exactly as the sequential loop
+// did. Kept pure of shared state so it is safe to run concurrently.
+async function runPage(
+  dataUrl: string,
+  pageIndex: number,
+  pageCount: number,
+  userId: string,
+): Promise<z.infer<typeof PageSchema> | null> {
+  const base64 = extractBase64(dataUrl)
+  if (!base64) return null
+
+  const started = Date.now()
+  let inputTokens: number | undefined
+  let outputTokens: number | undefined
+  let text: string
+  try {
+    const result = await generateText({
+      model: utilityModel,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', image: base64, mediaType: 'image/png' },
+            { type: 'text', text: EXTRACTION_PROMPT },
+          ],
+        },
+      ],
+      maxOutputTokens: 4000,
+      // A hung vision call must die here rather than eat the whole route's
+      // maxDuration while sibling pages queue behind it in the pool.
+      abortSignal: AbortSignal.timeout(25_000),
+    })
+    text = result.text
+    inputTokens = result.usage?.inputTokens
+    outputTokens = result.usage?.outputTokens
+  } catch (err) {
+    console.error('[extract-pdf-transactions] Haiku vision failed:', err)
+    return null
+  } finally {
+    void trackLLMUsage({
+      userId,
+      callType: 'pdf_vision_extraction',
+      model: utilityModelId,
+      inputTokens,
+      outputTokens,
+      durationMs: Date.now() - started,
+      metadata: { pageIndex, pageCount },
+    })
+  }
+
+  const cleaned = text
+    .trim()
+    .replace(/^```json\n?/i, '')
+    .replace(/^```\n?/i, '')
+    .replace(/\n?```$/i, '')
+    .trim()
+
+  try {
+    return PageSchema.parse(JSON.parse(cleaned))
+  } catch {
+    return null
+  }
+}
+
+// Bounded-concurrency pool. Runs at most `limit` tasks at once and returns
+// results in the SAME ORDER as the input tasks (index-aligned) — the metadata
+// reduction depends on this. No new dependency (p-limit is not installed); this
+// is a small inline pool of `limit` workers pulling from a shared cursor.
+async function runWithConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  limit: number,
+): Promise<T[]> {
+  const results = new Array<T>(tasks.length)
+  let next = 0
+  const worker = async () => {
+    while (true) {
+      const i = next++
+      if (i >= tasks.length) return
+      results[i] = await tasks[i]()
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker())
+  await Promise.all(workers)
+  return results
 }
 
 function extractBase64(dataUrl: string): string | null {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Any Bedrock calls for categorisation use the EU inference profile.
 import { createClient } from '@/lib/supabase/server'
@@ -53,6 +54,18 @@ export async function POST(req: NextRequest) {
 
     // Confirm import
     if (body.action === 'import') {
+      // LLM cost guard — the import pipeline runs Haiku categorisation over
+      // unmatched transactions; bound how often one user can trigger it.
+      const guardVerdict = await checkLlmAllowed({
+        userId: user.id,
+        surface: 'upload_categorisation',
+        supabase,
+      })
+      if (!guardVerdict.allowed) {
+        console.warn(`[upload] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+        return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
+      }
+
       const importBatchId: string = body.importBatchId ?? randomUUID()
       // Map user-reviewed preview data to ImportableTransaction format
       const importTxns: ImportableTransaction[] = (body.transactions as Array<ParsedTransaction & { categoryId?: string | null; valueCategory?: string }>).map((t) => ({
@@ -66,6 +79,27 @@ export async function POST(req: NextRequest) {
           importBatchId,
           skipDuplicates: false, // user already reviewed and selected
         })
+
+        // One row per import attempt — before this, only the PDF vision route
+        // wrote to import_attempts, so a CSV/XLSX batch that failed or silently
+        // dropped files left no durable trace at all (the exact gap that let
+        // files 2-3 of a multi-file upload disappear with zero error, zero
+        // event, zero record — Issue 2). Non-fatal: never blocks the response.
+        try {
+          const svc = createServiceClient()
+          // Generated types don't yet include `import_attempts` (regenerated from
+          // staging by supabase gen types after 078 lands) — same `as any` cast
+          // the PDF vision route already uses for this table.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (svc.from('import_attempts') as any).insert({
+            user_id: user.id,
+            source: 'statement_import',
+            status: stats.imported > 0 ? 'success' : stats.errors > 0 ? 'failed' : 'no_new_transactions',
+            error: stats.errors > 0 ? `${stats.errors} row(s) failed to import` : null,
+          })
+        } catch (err) {
+          console.error('[upload] import_attempts log failed (non-fatal):', err)
+        }
 
         await trackFunnelEvent(supabase, {
           profileId: user.id,

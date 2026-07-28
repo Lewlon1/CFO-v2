@@ -1,8 +1,9 @@
 import { generateText } from 'ai'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { bedrock } from '@/lib/ai/provider'
+import { bedrock, chatModelId } from '@/lib/ai/provider'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import {
   buildArchetypePrompt,
   getFallbackArchetype,
@@ -11,7 +12,7 @@ import {
 import { markOnboardingCompleteIfReady } from '@/lib/onboarding/markComplete'
 import type { ValueMapResult } from '@/lib/value-map/types'
 
-const BEDROCK_MODEL = process.env.BEDROCK_CLAUDE_MODEL ?? 'eu.anthropic.claude-sonnet-4-6'
+const BEDROCK_MODEL = chatModelId
 const TIMEOUT_MS = 15_000
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -89,6 +90,13 @@ export async function POST(req: Request) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap.
+  const guardVerdict = await checkLlmAllowed({ userId: user.id, surface: 'archetype', supabase })
+  if (!guardVerdict.allowed) {
+    console.warn(`[generate-archetype] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   const body = await req.json()

@@ -9,6 +9,82 @@ lessons live in `docs/audits/2026-04-29-lessons-learned.md`.
 
 ---
 
+## 2026-06-16 — Real-transaction Value Map: one persistence path
+
+**Branch:** `claude/peaceful-goodall-l912it`.
+
+The real-transactions Value Map could complete via two code paths that
+persisted inconsistently, so classifications drifted depending on which surface
+the user came through:
+
+1. **Server retake** (`/api/value-map/personal` POST) — value_map_results +
+   weighted `correction_signals` (2x) + the learning pipeline (`processSignals`
+   → flat/time/amount rules + category/global priors, then `backfillForMerchant`
+   to reclassify the merchant's OTHER transactions) + a hard transaction confirm.
+
+2. **Client onboarding flow** (value-first, `value-map-flow.tsx` `handleContinue`,
+   `isRealData`) — value_map_results + a naive `value_category_rules` merchant
+   upsert (source=`value_map_personal`, match_value=`r.merchant.toLowerCase()`)
+   straight from the browser client. **No `correction_signals`, no
+   `processSignals`/`backfillForMerchant`, no proper confirm** — only a
+   write-only `metadata.value_quadrant` flag on the carded txn. So the learning
+   engine never ran for value-first onboarding: no agreement-ratio rule, no
+   time/amount sub-rules, no priors, and the merchant's other transactions were
+   never re-scored. The two paths also keyed the merchant rule differently
+   (`r.merchant.toLowerCase()` vs `normaliseMerchant(description)`).
+
+### What shipped — one source of truth
+- **`lib/value-map/persist-real-classification.ts` (new).** The single
+  persistence for "the user classified these REAL transactions":
+  `persistRealValueClassifications` (weighted `correction_signals` +
+  **synchronous** merchant `value_category_rules` row + hard transaction confirm
+  + monthly-snapshot refresh) and `runMerchantLearning` (the
+  `processSignals` + `backfillForMerchant` loop). Both the retake route and the
+  onboarding flow call it, so they cannot drift.
+- **`/api/value-map/classify` (new route).** The value-first onboarding flow now
+  POSTs its real classifications here (weight **1.0** — a first-time call, not a
+  2x retake correction). No archetype regen: the onboarding recompose delivers
+  the post-sort reading. Onboarding bookkeeping (session + value_map_results +
+  cut_intent) stays client-side.
+- **`/api/value-map/personal` refactored** to call the shared helper (weight
+  2.0) and chain `regenerateArchetype` after `runMerchantLearning` in `after()`.
+- **`value-map-flow.tsx`** — `handleContinue` POSTs real classifications to
+  `/classify` (awaited, before `onComplete` fires the recompose), and skips the
+  now-redundant client-side metadata write + merchant-rule upsert for real data.
+  The sample-card onboarding path (category rules, source=`value_map`) is
+  unchanged.
+- **Comment/code fix** in `personal/route.ts`: the actionable filter only checks
+  quadrant validity, so the "Skip hard-to-decide" comment was wrong — corrected
+  to note `hard_to_decide` is retained on `value_map_results`, not filtered.
+
+### The load-bearing constraint
+The onboarding **recompose** (`/api/insights/recompose-first-read` →
+`composeFirstRead` value_first_recompose) reads Layer 2 `by_merchant`
+(`buildUserValueProfile`), which is populated **only** from
+`value_category_rules` merchant rows. The recompose runs immediately after the
+client flow, so the merchant rule must land synchronously — `processSignals`
+alone (deferred via `after()`) would be too late and would regress the
+recompose's "what you just sorted" payoff. Hence the shared helper writes the
+merchant rule synchronously (keyed on `normaliseMerchant` + `__none__`
+time_context so the async flat rule merges onto the same row), in addition to
+emitting the signal. This also means the retake path now mints an immediate
+merchant rule too — a robustness net against the known async rule-persistence
+gap (see 2026-06-02 backlog).
+
+### Verification
+`npm run typecheck` ✅ · `npm run lint` ✅ (0 errors) · `npm run build` ✅ ·
+full vitest **1160/1160** ✅, including a new
+`persist-real-classification.test.ts` (signal weight, synchronous merchant rule
+key/source/confidence, per-card signal vs per-merchant rule dedup, confirm
+fields, empty/invalid handling, `runMerchantLearning` fan-out + error swallow).
+
+### Follow-ups (unchanged from 2026-06-02 backlog)
+- The deeper async rule-persistence gap (`processSignals` rules not always
+  landing on the retake path) is mitigated — not closed — by the synchronous
+  rule. Still worth its own investigation.
+
+---
+
 ## 2026-06-02 — Coaching Cadence: principle over procedure
 
 **Branch:** `claude/funny-pasteur-GEpYl` (continues the dedup/voice/read-quality work; harness-pinned per precedent).
@@ -2995,6 +3071,333 @@ whole-feature seam review, all ✅.
 staging (delete txns + import batch + clear the upgrade stamps) before the manual smoke per the plan's
 Fixture Reset section. Also pending: `provider.ts` default model-id divergence (separate task).
 
+## 2026-06-18 — nancy@tester.com review: four "compute once, never re-read" defects
+
+Reviewing staging user nancy@tester.com surfaced four defects sharing one root pattern: a
+signal is computed early, then never re-read when reality changes. Fixed all four.
+
+### What shipped
+- **On-track gating (no manufactured cut).** `goals.on_track` is computed in `pace.ts` but the
+  lever engine ignored it, so a retirement pot funded by growth (`on_track=true`,
+  `monthly_required_saving=0`) still got an eating-out cut. New `accelerate` lever in
+  `analytics/levers.ts`: when funded-at-plan, emit spare-cash + (investment) conservative
+  stress-test gap INSTEAD of a cut. Prompt branches added to both first-read system prompts +
+  both COMPOSE directives; `formatLever` renders it. The cut lever's naive `remaining/cashSurplus`
+  impact model (which ignores investment growth and so contradicts `pace.ts`) is now bypassed
+  for on-track goals rather than reconciled.
+- **Income reconciliation (declared vs observed).** Nancy declared £3,500 but no salary lands in
+  her statements → income detection zeroed income while the budget layer silently used the
+  declared figure. New additive `user_profiles.income_provenance` (`observed` |
+  `declared_unverified` | `unknown`), set in `updateIncomeShape`; `getFinancialFacts` threads it
+  and `formatFinancialFacts` frames declared income honestly + poses "is your salary paid
+  elsewhere?". The on-track prompt branch hedges when income is declared-only.
+- **Value Map sample-data fallback.** Chat-route users get their first read BEFORE upload, so no
+  `hook_candidates` ever land → value map fell to `SAMPLE_TRANSACTIONS` (`is_real_data=false`)
+  forever despite real transactions. Fix: when hooks are absent and real outflows exist, re-run
+  the EXISTING `selectValueMapCards` with an EMPTY hook seed (chooseCards falls through to
+  divergence/coverage), adopt at ≥3 cards; broadened to fire for `postReadOptIn` users too.
+- **Upload robustness.** Sequential per-page PDF vision loop (`maxDuration=90`) timed out and
+  failed invisibly. Parallelised with a bounded inline pool (PAGE_CONCURRENCY=5, index-aligned so
+  page-order metadata reduction is preserved), raised `maxDuration` to 300, added `failedPages` +
+  `status` to the response and a `partial_extraction` warning, and a new additive `import_attempts`
+  table written per upload so failures are visible.
+
+### Migrations (additive, staging-only; prod-backfill companions marked DO-NOT-APPLY)
+- `075_income_provenance.sql` — `user_profiles.income_provenance text`. Applied to staging.
+- `074_import_attempts.sql` — append-only import telemetry, RLS read-own (mirrors 059). Applied to staging. (Renumbered to `078_import_attempts.sql` at the v2.9 launch-prep merge — the 074 prefix collided with `074_llm_guard.sql`.)
+
+### Lessons / gotchas
+- **`on_track` was dead data.** Computed and persisted by `pace.ts`/`recompute.ts` but no consumer
+  read it. The fix's leverage was wiring an existing signal, not computing a new one — check for
+  already-computed-but-unconsumed fields before adding more.
+- **Hook candidates freeze at first-read time.** The value map reads `hook_candidates` off the
+  `first_read` conversation metadata, which only exist if the read composed in `value_first` mode
+  (transactions present at compose time). Any flow that delivers the read before upload guarantees
+  the sample-data bug. The empty-seed selector call re-derives from live transactions instead.
+- **Template-literal backtick trap.** Writing `` `accelerate` `` (backticks) inside a backtick
+  system-prompt string breaks it (TS1005). Use single quotes inside prompt templates.
+- **`generate_typescript_types` / `apply_migration` MCP tools require approval here; `execute_sql`
+  did not.** Applied DDL via `execute_sql` and hand-edited `types.ts` (income_provenance into all
+  three user_profiles blocks); `import_attempts` access is cast `as any` (types not regenerated).
+
+### Verified
+`npm run typecheck` clean; full `npm run test` = **1238 passing** (106 files); `npm run build` green.
+New accelerate lever cases + income_provenance test-fixture updates included.
+**NOT run (runtime follow-ups):** live re-run of Nancy's value map / first read through the app
+(requires Bedrock + the running app) — DB-level changes verified, end-to-end behaviour pending a
+manual smoke. `import_attempts` not added to generated `types.ts` (cast in route until regen).
+
+## 2026-06-22 — Declared (pre-upload) read: on-track framing for funded-at-plan goals
+
+Follow-up to the 2026-06-18 four-fix session. Testing on a fresh user (`0d496761`, 0 txns,
+investment retirement goal, `monthly_required_saving=0`) showed the pre-upload read still said
+"no monthly contribution attached … £3,005 unspoken-for" — the original on-track concern, in a
+path the earlier fix never touched.
+
+### Lesson (the gotcha)
+- **The pre-upload declared read is a SEPARATE composer.** `composeFirstRead` short-circuits at
+  `if (mode === 'declared') return composeDeclaredRead(...)` (compose-first-read.ts) BEFORE
+  `deriveLevers` — so the `accelerate` lever and the value-first/default prompt branches from the
+  earlier fix don't run on it. It has its own prompt (`FIRST_READ_SYSTEM_PROMPT_DECLARED`) and
+  facts builder (`buildDeclaredFacts`/`buildDeclaredUserPrompt`), neither investment-aware. A £0/mo
+  funded-at-plan goal therefore read as "no contribution attached". When fixing a Read behaviour,
+  check ALL composer entry points (declared / value_first / default / recompose / declared_upgrade),
+  not just the lever path.
+
+### What shipped
+- `buildDeclaredFacts` is now investment-aware: when an investment goal's `monthly_required_saving`
+  is 0 with target+date present, it sets `fundedAtPlan` and computes the conservative stress case
+  from the SAME `requiredMonthlyBand` / `INVESTMENT_DEFAULT_RATE_PCT` the post-upload Read uses
+  (Rule 8). `composeDeclaredRead` threads goal type/target/current/date through.
+- `buildDeclaredUserPrompt` + `FIRST_READ_SYSTEM_PROMPT_DECLARED` gained a funded-at-plan branch
+  (Rule 7 — new SHAPE few-shot re-derived in the same edit): affirm on track, explain £0 = pot
+  grows to target at a moderate return, name the stress case, and reframe the honest close — unseen
+  spending bears on LIFESTYLE headroom + confirming income lands, NOT "the goal slower" (a
+  funded-at-plan goal draws nothing monthly).
+- No migrations.
+
+### Verified
+`npm run typecheck` clean; full `npm run test` = **1242 passing**; `npm run build` green. New unit
+cases assert `fundedAtPlan`/stress-case computation and that the funded prompt drops the
+"Monthly contribution needed / unspoken-for" lines.
+**NOT run:** live LLM re-render of the declared read (needs Bedrock) — the data/prompt-assembly
+path is unit-covered with `0d496761`'s exact figures.
+
+## 2026-07-02 — v2.9 review remediation: onboarding friction + declared-loop payoff (12 points, 4 phases)
+
+**What shipped.** Four commits on `claude/cfo-onboarding-engagement-god4e0`, from a
+multi-agent review of the v2.9 work (plan: `~/.claude/plans/write-a-phased-plan-clever-meadow.md`).
+(1) Friction quick wins: the essentials beat's 30s `IMPORT_GRACE_MS` timer is gone (the beat only
+mounts after `/api/upload` awaits the WHOLE pipeline — the gate was pure theatre); the
+"I don't have a statement handy" skip renders inside the uploader too (it was intro-only — a user
+who tapped Upload was stranded); income/rent prefill on return (`essentialsPrefill` threaded
+layout → provider → sheet → host); 44px skip tap targets; `no_transactions` → notify nudge,
+`stamp_failed`+conversationId → `load_and_close`; declared CTA label pinned to the payoff frame
+("Show me my last 3 months") in rule + few-shot + compose instruction.
+(2) Payoff correctness: `DeclaredReadFacts` carries goal target/saved/date + a straight-line
+fallback pace (never for investment goals — compound-growth pace is the only source, Rule 8);
+post-upload snapshots `declared_facts` into conversation metadata; the upgrade route parses it and
+`buildDeclaredDelta` computes both sides + signed diffs server-side, rendered as the ONLY legal
+source of the declared BEFORE figures.
+(3) Meter payoff states: `declared_read_pending {conversationId, freeCash, currency}` on
+`user_profiles.onboarding_progress` (existing jsonb, no migration); meter renders from the upload
+decision through the terminal compose wait and — pinned in the sheet — post-onboarding for
+declared-pending users until "A real month" lands.
+(4) Upgrade reachability: cash-flow `ImportResult` CTA runs the upgrade for declared-pending users;
+once-per-session sheet-open re-offer banner with the server-computed cushion figure.
+
+**Lessons (the load-bearing gotchas).**
+- **The upgrade prompt told the model to cite declared figures "verbatim" from sections containing
+  zero numbers** (`formatAlreadySaid` renders prose flags; the DELTA block was instructions-only).
+  The flagship "you told me ≈X — the statements show Y" moment was structurally number-free or
+  hallucinated. If a prompt demands verbatim citation, grep the actual rendered sections for the
+  figures — the instruction reading well is not the same as the data being there.
+- **`/chat/:id` is a dead route** — `next.config.ts` permanently redirects it to `/office` and DROPS
+  the id. `ImportResult`'s insights CTA had been composing a Read and then stranding the user on the
+  office home with the sheet closed. The working path into the sheet is
+  `/office?chat=open&conversationId=…` (ChatOpenerTrigger). Audit `router.push` targets against
+  next.config redirects.
+- **`onboarding_step='first_read_delivered'` cannot distinguish declared from transaction Reads** —
+  both paths land there. The declared-ness lives only in conversation metadata, which the layout
+  doesn't read. Hence the profile-level `declared_read_pending` flag (cleared as soon as the upgrade
+  Read has APPENDED — a stamp_failed Read is still delivered, so clearing on markUpgraded-success
+  only would leave the meter advertising an upgrade that already landed).
+- **The declared-facts snapshot IS the declared side of the delta by construction**: at
+  declared-compose time `getFinancialFacts.total_fixed_costs` reconciles only profile rent +
+  user-declared bills (no transactions → no detected recurring). Fresh facts at upgrade time are the
+  ACTUAL side. No second bookkeeping needed — but snapshot-only: pre-snapshot conversations stay
+  qualitative (the prompt now explicitly forbids stating a declared number in that case).
+- **Prefill made a latent soft-lock reachable**: `ProcessingForm`'s equal-value blur guard
+  early-returned while a keystroke had already reset status to `'pristine'` — edit-then-settle-back
+  bricked Continue. A guard that is dead code today (initials always null) can become live the day a
+  caller changes; fix the guard when you change the caller.
+- **`ProcessingProgress` with `importComplete` lands on "Ready when you are · 100%"** — killing the
+  fake timer needed no strip changes, just honest input.
+
+**Verified.** Per phase: `npm run typecheck`, `npm run build`, full `npm run test` — final state
+**1256 passing** (106 files). NOT run (runtime follow-ups): live Bedrock end-to-end for the declared
+Read's new goal block and the numeric-delta upgrade Read (needs staging + Bedrock creds; the
+`skip-upload-declared` persona covers the flow, and the existing captured fixture remains valid —
+its goal figures are now legitimately prompt-supplied). The pinned meter + re-offer banner + cash-flow
+upgrade CTA need a staging smoke with a declared-pending user (`declared_read_pending` set by a
+fresh declared Read — pre-existing declared users from before this ship have no flag and see no
+pinned meter, by design/snapshot-only choice).
+
+## 2026-07-03 — LLM cost control: no user can rack up extreme Bedrock costs (4 phases)
+
+**Incident.** 2026-07-03 08:57 UTC, staging: a double-tap on two clarifier chips fired two
+overlapping /api/chat requests into one conversation — two full tool-loop turns, duplicate
+replies ("Two answers at once — noted."), ~2× tokens. Investigation showed the incident class
+was wide open: the authed chat route had NO rate limit, NO in-flight guard, NO maxOutputTokens;
+`sendMessage` in ai@6 has NO concurrency guard (AbstractChat.makeRequest never checks status);
+recompose-first-read had NO idempotency (its stamp was written but never read back — every POST
+re-composed); the main chat generation and all first-Read composes were absent from
+llm_usage_log; and nothing anywhere read usage to enforce a budget.
+
+**What shipped** (commits `3978765`, `255eb3e`, `920b3dd`, + this one; plan:
+`~/.claude/plans/write-a-phased-plan-clever-meadow.md`).
+Layered defence: (0) client — provider-level `guardedSend` ref-latch + one-shot
+TappableOptions/ChatCTA chips; (1) per-instance in-flight guard on the chat route (429 'busy'
+before any Bedrock work); (2) per-request bounds everywhere (chat maxOutputTokens 1500 + 55s
+abort; forced-retry, categoriser, pdf-vision bounded; recompose idempotent);
+(3) `src/lib/ai/llm-guard.ts` on EVERY user-triggerable LLM route — LLM_DISABLED env kill
+switch, `user_profiles.llm_blocked_at` per-user block, in-memory burst (chat 10/min), durable
+daily caps counted from llm_usage_log (chat 100/day; per-surface tables in the helper);
+(4) full accounting — chat turns get a pre-stream `chat_turn` row (tokens backfilled in
+onFinish), composes/sanitiser/signals/bill calls all log; (5) demo/reading requires a valid
+`session_token` + 3-readings-per-session durable cap (it is the one UNAUTHENTICATED Bedrock
+endpoint, Opus-first).
+
+**Runbook.**
+- **Emergency stop (all spend):** set `LLM_DISABLED=1` in Vercel env (staging or prod) —
+  every guarded route refuses with the friendly block in seconds, no deploy. Computed pages
+  keep working (Rule 6). Unset to restore.
+- **Stop one account:** `update user_profiles set llm_blocked_at = now() where id = '<uuid>';`
+  (clear with `= null`). Column ships in migration 074.
+- **Who spent what today:** `select call_type, count(*), sum(total_tokens) from llm_usage_log
+  where user_id = '<uuid>' and created_at >= date_trunc('day', now()) group by 1;`
+- **⚠️ MANUAL STEP OUTSTANDING:** migration `074_llm_guard.sql` is NOT yet applied to staging
+  (the MCP permission prompt failed on an infra error) — run it in the staging SQL editor
+  (`qlbhvlssksnrhsleadzn`). Safe in either order: the guard fails open until the column exists.
+  `prod-backfill-074_llm_guard.sql` is the usual Lewis-manual prod companion.
+
+**Lessons (load-bearing gotchas).**
+- **ai@6 `sendMessage` has no concurrency guard** — `makeRequest` unconditionally pushes the
+  user message and fires the fetch; two same-tick calls = two concurrent POSTs, and the second
+  AbortController OVERWRITES the first (stop() can then only abort the newer stream). Any send
+  surface must carry its own latch; `status` alone can't see a same-render-cycle double-tap.
+- **Never gate sends on `status !== 'ready'`** — after a stream error, status rests at 'error'
+  forever (nothing calls clearError); that gate would brick chat after one failure. Gate on
+  submitted/streaming and reset the latch on ready OR error.
+- **A messages-table daily cap is dodgeable**: the chat route skips persisting `[System:`
+  -prefixed user messages while still running the full turn. Count something written
+  unconditionally per invocation (the pre-stream chat_turn row), not a side effect.
+- **429 body copy doesn't reach the user by magic** — the AI SDK transport surfaces the raw
+  response body as error.message; the client's onError must JSON-parse it (mapChatErrorMessage)
+  or the friendly block renders as the generic failure string.
+- **In-flight guards on streaming routes can't use try/finally** — the handler returns the
+  Response while Bedrock is still streaming; release in the stream's onFinish (fires on flush
+  AND client-disconnect cancel) + the route catch, and acquire only after the conversation id
+  is final so early returns can't leak the claim.
+- **An idempotency stamp nobody reads is not idempotency** — recompose wrote
+  `first_read_metadata_recomposed` on every run and never checked it; the fix is a pre-check +
+  a null-aware conditional-update claim (`key.is.null,key.neq.true` — plain .neq excludes
+  absent keys, migration-072 lesson applies here too).
+- **Vitest module mocks are strict**: adding an import (`utilityModelId`) to a mocked module
+  throws "No export is defined on the mock" inside the code under test — it surfaces as the
+  FEATURE failing (caught by its own try/catch), not as a mock error at the test site.
+
+**Verified.** Per phase: `npm run typecheck && npm run build`, full vitest — final **1277
+passing** (llm-guard decision table, chat-error-message mapping, recompose idempotency ×5,
+upgrade-response, one-shot chips via typecheck). NOT run (staging follow-ups): the manual smoke
+list in the plan's Verification section (double-tap, concurrent curl, burst loop, block flag,
+kill switch, [System:] cap counting, chat_turn token backfill) — needs the staging deploy +
+migration 074 applied.
+
+---
+
+## 2026-07-05 — declared→actual upgrade wrongly declined as "thin" for non-current data
+
+**Report.** `lewis@tester12.com` took the declared path, then uploading his last 3 months of
+statements to sharpen it hit *"These statements were a bit thin to sharpen the picture — try a
+full 3-month export."* (`INSUFFICIENT_DATA_NUDGE`). The statements were not thin: **188 live
+txns, 28 Feb → 29 Apr 2026, 120 distinct merchants.**
+
+**Root cause — window anchored to the clock, not the data.** The upgrade declines when
+`isDeclaredUpgradeInsufficient(usableClusters, hookCandidates)` is true (compose-first-read.ts),
+and `usableClusters` was empty because the cluster-selection path windowed off `Date.now()`.
+`getTopMerchantKeys` filtered `merchant_aggregates.month_start >= today − 90d = 2026-04-06`;
+his data ends 2026-04-29 (~67 days stale vs the 2026-07-05 "today"), and the MV buckets
+`month_start` to the 1st, so even his April spend (bucket `2026-04-01`) sat 5 days before the
+cutoff. Result: **0 aggregate rows in window → 0 merchant keys → 0 usable clusters → declined.**
+Confirmed on staging: old window `>= 2026-04-06` → 0 rows; data-anchored `>= 2026-01-29` → 129
+rows / 120 keys. The breakdown/coverage path already anchored to `dataWindowEnd` (with a comment
+naming this exact "windows into an empty range" trap); the cluster path just never adopted it —
+the same class of inconsistency as the lifecycle-dormancy anchor that WAS fixed there.
+
+**Fix (product call: accept any 3-month upload regardless of age, let the Read date-stamp it).**
+Thread `dataWindowEnd` (the user's latest txn) as the window anchor through the whole cluster
+path: `windowStartISO(windowDays, windowEnd?)` (now exported), `getMerchantAggregates` /
+`getCategoryAggregates` / `getTransactionDatesForCluster` (optional `windowEnd`), and
+`getClusterBehaviour` passes its already-resolved `dataWindowEnd` in. In compose, `getDataWindowEnd`
+now resolves BEFORE the parallel fan-out so `getTopMerchantKeys` + `getTransactionCount` can anchor
+to it. The stale-data acknowledgement is NOT new code — the existing DATA RECENCY prompt block
+(`formatDataRecency`, `dataAgeDays > 14`) date-stamps the Read "as of <date>"; it just never ran
+because the thin-gate short-circuited compose first.
+
+**Lessons (load-bearing gotchas).**
+- **Anchor analysis windows to the data (`dataWindowEnd`), never to `Date.now()`** — any
+  `today − N` filter silently empties out the moment an upload isn't bang up to date, and the MV's
+  month-bucketing (`month_start` = 1st) pushes even in-range spend out at the boundary. If one
+  read path adopts the data anchor (breakdown/coverage/lifecycle here), the sibling read paths
+  MUST too, or you get exactly this split-brain decline.
+- **No upper bound needed when anchoring to `dataWindowEnd`** — it IS the max txn date, so
+  `>= since` alone suffices. Deliberately skipped `.lte` to avoid a timestamp-truncation bug
+  (`.lte('date','YYYY-MM-DD')` drops same-day non-midnight rows) AND to keep the cluster-behaviour
+  test mock unchanged (its passthroughs are `select/gte/order/is` — no `lte`).
+- **`data_completeness` left on `Date.now()` on purpose** — it gates `usableClusters` at ≥0.3 and
+  the clock anchor is strictly MORE permissive for stale data (bigger `daysAvailable`), which is
+  aligned with "accept anything"; moving it would also collide with the test mock conflating
+  `getDataWindowEnd`/`getFirstSeenForCluster` (both `limit(1)`).
+- **The "thin" nudge conflates three states** — not-enough-data, data-too-old, and
+  data-is-fine-just-stale. This fix stops the third (and old data) from reading as the first; if a
+  genuine "too old to be useful" ceiling is ever wanted, that's a *second* gate on `dataAgeDays`,
+  not a narrowing of this one.
+
+**Verified.** `npm run typecheck` (0 errors) + `npm run build` (exit 0) + full vitest **1079
+passing**; the fix reproduced end-to-end against Lewis's staging rows (0 → 129 in-window
+aggregate rows; top clusters Aldi €225/12, Claude.ai €257/7, Moloneys €61/4 all clear the
+discretionary hook floor). Staging/prod data untouched — read-only diagnosis (Rule 3).
+
+---
+
+## 2026-07-05 — post-upgrade Value Map ran on SAMPLE data, not the user's hooks
+
+**Report (same user, next step).** After the anchor fix above let `lewis@tester12.com`'s
+declared→actual upgrade compose, the follow-on Value Map presented the curated
+`SAMPLE_TRANSACTIONS`, not his real flagged merchants.
+
+**Root cause — hooks written under a key the loader never reads.** The Value Map page loads its
+cards via `getHookCandidatesForUser` (hook-transactions.ts); empty → `SAMPLE_TRANSACTIONS`. That
+loader only checked `metadata.hook_candidates` and `metadata.first_read_metadata.hook_candidates`.
+But the two composition paths persist to DIFFERENT keys: `post-upload` (value-first) writes
+`first_read_metadata`, while `upgrade-declared-read` writes **`first_read_metadata_upgraded`**
+(route.ts). For a declared-path user the `first_read_metadata` on file is the DECLARED Read
+(mode `declared`, `hook_candidates: null` — it saw no txns); the real hooks live only under
+`first_read_metadata_upgraded`. Confirmed on Lewis's conversation: `first_read_metadata` hooks
+null, `first_read_metadata_upgraded` hooks = [Aldi €257, Claude.ai €257, Uber €127]. Loader read
+the null key → returned null → samples.
+
+**Fixes (hook-transactions.ts).**
+1. `getHookCandidatesForUser` now checks `first_read_metadata_upgraded` FIRST (freshest real-txn
+   Read), then top-level, then `first_read_metadata`, and picks the first **non-empty** list —
+   NOT a `??` chain (a path that saw no txns writes `[]`, e.g. `first_read_metadata_recomposed`
+   here; `??` treats `[]` as present and would shadow a populated list → samples).
+2. `buildRealTransactionsFromHooks` (the fallback card builder) windowed off `Date.now()` — the
+   same today-anchor class as the composer bug. Now anchors to `dataWindowEnd`. Lewis narrowly
+   escaped it (each hook had ≥1 txn after today−90), but a slightly older upload resolves zero
+   representative rows → samples. `select-cards.ts` (the PRIMARY card path) was already
+   dataWindowEnd-correct, so no change there.
+
+**Lessons.**
+- **A "may live in several places" metadata reader must enumerate ALL writer keys** — three
+  routes stamp first-read metadata under three distinct keys (`first_read_metadata`,
+  `_upgraded`, `_recomposed`); a consumer that hard-codes two of them silently drops the third.
+  When adding a composition path, grep every reader of the metadata it writes.
+- **`??` is the wrong operator when `[]` is a meaningful "empty" value** — coalesce chains over
+  arrays must pick first-non-empty (`Array.isArray(x) && x.length > 0`), or an empty list from
+  one path shadows a populated one from another.
+- **The today-anchor bug has copies** — it lived in the composer (fixed above), the value-map
+  card fallback (fixed here), and would hide anywhere else a `Date.now() − N` window filters a
+  user's own uploaded data. Anchor to `dataWindowEnd`.
+
+**Verified.** typecheck (0) + build (exit 0) + full vitest **1079 passing**; replayed the new
+loader precedence against Lewis's real metadata → resolves the 3 real hooks (was null), so
+`selectValueMapCards` now runs on his 129 in-window aggregate rows instead of the samples.
+Read-only against staging (Rule 3).
+
+---
+
 ## 2026-07-05 — Beta-round onboarding-funnel observability (F&F prep)
 
 **What shipped.** First-party (no third-party analytics) instrumentation of the whole value-first
@@ -3081,3 +3484,443 @@ automatable without real staging credentials and an ADMIN_EMAILS-listed session.
 `onboarding_error.message` in `/api/upload/route.ts` (pre-existing pattern, predates this branch) — the
 new dashboard is what makes these newly visible to a human; spawned as a separate follow-up task rather
 than scope-creeping a fix into this branch.
+
+---
+
+## 2026-07-06 — v2.9 launch prep: security + observability assembled onto one branch
+
+**What this branch is.** `claude/v2.9-launch-prep-e6ekyf` = `origin/v2.9` tip (1f9f4ee)
++ the four LLM cost-control/observability commits cherry-picked from
+`claude/cfo-onboarding-engagement-god4e0` (concurrent-send latch, llm-guard kill
+switch/block/burst/daily caps + migration 074, product-wide guard wiring + full
+llm_usage_log accounting + recompose idempotency, demo session-keyed reading cap)
++ the 077 SECURITY DEFINER RPC lockdown from `claude/v2.9-security-review-5sl67r`.
+Gates: `npm run typecheck` ✓, `npm run build` ✓, vitest **1257 passing** (109 files).
+
+**Deliberately NOT included** (each lives on its own branch, user decision pending):
+- The four onboarding-engagement commits under the guard work on `…-god4e0`
+  (friction quick wins, declared-goal citation + server delta, meter payoff states,
+  upgrade reachability) and the three follow-up fixes on `claude/statement-sharing-error-9jc3be`.
+- The two nancy@tester.com defect-fix commits on `claude/review-nancy-tester-user-s2sjfg`.
+- The Models M1 feature (on `claude/v2.9-security-review-5sl67r` via merge). ⚠️ If Models
+  merges later, commit `aa1ca47` (renumber `073_models_feature.sql` → 076) MUST come with it,
+  or file-based replay silently drops the 073 security migration.
+- Cherry-pick conflicts were import-block-only (guards were written as route wrappers);
+  the SESSION-LOG conflict was resolved by keeping only the entry describing code that is
+  actually on this branch — the engagement entry stays on its branch.
+
+**DB audit (2026-07-06, read-only).**
+- Staging (`qlbhvlssksnrhsleadzn`): fully hardened — 074 `llm_blocked_at` present
+  (the "MANUAL STEP OUTSTANDING" note in the 2026-07-03 entry above is now STALE: 074 is
+  applied), `fn_session_feedback` dropped, all four user-data RPCs anon-revoked + guarded.
+- Prod (`iccelmjenljanqrhhzdv`): NOT hardened. All five SECURITY DEFINER RPCs
+  (`export_user_data`, `get_import_history`, `fn_import_batches`, `prediction_metrics_txn`,
+  `fn_session_feedback`) are anon/PUBLIC-executable with no caller guard, and
+  `wow_assessments`/`wow_events` still carry `first_insight_message_id` (071 not run).
+  `llm_usage_log` (+metadata) and `demo_sessions` DO exist on prod, so accounting, daily
+  caps, and the demo cap work as soon as the code deploys.
+
+**Pre-beta launch checklist (prod, Lewis-manual per Rule 3):**
+1. `prod-backfill-071` — first_insight→first_read rename. MUST land atomically with the
+   deploy (code reads only the new names; either alone breaks the Read/wow pipeline).
+2. `prod-backfill-073` — export_user_data guard + anon revoke (GDPR-export dump risk).
+3. `prod-backfill-077` — lock down the other three RPCs + drop fn_session_feedback.
+4. `prod-backfill-074` — `llm_blocked_at` column (safe any time; enables the per-user stop).
+5. Vercel prod env: confirm `CRON_SECRET`, Bedrock EU vars; leave `LLM_DISABLED` unset but
+   know it is the emergency stop (runbook in the 2026-07-03 entry above).
+6. `prod-backfill-070` verified already applied (no leftover tables).
+
+**Lessons.**
+- Duplicate migration numeric prefixes exist on main beyond the 073 case: 045, 052, 055
+  each have two files. Same silent-skip replay hazard class as the 073/076 fix — worth a
+  dedicated renumber pass before anyone runs a from-scratch `supabase db push`.
+- An append-only log can still lie by omission across branches: when cherry-picking, carry
+  only the entries whose code travels with them.
+
+## 2026-07-06 — v2.9 launch prep, round 2: everything except Models M1 folded in
+
+**Decision (Lewis):** the beta branch carries ALL outstanding work except the Models M1
+feature. `claude/v2.9-launch-prep-e6ekyf` now = round 1 (guards + 077 lockdown)
++ `origin/main` (the v2.8 bump — the eventual merge to main is now conflict-free; version
+kept at 2.9.0) + `claude/statement-sharing-error-9jc3be` (the four onboarding-engagement
+commits AND the three 07-05 fixes) + `claude/review-nancy-tester-user-s2sjfg` (accelerate
+lever, income provenance, hook re-derive, parallel PDF vision) + `claude/model-data-response-u8ckjx`
+(drop the samples intro) + `claude/peaceful-goodall-l912it` (one persistence path for the
+real-transaction Value Map via /api/value-map/classify).
+Still excluded: Models M1 (`claude/v2.9-security-review-5sl67r` / `models-property-decision-m1`;
+carry `aa1ca47`'s 073→076 renumber with it when it lands) and `claude/nifty-carson-4jzdl2`
+(estimates-first onboarding rework, WIP tip — not release material). `claude/loving-shannon-588hf8`
+verified fully redundant (its EU-alias fix is 1f9f4ee; its extra CLAUDE.md hunk targets text
+that no longer exists).
+
+**Merge reconciliations (the load-bearing ones).**
+- `DeclaredReadFacts` gained fields from BOTH sides (engagement: goal target/saved/date;
+  nancy: goalType + fundedAtPlan/planRatePct/stress*). Union taken; the declared prompt now
+  anchors the goal in their terms AND carries the on-track/funded-at-plan branch; the
+  funded-at-plan SHAPE example was re-derived with the pinned CTA label ("Show me my last
+  3 months" — the cd26545 product call — replacing the older "Share my last 3 statements").
+- `parseDeclaredFactsSnapshot` defaults the new fields (fundedAtPlan STRICTLY false unless
+  the snapshot says true) so pre-existing snapshots can never trigger on-track framing.
+- extract-pdf: nancy's parallel `runPage` pool adopted; 920b3dd's 25s per-call
+  `AbortSignal.timeout` re-applied inside `runPage` (her version had only maxOutputTokens).
+- **Another duplicate migration prefix caught at merge time**: nancy's `074_import_attempts`
+  collided with `074_llm_guard` → renumbered to `078_import_attempts` (076 stays reserved
+  for Models). Staging unaffected (applied by name). This is the THIRD 07x collision;
+  numeric-prefix migrations across parallel branches are a standing hazard — check
+  `ls | grep -o '^[0-9]*' | sort | uniq -d` at every merge.
+- peaceful-goodall merged conflict-free; verified the llm-guard survived its
+  `/api/value-map/personal` rewrite and the classify route is deterministic (no guard needed).
+
+**Gates:** `npm run typecheck` ✓, `npm run build` ✓ (70/70 pages), vitest **1289 passing**
+(109 files).
+
+**Pre-beta prod checklist — UPDATED (all Lewis-manual, Rule 3).** Staging verified to have
+ALL of: llm_blocked_at, import_attempts, income_provenance, hardened RPCs. Prod verified to
+have NONE. Run with/before the deploy: `prod-backfill-071` (atomic with deploy),
+`prod-backfill-073` + `prod-backfill-077` (security, before any beta user),
+`prod-backfill-074` (llm_blocked_at), `prod-backfill-075` (income_provenance — the income
+reconciliation writes it), `prod-backfill-078` (import_attempts — PDF upload logs to it).
+070 already applied.
+
+## 2026-07-06 — Remediation: beta-blocking defects from the dorcas/lewis observability review
+
+Implemented `cfos-office/docs/remediation-plan-beta-blockers.md` end to end (all 8 issues).
+Phase 0 read-only audit first, per Rule 4 — several of the plan's assumptions didn't survive
+contact with the actual code and are corrected below; where the plan and the code disagreed,
+the code's reality won and the plan's framing was adapted, not the other way round (Rule 8's
+sibling principle).
+
+**Issue 1 (P0) — the keystone.** New `src/lib/finance/financial-position.ts` exposes
+`getFinancialPosition(supabase, userId)` → `{ income, incomeProvenance, fixedCostsMonthly,
+avgObservedSpendMonthly, avgDiscretionaryMonthly, freeCash, observedSurplus, basis }`, built
+on the already-correct `reconcileFixedCosts`. `basis` is `'observed'` only when real
+`monthly_snapshots.total_discretionary` history exists; `'modelled'` (income − fixed costs
+only, discretionary assumed zero) otherwise — replaces the old silent `?? 0` coercion that
+made "no data yet" indistinguishable from "spends nothing."
+- `helpers.ts`'s `loadCurrentBudget`/`loadAverageDiscretionary` are now thin wrappers over the
+  module — this transitively fixes every existing caller (`pace.ts`'s `computePaceAndOnTrack`,
+  `plan-event.ts`, `model-scenario.ts`) without touching their own surplus arithmetic. Their
+  formulas were already "income − fixedCosts − avgDiscretionary"; only the INPUTS were wrong.
+  Deliberately left their call sites alone — rewriting five what-if scenario branches in
+  `model-scenario.ts` was out of proportion for this pass and not named in the plan; flag as
+  a follow-up to migrate them to read `getFinancialPosition().freeCash` directly.
+- `levers.ts`'s accelerate-lever gate no longer trusts a persisted `goal.on_track===true` at
+  all (it could be stale — computed once at goal creation, often before any transaction
+  history existed, when discretionary spend was necessarily assumed 0). It now ALWAYS
+  requires a live `surplus >= monthly_required_saving` check from the unified module. The
+  lever carries a `basis` field; the first-Read prompt hedges "funded"/"stress case covered"
+  language when basis is `'modelled'` instead of stating it as settled fact.
+- `compose-first-read.ts`'s `getFinancialFacts` now sources `total_fixed_costs`/
+  `free_cash_flow` from the same module (previously: `income − totalFixed` with no
+  discretionary netted out at all — the likely direct source of dorcas's false headline).
+  Added `reconcileLeverPackageWithFacts` (Issue 1.4): asserts the accelerate lever's
+  `surplusOverRequired` reconciles with FINANCIAL FACTS within a 1-unit rounding tolerance;
+  drops the lever and logs both values on mismatch rather than risk composing on two
+  disagreeing numbers for the same fact.
+- Migration 079 adds `monthly_snapshots.total_discretionary`; `syncTotalFixedCosts` now
+  stamps it per-row as `max(0, that row's total_spending − current reconciled fixed costs)`
+  alongside `total_fixed_costs` (same current-state-applied-retroactively pattern the latter
+  already used). prod-backfill-079 is column-only by design — backfilling historical values
+  needs the same reconcile the app already runs on next ingest; no prod-side recompute.
+- Regression tests in `levers.test.ts` reproduce both users' shape (dorcas: rent + no
+  recurring rows + real observed overspend; lewis: reconciled recurring bills that still
+  fall short of the goal) — both assert NO accelerate lever fires despite a stale
+  `on_track: true` sitting in the goal row. `compose-first-read.test.ts` covers the
+  consistency assertion directly.
+
+**Issue 2 (P0) — upload batch.** `UpgradeUploadSurface` now keys its compose step off
+`UploadWizard`'s `onDone` (fires once per BATCH) instead of `onImported` (fires once per
+FILE) — the latter unmounted the wizard after file 1 of a multi-file batch, silently
+dropping files 2+. `BatchSummary`'s existing partial-failure "Continue" button now works
+correctly for free once `onDone` is wired through (it always called `onDone ?? resetBatch`;
+previously that was always `resetBatch` since `onDone` was never passed). Added
+`upload_batch_completed` telemetry (files attempted/succeeded/failed, transactions
+imported) via a new pure `summariseBatchTelemetry` helper (unit tested — no
+testing-library in this repo, so a true DOM-level 3-file-upload test isn't cheap right now;
+flagging as a gap for the existing Playwright persona harness in `tests/onboarding/` to
+pick up later). `/api/upload`'s `action:import` path now writes one `import_attempts` row
+per attempt — previously only the PDF vision route did.
+
+**Issue 3 (P0) — EU Bedrock guard.** `provider.ts` gained `assertEuBedrockModel`, applied to
+every resolved model id (chat/utility/opus/compose) — throws unless `ALLOW_NON_EU_BEDROCK=1`
+is explicitly set. Also closed a gap the plan didn't call out: SIX other files
+(`balance-sheet-pdf.ts`, `balance-sheet-screenshot.ts`, `regenerate-archetype.ts`,
+`api/onboarding/generate-archetype/route.ts`, `api/demo/reading/route.ts`,
+`api/value-map/reveal/route.ts`) independently re-read `process.env.BEDROCK_CLAUDE_MODEL`/
+`BEDROCK_OPUS_MODEL` with their own inline fallback, bypassing `provider.ts` entirely — a
+misconfigured env var would have broken Rule 5 through any of those six without the guard
+ever running. All six now import the guarded constant from `provider.ts` instead.
+
+**Issue 4 (P1) — recurring dedup.** Root cause was NOT primarily in
+`recurring-detector.ts` (it already normalises + lowercases via `normaliseMerchant` before
+upsert) — it was `api/dashboard/summary/route.ts`'s independent ad-hoc recurring-detection
+block, which grouped by the RAW, case-sensitive transaction `description` and upserted
+`name` verbatim. Every bank statement that spelled a merchant differently across import
+batches (`claude.ai` vs `Claude.ai`) produced a second row under the case-sensitive
+`(user_id, name)` unique constraint. Fixed to group/upsert on `normaliseMerchant(description)`,
+keeping the latest raw description for display only. Migration 080 re-runs the 057-style
+dedupe (case variants kept accumulating after 057 originally ran, from this exact bug).
+`reconcileFixedCosts` already filtered dismissed/wrong-status rows — that part of the plan's
+ask was already satisfied by Issue 1's unified module.
+
+**Issue 5 (P1) — income provenance.** Audited, did not find a live code bug: the hedge
+prompt logic (`income_provenance === 'declared_unverified'` → declared-not-observed framing)
+already exists in `first-read.ts`, `monthly-snapshot.ts`'s `updateIncomeShape` already sets
+the provenance correctly, and the upload/upgrade route ordering already awaits the snapshot
+refresh before composing. Added the regression test the plan asked for
+(`buildFirstReadUserPrompt` — declared income + zero observed income ⇒ hedge line present)
+to lock in the current, apparently-already-correct behaviour. If lewis's live profile still
+shows `'unknown'`, it most likely predates this logic (written before the column/detection
+existed) and needs a one-off re-run of `updateIncomeShape` for existing users, not a code
+fix — flagging for Lewis rather than inventing a speculative change.
+
+**Issue 6 (P1) — observability.** Fixed the two named hardcoded-model-string log sites in
+`api/chat/route.ts` (`recordChatTurnStart`, `logToolCall`) plus a third the plan didn't list
+(`trackLLMUsage` in the forced-retry block) — all now log `chatModelId`. Left
+`logBedrockUsage`'s `model: 'sonnet'` alone on inspection: that field's type is a coarse
+tier enum (`'sonnet'|'haiku'|'opus'`), not the resolved model id — a different contract,
+not the bug. **Confirmed the token-undercount root cause precisely**: the AI SDK's
+`streamText` result exposes both `usage` (docs: "the token usage of the LAST step") and
+`totalUsage` (docs: "sum of all step usages") — the route was reading `usage`. Swapped to
+`totalUsage`. Added error logging to `reconcileFixedCosts`'s three Supabase reads and
+`refreshOneMonth`'s transaction read (previously silent-swallowed, same class as the
+invisible `total_discretionary` failure). A full unchecked-error sweep across the rest of
+the codebase is explicitly Phase 3 in the plan's own sequencing — not attempted here.
+
+**Issue 7 (P1) — arithmetic + validation.** New tool `compare_month_to_goal`: reads a
+month's own already-correct `surplus_deficit` (income − ALL spending, computed once in
+`monthly-snapshot.ts`) against the goal's own `monthly_required_saving`, returning a
+`covered`/`short`/`no_goal_pace` verdict + gap amount — replaces the mixed-frame arithmetic
+(subtracting an all-inclusive spend figure from a post-fixed-costs budget figure,
+double-counting fixed costs) that produced dorcas's impossible "$833 short" when the
+snapshot said $967.50 surplus. `system-prompt.ts`'s arithmetic ban gained a named
+forbidden case pointing at the new tool. Citation/numeric validation (`buildCitationAllowlist`
++ `validateCitations`) now runs for EVERY chat conversation type, not just `first_read` —
+voice/chip/projection/length checks stay first_read-scoped (Read-format-specific rules).
+Also wired the same citation check into `compose-first-read.ts`'s output directly (the
+composer never calls tools, so the allowlist is built from the FINANCIAL FACTS + lever +
+spending-breakdown data already handed to the prompt, via a synthetic tool-result wrapper).
+Both are deliberately non-blocking (log via `console.error`/`user_events`, no forced
+retry) — a forced-regenerate escalation is a bigger behavioural/cost change better proven
+out via this telemetry first; this catches numbers the model derived itself, never a wrong
+number the server handed it verbatim (that's Issue 1's job).
+
+**Issue 8 (P2) — copy.** `declared_upgrade` prompt now explicitly bans "confirmed"/"landed
+exactly where you declared" framing on a near-zero DECLARED→ACTUAL delta (a near-zero diff
+means the reconcile found nothing to CONTRADICT the declared figure, not that it
+independently verified it — `formatDeclaredDelta` renders an inline hedge below the figures
+when the gap is within a floor/percentage threshold). Goal-chat opener: the "Goal draft
+rule" in `context-builder.ts` required drafting on EITHER an amount OR a date being named,
+but the mandatory template always includes `by [date]` — directly contradicting the very
+next paragraph's "if only one is given, ask for the missing piece." Model was resolving
+that contradiction by inventing a date to satisfy the template, then self-correcting.
+Changed the rule to require BOTH before drafting; the 2-question cap's fallback now
+explicitly frames an assumed date as a stated proposal ("say, 3 years out — change it if...")
+rather than a fact.
+
+**Gates:** `npm run typecheck` ✓, `npm run build` ✓ (all routes), vitest **1314 passing**
+(113 files, up from 1289/109 at the last log entry). New migrations: 079
+(`total_discretionary`), 080 (recurring_expenses case-variant re-dedupe) + prod-backfill
+companions for both, marked do-not-apply per Rule 3.
+
+**Follow-ups flagged, not fixed this session:** `model-scenario.ts`/`plan-event.ts` still
+compute their own surplus inline from the (now-correct) budget/discretionary inputs rather
+than reading `getFinancialPosition().freeCash` directly — safe today, but a second
+divergence point if either drifts. `helpers.ts`'s `loadCurrentBudget`+`loadAverageDiscretionary`
+each independently call `getFinancialPosition` when used together (common pattern via
+`Promise.all`), duplicating the position fetch — correctness over micro-optimisation for
+this pass. Full unchecked-Supabase-error sweep (Issue 6.3) is Phase 3 per the plan. No true
+browser E2E for the 3-file upload-batch flow (Issue 2.4) — covered at the pure-logic level
+only.
+
+**Opus-tier adversarial review (per the plan's own guidance for Issue 1 + Issue 7) — 4
+confirmed bugs found and fixed, all in the Issue 1 diff.** The review's central point:
+the compose-time consistency assertion checks that the lever and FINANCIAL FACTS *agree*,
+not that either is *correct* — since both now read the same module, they'll agree even on a
+shared wrong input. Two of the four findings are exactly that failure mode reappearing one
+layer down:
+1. **Goal-selection mismatch.** `deriveLevers` picked `loadActiveGoals()[0]` (no ORDER BY —
+   nondeterministic) while `compose-first-read.ts`'s `getActiveGoal` picked
+   `order('created_at' DESC).limit(1)`. A user with 2+ active goals could have the lever
+   engine and the Read narrating DIFFERENT goals, and the consistency assertion compared
+   their numbers as if they were the same fact. Fixed: `loadActiveGoals` now orders
+   `created_at DESC` to match; `getActiveGoal` now also selects `id`; the assertion
+   cross-checks `accelerate.goalId === goalRow.id` and drops the lever on a mismatch as a
+   second line of defence.
+2. **Reconcile failure silently zeroed fixed costs in the lever path.** `financial-position.ts`
+   correctly nulls `freeCash`/marks `basis:'modelled'` when `reconcileFixedCosts` throws —
+   but `levers.ts`'s `computeCurrentSurplus` never read either field. It re-derived the
+   surplus from `loadCurrentBudget`'s `fixedCosts` (which defaults to 0 on that same
+   failure) plus a separate `loadAverageDiscretionary` call, so a reconcile exception could
+   still produce a confident "observed, funded" accelerate lever off a fabricated windfall
+   — the exact bug class relocated one call deeper. Fixed: `computeCurrentSurplus` now
+   calls `getFinancialPosition` directly and returns null whenever `position.freeCash` is
+   null, inheriting the failure-aware basis instead of re-deriving it.
+3. **`total_discretionary`'s `Math.max(0, …)` floor conflated "spent nothing" with "current
+   fixed costs exceed this month's own spend."** A partial upload (an account the fixed
+   bills are paid from wasn't uploaded) or fixed costs that rose since would floor to a
+   confident 0 rather than surface as unknown — and `average()` treats 0 as real observed
+   history, so `basis` stayed `'observed'` on a fabricated figure. Fixed: extracted
+   `computeTotalDiscretionaryForRow` (now unit-tested) — returns NULL, not 0, when
+   `total_spending &lt; totalFixedCostsMonthly` for that row.
+4. **`pace.ts`'s persisted `on_track` flag** confidently claimed `true` off an
+   avgDiscretionary `?? 0` coercion — pre-existing behaviour, not a new regression, but it
+   persists to a field other surfaces (goal UI badges) read as a settled fact, independent
+   of the accelerate lever's now-fixed live check. Fixed: `on_track` stays `null` (not
+   `true`) when no discretionary history exists and the modelled zero-spend surplus would
+   otherwise clear the requirement; a modelled shortfall still safely resolves to `false`
+   (the safe-direction error). `model-scenario.ts`/`plan-event.ts`'s equivalent `?? 0`
+   sites were left alone per the review's own lower-severity framing and this session's
+   already-stated scope decision — flagged, not fixed.
+
+Regression tests added for all four: `levers.test.ts` (goal-id-mismatch drop),
+`compose-first-read.test.ts` (same), `monthly-snapshot.test.ts` (the new pure function),
+`pace.test.ts` (on_track null/true/false across the three bases). Gates re-verified after
+the fixes: `npm run typecheck` ✓, `npm run build` ✓, vitest **1323 passing** (113 files).
+
+## 2026-07-06 — Deploy fix: Rule 5 guard was failing `next build`, not just cold start
+
+**Symptom.** Vercel deploy of the remediation branch died in "Collecting page data"
+with `Rule 5 violation: chat model resolved to a non-EU Bedrock inference profile
+("[REDACTED]")` → `Failed to collect page data for /api/bills/upload`. Reproduced
+locally byte-for-byte with `BEDROCK_CLAUDE_MODEL=global.anthropic.claude-sonnet-4-6
+npm run build`.
+
+**Two causes, one deliberate.** (1) The Vercel environment for that deployment still
+has a non-EU `BEDROCK_CLAUDE_MODEL` — the exact misconfiguration the dorcas/lewis
+review caught and the guard exists to catch. That env var fix is remediation-plan
+Issue 3.1, manual, Lewis — still outstanding. (2) The guard threw at **module scope**,
+and `next build` collects page data by importing every API route, so a runtime
+data-residency invariant was being enforced against the BUILD environment and killed
+the whole deploy — including deploys of unrelated fixes.
+
+**Fix.** `resolveEuModel` now branches on `process.env.NEXT_PHASE ===
+'phase-production-build'`: during build it logs a loud `Rule 5 warning` (once per
+model per worker) and continues; at every runtime cold start the module re-evaluates
+with the runtime env and `assertEuBedrockModel` throws exactly as designed, before a
+single request is served. Verified all three ways: poisoned-env build passes with the
+warning in the log; poisoned-env `next start` + POST `/api/bills/upload` → 500 with
+the Rule 5 violation in the server log; clean build/typecheck/tests green.
+
+**Gotchas for next time.**
+- `NEXT_PHASE` is set by `next build` and inherited by its page-data workers
+  (verified empirically on Next 16.2.2 / Turbopack); it is absent in the deployed
+  function runtime — that asymmetry is what makes the branch safe.
+- A module-scope `throw` in anything imported by an API route is a build-breaker,
+  not just a cold-start-breaker. Enforce runtime invariants with a build-phase
+  carve-out, or lazily at first use.
+- During the runtime repro, a missing Supabase env made `/api/bills/upload` 500
+  BEFORE provider.ts evaluated — an earlier module-scope throw can mask a later
+  one, so "no Rule 5 error in the log" does not mean the model env is clean.
+- Even with this fix, the staging deploy will build but every LLM route will 500 at
+  cold start until the Vercel env var is corrected to an `eu.` profile (or removed —
+  the code defaults are all `eu.`). `ALLOW_NON_EU_BEDROCK=1` remains local-dev-only.
+
+**Gates:** `npm run typecheck` ✓, `npm run build` ✓, vitest **1327 passing** (113
+files; +4 `resolveEuModel` build-phase/runtime tests in `provider.test.ts`).
+
+---
+
+## 2026-07-07 — Session B1: GDPR endpoint + cache seams + cost floor
+
+**Branch:** `claude/session-b1-gdpr-cost-floor-9o8fpq` (designated). ⚠️ This branch
+is **33 commits AHEAD of `origin/v2.9`, 0 behind** — NOT "fresh off main" as the
+plan assumed. It already carried ~60% of B1 (the 2026-07-03 LLM cost-control
+work: EU switch, Rule 5 guard, LLM_DISABLED kill switch, block flag, burst+daily
+caps, in-flight send guard, token logging). Scope was reconciled to the genuine
+gaps; already-shipped items were NOT rebuilt.
+
+### Shipped
+- **Cost meter (the core gap).** New `src/lib/ai/rates.ts`: typed rate table
+  keyed on the exact `eu.` inference-profile strings, `computeCostUsd` that
+  THROWS on any unknown profile (never silent-zero — unit-tested). Cost is
+  computed at write time (Rule 2) at the two logging choke points —
+  `trackLLMUsage` (all non-chat surfaces) and `completeChatTurn` (chat turn) —
+  and persisted to `llm_usage_log`. Chat cache tokens now persisted too.
+- **Migration 081** (`081_llm_usage_cost.sql`): EXTEND `llm_usage_log` (Rule 8 —
+  NOT a new `bedrock_usage_log`) with `computed_cost_usd numeric(10,6)`,
+  `cache_read_tokens`, `cache_write_tokens`, `rate_version`. **G4 RLS:** re-scoped
+  `authenticated`/`anon` SELECT to the 13 non-cost columns (cost/rate are
+  service-role/admin-only); `llm_usage_log_select_own` untouched so the guard's
+  daily-cap `COUNT(id)` still works. Prod companion `prod-backfill-081` marked
+  DO-NOT-APPLY. types.ts hand-extended (Row/Insert/Update).
+- **Lazy Bedrock client** (`provider.ts`, Phase 1.2): `createAmazonBedrock` is
+  memoised behind `getBedrockClient()` and built on first use; `bedrock()` and
+  the `chatModel`/`analysisModel`/`utilityModel` exports are lazy Proxies — so
+  importing the module for a pure-function test no longer constructs a client or
+  reads creds, and region is read at first request (no import-order
+  `region: undefined`). All ~20 call sites unchanged; Rule 5 guard + id
+  resolution preserved verbatim.
+- **CLAUDE.md**: env/model table + Data residency note (dub1/EU, eu. profiles
+  Sonnet+Haiku+Opus, `LLM_DISABLED`, `ALLOW_NON_EU_BEDROCK` local-only).
+- **Runbook** `docs/runbooks/aws-cost-guardrails.md`: exact SNS + CloudWatch
+  invocation-spike alarm (>100/5min, `AWS/Bedrock`, eu-west-1) + AWS Budgets
+  50/80/100% commands. Lewis runs manually (constraint 6).
+
+### Phase 0 findings (G1–G4)
+- **G1 (EU Sonnet profile) — PASS.** No AWS CLI in env; resolved via code:
+  Sonnet already on `eu.anthropic.claude-sonnet-4-6` (shipped v2.9, commit
+  1f9f4ee); Rule 5 guard throws on non-`eu.` at cold start. No live `global.`
+  Sonnet profile (only provider.ts doc-comment + negative tests).
+- **G2 (cache seam) — PASS / no stop.** Single `cachePoint` on the chat system
+  message (route.ts:545), matches the expected shape. BUT `buildSystemPrompt`
+  interleaves volatile per-user data BEFORE the breakpoint → cache prefix
+  collapses (confirms the 2026-07-05 diagnosis). The reorder was scoped OUT (see
+  Deferred).
+- **G3 (call sites) — PASS w/ caveats.** All Bedrock calls flow through
+  provider.ts (zero rogue clients). Caveats deferred: demo/reading:251 hardcodes
+  an Opus literal bypassing the guard; 4 vision surfaces (upload multipart
+  screenshot / balance-sheet screenshot + pdf, bills/upload) are ungated by the
+  kill switch.
+- **G4 (RLS) — DECIDED: extend llm_usage_log, not a new table** (Rule 8 + it
+  already carries GDPR `deleted_at`/`anonymised_at` columns and the guard counts
+  it). Cost cols made service-role/admin-only via a column re-grant; `select_own`
+  kept (load-bearing for the daily-cap count).
+
+### Verified rates + source URL
+Opus 4.6 $5/$25, Sonnet 4.6 $3/$15, Haiku 4.5 $1/$5 per MTok; cache read 0.1x,
+write 1.25x (5-min TTL). Source: the Anthropic model catalogue (Bedrock Claude
+on-demand mirrors it). The AWS Bedrock pricing page
+(https://aws.amazon.com/bedrock/pricing/) returned **HTTP 403** from the build
+env, so rates.ts carries a `TODO(Lewis)` to confirm against the eu-west-1
+Bedrock page. `RATE_VERSION = '2026-07-B1'`.
+
+### Verified (gates)
+- `npm run typecheck` ✓ (after `npm ci` — node_modules was absent on the fresh
+  clone). vitest **1333 passing** (114 files; +6 `rates.test.ts`, incl. the
+  unknown-profile-throws unit).
+- Staging migration 081 applied via `execute_sql` (`apply_migration` hit the same
+  MCP permission-prompt infra failure the 2026-07-03 entry records for migration
+  074). Columns + G4 grants verified live; write path round-trips
+  `numeric(10,6)` (`0.024900`) via an insert+cleanup self-test (no residue). NOT
+  registered in `schema_migrations` — re-run the committed file via CLI to
+  register (idempotent `IF NOT EXISTS`).
+
+### Surprises (load-bearing)
+- **Branch was 33 commits ahead of v2.9, not fresh off main** — plan premise
+  stale; ~60% pre-built. Reconciled scope rather than duplicating.
+- **The model ids are REAL current models** (Sonnet 4.6 / Opus 4.6 / Haiku 4.5),
+  not fictional — so constraint 5 is satisfiable from the catalogue.
+- **Postgres data-modifying CTEs don't see each other's rows**: an
+  insert+delete-in-one-statement "cleanup" left the row (rows_cleaned 0); needed
+  an explicit follow-up DELETE. Watch this for any test-row cleanup on staging.
+- **MCP writes (`apply_migration`, `AskUserQuestion`) fail on a permission-prompt
+  infra error** in this env; `execute_sql` and reads work. Same class as the 074
+  failure.
+
+### Deferred / follow-ups
+- **Phase 2 cache-seam reorder** of `buildSystemPrompt` (static prefix before the
+  cachePoint, volatile after) in the 145KB context-builder.ts — highest cost win,
+  deferred as the riskiest change (touches the prompt the model sees).
+- Close the **4 ungated vision surfaces** (kill switch + daily-cap callTypes) and
+  fix **demo/reading:251** hardcoded Opus literal (G3 caveats).
+- Centralize `maxOutputTokens` into a typed `MAX_TOKENS` map (caps exist
+  per-site today; the plan's judge=1200 bucket has no consumer).
+- Drop the dead `llm_usage_log_insert_own` policy (kept additive this session).
+- **Full staging chat-as-Dorcas smoke** (a row with non-null `computed_cost_usd`;
+  a 2nd turn within TTL with `cache_read_tokens > 0`) — needs the app running
+  against staging; Lewis-manual.
+- **Lewis:** apply `prod-backfill-081`; set the AWS guardrails per the runbook;
+  confirm the four rates against the eu-west-1 Bedrock pricing page.
+
+### Next: B2 (Session 34 + action-item-reminder prod fix ride-along)

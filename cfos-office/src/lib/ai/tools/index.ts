@@ -25,6 +25,7 @@ import { createCreateGoalTool } from './create-goal';
 import { createLogContributionTool } from './log-contribution';
 import { createComputeGoalPaceTool } from './compute-goal-pace';
 import { createComputePeriodAverageTool } from './compute-period-average';
+import { createCompareMonthToGoalTool } from './compare-month-to-goal';
 // Session v2.2 — Chat Intelligence tools.
 import { createGetTransactionsTool } from './get-transactions';
 import { createGetTopMerchantsTool } from './get-top-merchants';
@@ -77,6 +78,7 @@ export function createToolbox(ctx: ToolContext) {
     log_contribution: createLogContributionTool(ctx),
     compute_goal_pace: createComputeGoalPaceTool(ctx),
     compute_period_average: createComputePeriodAverageTool(ctx),
+    compare_month_to_goal: createCompareMonthToGoalTool(ctx),
     // Session v2.2 — Chat Intelligence tools
     get_transactions: createGetTransactionsTool(ctx),
     get_top_merchants: createGetTopMerchantsTool(ctx),

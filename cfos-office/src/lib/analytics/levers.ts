@@ -19,14 +19,13 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import {
-  loadCurrentBudget,
-  loadAverageDiscretionary,
-  loadActiveGoals,
-} from '@/lib/ai/tools/helpers';
+import { loadCurrentBudget, loadActiveGoals } from '@/lib/ai/tools/helpers';
 import type { ToolContext } from '@/lib/ai/tools/types';
 import { DISCRETIONARY_CATEGORY_IDS, categoryLabel } from '@/lib/analytics/categories';
 import type { SpendingBreakdown } from '@/lib/analytics/spending-breakdown';
+import { requiredMonthlyBand } from '@/lib/finance/compound-growth';
+import { monthsBetween } from '@/lib/goals/pace';
+import { getFinancialPosition } from '@/lib/finance/financial-position';
 
 const DAYS_PER_MONTH = 30.44;
 // A `cut` lever suggests trimming a quarter of a discretionary category — a
@@ -42,6 +41,27 @@ export type Lever =
       /** Whole months sooner the active goal lands if the cut is sustained. Null when pace inputs are incomplete. */
       goalImpactMonths: number | null;
       goalId: string;
+    }
+  | {
+      type: 'accelerate';
+      goalId: string;
+      goalName: string;
+      /** Spare cash each month BEYOND what the goal needs at plan (surplus − monthly_required). */
+      surplusOverRequired: number;
+      /**
+       * Investment goals only: how much MORE per month the conservative (low-return)
+       * stress case needs than the current surplus covers. 0 = covered even at the
+       * stress rate; null = not an investment goal / not computable.
+       */
+      stressTestGap: number | null;
+      /**
+       * 'observed' — the surplus nets out real discretionary spending history.
+       * 'modelled' — no snapshot history exists yet, so the surplus is only
+       * income minus fixed costs (assumes zero day-to-day spending). The
+       * prompt layer MUST hedge "funded" / "stress case covered" language
+       * when this is 'modelled' — never present it as a confirmed fact.
+       */
+      basis: 'observed' | 'modelled';
     }
   | { type: 'shift'; category: string; rationale: 'timing' | 'context'; goalId?: string }
   | { type: 'reallocate'; from: string; to: string; amount: number; goalId: string }
@@ -67,6 +87,11 @@ type ActiveGoalRow = {
   target_amount: number | null;
   current_amount: number | null;
   target_date: string | null;
+  /** Investment goals are paced with compound growth — gates the stress-test gap. */
+  type?: string | null;
+  /** Persisted pace verdict from pace.ts (compound-aware for investment goals). */
+  on_track?: boolean | null;
+  monthly_required_saving?: number | null;
 };
 
 type Budget = Awaited<ReturnType<typeof loadCurrentBudget>>;
@@ -107,18 +132,28 @@ export async function deriveLevers(args: {
   }
 
   const blocker = detectBlocker(activeGoal, budget);
-  const cutLever = await deriveCutLever(
-    ctx,
-    activeGoal,
-    budget,
-    args.spendingBreakdown ?? null,
-    args.windowDays ?? 90,
-    args.effectiveMonths,
-  );
 
   const levers: Lever[] = [];
   if (blocker) levers.push(blocker);
-  if (cutLever) levers.push(cutLever);
+
+  // When the goal is already funded at plan (on_track), don't manufacture a cut —
+  // emit an `accelerate` lever instead, so the Read frames the real choice (direct
+  // the spare cash, cover the stress case, or move to the next goal) rather than a
+  // gap that doesn't exist. Only the not-funded path derives a cut.
+  const accelerate = await deriveAccelerateLever(ctx, activeGoal);
+  if (accelerate) {
+    levers.push(accelerate);
+  } else {
+    const cutLever = await deriveCutLever(
+      ctx,
+      activeGoal,
+      budget,
+      args.spendingBreakdown ?? null,
+      args.windowDays ?? 90,
+      args.effectiveMonths,
+    );
+    if (cutLever) levers.push(cutLever);
+  }
 
   return { levers, blocker };
 }
@@ -216,6 +251,95 @@ async function deriveCutLever(
   };
 }
 
+type SurplusResult = { surplus: number; basis: 'observed' | 'modelled' };
+
+/**
+ * Monthly free cash: total income minus fixed costs minus average discretionary
+ * spend. The ONE definition of surplus — pace.ts, the cut lever's impact, and the
+ * accelerate gate must all agree (one source of truth). Null when income is absent.
+ *
+ * Reads `getFinancialPosition` DIRECTLY rather than going through
+ * `loadCurrentBudget` + a separate `loadAverageDiscretionary` call. That
+ * detour re-derived the surplus from `budget.fixedCosts`, which defaults to
+ * 0 when `reconcileFixedCosts` throws (financial-position.ts is careful to
+ * null out `freeCash`/mark `basis: 'modelled'` on that failure, but the
+ * detour never read either field — it recomputed independently and could
+ * emit a confident "observed" surplus off a silently-zeroed fixed-cost
+ * total, exactly the false-funded bug class this module exists to close).
+ * Going straight to `position.freeCash`/`position.basis` means a reconcile
+ * failure now correctly surfaces here as `null` (no lever), not as a
+ * fabricated windfall.
+ */
+async function computeCurrentSurplus(ctx: ToolContext): Promise<SurplusResult | null> {
+  const position = await getFinancialPosition(ctx.supabase, ctx.userId);
+  if (position.freeCash == null) return null;
+  return { surplus: position.freeCash, basis: position.basis };
+}
+
+/**
+ * Emitted INSTEAD of a cut when the active goal is already funded at plan. The
+ * magnitudes are the spare cash beyond what the goal needs and — for investment
+ * goals — whether the conservative (low-return) stress case is also covered.
+ *
+ * Deliberately does NOT compute a naive "months sooner" off cash surplus: that
+ * model ignores investment growth (the very thing that makes a retirement pot
+ * on-track), so it would contradict pace.ts. Both magnitudes here are robust and
+ * computed server-side; the LLM only frames them.
+ *
+ * Gates ONLY on a fresh, live surplus-vs-required comparison from the unified
+ * module — it no longer trusts a persisted `goal.on_track` boolean. on_track
+ * can be stale (computed once at goal creation/contribution time, often
+ * before any transaction history exists, when discretionary spend was
+ * necessarily assumed to be 0); trusting it let a "funded at plan" verdict
+ * survive long after real spending history proved otherwise. `basis` rides
+ * along on the emitted lever so the prompt layer can hedge a 'modelled'
+ * verdict instead of presenting it as a confirmed fact.
+ */
+async function deriveAccelerateLever(
+  ctx: ToolContext,
+  goal: ActiveGoalRow,
+): Promise<Lever | null> {
+  const position = await computeCurrentSurplus(ctx);
+  if (position == null) return null;
+  const { surplus: currentSurplus, basis } = position;
+
+  const monthlyRequired = goal.monthly_required_saving ?? null;
+  if (monthlyRequired == null) return null;
+  if (currentSurplus < monthlyRequired) return null;
+
+  const surplusOverRequired = Math.round(currentSurplus - monthlyRequired);
+
+  // Investment goals: is the conservative (low-return) stress case also covered?
+  let stressTestGap: number | null = null;
+  if (goal.type === 'investment' && goal.target_amount != null && goal.target_date != null) {
+    const monthsLeft = monthsBetween(new Date(), new Date(goal.target_date));
+    if (monthsLeft > 0) {
+      const band = requiredMonthlyBand({
+        targetAmount: goal.target_amount,
+        currentAmount: goal.current_amount ?? 0,
+        months: monthsLeft,
+      });
+      const conservative = band.reduce(
+        (min, b) => (b.ratePct < min.ratePct ? b : min),
+        band[0],
+      );
+      const requiredConservative = conservative?.monthly ?? null;
+      if (requiredConservative != null) {
+        stressTestGap = Math.max(0, Math.round(requiredConservative - currentSurplus));
+      }
+    }
+  }
+
+  return {
+    type: 'accelerate',
+    goalId: goal.id,
+    goalName: goal.name,
+    surplusOverRequired,
+    stressTestGap,
+    basis,
+  };
+}
+
 /**
  * Counterfactual: how many whole months sooner does the active goal land if
  * the user has `extraMonthly` extra surplus from now on? Returns null when
@@ -235,10 +359,9 @@ async function computeGoalImpactMonths(
   const remaining = Number(goal.target_amount) - Number(goal.current_amount ?? 0);
   if (remaining <= 0) return null;
 
-  const avgDiscretionary = (await loadAverageDiscretionary(ctx)) ?? 0;
-  const totalIncome = budget.netIncome + budget.partnerContribution;
-  const currentSurplus = totalIncome - budget.fixedCosts - avgDiscretionary;
-  if (currentSurplus <= 0) return null;
+  const position = await computeCurrentSurplus(ctx);
+  if (position == null || position.surplus <= 0) return null;
+  const currentSurplus = position.surplus;
 
   const monthsCurrent = remaining / currentSurplus;
   const monthsWithCut = remaining / (currentSurplus + extraMonthly);

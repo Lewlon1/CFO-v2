@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { composeFirstRead } from '@/lib/ai/compose-first-read'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import type { PriorReadSummary } from '@/lib/ai/prompts/first-read'
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks'
 import {
@@ -31,6 +32,13 @@ type FirstReadMetaShape = {
   hook_candidates?: HookCandidate[] | null
 }
 
+// Recompose idempotency keys on conversations.metadata (no migration —
+// CLAUDE.md Rule 3). RECOMPOSED_KEY predates this guard (always written,
+// never read back until now); the in-progress key mirrors the upgrade
+// route's claim.
+const RECOMPOSED_KEY = 'first_read_metadata_recomposed'
+const RECOMPOSE_IN_PROGRESS_KEY = 'recompose_in_progress'
+
 function firstSentence(message: string): string {
   const trimmed = message.trim()
   return (trimmed.split(/(?<=[.!?])\s+|\n/)[0] ?? trimmed).trim()
@@ -40,6 +48,17 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap.
+  const guardVerdict = await checkLlmAllowed({
+    userId: user.id,
+    surface: 'first_read_compose',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[recompose-first-read] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   // Find the active layered first_read conversation. (post-upload marked
@@ -56,11 +75,50 @@ export async function POST() {
 
   const svc = createServiceClient()
 
+  const prevMeta = (conversation.metadata as Record<string, unknown> | null) ?? {}
+
+  // Idempotency pre-check: the recompose's legit cardinality is once per
+  // layered first_read conversation, and the stamp below has always been
+  // written — it was just never read back, so every repeated POST re-composed
+  // and appended a duplicate delta Read (a cost + UX hole). Benign 200 with
+  // the conversationId keeps the client working (it only reads that field).
+  if (prevMeta[RECOMPOSED_KEY] != null) {
+    return NextResponse.json({
+      conversationId: conversation.id,
+      message_persisted: false,
+      reason: 'already_recomposed',
+    })
+  }
+
+  // Atomic claim for the concurrent window (two POSTs racing past the
+  // pre-check). Same null-aware conditional-update shape as
+  // claimUpgradeInProgress: the WHERE re-checks BOTH flags at write time, so
+  // only one caller ever composes. The success path clears the claim in the
+  // same write as the stamp; failures clear it best-effort below.
+  const { data: claimed } = await svc
+    .from('conversations')
+    .update({
+      metadata: { ...prevMeta, [RECOMPOSE_IN_PROGRESS_KEY]: true },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversation.id)
+    .or(
+      `metadata->>${RECOMPOSE_IN_PROGRESS_KEY}.is.null,metadata->>${RECOMPOSE_IN_PROGRESS_KEY}.neq.true`,
+    )
+    .is(`metadata->>${RECOMPOSED_KEY}`, null)
+    .select('id')
+    .maybeSingle()
+  if (!claimed) {
+    return NextResponse.json(
+      { conversationId: conversation.id, message_persisted: false, reason: 'in_progress' },
+      { status: 409 },
+    )
+  }
+
   // Fetch the prior First Read — the first assistant message in this thread —
   // to build the do-not-restate contract. Failure here is non-fatal: we fall
   // back to a permissive PriorReadSummary (still recompose mode, just without
   // the merchant exclusion list).
-  const prevMeta = (conversation.metadata as Record<string, unknown> | null) ?? {}
   const frMeta = (prevMeta.first_read_metadata as FirstReadMetaShape | undefined) ?? {}
 
   const { data: priorMsg } = await svc
@@ -96,6 +154,20 @@ export async function POST() {
   // exactly what the user sorted.
   const valueMapCards = (prevMeta.value_map_cards as { keys?: string[] } | undefined)?.keys ?? []
 
+  // Any failure between the claim above and the stamp below must release the
+  // claim so a retry can succeed (best-effort — a failed clear self-heals only
+  // via manual metadata fix, mirrored on the upgrade route's tradeoff).
+  const clearClaim = async () => {
+    try {
+      await snapshotConversationMetadata(svc, {
+        conversationId: conversation.id,
+        metadata: { [RECOMPOSE_IN_PROGRESS_KEY]: false },
+      })
+    } catch (clearErr) {
+      console.error('[recompose-first-read] failed to clear in-progress claim:', clearErr)
+    }
+  }
+
   let composed: Awaited<ReturnType<typeof composeFirstRead>>
   try {
     composed = await composeFirstRead({
@@ -107,6 +179,7 @@ export async function POST() {
     })
   } catch (err) {
     console.error('[recompose-first-read] composeFirstRead failed:', err)
+    await clearClaim()
     await trackOnboardingError(supabase, user.id, 'recompose', err, { stage: 'compose' })
     return NextResponse.json({ error: 'Failed to recompose' }, { status: 500 })
   }
@@ -121,18 +194,21 @@ export async function POST() {
     })
   } catch (err) {
     console.error('[recompose-first-read] message insert failed:', err)
+    await clearClaim()
     await trackOnboardingError(supabase, user.id, 'recompose', err, { stage: 'append' })
     return NextResponse.json({ error: 'Failed to persist message' }, { status: 500 })
   }
 
   // Refresh the conversation's metadata snapshot so dashboards/cron see the
-  // post-Value-Map composition state. Uses the same (user-session) client the
-  // route used before; merges onto current metadata (matching the prior
-  // `...prevMeta` spread — no concurrent metadata write happens between the
-  // lookup above and here).
+  // post-Value-Map composition state, and clear the in-progress claim in the
+  // SAME write — the stamp is what the pre-check and the claim's WHERE test,
+  // so from here repeated POSTs are benign no-ops.
   await snapshotConversationMetadata(supabase, {
     conversationId: conversation.id,
-    metadata: { first_read_metadata_recomposed: composed.metadata },
+    metadata: {
+      first_read_metadata_recomposed: composed.metadata,
+      [RECOMPOSE_IN_PROGRESS_KEY]: false,
+    },
   })
 
   await trackFunnelEvent(supabase, {

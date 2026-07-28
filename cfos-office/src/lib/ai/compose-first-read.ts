@@ -13,18 +13,21 @@
 import { generateText } from 'ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { bedrock, chatModelId } from '@/lib/ai/provider';
+import { bedrock, composeModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
-import { getDataWindowEnd, getDataWindowCoverage } from '@/lib/analytics/cluster-behaviour/queries';
+import { getDataWindowEnd, getDataWindowCoverage, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
-import { deriveLevers, type LeverPackage } from '@/lib/analytics/levers';
+import { deriveLevers, type Lever, type LeverPackage } from '@/lib/analytics/levers';
 import {
   reconcileFixedCosts,
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
+import { getFinancialPosition, type FinancialPositionBasis } from '@/lib/finance/financial-position';
+import { buildCitationAllowlist, validateCitations } from '@/lib/ai/insight-validator';
 import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
@@ -56,13 +59,18 @@ const DAYS_PER_MONTH = 30.44;
 const TOP_CLUSTER_LIMIT = 10;
 const MIN_DATA_COMPLETENESS = 0.3;
 const MAX_OUTPUT_TOKENS = 700;
+// Whole-currency-unit slack for the Issue 1.4 lever/facts consistency
+// assertion — both figures round independently (lever to the nearest whole
+// unit, FINANCIAL FACTS to the nearest cent), so a 1-unit gap is rounding
+// noise, not a real disagreement.
+const LEVER_FACTS_CONSISTENCY_TOLERANCE = 1;
 
 // The declared Read is 70–130 words (it stands on two numbers, not 90 days of
 // data), so it gets a tighter ceiling than the transaction Read — generous
 // enough to never truncate the CTA/sign-off, tight enough to cap a runaway.
 const DECLARED_MAX_OUTPUT_TOKENS = 400;
 
-const COMPOSE_MODEL = process.env.BEDROCK_COMPOSE_MODEL || chatModelId;
+const COMPOSE_MODEL = composeModelId;
 
 export type ComposeFirstReadMode =
   | 'default'
@@ -126,6 +134,11 @@ export async function composeFirstRead(params: {
   priorReadSummary?: PriorReadSummary;
   /** The merchant keys the Value Map actually presented (Phase 1 selection), for the recompose payoff context. */
   valueMapCardKeys?: string[];
+  /** declared_upgrade only — the snapshot the declared Read stood on (from
+   *  conversation metadata). When present, the compose renders a numeric
+   *  DECLARED → ACTUAL block; absent (pre-snapshot conversations), the upgrade
+   *  frames the delta qualitatively. */
+  declaredPriorFacts?: DeclaredReadFacts | null;
 }): Promise<FirstReadComposeOutput> {
   const supabase = params.supabase ?? createServiceClient();
   const mode = params.mode ?? 'default';
@@ -141,12 +154,19 @@ export async function composeFirstRead(params: {
     return composeDeclaredRead(supabase, params.userId);
   }
 
-  const [valueProfile, topMerchants, goalRow, transactionCountTotal, dataWindowEnd, financialFacts, benchmarkObservation, entry] = await Promise.all([
+  // Resolve the data window end first — the user's latest transaction date. It
+  // anchors the cluster-selection and transaction-count windows below (and the
+  // breakdown/coverage windows further down) so an upload whose statements end
+  // weeks or months ago windows onto its OWN activity rather than an empty
+  // [today − 90d, today] range. Anchoring those to today is what declined a
+  // genuine 3-month upload as "thin" whenever the data wasn't bang up to date.
+  const dataWindowEnd = await getDataWindowEnd(supabase, params.userId);
+
+  const [valueProfile, topMerchants, goalRow, transactionCountTotal, financialFacts, benchmarkObservation, entry] = await Promise.all([
     buildUserValueProfile(supabase, params.userId),
-    getTopMerchantKeys(supabase, params.userId),
+    getTopMerchantKeys(supabase, params.userId, dataWindowEnd),
     getActiveGoal(supabase, params.userId),
-    getTransactionCount(supabase, params.userId, WINDOW_DAYS),
-    getDataWindowEnd(supabase, params.userId),
+    getTransactionCount(supabase, params.userId, WINDOW_DAYS, dataWindowEnd),
     getFinancialFacts(supabase, params.userId),
     getTopBenchmarkObservation(supabase, params.userId),
     getEntryStruggle(supabase, params.userId),
@@ -176,7 +196,7 @@ export async function composeFirstRead(params: {
   // Levers run AFTER the breakdown: the cut lever names the biggest discretionary
   // category from it, so the Read's ONE ACTION and the breakdown refer to the
   // same category (was: a recurring_expenses cut that surfaced essentials/renfe).
-  const leverPackage = await deriveLevers({
+  const rawLeverPackage = await deriveLevers({
     supabase,
     userId: params.userId,
     currency: financialFacts.currency,
@@ -184,6 +204,19 @@ export async function composeFirstRead(params: {
     windowDays: WINDOW_DAYS,
     effectiveMonths,
   });
+
+  // Issue 1.4 — compose-time consistency assertion. The lever engine and
+  // FINANCIAL FACTS both read the unified financial-position module, but
+  // they do so via two independent calls, so this is a load-bearing check,
+  // not a nicety: the system must refuse to hand the model two contradicting
+  // numbers for the same fact. On mismatch, drop the lever and compose
+  // without it rather than risk repeating the dorcas/lewis false-surplus bug.
+  const leverPackage = reconcileLeverPackageWithFacts(
+    rawLeverPackage,
+    financialFacts,
+    goalRow,
+    params.userId,
+  );
 
   // Goal-first precedence, mirroring resolveUserIntent() in insight-engine.ts.
   const readRecipe = selectReadRecipe({
@@ -242,6 +275,13 @@ export async function composeFirstRead(params: {
     return declaredUpgradeDeclineResult(readRecipe);
   }
 
+  // DECLARED → ACTUAL delta (declared_upgrade with a snapshot only). Computed
+  // server-side so the model cites both sides verbatim (Rule 2).
+  const declaredDelta =
+    isDeclaredUpgrade && params.declaredPriorFacts
+      ? buildDeclaredDelta(params.declaredPriorFacts, financialFacts)
+      : null;
+
   const userPrompt = buildFirstReadUserPrompt({
     userId: params.userId,
     mode,
@@ -267,6 +307,7 @@ export async function composeFirstRead(params: {
     // declared upgrade carries the delta contract only (no sort happened).
     priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
     valueMapCardKeys: isRecompose ? (params.valueMapCardKeys ?? null) : null,
+    declaredDelta,
   });
 
   const systemPrompt = isRecompose
@@ -286,7 +327,48 @@ export async function composeFirstRead(params: {
     abortSignal: AbortSignal.timeout(20_000),
   });
 
+  // Usage accounting — composes were previously invisible to llm_usage_log,
+  // so the cost guard's first_read_compose daily cap had nothing to count.
+  void trackLLMUsage({
+    userId: params.userId,
+    callType: 'first_read_compose',
+    model: COMPOSE_MODEL,
+    inputTokens: result.usage?.inputTokens,
+    outputTokens: result.usage?.outputTokens,
+    metadata: { mode },
+  });
+
   const composedMessage = result.text.trim();
+
+  // Issue 7.2 — numeric grounding for the compose path (recompose included),
+  // not just the chat route. The composer never calls tools (it writes from
+  // pre-computed context), so the allowlist is built from the SAME facts the
+  // prompt handed the model — FINANCIAL FACTS, the lever package, and the
+  // spending breakdown — rather than from tool-call outputs. Catches a
+  // number the model assembled or misquoted itself; it cannot catch a wrong
+  // number the server handed it verbatim (Issue 1's consistency assertion
+  // covers that). Non-blocking for now — logs so a regression is visible in
+  // the same way the chat route's citation check does, rather than forcing
+  // a regenerate (a bigger behavioural change better proven out via this
+  // telemetry first).
+  const citationCheck = validateCitations(
+    composedMessage,
+    buildCitationAllowlist(
+      [
+        { toolName: 'financial_facts', output: financialFacts },
+        { toolName: 'levers', output: leverPackage.levers },
+        { toolName: 'spending_breakdown', output: spendingBreakdown },
+      ],
+      {},
+    ),
+  );
+  if (!citationCheck.valid && citationCheck.unmatched.numbers.length > 0) {
+    console.error('[compose-first-read] citation check found unmatched numbers', {
+      userId: params.userId,
+      mode,
+      unmatched: citationCheck.unmatched.numbers,
+    });
+  }
 
   const metadata = extractCompositionMetadata({
     composedMessage,
@@ -305,11 +387,82 @@ export async function composeFirstRead(params: {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/**
+ * Issue 1.4: assert the accelerate lever's `surplusOverRequired` reconciles
+ * with FINANCIAL FACTS' free_cash_flow minus the goal's monthly requirement.
+ * Both are computed from the unified financial-position module, but via two
+ * independent calls (deriveLevers' own loadActiveGoals/loadCurrentBudget
+ * round-trip vs getFinancialFacts' direct call) — a silent divergence between
+ * them is exactly the "two disagreeing sources of truth for the same fact"
+ * failure mode the dorcas/lewis review found. On mismatch, drop the lever
+ * (never the fact) and log both values so a regression is diagnosable.
+ *
+ * Also checks the lever's `goalId` against `goalRow.id`: deriveLevers and
+ * getActiveGoal resolve "the" active goal via two separate queries, so a
+ * user with 2+ active goals could — before both queries were pinned to the
+ * same newest-first ordering — have them disagree on WHICH goal, making the
+ * numeric comparison below meaningless (comparing two different goals'
+ * figures as if they were one). Belt-and-suspenders: even with matching
+ * ordering, a same-instant created_at tie could still diverge.
+ */
+export function reconcileLeverPackageWithFacts(
+  leverPackage: LeverPackage,
+  financialFacts: FinancialFacts,
+  goalRow: { id: string | null; monthly_required_saving: number | null } | null,
+  userId: string,
+): LeverPackage {
+  const accelerate = leverPackage.levers.find(
+    (l): l is Extract<Lever, { type: 'accelerate' }> => l.type === 'accelerate',
+  );
+  if (!accelerate) return leverPackage;
+
+  if (goalRow?.id != null && accelerate.goalId !== goalRow.id) {
+    console.error(
+      '[compose-first-read] consistency assertion failed: accelerate lever is for a DIFFERENT goal than the Read — dropping the lever',
+      { userId, leverGoalId: accelerate.goalId, readGoalId: goalRow.id },
+    );
+    return {
+      levers: leverPackage.levers.filter((l) => l !== accelerate),
+      blocker: leverPackage.blocker,
+    };
+  }
+
+  if (financialFacts.free_cash_flow == null || goalRow?.monthly_required_saving == null) {
+    return leverPackage;
+  }
+
+  const expectedSurplusOverRequired =
+    financialFacts.free_cash_flow - goalRow.monthly_required_saving;
+  const diff = Math.abs(accelerate.surplusOverRequired - expectedSurplusOverRequired);
+  if (diff > LEVER_FACTS_CONSISTENCY_TOLERANCE) {
+    console.error(
+      '[compose-first-read] consistency assertion failed: accelerate lever disagrees with FINANCIAL FACTS — dropping the lever',
+      {
+        userId,
+        leverSurplusOverRequired: accelerate.surplusOverRequired,
+        expectedFromFacts: expectedSurplusOverRequired,
+        freeCashFlow: financialFacts.free_cash_flow,
+        monthlyRequired: goalRow.monthly_required_saving,
+      },
+    );
+    return {
+      levers: leverPackage.levers.filter((l) => l !== accelerate),
+      blocker: leverPackage.blocker,
+    };
+  }
+  return leverPackage;
+}
+
 async function getTopMerchantKeys(
   supabase: SupabaseClient,
   userId: string,
+  dataWindowEnd?: string | null,
 ): Promise<string[]> {
-  const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  // Anchor the 90-day merchant window to the data's latest month, not today, so
+  // a stale upload's aggregates still fall inside it (a today-anchored window
+  // returned zero merchant keys for any dataset ending >90d ago → no usable
+  // clusters → the upgrade declined as "thin").
+  const since = windowStartISO(WINDOW_DAYS, dataWindowEnd);
   const { data, error } = await supabase
     .from('merchant_aggregates')
     .select('merchant_key, transaction_count, last_seen, first_seen')
@@ -343,67 +496,50 @@ export type FinancialFacts = {
   /** 'variable' means income swings — surface it instead of a flat monthly figure. */
   income_shape: string | null;
   t3m_income_monthly: number | null;
+  /**
+   * Where the income figure came from: 'observed' (seen landing), 'declared_unverified'
+   * (user stated it, no deposit seen), or 'unknown'. Drives the declared-income hedge.
+   */
+  income_provenance: string | null;
+  /**
+   * 'observed' — free_cash_flow nets out real discretionary spending history.
+   * 'modelled' — no snapshot history exists yet, so free_cash_flow is only
+   * income minus fixed costs (assumes zero day-to-day spending). See
+   * FinancialPosition.basis — this is that value, carried through verbatim.
+   */
+  free_cash_flow_basis: FinancialPositionBasis;
 };
 
 async function getFinancialFacts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<FinancialFacts> {
-  const [profileRes, snapshotRes] = await Promise.all([
+  // income / fixed costs / free cash ALL come from the unified financial-position
+  // module — this used to read monthly_snapshots.total_fixed_costs directly (with
+  // a live-reconcile fallback) and compute free_cash_flow as a bare
+  // income-minus-fixed-costs subtraction that never netted out discretionary
+  // spend. That divergent formula is exactly what produced the false "spare
+  // cash" figures the dorcas/lewis staging review caught — this Read's headline
+  // number and the accelerate lever's number must be the SAME number (Rule 8).
+  const [profileRes, position] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('net_monthly_income, monthly_rent, primary_currency, income_shape, t3m_income_monthly, country')
+      .select('income_shape, t3m_income_monthly, country, primary_currency')
       .eq('id', userId)
       .maybeSingle(),
-    supabase
-      .from('monthly_snapshots')
-      .select('total_fixed_costs')
-      .eq('user_id', userId)
-      .order('month', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    getFinancialPosition(supabase, userId),
   ]);
   const txnRes = await supabase
     .from('transactions')
     .select('currency')
     .eq('user_id', userId)
     .limit(500);
-  const income =
-    typeof profileRes.data?.net_monthly_income === 'number'
-      ? profileRes.data.net_monthly_income
-      : null;
-  const rent =
-    typeof profileRes.data?.monthly_rent === 'number'
-      ? profileRes.data.monthly_rent
-      : null;
-  let totalFixed: number | null =
-    typeof snapshotRes.data?.total_fixed_costs === 'number'
-      ? snapshotRes.data.total_fixed_costs
-      : null;
-  // Fallback to a live reconcile when the snapshot has no fixed-cost total.
-  // Two scenarios this catches: (1) a fresh user whose first snapshot hasn't
-  // been generated yet, and (2) any historical snapshot written before the
-  // monthly_snapshots.total_fixed_costs column existed (the Supabase insert
-  // silently dropped the field). Without this fallback the Read announces
-  // "fixed costs aren't on file" even when reconcile would produce a number.
-  if (totalFixed == null) {
-    try {
-      const { totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId);
-      totalFixed = totalFixedCostsMonthly ?? null;
-    } catch (err) {
-      console.error('[compose-first-read] reconcile fallback for fixed costs failed:', err);
-      totalFixed = null;
-    }
-  }
-  const freeCashFlow =
-    income != null && totalFixed != null
-      ? Math.round((income - totalFixed) * 100) / 100
-      : null;
   return {
-    net_monthly_income: income,
-    monthly_rent: rent,
-    total_fixed_costs: totalFixed,
-    free_cash_flow: freeCashFlow,
+    net_monthly_income: position.income,
+    monthly_rent: position.monthlyRent,
+    total_fixed_costs: position.fixedCostsMonthly,
+    free_cash_flow: position.freeCash != null ? Math.round(position.freeCash * 100) / 100 : null,
+    free_cash_flow_basis: position.basis,
     currency: resolveUserCurrency(
       (profileRes.data?.country as string | null) ?? null,
       (profileRes.data?.primary_currency as string | null) ?? null,
@@ -415,6 +551,7 @@ async function getFinancialFacts(
       typeof profileRes.data?.t3m_income_monthly === 'number'
         ? profileRes.data.t3m_income_monthly
         : null,
+    income_provenance: position.incomeProvenance,
   };
 }
 
@@ -443,6 +580,7 @@ async function getActiveGoal(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{
+  id: string;
   name: string;
   target_amount: number | null;
   current_amount: number | null;
@@ -450,9 +588,13 @@ async function getActiveGoal(
   type: string | null;
   monthly_required_saving: number | null;
 } | null> {
+  // Ordered newest-first — MUST match loadActiveGoals' ordering (helpers.ts)
+  // so the lever engine and this Read narrate the SAME goal when a user has
+  // 2+ active goals. reconcileLeverPackageWithFacts below cross-checks the
+  // id as a second line of defence.
   const { data } = await supabase
     .from('goals')
-    .select('name, target_amount, current_amount, target_date, type, monthly_required_saving')
+    .select('id, name, target_amount, current_amount, target_date, type, monthly_required_saving')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -460,6 +602,7 @@ async function getActiveGoal(
     .maybeSingle();
   return data
     ? {
+        id: data.id as string,
         name: data.name as string,
         target_amount: data.target_amount as number | null,
         current_amount: data.current_amount as number | null,
@@ -553,37 +696,168 @@ export interface DeclaredReadFacts {
   totalFixedCosts: number
   freeCash: number
   goalName: string | null
+  /** Goal anchoring figures — already fetched by getActiveGoal; threading them
+   *  here lets the Read cite the target in the user's own terms instead of
+   *  name-dropping the goal (all nullable — goals can lack any of them). */
+  goalTargetAmount: number | null
+  goalCurrentAmount: number | null
+  goalTargetDate: string | null
+  goalType: string | null
   monthlyRequiredSaving: number | null
   percentOfIncome: number | null
   /** Free cash left after the goal contribution — a MODELLED cushion (not observed
    *  spend). null when there's no goal pace to subtract. Computed server-side so the
    *  model cites it verbatim instead of doing the arithmetic itself (Rule 2). */
   unallocated: number | null
+  /** Investment goal whose existing pot reaches the target at the plan rate → £0/mo
+   *  needed. Frame as ON TRACK, not "no contribution attached". */
+  fundedAtPlan: boolean
+  /** Moderate (plan) annual return rate the £0/mo verdict rests on. */
+  planRatePct: number | null
+  /** Conservative (stress-test) annual return rate. */
+  stressRatePct: number | null
+  /** Monthly contribution the conservative case would need (server-computed). */
+  stressMonthly: number | null
+  /** Whether declared free cash covers the conservative-case monthly. */
+  stressCovered: boolean | null
   currency: string
 }
 
 export function buildDeclaredFacts(input: {
   income: number
   totalFixedCosts: number
-  goal: { name: string; monthlyRequiredSaving: number | null } | null
+  goal: {
+    name: string
+    monthlyRequiredSaving: number | null
+    targetAmount?: number | null
+    currentAmount?: number | null
+    targetDate?: string | null
+    type?: string | null
+  } | null
   currency: string
 }): DeclaredReadFacts {
   const freeCash = Math.max(0, input.income - input.totalFixedCosts)
-  const mrs = input.goal?.monthlyRequiredSaving ?? null
+  let mrs = input.goal?.monthlyRequiredSaving ?? null
+  // Straight-line fallback pace when the goal row carries no stored pace but
+  // has a dated target — same netting as computePaceAndOnTrack (pace.ts).
+  // NEVER for investment goals: their pace is compound-growth-aware
+  // (requiredMonthlyBand); a flat split overstates it on long horizons and
+  // would put a second, disagreeing pace source in play (Rule 8).
+  if (
+    mrs == null &&
+    input.goal != null &&
+    input.goal.type !== 'investment' &&
+    input.goal.targetAmount != null &&
+    input.goal.targetDate != null
+  ) {
+    const monthsLeft = monthsBetween(new Date(), new Date(input.goal.targetDate))
+    const remaining = input.goal.targetAmount - (input.goal.currentAmount ?? 0)
+    if (monthsLeft > 0 && remaining > 0) {
+      mrs = Math.round(remaining / monthsLeft)
+    }
+  }
   const percentOfIncome =
     mrs != null && input.income > 0 ? Math.round((mrs / input.income) * 100) : null
   // The cushion left after the goal contribution — computed here so the model
   // never derives it itself (Rule 2). null when there's no pace to subtract.
   const unallocated = mrs != null ? Math.max(0, freeCash - mrs) : null
+
+  // Investment goal funded at plan: the existing pot is projected to reach the
+  // target on its own at the moderate rate, so monthly_required_saving (compound)
+  // came back 0. Frame it as ON TRACK, not "no contribution attached". The stress
+  // figures come from the SAME band the post-upload Read uses (Rule 8).
+  const goalType = input.goal?.type ?? null
+  let fundedAtPlan = false
+  let planRatePct: number | null = null
+  let stressRatePct: number | null = null
+  let stressMonthly: number | null = null
+  let stressCovered: boolean | null = null
+  if (
+    goalType === 'investment' &&
+    mrs != null &&
+    mrs <= 0 &&
+    input.goal?.targetAmount != null &&
+    input.goal?.targetDate != null
+  ) {
+    const monthsLeft = monthsBetween(new Date(), new Date(input.goal.targetDate))
+    if (monthsLeft > 0) {
+      fundedAtPlan = true
+      planRatePct = INVESTMENT_DEFAULT_RATE_PCT
+      const band = requiredMonthlyBand({
+        targetAmount: input.goal.targetAmount,
+        currentAmount: input.goal.currentAmount ?? 0,
+        months: monthsLeft,
+      })
+      const conservative = band.reduce(
+        (min, b) => (b.ratePct < min.ratePct ? b : min),
+        band[0],
+      )
+      if (conservative) {
+        stressRatePct = conservative.ratePct
+        stressMonthly = conservative.monthly != null ? Math.round(conservative.monthly) : null
+        stressCovered = stressMonthly != null ? freeCash >= stressMonthly : null
+      }
+    }
+  }
+
   return {
     income: input.income,
     totalFixedCosts: input.totalFixedCosts,
     freeCash,
     goalName: input.goal?.name ?? null,
+    goalTargetAmount: input.goal?.targetAmount ?? null,
+    goalCurrentAmount: input.goal?.currentAmount ?? null,
+    goalTargetDate: input.goal?.targetDate ?? null,
+    goalType,
     monthlyRequiredSaving: mrs,
     percentOfIncome,
     unallocated,
+    fundedAtPlan,
+    planRatePct,
+    stressRatePct,
+    stressMonthly,
+    stressCovered,
     currency: input.currency,
+  }
+}
+
+/**
+ * Server-computed DECLARED → ACTUAL delta for the declared_upgrade Read: the
+ * snapshot taken when the declared Read composed (no transactions existed, so
+ * its reconciled fixed costs held only profile rent + user-declared bills) set
+ * against the fresh reconciled facts after the upload. Both sides and the
+ * signed differences are computed HERE so the model cites every figure
+ * verbatim and never derives either side of the delta itself (Rule 2).
+ */
+export interface DeclaredActualDelta {
+  /** BEFORE — what the declared Read stood on. */
+  declaredFixedCosts: number
+  declaredFreeCash: number
+  /** AFTER — the reconciled picture at upgrade time. */
+  actualFixedCosts: number | null
+  actualFreeCash: number | null
+  /** Signed differences (actual − declared), whole units; null when the actual side is missing. */
+  fixedCostsDiff: number | null
+  freeCashDiff: number | null
+  currency: string
+}
+
+export function buildDeclaredDelta(
+  declared: Pick<DeclaredReadFacts, 'totalFixedCosts' | 'freeCash' | 'currency'>,
+  actual: Pick<FinancialFacts, 'total_fixed_costs' | 'free_cash_flow'>,
+): DeclaredActualDelta | null {
+  const actualFixedCosts = actual.total_fixed_costs ?? null
+  const actualFreeCash = actual.free_cash_flow ?? null
+  if (actualFixedCosts == null && actualFreeCash == null) return null
+  return {
+    declaredFixedCosts: declared.totalFixedCosts,
+    declaredFreeCash: declared.freeCash,
+    actualFixedCosts,
+    actualFreeCash,
+    fixedCostsDiff:
+      actualFixedCosts != null ? Math.round(actualFixedCosts - declared.totalFixedCosts) : null,
+    freeCashDiff: actualFreeCash != null ? Math.round(actualFreeCash - declared.freeCash) : null,
+    currency: declared.currency,
   }
 }
 
@@ -607,7 +881,14 @@ async function composeDeclaredRead(
     income: facts.net_monthly_income ?? 0,
     totalFixedCosts: facts.total_fixed_costs ?? 0,
     goal: goalRow
-      ? { name: goalRow.name, monthlyRequiredSaving: goalRow.monthly_required_saving }
+      ? {
+          name: goalRow.name,
+          monthlyRequiredSaving: goalRow.monthly_required_saving,
+          targetAmount: goalRow.target_amount,
+          currentAmount: goalRow.current_amount,
+          targetDate: goalRow.target_date,
+          type: goalRow.type,
+        }
       : null,
     currency: facts.currency,
   });
@@ -619,6 +900,17 @@ async function composeDeclaredRead(
     maxOutputTokens: DECLARED_MAX_OUTPUT_TOKENS,
     temperature: 0.5,
     abortSignal: AbortSignal.timeout(20_000),
+  });
+
+  // Usage accounting — same first_read_compose bucket as the transaction
+  // composes; the mode in metadata distinguishes them.
+  void trackLLMUsage({
+    userId,
+    callType: 'first_read_compose',
+    model: COMPOSE_MODEL,
+    inputTokens: result.usage?.inputTokens,
+    outputTokens: result.usage?.outputTokens,
+    metadata: { mode: 'declared' },
   });
 
   const metadata: FirstReadMetadata = {
@@ -636,7 +928,9 @@ async function composeDeclaredRead(
     repeated_opening: false,
   };
 
-  return { composedMessage: result.text.trim(), metadata };
+  // declaredFacts rides along so the post-upload route can snapshot it into
+  // conversation metadata — the upgrade Read's DECLARED side of the delta.
+  return { composedMessage: result.text.trim(), metadata, declaredFacts };
 }
 
 /**
@@ -686,8 +980,12 @@ async function getTransactionCount(
   supabase: SupabaseClient,
   userId: string,
   windowDays: number,
+  dataWindowEnd?: string | null,
 ): Promise<number> {
-  const since = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+  // Count within the same data-anchored window the Read is composed from, so the
+  // cited transaction total reflects the upload even when it's stale (a today-
+  // anchored count returned ~0 for older statements and the Read undercounted).
+  const since = windowStartISO(windowDays, dataWindowEnd);
   const { count } = await supabase
     .from('transactions')
     .select('id', { count: 'exact', head: true })

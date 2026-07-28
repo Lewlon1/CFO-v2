@@ -64,6 +64,9 @@ export default async function OnboardingV2ValueMapPage({
   // items the CFO said it couldn't read alone. Empty → fall back to
   // SAMPLE_TRANSACTIONS (legacy path / no-hooks-on-file resilience).
   let realTransactions: ValueMapTransaction[] = []
+  // Track whether we've already persisted the card selection so the empty-seed
+  // fallback below doesn't double-write the conversation metadata.
+  let cardsPersisted = false
   const isValueFirstPath =
     hookParam || step === 'first_read_delivered' || step === 'value_map_offered'
   if (isValueFirstPath) {
@@ -80,6 +83,7 @@ export default async function OnboardingV2ValueMapPage({
           // Persist what was actually put in front of the user so the recompose
           // (Phase 2) and the why-beat picker (Phase 3) can read the real set.
           await persistValueMapCards(supabase, user.id, selection)
+          cardsPersisted = true
         }
       } catch (err) {
         console.error('[value-map.page] selectValueMapCards failed', err)
@@ -94,6 +98,37 @@ export default async function OnboardingV2ValueMapPage({
         )
       }
     }
+  }
+
+  // Empty-seed fallback: users onboarded via the chat route get their first
+  // read BEFORE uploading, so no hook_candidates ever land on the conversation.
+  // The hooks path above then leaves realTransactions empty and the page falls
+  // back to SAMPLE_TRANSACTIONS forever — even though the user has real
+  // transactions. Re-run the SAME selector with an EMPTY hook seed: chooseCards
+  // falls straight through to divergence/coverage over the real merchant_
+  // aggregates (dropping non-outflow rows) and returns the real card set.
+  //
+  // Runs for both the value-first path AND post-read opt-in users, but only
+  // when the hook path produced nothing. Only adopt the result when it clears 3
+  // cards — a user with no meaningful outflows should still get the curated
+  // SAMPLE_TRANSACTIONS arc (the orchestrator's legacy fallback).
+  if ((postReadOptIn || isValueFirstPath) && realTransactions.length === 0) {
+    try {
+      const svc = createServiceClient()
+      const selection = await selectValueMapCards(svc, user.id, [], currency)
+      if (selection.cards.length >= 3) {
+        realTransactions = selection.cards
+        if (!cardsPersisted) {
+          await persistValueMapCards(supabase, user.id, selection)
+          cardsPersisted = true
+        }
+      }
+    } catch (err) {
+      console.error('[value-map.page] selectValueMapCards (empty seed) failed', err)
+    }
+  }
+
+  if (isValueFirstPath) {
     // Stamp value_map_offered so a refresh keeps the user here instead of
     // bouncing to /first-read.
     //

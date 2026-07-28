@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { CfoThinking } from '@/components/brand/CfoThinking'
 import { InSheetStatementUpload } from '@/components/upload/InSheetStatementUpload'
+import { OnboardingProgressMeter } from '@/components/onboarding-v2/in-sheet/onboarding-progress-meter'
 import { useChatContext } from './ChatProvider'
 import { decideUpgradeAction } from './upgrade-response'
 
@@ -14,10 +16,17 @@ import { decideUpgradeAction } from './upgrade-response'
  *
  * Flow:
  *   idle      → show the uploader.
- *   composing → on import, show a calm "Reading your statements…" affordance and
- *               POST (no body — the route server-derives everything; compose is
- *               ~20–45s). The surface stays mounted for the whole compose so the
- *               user never sees a blank sheet mid-flight.
+ *   composing → on BATCH completion (UploadWizard's onDone — fires once, after
+ *               every file in the batch has either succeeded or the user hits
+ *               "Continue" on a partial-failure summary; never on a single
+ *               file's onImported), show a calm "Reading your statements…"
+ *               affordance and POST (no body — the route server-derives
+ *               everything; compose is ~20–45s). The surface stays mounted for
+ *               the whole compose so the user never sees a blank sheet
+ *               mid-flight. Keying off onImported instead of onDone was the
+ *               Issue-2 bug: onImported fires per file, so a 3-file batch
+ *               unmounted the wizard (and killed files 2–3) the moment file 1
+ *               landed.
  *   on response (decideUpgradeAction maps status+body → action):
  *     load_and_close → loadConversation(id) THEN closeUploadSurface() — close
  *                      only AFTER the POST resolves, so the appended Read is in
@@ -33,7 +42,9 @@ import { decideUpgradeAction } from './upgrade-response'
  * the POST can't fire twice concurrently (the server also guards with a 409).
  */
 export function UpgradeUploadSurface() {
-  const { loadConversation, closeUploadSurface, notify } = useChatContext()
+  const { loadConversation, closeUploadSurface, notify, onboardingProgress, declaredPending } =
+    useChatContext()
+  const router = useRouter()
 
   const [phase, setPhase] = useState<'idle' | 'composing' | 'error'>('idle')
   // Re-entry guard in a ref (not state) so a second fire racing inside the same
@@ -55,9 +66,13 @@ export function UpgradeUploadSurface() {
       switch (action.kind) {
         case 'load_and_close':
           // Load the conversation FIRST so the appended Read is present, then
-          // close — the user never sees a blank sheet mid-compose.
+          // close — the user never sees a blank sheet mid-compose. The bare
+          // refresh re-runs the office layout (same pattern as the onboarding
+          // beats) so the pinned meter and declared-pending flag re-derive —
+          // without it the 60% row would sit stale under the upgraded Read.
           loadConversation(action.conversationId)
           closeUploadSurface()
+          router.refresh()
           return
         case 'notify_close':
           // Ordering contract: close the upload surface BEFORE calling notify().
@@ -148,12 +163,19 @@ export function UpgradeUploadSurface() {
   }
 
   // idle — show the reusable uploader. onImported drives the upgrade POST; the
-  // uploader stays generic (no upgrade logic leaks into it).
+  // uploader stays generic (no upgrade logic leaks into it). For a declared-
+  // pending user the meter renders above it with "A real month" as the one
+  // unlit chip — the +40 this upload earns.
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
+      {declaredPending && onboardingProgress && (
+        <div className="px-4 pt-4">
+          <OnboardingProgressMeter result={onboardingProgress} />
+        </div>
+      )}
       <InSheetStatementUpload
         onCancel={closeUploadSurface}
-        onImported={() => {
+        onDone={() => {
           void runUpgrade()
         }}
       />

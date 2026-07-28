@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateText } from 'ai'
-import { bedrock } from '@/lib/ai/provider'
+import { bedrock, chatModelId } from '@/lib/ai/provider'
 import { logChatUsage } from '@/lib/chat/cost-tracker'
 import {
   buildRegenerationPrompt,
@@ -14,7 +14,7 @@ import {
   type PreviousArchetype,
 } from './regenerate-archetype-prompt'
 
-const BEDROCK_MODEL = process.env.BEDROCK_CLAUDE_MODEL ?? 'eu.anthropic.claude-sonnet-4-6'
+const BEDROCK_MODEL = chatModelId
 const TIMEOUT_MS = 15_000
 const MAX_MERCHANTS_PER_CATEGORY = 10
 

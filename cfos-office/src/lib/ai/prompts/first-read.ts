@@ -17,7 +17,11 @@ import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
-import type { FinancialFacts, DeclaredReadFacts } from '@/lib/ai/compose-first-read';
+import type {
+  FinancialFacts,
+  DeclaredReadFacts,
+  DeclaredActualDelta,
+} from '@/lib/ai/compose-first-read';
 import { currencySymbol, formatMoney } from '@/lib/format/money';
 import { categoryLabel } from '@/lib/analytics/categories';
 
@@ -88,6 +92,13 @@ export type FirstReadComposeInput = {
   priorReadSummary?: PriorReadSummary | null;
   /** The merchant keys actually put in front of the user in the Value Map (Phase 1 selection). */
   valueMapCardKeys?: string[] | null;
+  /**
+   * declared_upgrade mode — the server-computed DECLARED → ACTUAL delta, built
+   * from the declared Read's persisted facts snapshot. When present it renders
+   * as verbatim-citable lines (the only legal source of the declared BEFORE
+   * figures); when null/absent the delta must stay qualitative.
+   */
+  declaredDelta?: DeclaredActualDelta | null;
 };
 
 export type FirstReadMetadata = {
@@ -123,6 +134,12 @@ export type FirstReadComposeOutput = {
    * last word. composedMessage is '' in this case (no LLM call was made).
    */
   insufficientData?: boolean;
+  /**
+   * declared mode only — the server-computed facts the Read stood on. The
+   * post-upload route snapshots this into conversation metadata so a later
+   * declared_upgrade can render a numeric DECLARED → ACTUAL delta.
+   */
+  declaredFacts?: DeclaredReadFacts;
 };
 
 /**
@@ -158,6 +175,7 @@ STRUCTURE (this is the contract):
    - If no blocker, lead with the most actionable observation that moves the active goal forward.
 2. BODY — at most 2 supporting observations. Each must add to the picture. Statistical loudness is not enough; the observation must connect to a lever, a value-map divergence worth naming, or context that sharpens the lead.
 3. CLOSE — one sized lever the system computed (frame the number you were handed; do not improvise magnitudes) PLUS exactly one tappable CTA emitted on its own line as [CTA:type]label[/CTA]. The label is written from the USER's point of view — what tapping it means the user is saying. Examples: [CTA:supply_input]Here's my monthly take-home[/CTA], [CTA:cut_lever]Trim 40 from streaming[/CTA], [CTA:supply_input]Set a target date for the deposit[/CTA]. The close is one lever + one CTA — never a menu, never empty-handed.
+   - If the LEVERS section contains an 'accelerate' lever, the goal is already FUNDED AT PLAN. Do NOT manufacture a cut or a gap. The close becomes the real choice: the spare cash beyond what the goal needs, framed as landing sooner / covering the conservative stress case if it's still short / turning to the next goal. Still one lever + one CTA.
 
 BANNED IN THE READ:
 - Narration of the act of observing: "I see", "I notice", "On reviewing your data". State what's true.
@@ -214,7 +232,7 @@ Your job: write the user's first Read. Not a summary — a move. Tight, specific
 
 STRUCTURE (this is the contract — POSITION, then one action, then clarifiers, then levers):
 1. POSITION — open on the numbers that set the stakes: free cash flow from FINANCIAL FACTS, and where the goal sits against it (what it needs per month vs what's free). Use the FINANCIAL FACTS and GOAL figures verbatim; do NOT recompute or improvise. If the goal math gives a compound-growth band, show the range ONCE so the options are visible, then LOCK the moderate middle case (the rate flagged in the GOAL block) as the plan and size the position against THAT — not the worst-case figure. Say in one line where that rate comes from (the GOAL block gives it), and name the conservative case as the stress test, not the default.
-2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it.
+2. ONE ACTION — the single highest-leverage behavioural move, drawn from the cut lever in the LEVERS section. The cut lever names the user's biggest *discretionary* category — the SAME category the SPENDING BREAKDOWN leads on — so name that category, its share of tracked spend, and the sized trim, and make sure all three agree. Frame the magnitudes you were handed; never compute a new one. Only say the move "closes" or "covers" the gap when the trim is at least the shortfall — otherwise call it the biggest single move toward the gap and cite the months-sooner impact if one is given. If the LEVERS section has NO cut lever, name the biggest discretionary category from SPENDING BREAKDOWN as the place to look and frame the gap plainly — NEVER staple a small fixed bill, utility, or transport line to a much larger gap as if it were the move that closes it. If the LEVERS section instead contains an 'accelerate' lever, the goal is ALREADY FUNDED AT PLAN — do NOT manufacture a trim or a gap: the ONE ACTION becomes the real choice — name the spare cash beyond what the goal needs and frame the move as getting there sooner, covering the conservative stress case if it's still short, or turning to the next goal. If FINANCIAL FACTS marks income as DECLARED (not seen landing), say plainly that this on-track read rests on the figure they gave you, not one you can see arrive.
 3. CLARIFIERS — one or two things the data can't settle on its own, posed as DIRECT QUESTIONS on the HOOK CANDIDATES. Cite the merchant, amount, and period_hint verbatim, then ask the either/or: "Aldi, €431 over 90 days, irregular — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
 4. LEVERS + HANDOFF — name the levers worth pulling next as HEADLINES only (e.g. recurring bills, a spend-pattern change like two no-spend days a week) — named, not walked through. Position the Value Map as where these get prioritised against what the user actually values, and note the clarifiers above still gate that precision. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
 
@@ -348,6 +366,7 @@ Your job: write the DELTA. Lead on what the statements change versus what they t
 
 STRUCTURE (this is the contract — DELTA, then the sharpened picture, then clarifiers, then handoff):
 1. THE DELTA — open on the single biggest gap between what they DECLARED and what the statements actually show. Use the DECLARED→ACTUAL DELTA and FINANCIAL FACTS / SPENDING BREAKDOWN figures verbatim. The frame is "you told me ≈X — the statements show Y": e.g. declared fixed costs vs reconciled fixed costs, or the declared free-cash cushion vs how much real everyday spending eats into it. Name the number that moved and what it means for the room they have. This is the LEAD — never re-announce income / fixed costs / free cash as if they were new.
+   - If the DECLARED→ACTUAL DELTA shows little or no movement (the two figures land within a rounding difference of each other), do NOT claim the declared bills are "confirmed" or that there's "no gap there" — the reconcile can only compare what it found against what was declared; it did not independently verify every declared bill against an observed transaction. Say instead that the statements don't contradict what was declared, and move the LEAD to the sharpened picture (the biggest discretionary category, or a behavioural pattern) instead of a confirmation claim.
 2. THE SHARPENED PICTURE — at most 1-2 observations the real data makes possible that the declared numbers could not: the biggest discretionary category from SPENDING BREAKDOWN (name it, its share of tracked spend, the absolute figure), or a behavioural pattern in the BEHAVIOURAL CLUSTERS. Tie it back to the goal pace they already know — the cushion is thinner / the deposit is slower than the declared picture implied. Frame the magnitudes you were handed; never compute a new one.
 3. CLARIFIERS — one or two things the statements raise that the data still can't settle on its own, posed as DIRECT either/or questions on the HOOK CANDIDATES. Cite the merchant, amount, and pattern hint verbatim: "Aldi, €431 — primary shop, or a top-up alongside another?". A real question — never the "I can see X but I can't tell Y" construction.
 4. HANDOFF — position the Value Map as where this real spending gets weighed against what they actually value, and note the clarifiers above sharpen it. Emit the CTA on its own line immediately before "— C.": [CTA:start_value_map_real]Tell me what these mean[/CTA].
@@ -368,6 +387,7 @@ BANNED IN THE DECLARED UPGRADE:
 - Product names or buy/sell/switch calls on instruments.
 - Inventing magnitudes. If the data didn't compute a number, you don't have it.
 - Putting the CLARIFIER transactions anywhere but the clarifiers — they are the hook the Read turns on.
+- Claiming the declared bills "landed exactly where you declared them" or are "confirmed" when the delta is near-zero. A near-zero delta means the reconcile found nothing to contradict the declared figure — that is NOT the same as independently verifying it against an observed transaction. Say the statements don't contradict the declared picture, never that they confirm it.
 
 BOUNDARY (felt, not stated):
 Directness applies to behaviour and cash flow — name the gap, name the biggest line, ask the clarifier. It does NOT cross into regulated territory: a contribution figure is a calculation ("the goal needs €948/mo"), never an instruction to fund a product. You may NOT name a product or make a buy/sell/switch call. The boundary is in the silence: no disclaimers, no apologies.
@@ -379,7 +399,7 @@ VOICE — Read-format constraints only (full voice lives in CFO-CONSTITUTION.md 
 HONESTY (NO HALLUCINATION):
 - Use only the dates, amounts, merchants, and patterns from the structured data below. Do not invent any of these.
 - Never attribute a transaction to today's date. The data is a snapshot.
-- The DECLARED figures (the BEFORE side of the delta) come from the DECLARED→ACTUAL DELTA / ALREADY SAID sections verbatim; the ACTUAL figures come from FINANCIAL FACTS and SPENDING BREAKDOWN verbatim. Never recompute either side of the delta in your head.
+- The DECLARED figures (the BEFORE side of the delta) exist ONLY in the DECLARED→ACTUAL DELTA block, when it carries figures — cite them from there verbatim. If that block carries no declared figures, none exist in this prompt: frame the before side qualitatively and NEVER state a declared number. The ACTUAL figures come from FINANCIAL FACTS and SPENDING BREAKDOWN verbatim. Never recompute either side of the delta in your head.
 - Cluster totals and transaction counts MUST come from the "volume" line in BEHAVIOURAL CLUSTERS. Never compute a sum yourself.
 - Proportions and percentages come verbatim from SPENDING BREAKDOWN. When category coverage is low (a large uncategorised share), lead on named-merchant proportions and absolute amounts instead of a total-spend % you can't support.
 - If the DATA RECENCY section shows the data is more than 14 days stale, acknowledge that explicitly. Obey the DATA SUFFICIENCY caveats — on a single month of data, frame per-month figures as that one month, not a settled rate.
@@ -391,7 +411,7 @@ LENGTH & FORMAT:
 - The CTA is on its own line, immediately before "— C.".
 - Sign off "— C." on its own line.
 
-SHAPE TO AIM FOR (numbers and merchants are illustrative of the SHAPE only — the DATA below is the real source; never copy these figures):
+SHAPE TO AIM FOR (numbers and merchants are illustrative of the SHAPE only — the DATA below is the real source; never copy these figures. The "you told me €1,850 / statements put them at €2,140 / missed €290" opening is only possible when the DECLARED→ACTUAL DELTA block carries those figures — when it doesn't, open on what moved without stating a declared number):
 > You told me your fixed costs ran about €1,850 a month. The statements put them at €2,140 — the standing bills you listed missed roughly €290 a month in committed spend, so the free cash you'd been counting on is already smaller than the declared picture showed.
 > That tightens the room around the deposit. **Eating and drinking out** ran €680 over the window — 30% of everything tracked and the single biggest discretionary line, bigger than the cushion those two declared numbers left after the goal. The deposit's headroom is thinner than the paper figure, not wider.
 > Two things the statements raise that the declared numbers couldn't:
@@ -409,8 +429,10 @@ Your job: turn those declared numbers into one clear, honest picture — what's 
 
 STRUCTURE (the contract):
 1. THE PICTURE — state it plainly from the FACTS below: income, fixed costs, and the free cash that's left once fixed costs are paid. Use the figures verbatim; never recompute or invent. Never derive your own leftover or residual — if a modelled cushion is given in the FACTS you may cite it verbatim; otherwise do not state one. Make clear this free cash is the pool EVERYTHING ELSE comes out of — including day-to-day living — not pure surplus. A tangible frame is allowed ONLY when it is built from a figure already in the FACTS — the goal's % of take-home, or free cash set against the fixed costs. Do not pad.
-2. THE GOAL (only if a goal is present in the FACTS) — what reaching it needs each month, and how that sits against the free cash: comfortably clear, tight, or short. If a modelled cushion is given, name it as a PAPER figure — what's left before any day-to-day spending — never as money truly spare. Use the figures GIVEN; do not compute your own.
-3. THE HONEST CLOSE — the biggest thing these two numbers miss is EVERYDAY SPENDING: groceries, transport, eating out — the variable week-to-week living that never gets declared and comes straight out of that same free cash. Name it plainly: the declared picture has no day-to-day spending in it at all, so the cushion isn't real spare until that's seen. (Fixed costs are easy to undercount too — a lighter, secondary point.) Then the stake, tied to their goal: once real spending is in the picture, the room — and that cushion — can be a lot thinner, and the goal slower. Make the upload feel like how they find out whether the plan is real, not a chore. Close on a forward statement, never a question. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Share my last 3 statements[/CTA].
+2. THE GOAL (only if a goal is present in the FACTS) — anchor it in their terms: the target amount and what's already set aside, when given, then what reaching it needs each month and how that sits against the free cash: comfortably clear, tight, or short. If a modelled cushion is given, name it as a PAPER figure — what's left before any day-to-day spending — never as money truly spare. Use the figures GIVEN; do not compute your own.
+   - If the FACTS mark the goal ON TRACK / FUNDED AT PLAN (£0/mo needed at plan), say so plainly — they are on track. Explain the £0 in ONE line: the already-saved pot is projected to reach the target on its own at a moderate return. Name the conservative stress case from the FACTS (the cautious-rate monthly and whether their free cash covers it). NEVER frame £0 as "no contribution attached" or the free cash as "unspoken-for because the goal has no pace" — that misreads being on track as a gap.
+3. THE HONEST CLOSE — the biggest thing these two numbers miss is EVERYDAY SPENDING: groceries, transport, eating out — the variable week-to-week living that never gets declared and comes straight out of that same free cash. Name it plainly: the declared picture has no day-to-day spending in it at all, so the cushion isn't real spare until that's seen. (Fixed costs are easy to undercount too — a lighter, secondary point.) Then the stake, tied to their goal: once real spending is in the picture, the room — and that cushion — can be a lot thinner, and the goal slower. Make the upload feel like how they find out whether the plan is real, not a chore. Close on a forward statement, never a question. Emit exactly one CTA on its own line immediately before "— C.": [CTA:start_statement_upload]Show me my last 3 months[/CTA].
+   - When the goal is ON TRACK / FUNDED AT PLAN, the unseen spending bears on LIFESTYLE HEADROOM and on confirming the income actually lands — NOT on whether the goal survives. Do NOT say real spending makes "the goal slower": a funded-at-plan goal draws nothing monthly, so spending can't slow it. Frame the upload as how they see what daily life really leaves and confirm the income lands, with the retirement plan already standing on the pot's growth.
 
 BANNED:
 - Inventing any number not in the FACTS below. If free cash isn't given, do not state one. Do not compute a leftover/residual yourself — only cite the modelled cushion if it is in the FACTS.
@@ -428,9 +450,16 @@ LENGTH & FORMAT: 70–130 words — shorter than a statement-based Read, because
 
 SHAPE TO AIM FOR (illustrative only — the FACTS below are the real source; never copy these figures):
 > You bring in about €3,100 a month, and the fixed costs you listed come to €1,850 — so roughly €1,250 is left once those are paid. That's the pool everything else has to come out of.
-> Your house deposit wants about €600 a month — close to a fifth of your income, and it fits inside that €1,250 with around €650 over on paper.
+> Your house deposit — €40,000, with €5,000 already set aside — wants about €600 a month. That's close to a fifth of your income, and it fits inside that €1,250 with around €650 over on paper.
 > On paper is the catch. These two numbers don't count a single day of everyday living — groceries, transport, the going-out — and all of it comes out of that same €1,250. So the €650 isn't really spare; it's whatever's left after a month of real spending, and these numbers don't include any of it. Three months of statements show what your week actually costs, and whether the deposit still fits.
-> [CTA:start_statement_upload]Share my last 3 statements[/CTA]
+> [CTA:start_statement_upload]Show me my last 3 months[/CTA]
+> — C.
+
+SHAPE TO AIM FOR — ON-TRACK / FUNDED-AT-PLAN goal (illustrative only; never copy these figures):
+> £3,500 comes in each month, and the fixed costs you listed sit at £495 — so about £3,005 is left once those are paid.
+> On the retirement goal you're on track: the £400k you've already got is projected to reach your £600k target on its own by 2034 at a moderate 7% return, so nothing extra is needed each month at plan. Even at a cautious 4%, it'd want around £440 a month — which your £3,005 comfortably covers. The pot's growth does the work here, not your monthly saving.
+> What these two numbers don't show is a single day of everyday living — groceries, transport, going out — and that's what really decides how much breathing room £3,005 leaves you. Three months of statements show what your week actually costs and confirm your pay lands as expected; the retirement plan itself already stands on the pot.
+> [CTA:start_statement_upload]Show me my last 3 months[/CTA]
 > — C.`;
 
 export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
@@ -448,7 +477,38 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
 
   if (facts.goalName) {
     sections.push(`GOAL:`, `- ${facts.goalName}`);
-    if (facts.monthlyRequiredSaving != null) {
+    // Anchoring figures — cite verbatim so the goal reads as THEIR target, not
+    // a name-drop. Each line renders only when the goal row carries the value.
+    if (facts.goalTargetAmount != null) {
+      sections.push(
+        `- Target: ${m(facts.goalTargetAmount)}` +
+          (facts.goalCurrentAmount != null
+            ? ` (${m(facts.goalCurrentAmount)} already set aside)`
+            : ''),
+      );
+    }
+    if (facts.goalTargetDate != null) {
+      sections.push(`- Target date: ${facts.goalTargetDate}`);
+    }
+    if (facts.fundedAtPlan) {
+      // Investment goal funded at plan (£0/mo needed). Frame as ON TRACK, not
+      // "no contribution attached". Figures are server-computed — cite verbatim.
+      sections.push(
+        `- ON TRACK / FUNDED AT PLAN: the already-saved pot is projected to reach the target on its own at a moderate ${facts.planRatePct}% annual return, so £0/mo is needed at plan. Say plainly that they're on track; explain the £0 in one line (the pot grows to the target on its own). Do NOT frame this as "no contribution attached" or the free cash as "unspoken-for".`,
+      );
+      if (facts.stressMonthly != null) {
+        sections.push(
+          `- Conservative stress test: at a cautious ${facts.stressRatePct}% return, about ${m(facts.stressMonthly)}/mo would be needed — on what they've told you, their free cash ${facts.stressCovered ? 'comfortably covers that' : `falls short of that by ${m(Math.max(0, facts.stressMonthly - facts.freeCash))}/mo`}. Cite these figures verbatim; never recompute them.`,
+        );
+      } else {
+        sections.push(
+          `- Conservative stress test: even at a cautious ${facts.stressRatePct}% return the existing pot does the work — no monthly contribution is needed either way.`,
+        );
+      }
+      sections.push(
+        `- This goal draws NOTHING from monthly free cash — day-to-day spending does not slow it. The spending caveat below is about LIFESTYLE headroom and confirming the income lands, NOT whether the goal survives.`,
+      );
+    } else if (facts.monthlyRequiredSaving != null) {
       sections.push(
         `- Monthly contribution needed: ${m(facts.monthlyRequiredSaving)}/mo` +
           (facts.percentOfIncome != null ? ` (${facts.percentOfIncome}% of take-home)` : ''),
@@ -460,7 +520,7 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
       }
     } else {
       sections.push(
-        `- No monthly pace yet (the goal has no target date/amount to pace against). Name the goal, but do NOT invent a monthly figure.`,
+        `- No monthly pace available (the goal lacks a dated target to pace against, or it's an investment goal whose pace needs growth-aware math not computed here). Name the goal — and the target figures above if given — but do NOT invent a monthly figure.`,
       );
     }
     sections.push(``);
@@ -468,10 +528,14 @@ export function buildDeclaredUserPrompt(facts: DeclaredReadFacts): string {
     sections.push(`GOAL: (none set yet — close on the room they have and the upload, not a goal.)`, ``);
   }
 
+  const closeDirective = facts.fundedAtPlan
+    ? `; then the honest close — say plainly they're on track for this goal at plan, then note these two numbers don't include any day-to-day spending (food, transport, going out), so the free cash isn't real spare yet; real statements show what week-to-week actually costs and confirm the income lands — about lifestyle headroom, NOT whether the goal survives (it draws nothing monthly)`
+    : `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it`;
   sections.push(
     `COMPOSE THE DECLARED FIRST READ NOW. State the picture (income, fixed costs, free cash) from the FACTS verbatim` +
       (facts.goalName ? `; then how the goal sits against the free cash` : ``) +
-      `; then the honest close — these two numbers don't include any day-to-day spending (food, transport, going out), which comes out of the same free cash, so the cushion isn't real spare yet; real statements reveal what week-to-week actually costs and whether the cushion and the goal survive it — and the [CTA:start_statement_upload]Share my last 3 statements[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
+      closeDirective +
+      ` — and the [CTA:start_statement_upload]Show me my last 3 months[/CTA] line. 70–130 words. Output the message text only — no preamble, no code fences. Sign off "— C." on its own line.`,
   );
 
   return sections.join('\n');
@@ -540,9 +604,26 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
     // path). Render the DELTA frame + the declared ALREADY-SAID contract so the
     // Read leads on the declared→actual gap and never re-announces the declared
     // figures as newly discovered.
+    if (input.declaredDelta) {
+      // Snapshot path: both sides of the delta are server-computed. The model
+      // cites these lines verbatim — this block is the only legal source of the
+      // declared (BEFORE) figures.
+      sections.push(
+        `DECLARED→ACTUAL DELTA (this is the LEAD — server-computed; cite these figures verbatim, never recompute either side):`,
+        formatDeclaredDelta(input.declaredDelta),
+        `Open on the single biggest gap above ("you told me ≈X — the statements show Y"). Do NOT re-state the declared picture; lead on what moved.`,
+        ``,
+      );
+    } else {
+      // Pre-snapshot conversations: no declared figures exist verbatim in this
+      // prompt. The delta must stay qualitative — inventing a "you told me X"
+      // number would be a hallucinated figure.
+      sections.push(
+        `DECLARED→ACTUAL DELTA (this is the LEAD): the prior Read stood on the user's DECLARED figures, but those figures are NOT available verbatim here — frame what moved QUALITATIVELY (the fixed costs run heavier than the list suggested; the cushion is thinner than the paper figure) and NEVER state a declared number. The FINANCIAL FACTS + SPENDING BREAKDOWN above are the ACTUAL picture; those figures you cite verbatim. Do NOT re-state the declared picture; lead on what moved.`,
+        ``,
+      );
+    }
     sections.push(
-      `DECLARED→ACTUAL DELTA (this is the LEAD): the prior Read stood on the DECLARED figures in ALREADY SAID below; the FINANCIAL FACTS + SPENDING BREAKDOWN above are the ACTUAL picture the statements now show. Open on the single biggest gap between the two ("you told me ≈X — the statements show Y"). Do NOT re-state the declared picture; lead on what moved.`,
-      ``,
       `ALREADY SAID — DO NOT RESTATE (these were in the DECLARED Read; reference in a clause at most):`,
       formatAlreadySaid(input.priorReadSummary ?? null, 'declared Read'),
       ``,
@@ -601,8 +682,8 @@ export function buildFirstReadUserPrompt(input: FirstReadComposeInput): string {
       : isDeclaredUpgrade
       ? `COMPOSE THE DECLARED UPGRADE NOW. LEAD on the DECLARED→ACTUAL DELTA — the single biggest gap between what they told you (ALREADY SAID) and what the statements show (FINANCIAL FACTS + SPENDING BREAKDOWN), framed "you told me ≈X — the statements show Y". Do NOT re-announce income / fixed costs / free cash / goal pace as new — they are the BEFORE side of the delta. Then 1-2 SHARPENED observations the real data makes possible (the biggest discretionary category from SPENDING BREAKDOWN, or a pattern from BEHAVIOURAL CLUSTERS), tied back to the goal pace they already know. Then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES. Then close by positioning the Value Map as where this real spending gets weighed against what they value, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Hard cap 250 words; aim tighter. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
       : isValueFirst
-      ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
-      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
+      ? `COMPOSE THE FIRST READ NOW. POSITION on free cash flow + the goal math per READ FOCUS, then ONE ACTION quantified against the goal gap (a sized LEVERS trim on the biggest discretionary category from SPENDING BREAKDOWN — UNLESS the LEVERS section has an \`accelerate\` lever, in which case the goal is funded at plan: lead the action on the spare-cash choice, never a trim), then 1-2 CLARIFIERS as direct either/or questions on the HOOK CANDIDATES, then close by naming the next levers as headlines, positioning the Value Map as where they get prioritised, and the [CTA:start_value_map_real]Tell me what these mean[/CTA] line. Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`
+      : `COMPOSE THE FIRST READ NOW. Follow READ FOCUS for the LEAD, then ≤2 body observations, then close with one sized lever + one [CTA:…]…[/CTA] ask (if the lever is an \`accelerate\` lever, the goal is funded at plan — close on the spare-cash choice, not a trim). Output the composed message text only — no markdown code fences, no preamble, no explanation. Sign off with "— C." on its own line.`,
   );
 
   return sections.join('\n');
@@ -628,11 +709,23 @@ function formatFinancialFacts(
           ? ` Trailing-3-month average ≈ ${t3m}/mo — cite it as a trailing average, and note income swings month to month.`
           : ` Treat income as uncertain and avoid a precise monthly figure.`),
     );
+  } else if (facts.income_provenance === 'declared_unverified') {
+    // The user declared an income figure but no salary deposit was seen in the
+    // statements. Frame it as DECLARED, not observed, and pose the clarifier —
+    // any free-cash or on-track read rests on this stated number.
+    lines.push(
+      `- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'} — DECLARED by the user, NOT seen landing in this account (no salary deposit in the statements). State it as the figure they gave you, not one you can see arrive, and pose the clarifier: is the salary paid into another account? Any free-cash or on-track read here rests on this declared number.`,
+    );
   } else {
     lines.push(`- Net monthly income: ${m(facts.net_monthly_income) ?? '(not on file)'}`);
   }
   lines.push(`- Total fixed costs / month: ${m(facts.total_fixed_costs) ?? '(not on file)'}`);
   lines.push(`- Free cash flow / month: ${m(facts.free_cash_flow) ?? '(not computable until both income and fixed costs are on file)'}`);
+  if (facts.free_cash_flow != null && facts.free_cash_flow_basis === 'modelled') {
+    lines.push(
+      `- This free cash figure is MODELLED, not observed — no real spending history exists yet, so it assumes zero day-to-day spending beyond the fixed bills above. Do NOT present it as confirmed spare cash; frame it as a paper estimate that real statements would sharpen.`,
+    );
+  }
   if (facts.monthly_rent != null) {
     lines.push(`- (of which) Housing: ${m(facts.monthly_rent)}`);
   }
@@ -821,6 +914,34 @@ function formatLever(lever: Lever): string {
         `  - CTA template: [CTA:cut_lever]Trim ${lever.suggestedCut} from ${lever.category}[/CTA]`,
       ].join('\n');
     }
+    case 'accelerate': {
+      const lines = [
+        `- accelerate lever (the goal is FUNDED AT PLAN on this figure — do NOT manufacture a cut; THIS is the close):`,
+        `  - goal: ${lever.goalName}`,
+        `  - spare cash beyond what the goal needs at plan: ${lever.surplusOverRequired}/month`,
+      ];
+      if (lever.stressTestGap != null) {
+        lines.push(
+          lever.stressTestGap > 0
+            ? `  - conservative (stress-test) case: still SHORT ${lever.stressTestGap}/month if returns come in low`
+            : `  - conservative (stress-test) case: also COVERED — funded even if returns come in low`,
+        );
+      }
+      if (lever.basis === 'modelled') {
+        lines.push(
+          `  - BASIS: MODELLED, not observed — there is no real spending history yet, so this figure assumes zero day-to-day spending beyond the fixed bills. Do NOT say "funded" or "covered" as a settled fact. Say it plainly as a paper estimate ("on the numbers you've given me, this looks funded — real statements would confirm it") and do NOT claim the stress case is "covered" off this basis.`,
+        );
+      } else {
+        lines.push(
+          `  - BASIS: observed — this nets out real discretionary spending history, so "funded" / "covered" can be stated as fact.`,
+        );
+      }
+      lines.push(
+        `  - The ONE ACTION is the real choice, NOT a trim: direct the spare toward the goal to land sooner, cover the stress case if it's short, or turn to the next goal.`,
+        `  - CTA template (user's voice): [CTA:open_chat]What should I do with the spare ${lever.surplusOverRequired} a month?[/CTA]`,
+      );
+      return lines.join('\n');
+    }
     case 'shift':
       return `- shift lever: ${lever.category} (${lever.rationale})`;
     case 'reallocate':
@@ -914,6 +1035,47 @@ function formatWhatJustSorted(input: FirstReadComposeInput): string {
  * no merchants (it saw no transactions), so the merchant line falls away and the
  * upgrade is free to name every merchant in the data.
  */
+/**
+ * Renders the server-computed DECLARED → ACTUAL delta as verbatim-citable
+ * lines. Every figure (both sides AND the signed difference) is pre-computed —
+ * the model quotes, never derives (Rule 2). Null sides render nothing.
+ */
+// A fixed-costs difference this small (or smaller) means the reconcile found
+// nothing to CONTRADICT the declared figure — never treat that as
+// independent CONFIRMATION (Issue 8: the "landed exactly where you declared
+// them — no gap there" claim was circular when the "actual" side was itself
+// just a passthrough of the declared bills the detector never matched).
+const NEGLIGIBLE_FIXED_COSTS_DIFF_FLOOR = 10;
+const NEGLIGIBLE_FIXED_COSTS_DIFF_PCT = 0.03;
+
+function formatDeclaredDelta(delta: DeclaredActualDelta): string {
+  const m = (v: number) => formatMoney(Math.round(v), delta.currency);
+  const signed = (v: number) => `${v >= 0 ? '+' : '−'}${m(Math.abs(v))}/mo`;
+  const lines: string[] = [];
+  if (delta.actualFixedCosts != null) {
+    lines.push(
+      `- Fixed costs: declared ≈ ${m(delta.declaredFixedCosts)}/mo → the statements reconcile to ${m(delta.actualFixedCosts)}/mo` +
+        (delta.fixedCostsDiff != null ? ` (difference: ${signed(delta.fixedCostsDiff)})` : ''),
+    );
+    const negligibleThreshold = Math.max(
+      NEGLIGIBLE_FIXED_COSTS_DIFF_FLOOR,
+      delta.declaredFixedCosts * NEGLIGIBLE_FIXED_COSTS_DIFF_PCT,
+    );
+    if (delta.fixedCostsDiff != null && Math.abs(delta.fixedCostsDiff) <= negligibleThreshold) {
+      lines.push(
+        `  (this near-zero difference means the reconcile found nothing to CONTRADICT the declared figure — it did NOT independently confirm every declared bill against an observed transaction. Say the statements don't contradict what was declared; never "confirmed" or "landed exactly where you declared them".)`,
+      );
+    }
+  }
+  if (delta.actualFreeCash != null) {
+    lines.push(
+      `- Free cash: declared ≈ ${m(delta.declaredFreeCash)}/mo → on the reconciled numbers ${m(delta.actualFreeCash)}/mo` +
+        (delta.freeCashDiff != null ? ` (difference: ${signed(delta.freeCashDiff)})` : ''),
+    );
+  }
+  return lines.join('\n');
+}
+
 function formatAlreadySaid(prior: PriorReadSummary | null, priorLabel = 'first Read'): string {
   if (!prior) return '(no prior Read on file — treat nothing as already said)';
   const isDeclaredPrior = priorLabel === 'declared Read';

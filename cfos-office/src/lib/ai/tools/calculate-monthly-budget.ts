@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { reconcileFixedCosts } from '@/lib/analytics/reconcile-fixed-costs';
+import { getFinancialPosition } from '@/lib/finance/financial-position';
 
 export function createCalculateMonthlyBudgetTool(ctx: ToolContext) {
   return {
@@ -64,30 +65,20 @@ export function createCalculateMonthlyBudgetTool(ctx: ToolContext) {
         const totalIncome = netIncome + partnerContribution;
         const discretionary = totalIncome - totalFixedCosts;
 
-        // Get average actual discretionary spending (last 3 months)
-        const threeMonthsAgo = new Date();
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        const since = threeMonthsAgo.toISOString().slice(0, 10);
-
-        const { data: recentTxns } = await ctx.supabase
-          .from('transactions')
-          .select('amount')
-          .eq('user_id', ctx.userId)
-          .lt('amount', 0)
-          .eq('is_recurring', false)
-          .gte('date', since);
-
-        let avgMonthlyDiscretionary: number | null = null;
-        let surplusDeficit: number | null = null;
-
-        if (recentTxns && recentTxns.length > 0) {
-          const totalDiscretionarySpend = recentTxns.reduce(
-            (sum, t) => sum + Math.abs(Number(t.amount)),
-            0
-          );
-          avgMonthlyDiscretionary = Math.round((totalDiscretionarySpend / 3) * 100) / 100;
-          surplusDeficit = Math.round((discretionary - avgMonthlyDiscretionary) * 100) / 100;
-        }
+        // Average discretionary spend + basis come from the unified
+        // financial-position module — this used to derive its own average by
+        // summing raw non-recurring transactions over the last 3 months and
+        // dividing by a flat 3, regardless of how much data actually existed
+        // (the same understatement bug effectiveMonths fixed for the cut
+        // lever), AND diverged from every other surplus computation in the
+        // app (Rule 8). null means "no observed history yet" — never coerce
+        // it to 0 (that silently models the user as spending nothing).
+        const position = await getFinancialPosition(ctx.supabase, ctx.userId);
+        const avgMonthlyDiscretionary = position.avgDiscretionaryMonthly;
+        const surplusDeficit =
+          avgMonthlyDiscretionary != null
+            ? Math.round((discretionary - avgMonthlyDiscretionary) * 100) / 100
+            : null;
 
         return {
           net_monthly_income: netIncome,
@@ -101,6 +92,10 @@ export function createCalculateMonthlyBudgetTool(ctx: ToolContext) {
           discretionary_budget: Math.round(discretionary * 100) / 100,
           avg_monthly_discretionary_spend: avgMonthlyDiscretionary,
           surplus_deficit: surplusDeficit,
+          // 'modelled' means no snapshot history exists yet — surplus_deficit
+          // assumes zero day-to-day spending. Frame it as a paper estimate,
+          // not a confirmed fact, when this is 'modelled'.
+          surplus_basis: position.basis,
           currency: ctx.currency,
         };
       } catch (err) {

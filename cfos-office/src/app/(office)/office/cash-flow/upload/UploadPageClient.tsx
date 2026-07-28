@@ -4,7 +4,15 @@ import { useRouter } from 'next/navigation'
 import { UploadWizard } from '@/components/upload/UploadWizard'
 import type { Category } from '@/lib/parsers/types'
 
-export function UploadPageClient({ categories }: { categories: Category[] }) {
+export function UploadPageClient({
+  categories,
+  declaredPending,
+}: {
+  categories: Category[]
+  /** The user's first Read still stands on declared numbers — the post-import
+   *  insights CTA runs the declared→actual upgrade (see ImportResult). */
+  declaredPending?: boolean
+}) {
   const router = useRouter()
 
   return (
@@ -20,6 +28,7 @@ export function UploadPageClient({ categories }: { categories: Category[] }) {
         <UploadWizard
           categories={categories}
           context="transactions"
+          declaredPending={declaredPending}
           onImported={() => {
             // Data refreshed — ImportResult component shows summary automatically
           }}

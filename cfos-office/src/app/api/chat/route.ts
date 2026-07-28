@@ -5,8 +5,15 @@ import { after } from 'next/server';
 // GDPR: This route runs in eu-west-1 (Dublin) via Vercel function region config.
 // Bedrock calls use the EU inference profile (eu. prefix) to keep data in EU.
 // Supabase is also in eu-west-1. No user data leaves EU infrastructure.
-import { chatModel } from '@/lib/ai/provider';
+import { chatModel, chatModelId } from '@/lib/ai/provider';
+import {
+  checkLlmAllowed,
+  recordChatTurnStart,
+  completeChatTurn,
+  LLM_LIMIT_MESSAGE,
+} from '@/lib/ai/llm-guard';
 import { logBedrockUsage } from '@/lib/ai/usage-logger';
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { logToolCall } from '@/lib/observability/llm-usage-log';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
 import { createClient } from '@/lib/supabase/server';
@@ -43,6 +50,37 @@ import { VCR_ON_CONFLICT } from '@/lib/prediction/types';
 
 export const maxDuration = 60;
 
+// ── In-flight turn guard (per warm instance) ─────────────────────────────────
+// One chat turn per conversation at a time. Two overlapping POSTs for the same
+// conversation are a duplicate turn — a double-tap or a buggy client — and the
+// second must be rejected BEFORE any Bedrock work (incident 2026-07-03: two
+// concurrent turns, duplicate replies, 2× tokens). Module-scope state persists
+// per warm Node instance; cross-instance duplicates are rare (same-user rapid
+// requests land on the same warm instance in practice) and are bounded by the
+// durable per-user limits. The TTL is a crash-safety valve: a turn that never
+// released (instance recycled mid-stream, unhandled throw outside the catch)
+// self-heals after 90s instead of locking the conversation.
+const CHAT_IN_FLIGHT_TTL_MS = 90_000;
+const chatTurnsInFlight = new Map<string, number>();
+
+function claimChatTurn(key: string): boolean {
+  const now = Date.now();
+  // Opportunistic sweep so crashed-turn keys can't accumulate unboundedly.
+  if (chatTurnsInFlight.size > 1_000) {
+    for (const [k, startedAt] of chatTurnsInFlight) {
+      if (now - startedAt >= CHAT_IN_FLIGHT_TTL_MS) chatTurnsInFlight.delete(k);
+    }
+  }
+  const startedAt = chatTurnsInFlight.get(key);
+  if (startedAt != null && now - startedAt < CHAT_IN_FLIGHT_TTL_MS) return false;
+  chatTurnsInFlight.set(key, now);
+  return true;
+}
+
+function releaseChatTurn(key: string | null): void {
+  if (key) chatTurnsInFlight.delete(key);
+}
+
 // Fields that the update_user_profile tool is allowed to write
 const ALLOWED_PROFILE_FIELDS = new Set([
   'display_name', 'country', 'city', 'primary_currency', 'age_range',
@@ -55,6 +93,10 @@ const ALLOWED_PROFILE_FIELDS = new Set([
 ]);
 
 export async function POST(req: Request) {
+  // Set once the conversation id is final; the catch releases it, so it must
+  // be visible outside the try. Null means "nothing to release" (rejected
+  // claim, or error before acquisition).
+  let inFlightKey: string | null = null;
   try {
   const supabase = await createClient();
   const {
@@ -82,6 +124,19 @@ export async function POST(req: Request) {
     if (textLength > MAX_MESSAGE_LENGTH) {
       return new Response('Message too long. Please keep messages under 10,000 characters.', { status: 413 });
     }
+  }
+
+  // Cost guard — kill switch, per-user block, burst limit, durable daily cap.
+  // Checked BEFORE any conversation/message writes: a capped user's request
+  // must not spawn conversations or persist messages, only receive the
+  // friendly block. The client parses this body and renders `message`.
+  const guardVerdict = await checkLlmAllowed({ userId: user.id, surface: 'chat', supabase });
+  if (!guardVerdict.allowed) {
+    console.warn(`[chat] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`);
+    return new Response(
+      JSON.stringify({ error: 'limit', message: LLM_LIMIT_MESSAGE }),
+      { status: 429, headers: { 'Content-Type': 'application/json' } },
+    );
   }
 
   // Fetch existing conversation to get type + metadata (if one exists)
@@ -202,6 +257,30 @@ export async function POST(req: Request) {
     }
     activeConversationId = data.id;
   }
+
+  // In-flight guard — acquired only now that the conversation id is final and
+  // every non-error early return above is behind us (an entry leaked on an
+  // early return would lock the conversation for the TTL). Released in the
+  // stream's onFinish and in the catch. The 'busy' body is load-bearing: the
+  // client's onError maps that substring to a friendly banner.
+  const claimKey = `${user.id}:${activeConversationId}`;
+  if (!claimChatTurn(claimKey)) {
+    return new Response(JSON.stringify({ error: 'busy' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  inFlightKey = claimKey;
+
+  // Accounting row for this turn — inserted BEFORE the stream so the daily
+  // cap counts every attempted invocation (hidden [System:] triggers and
+  // disconnected streams included). onFinish backfills the token usage.
+  const turnStartedAt = Date.now();
+  const chatTurnLogId = await recordChatTurnStart({
+    userId: user.id,
+    conversationId: activeConversationId,
+    model: chatModelId,
+  });
 
   // Save the user's latest message (skip hidden system trigger messages)
   const lastUserMessage = messages[messages.length - 1];
@@ -751,6 +830,12 @@ export async function POST(req: Request) {
     },
     toolChoice: 'auto',
     stopWhen: stepCountIs(5),
+    // Hard per-turn bounds. Real turns peak well under 400 completion tokens
+    // (Reads cap at 700), so 1,500 is generous headroom, not a quality cap.
+    // The abort sits just inside maxDuration=60 so a hung Bedrock call dies
+    // here rather than billing until the platform kills the function.
+    maxOutputTokens: 1_500,
+    abortSignal: AbortSignal.timeout(55_000),
     onStepFinish: ({ toolCalls, usage }) => {
       if (!toolCalls || toolCalls.length === 0) return;
       const toolsInStep = toolCalls.length;
@@ -758,7 +843,7 @@ export async function POST(req: Request) {
         void logToolCall({
           userId: user.id,
           toolName: call.toolName,
-          model: 'claude-sonnet-4-6',
+          model: chatModelId,
           conversationId: activeConversationId,
           messageId: assistantMessageDbId,
           stepInputTokens: usage?.inputTokens,
@@ -777,8 +862,18 @@ export async function POST(req: Request) {
       return undefined;
     },
     onFinish: async ({ messages: responseMessages }) => {
-      // Get token usage + provider metadata from the stream result
-      const usage = await result.usage;
+      // Release the in-flight claim FIRST — before any await that could throw.
+      // This fires on both normal flush and client-disconnect cancel.
+      releaseChatTurn(inFlightKey);
+      // Get token usage + provider metadata from the stream result.
+      // `result.usage` is documented as "the token usage of the LAST step
+      // only" — for a multi-step tool-calling turn (stopWhen: stepCountIs(5)
+      // above), that under-counted every turn that used a tool: a turn with
+      // several tool-call steps followed by a short final text step logged
+      // `completion_tokens: 2` for a ~150-word message (Issue 6.2). Every
+      // consumer below (llm_usage_log, the turn's accounting row, and the
+      // persisted message row) wants the SUM across all steps — `totalUsage`.
+      const usage = await result.totalUsage;
       const providerMetadata = await result.providerMetadata;
       const bedrockMeta = (providerMetadata?.bedrock ?? {}) as {
         usage?: { cacheWriteInputTokens?: number };
@@ -789,7 +884,7 @@ export async function POST(req: Request) {
 
       logBedrockUsage({
         callSite: 'chat',
-        model: 'sonnet',
+        model: 'sonnet', // coarse tier label — logBedrockUsage's own contract (sonnet|haiku|opus), not the resolved model id
         inputTokens: usage?.inputTokens ?? 0,
         outputTokens: usage?.outputTokens ?? 0,
         cacheCreationTokens: cacheWriteTokens,
@@ -797,6 +892,21 @@ export async function POST(req: Request) {
         userId: user.id,
         conversationId: activeConversationId ?? undefined,
         timestamp: new Date().toISOString(),
+      });
+      // Backfill the turn's accounting row (inserted pre-stream) with the
+      // aggregate usage across all tool-loop steps AND its computed cost. The
+      // cache-token counts extracted above are what prove the Phase-2 cache fix
+      // (a second turn within TTL should show cache_read_tokens > 0). Cost is
+      // computed at write time from the rate table keyed on chatModelId.
+      // Fire-and-forget.
+      void completeChatTurn({
+        rowId: chatTurnLogId,
+        model: chatModelId,
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        durationMs: Date.now() - turnStartedAt,
       });
       // Save assistant response — get the last assistant message for text
       const assistantMsg = responseMessages
@@ -898,6 +1008,20 @@ export async function POST(req: Request) {
               messages: retryMessages,
               tools: toolbox,
               toolChoice: { type: 'tool', toolName: 'record_value_classifications' },
+              // Bounded like every other Bedrock call: this is a forced
+              // single tool call, so the caps cost nothing legitimate.
+              maxOutputTokens: 1_000,
+              abortSignal: AbortSignal.timeout(20_000),
+            });
+
+            // Usage accounting (previously invisible to llm_usage_log).
+            void trackLLMUsage({
+              userId: user.id,
+              callType: 'chat_forced_retry',
+              model: chatModelId,
+              inputTokens: retry.usage?.inputTokens,
+              outputTokens: retry.usage?.outputTokens,
+              metadata: { conversation_id: activeConversationId },
             });
 
             // generateText returns toolCalls/toolResults arrays. The tool's
@@ -949,21 +1073,25 @@ export async function POST(req: Request) {
         // ── end hallucination guard ──────────────────────────────────────
 
         // ── V2 chat-intelligence validators (Phase 6) ────────────────────
-        // For first_read conversations, run four deterministic guards on
-        // the LLM output:
-        //   - citation grounding (numbers + merchants → tool result/brief)
-        //   - projection grounding (any /year, /month, "saved" framing →
-        //     propose_experiment tool result)
-        //   - voice (banned reflexive CFO phrases)
-        //   - chip validity (no generic / navigation / no-narrative-noun)
+        // Citation grounding (numbers + merchants → tool result/brief) now
+        // runs for EVERY conversation type, not just first_read (Issue 7.2 of
+        // the beta-blockers remediation plan). It used to be first_read-only,
+        // so an ordinary chat turn that assembled its own figure from two
+        // different tool outputs — the exact "$2,900 target / $833 short"
+        // double-count bug — had no numeric grounding check at all. The
+        // Read-specific checks (projection framing, Read voice, chip
+        // validity) stay first_read-gated below — their rules assume Read
+        // structure, not freeform chat.
         //
-        // When the first three fire, a short server-side correction is
-        // appended to the persisted message body and a single user_events
-        // row is logged. Bad chips are stripped from the [OPTIONS] block.
-        if (
-          conversationType === 'first_read' &&
-          textContent
-        ) {
+        // This catches DERIVED numbers the model assembled itself; it cannot
+        // catch a wrong number the server handed it verbatim (that's Issue
+        // 1's consistency assertion). Deliberately conservative: same
+        // dev/staging-only correction-append + always-on telemetry the
+        // first_read path already used — no forced retry. A forced-retry
+        // escalation for ordinary chat is a larger behavioural change (cost,
+        // latency, false-positive risk on freeform conversation) better
+        // proven out via this telemetry first.
+        if (textContent) {
           // Build the ToolResultLike[] from the audit trail. insightsGenerated
           // already carries { tool, output } for every successful structured
           // tool call, which is exactly the shape buildCitationAllowlist wants.
@@ -982,19 +1110,23 @@ export async function POST(req: Request) {
           const allowlist = buildCitationAllowlist(toolResults, brief);
           const citationCheck = validateCitations(textContent, allowlist);
 
-          // Filter toolResults down to propose_experiment outputs for the
-          // projection validator. Each output has the shape
-          // { monthly_impact: { amount }, annualised_impact: { amount }, ... }.
+          // Projection/voice/length checks are Read-format-specific — the
+          // "banned phrases" and length target were tuned for a first Read,
+          // not ongoing chat, so they stay scoped there.
+          const isFirstRead = conversationType === 'first_read';
           const experimentResults = toolResults
             .filter((r) => r.toolName === 'propose_experiment')
             .map((r) => r.output as {
               monthly_impact?: { amount?: number };
               annualised_impact?: { amount?: number };
             });
-          const projectionCheck = validateProjections(textContent, experimentResults);
-
-          const voiceCheck = validateVoice(textContent);
-          const lengthCheck = validateLength(textContent);
+          const projectionCheck = isFirstRead
+            ? validateProjections(textContent, experimentResults)
+            : { valid: true, unmatched_projections: [] };
+          const voiceCheck = isFirstRead ? validateVoice(textContent) : { valid: true, violations: [] };
+          const lengthCheck = isFirstRead
+            ? validateLength(textContent)
+            : { valid: true, word_count: 0, cap: 0 };
 
           if (
             !citationCheck.valid ||
@@ -1017,10 +1149,11 @@ export async function POST(req: Request) {
             void supabase.from('user_events').insert({
               profile_id: user.id,
               session_id: activeConversationId,
-              event_type: 'first_read_validator_fired',
+              event_type: isFirstRead ? 'first_read_validator_fired' : 'chat_validator_fired',
               event_category: 'validation',
               payload: {
                 message_id: assistantMessageDbId,
+                conversation_type: conversationType,
                 citationCheck,
                 projectionCheck,
                 voiceCheck,
@@ -1029,28 +1162,32 @@ export async function POST(req: Request) {
             });
           }
 
-          // Chip validation runs AFTER the citation/projection/voice append,
-          // because the appended correction can affect chip-narrative-noun
-          // matching (it shouldn't — the appended text is meta — but
-          // running it last keeps the chip check focused on chips alone).
-          const chips = extractChips(textContent);
-          if (chips.length > 0) {
-            const chipCheck = validateChips(chips, textContent);
-            if (!chipCheck.valid) {
-              const invalid = chips.filter((c) => chipCheck.reasons[c]);
-              if (invalid.length > 0) {
-                textContent = removeInvalidChips(textContent, invalid);
-                void supabase.from('user_events').insert({
-                  profile_id: user.id,
-                  session_id: activeConversationId,
-                  event_type: 'first_read_chips_stripped',
-                  event_category: 'validation',
-                  payload: {
-                    message_id: assistantMessageDbId,
-                    invalid_chips: invalid,
-                    reasons: chipCheck.reasons,
-                  },
-                });
+          // Chip validation stays first_read-only — chips are a Read-format
+          // affordance; ordinary chat has no [OPTIONS] block to validate.
+          if (isFirstRead) {
+            // Chip validation runs AFTER the citation/projection/voice append,
+            // because the appended correction can affect chip-narrative-noun
+            // matching (it shouldn't — the appended text is meta — but
+            // running it last keeps the chip check focused on chips alone).
+            const chips = extractChips(textContent);
+            if (chips.length > 0) {
+              const chipCheck = validateChips(chips, textContent);
+              if (!chipCheck.valid) {
+                const invalid = chips.filter((c) => chipCheck.reasons[c]);
+                if (invalid.length > 0) {
+                  textContent = removeInvalidChips(textContent, invalid);
+                  void supabase.from('user_events').insert({
+                    profile_id: user.id,
+                    session_id: activeConversationId,
+                    event_type: 'first_read_chips_stripped',
+                    event_category: 'validation',
+                    payload: {
+                      message_id: assistantMessageDbId,
+                      invalid_chips: invalid,
+                      reasons: chipCheck.reasons,
+                    },
+                  });
+                }
               }
             }
           }
@@ -1116,6 +1253,10 @@ export async function POST(req: Request) {
     },
   });
   } catch (err: unknown) {
+    // The stream never started (or threw synchronously) — release the claim so
+    // the user's retry isn't locked out for the TTL. No-op when nothing was
+    // acquired.
+    releaseChatTurn(inFlightKey);
     console.error('[chat] unhandled error:', err);
     const message = err instanceof Error ? err.message : String(err);
 

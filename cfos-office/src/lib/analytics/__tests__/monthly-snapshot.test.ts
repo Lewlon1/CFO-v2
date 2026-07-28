@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateMonthSpending } from '../monthly-snapshot'
+import { aggregateMonthSpending, computeTotalDiscretionaryForRow } from '../monthly-snapshot'
 
 function txn(
   amount: number,
@@ -98,5 +98,28 @@ describe('aggregateMonthSpending — bucketing rules', () => {
     const result = aggregateMonthSpending(txns)
     expect(result.spendingByCategory.uncategorised).toBe(150)
     expect(result.totalSpending).toBe(150)
+  })
+})
+
+describe('computeTotalDiscretionaryForRow — Opus review finding (Issue 1 follow-up)', () => {
+  it('subtracts current fixed costs from that month\'s total_spending in the normal case', () => {
+    expect(computeTotalDiscretionaryForRow(3032.5, 1800)).toBeCloseTo(1232.5, 2)
+  })
+
+  it('returns NULL, not a floored 0, when total_spending is below current fixed costs', () => {
+    // A partial upload missing an account fixed bills are paid from, or
+    // fixed costs that have risen since — NOT "this user spent nothing on
+    // top of their bills". Flooring this to 0 would let average() treat it
+    // as real observed history (basis: 'observed'), producing an unhedged,
+    // overstated free-cash figure with high confidence.
+    expect(computeTotalDiscretionaryForRow(1500, 2200)).toBeNull()
+  })
+
+  it('returns 0 (not null) exactly at the boundary — spending equals fixed costs', () => {
+    expect(computeTotalDiscretionaryForRow(2200, 2200)).toBe(0)
+  })
+
+  it('returns null when total_spending itself is null (row not yet aggregated)', () => {
+    expect(computeTotalDiscretionaryForRow(null, 1800)).toBeNull()
   })
 })

@@ -107,7 +107,16 @@ export async function computePaceAndOnTrack(
       const totalIncome = budget.netIncome + budget.partnerContribution;
       const discretionary = avgDiscretionary ?? 0;
       const surplus = totalIncome - budget.fixedCosts - discretionary;
-      on_track = surplus >= monthly_required_saving;
+      const meetsRequirement = surplus >= monthly_required_saving;
+      // avgDiscretionary == null means no observed spending history exists —
+      // the surplus above assumes ZERO day-to-day spend. That's a safe basis
+      // for a NEGATIVE verdict (even the best case falls short of the goal),
+      // but persisting a confident TRUE off an assumed-zero spend is exactly
+      // the false "funded at plan" bug class this session fixed elsewhere,
+      // relocated to the persisted on_track flag (which other surfaces —
+      // goal UI badges, etc. — still read as a settled fact). Leave it
+      // unresolved rather than state it.
+      on_track = avgDiscretionary == null && meetsRequirement ? null : meetsRequirement;
     }
   }
 

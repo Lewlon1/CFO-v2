@@ -127,31 +127,82 @@ export async function refreshMonthlySnapshots(
 }
 
 /**
- * Compute the reconciled fixed-cost total once and stamp it across the
- * user's existing monthly_snapshots rows. The value-first onboarding flow
- * is the first writer; legacy users get NULL → recomputed value the next
- * time the upload pipeline runs.
+ * Compute the reconciled fixed-cost total once and stamp it — along with
+ * `total_discretionary` (total_spending minus that same fixed-cost total,
+ * floored at 0) — across the user's existing monthly_snapshots rows. The
+ * value-first onboarding flow is the first writer; legacy users get NULL →
+ * recomputed value the next time the upload pipeline runs.
+ *
+ * `total_discretionary` per row is NOT a per-row update (unlike
+ * total_fixed_costs, which is the same value for every row) — it depends on
+ * that row's own total_spending, so each row is fetched and updated
+ * individually. This is the column financial-position.ts reads as
+ * avgDiscretionaryMonthly; before it existed, every consumer's `?? 0`
+ * fallback silently modelled every user as spending nothing beyond their
+ * fixed bills (the root cause of the false "funded at plan / spare cash"
+ * figures in the dorcas/lewis staging review).
  *
  * Exported so the processing-form server action can call it the moment
  * rent + detected recurring are both on file (the upload-time call inside
  * refreshMonthlySnapshots is a no-op on the first import because the
  * recurring detector hasn't run yet at that point).
  */
+/**
+ * NULL, not floored to 0, when a month's own total_spending is below the
+ * CURRENT reconciled fixed-cost total. That combination means the month's
+ * data doesn't reconcile with what's on file today — a partial upload
+ * missing an account the fixed bills are paid from, or fixed costs that
+ * have since risen — not "this user spent nothing on top of their bills."
+ * Flooring that case to a confident 0 was itself a relocated version of the
+ * exact bug being fixed: `average()` in financial-position.ts treats a run
+ * of 0s as real observed history (basis: 'observed'), so a Read could state
+ * an unhedged, overstated free-cash figure with high confidence. NULL
+ * correctly falls out of the average and pushes basis back to 'modelled'.
+ */
+export function computeTotalDiscretionaryForRow(
+  totalSpending: number | null,
+  totalFixedCostsMonthly: number,
+): number | null {
+  return totalSpending != null && totalSpending >= totalFixedCostsMonthly
+    ? totalSpending - totalFixedCostsMonthly
+    : null
+}
+
 export async function syncTotalFixedCosts(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<void> {
+  let totalFixedCostsMonthly: number
   try {
-    const { totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId)
-    const { error } = await supabase
-      .from('monthly_snapshots')
-      .update({ total_fixed_costs: totalFixedCostsMonthly })
-      .eq('user_id', userId)
-    if (error) {
-      console.error('[syncTotalFixedCosts] update failed:', error)
-    }
+    ;({ totalFixedCostsMonthly } = await reconcileFixedCosts(supabase, userId))
   } catch (err) {
     console.error('[syncTotalFixedCosts] reconcile failed:', err)
+    return
+  }
+
+  const { data: rows, error: readError } = await supabase
+    .from('monthly_snapshots')
+    .select('id, total_spending')
+    .eq('user_id', userId)
+
+  if (readError) {
+    console.error('[syncTotalFixedCosts] failed to load snapshot rows:', readError)
+    return
+  }
+
+  for (const row of rows ?? []) {
+    const totalSpending = typeof row.total_spending === 'number' ? row.total_spending : null
+    const totalDiscretionary = computeTotalDiscretionaryForRow(totalSpending, totalFixedCostsMonthly)
+    const { error } = await supabase
+      .from('monthly_snapshots')
+      .update({
+        total_fixed_costs: totalFixedCostsMonthly,
+        total_discretionary: totalDiscretionary,
+      })
+      .eq('id', row.id as string)
+    if (error) {
+      console.error('[syncTotalFixedCosts] update failed for snapshot', row.id, error)
+    }
   }
 }
 
@@ -167,13 +218,20 @@ async function refreshOneMonth(
       ? `${year + 1}-01-01`
       : `${year}-${String(m + 1).padStart(2, '0')}-01`
 
-  const { data: txns } = await supabase
+  const { data: txns, error: txnsError } = await supabase
     .from('transactions')
     .select('amount, category_id, value_category, description')
     .eq('user_id', userId)
     .gte('date', monthStart)
     .lt('date', nextMonth)
 
+  // A real DB error here must not read the same as "no transactions this
+  // month" — that silent conflation is the same failure mode that made a
+  // missing total_discretionary column invisible for its entire life.
+  if (txnsError) {
+    console.error('[refreshOneMonth] transactions read failed:', month, txnsError)
+    return
+  }
   if (!txns || txns.length === 0) return
 
   const {
@@ -258,6 +316,23 @@ export async function updateIncomeShape(
 
   const result = detectIncomeShape(txns ?? [])
 
+  // Provenance: did we actually SEE income land, or are we leaning on a figure
+  // the user declared? When no income deposits are detected but the user
+  // declared a net monthly income, mark it 'declared_unverified' so the Read
+  // frames that number as stated-not-observed and asks where the salary lands.
+  let income_provenance: string
+  if (result.shape !== 'unknown') {
+    income_provenance = 'observed'
+  } else {
+    const { data: prof } = await supabase
+      .from('user_profiles')
+      .select('net_monthly_income')
+      .eq('id', userId)
+      .maybeSingle()
+    income_provenance =
+      prof?.net_monthly_income != null ? 'declared_unverified' : 'unknown'
+  }
+
   const { error: upsertError } = await supabase
     .from('user_profiles')
     .update({
@@ -265,6 +340,7 @@ export async function updateIncomeShape(
       income_volatility: result.volatility,
       income_shape_deposit_count: result.deposit_count,
       income_shape_detected_at: new Date().toISOString(),
+      income_provenance,
     })
     .eq('id', userId)
 

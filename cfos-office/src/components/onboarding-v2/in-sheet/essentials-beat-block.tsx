@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { ProcessingForm } from '@/components/onboarding-v2/processing-form'
 import { ProcessingProgress } from '@/components/onboarding-v2/processing-progress'
 
@@ -10,39 +9,29 @@ type Props = {
   initialRent: number | null
   /** Fires after the income/rent form advances (step is now details_pending). */
   onAdvance: () => void
-  /** Skip-upload path — no parse to wait for; gates Continue on the two numbers only. */
+  /** Skip-upload path — no import happened, so the progress strip is hidden. */
   noImport?: boolean
 }
 
-// Hard cap on the perceived parse wait — the background pipeline continues
-// regardless; this just unblocks Continue so a slow snapshot refresh doesn't
-// trap the user behind the form. Ported from the old ProcessingOrchestrator.
-const IMPORT_GRACE_MS = 30_000
-
 /**
- * In-sheet income/rent beat. Hosts the kept progress bar alongside the
- * income/rent form (both reused from the old /onboarding-v2/processing page)
- * so the statement parse is overlapped with two quick numbers rather than a
- * dead spinner. ProcessingForm already takes an onAdvance callback and runs
- * advanceToConfirm itself, so we just react to it.
+ * In-sheet income/rent beat. This beat only mounts after /api/upload has
+ * responded, and that route awaits the whole pipeline (import, enrichment,
+ * snapshots, recurring detection) before returning — so the import is a done
+ * fact by the time anything here renders. The progress strip lands straight on
+ * "Ready when you are" as a completion cue, and Continue gates on the two
+ * numbers only. (An earlier port kept a 30s timer from the old orchestrator,
+ * where the parse genuinely ran in parallel — that wait had nothing behind it
+ * here.)
  */
 export function EssentialsBeatBlock({ currency, initialIncome, initialRent, onAdvance, noImport }: Props) {
-  const [importComplete, setImportComplete] = useState(Boolean(noImport))
-
-  useEffect(() => {
-    if (noImport) return // nothing parsing — Continue gates on the two numbers only
-    const t = setTimeout(() => setImportComplete(true), IMPORT_GRACE_MS)
-    return () => clearTimeout(t)
-  }, [noImport])
-
   return (
     <div className="px-4 py-4 space-y-6">
-      {!noImport && <ProcessingProgress importComplete={importComplete} />}
+      {!noImport && <ProcessingProgress importComplete />}
       <ProcessingForm
         initialIncome={initialIncome}
         initialRent={initialRent}
         currency={currency}
-        importComplete={importComplete}
+        importComplete
         noImport={noImport}
         onAdvance={onAdvance}
       />

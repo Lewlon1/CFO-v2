@@ -68,6 +68,30 @@ npm, not pnpm · branches: `claude/[session-name]` · a session isn't done until
 `npm run typecheck && npm run build` are green · append lessons learned to
 `SESSION-LOG.md` before closing.
 
+## Data residency & models
+
+Source of truth is `cfos-office/src/lib/ai/provider.ts` (this table mirrors it —
+Rule 8). Every id is an `eu.` cross-region inference profile; `resolveEuModel`
+throws at cold start on any non-`eu.` value.
+
+| Surface | Env var | Default inference profile |
+| --- | --- | --- |
+| Chat / analysis | `BEDROCK_CLAUDE_MODEL` | `eu.anthropic.claude-sonnet-4-6` |
+| Utility (Haiku) | `BEDROCK_CLAUDE_UTILITY_MODEL` | `eu.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| Opus (reveal / wow) | `BEDROCK_OPUS_MODEL` | `eu.anthropic.claude-opus-4-6` |
+| First-Read composer | `BEDROCK_COMPOSE_MODEL` | falls back to the chat model |
+
+**Data residency (verified 2026-07-07, Session B1).** Vercel functions run in
+`dub1` (Dublin/EU, `vercel.json`); Bedrock inference runs on `eu.` cross-region
+profiles for Sonnet **and** Haiku **and** Opus; Supabase is `eu-west-1`. No user
+data leaves EU infrastructure. Phase 0 evidence: Sonnet's EU profile is
+`eu.anthropic.claude-sonnet-4-6` (shipped v2.9, commit 1f9f4ee); a repo-wide grep
+finds no live `global.` Sonnet profile (only provider.ts doc-comments + negative
+tests). `ALLOW_NON_EU_BEDROCK=1` is a local-dev escape hatch only — never set it
+in a deployed env. Emergency stop for all Bedrock spend: `LLM_DISABLED=1` in
+Vercel (per-user block: `user_profiles.llm_blocked_at`). Cost per call is metered
+into `llm_usage_log` from the typed rate table in `src/lib/ai/rates.ts`.
+
 ## Pointers
 
 - `CFO-CONSTITUTION.md` — C.'s voice, structure rules, banned language

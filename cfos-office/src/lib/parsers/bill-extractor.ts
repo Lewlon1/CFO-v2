@@ -1,6 +1,7 @@
 import { generateObject, type UserContent } from 'ai'
 import { z } from 'zod'
-import { analysisModel } from '@/lib/ai/provider'
+import { analysisModel, chatModelId } from '@/lib/ai/provider'
+import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 
 const billExtractionSchema = z.object({
   provider: z.string().describe('Exact provider name (e.g. "Iberdrola" not "Grupo Iberdrola")'),
@@ -99,7 +100,7 @@ export async function extractBillData(
       text: BILL_EXTRACTION_PROMPT,
     })
 
-    const { object } = await generateObject({
+    const genResult = await generateObject({
       model: analysisModel,
       schema: billExtractionSchema,
       messages: [
@@ -108,6 +109,15 @@ export async function extractBillData(
           content,
         },
       ],
+    })
+    const object = genResult.object
+
+    // Usage accounting (previously invisible to llm_usage_log).
+    void trackLLMUsage({
+      callType: 'bill_extraction',
+      model: chatModelId,
+      inputTokens: genResult.usage?.inputTokens,
+      outputTokens: genResult.usage?.outputTokens,
     })
 
     if (!object.provider || typeof object.total_amount !== 'number') {

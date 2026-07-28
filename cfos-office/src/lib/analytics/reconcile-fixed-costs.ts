@@ -169,6 +169,22 @@ export async function reconcileFixedCosts(
       .in('status', ['detected', 'tracked']),
   ])
 
+  // These three reads feed the free-cash-flow headline every consumer in the
+  // app now shares (financial-position.ts) — a silently-swallowed error here
+  // would understate fixed costs exactly the way the missing
+  // total_discretionary column silently zeroed discretionary spend (Issue
+  // 6.3). `?? []` / `?? null` below still degrade gracefully so a transient
+  // failure never crashes the Read, but it must be visible in logs.
+  if (profileRes.error) {
+    console.error('[reconcileFixedCosts] user_profiles read failed:', profileRes.error)
+  }
+  if (declaredRes.error) {
+    console.error('[reconcileFixedCosts] user_declared_fixed_costs read failed:', declaredRes.error)
+  }
+  if (recurringRes.error) {
+    console.error('[reconcileFixedCosts] recurring_expenses read failed:', recurringRes.error)
+  }
+
   const monthlyRent =
     typeof profileRes.data?.monthly_rent === 'number'
       ? profileRes.data.monthly_rent

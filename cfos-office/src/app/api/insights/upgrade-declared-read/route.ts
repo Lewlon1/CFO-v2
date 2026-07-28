@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { composeFirstRead } from '@/lib/ai/compose-first-read'
+import { composeFirstRead, type DeclaredReadFacts } from '@/lib/ai/compose-first-read'
+import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
 import type { PriorReadSummary } from '@/lib/ai/prompts/first-read'
 import { checkReadHardRules } from '@/lib/ai/read-judge'
 import {
@@ -10,6 +11,7 @@ import {
   claimUpgradeInProgress,
   clearUpgradeInProgress,
   markUpgraded,
+  setDeclaredReadPending,
   UPGRADED_KEY,
 } from '@/lib/insights/first-read-followup'
 import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
@@ -47,6 +49,48 @@ export type UpgradeDeclaredReadResult = {
 function firstSentence(message: string): string {
   const trimmed = message.trim()
   return (trimmed.split(/(?<=[.!?])\s+|\n/)[0] ?? trimmed).trim()
+}
+
+/**
+ * Defensive parse of the declared-facts snapshot off conversation metadata.
+ * Snapshot-only by design: conversations from before the snapshot shipped
+ * (or a malformed value) return null and the upgrade composes without a
+ * numeric delta — never a throw, never a guessed figure.
+ */
+export function parseDeclaredFactsSnapshot(value: unknown): DeclaredReadFacts | null {
+  if (value == null || typeof value !== 'object') return null
+  const v = value as Record<string, unknown>
+  if (
+    typeof v.income !== 'number' ||
+    typeof v.totalFixedCosts !== 'number' ||
+    typeof v.freeCash !== 'number' ||
+    typeof v.currency !== 'string'
+  ) {
+    return null
+  }
+  return {
+    income: v.income,
+    totalFixedCosts: v.totalFixedCosts,
+    freeCash: v.freeCash,
+    goalName: typeof v.goalName === 'string' ? v.goalName : null,
+    goalTargetAmount: typeof v.goalTargetAmount === 'number' ? v.goalTargetAmount : null,
+    goalCurrentAmount: typeof v.goalCurrentAmount === 'number' ? v.goalCurrentAmount : null,
+    goalTargetDate: typeof v.goalTargetDate === 'string' ? v.goalTargetDate : null,
+    goalType: typeof v.goalType === 'string' ? v.goalType : null,
+    // On-track/funded-at-plan framing needs explicit evidence in the snapshot —
+    // older snapshots predate these fields, and false/null is the safe default
+    // (the prompt then simply skips the on-track branch).
+    fundedAtPlan: v.fundedAtPlan === true,
+    planRatePct: typeof v.planRatePct === 'number' ? v.planRatePct : null,
+    stressRatePct: typeof v.stressRatePct === 'number' ? v.stressRatePct : null,
+    stressMonthly: typeof v.stressMonthly === 'number' ? v.stressMonthly : null,
+    stressCovered: typeof v.stressCovered === 'boolean' ? v.stressCovered : null,
+    monthlyRequiredSaving:
+      typeof v.monthlyRequiredSaving === 'number' ? v.monthlyRequiredSaving : null,
+    percentOfIncome: typeof v.percentOfIncome === 'number' ? v.percentOfIncome : null,
+    unallocated: typeof v.unallocated === 'number' ? v.unallocated : null,
+    currency: v.currency,
+  }
 }
 
 // How many times to attempt markUpgraded before giving up. It's a single
@@ -161,6 +205,11 @@ export async function runDeclaredReadUpgrade(args: {
       firstSentence: priorMsg?.content ? firstSentence(priorMsg.content as string) : null,
     }
 
+    // The declared-facts snapshot (persisted by post-upload when the declared
+    // Read composed) is the BEFORE side of the numeric delta. Snapshot-only:
+    // pre-snapshot conversations parse to null and the delta stays qualitative.
+    const declaredPriorFacts = parseDeclaredFactsSnapshot(meta.declared_facts)
+
     // Compose the transaction-based delta. The composer declines on a thin
     // upload (no usable clusters / no hook candidates) WITHOUT calling the
     // LLM — leave the declared Read as the last word and nudge for a fuller
@@ -171,6 +220,7 @@ export async function runDeclaredReadUpgrade(args: {
       supabase: svc as any,
       mode: 'declared_upgrade',
       priorReadSummary,
+      declaredPriorFacts,
     })
 
     if (composed.insufficientData) {
@@ -211,6 +261,13 @@ export async function runDeclaredReadUpgrade(args: {
       content: composed.composedMessage,
     })
     appended = true
+
+    // The upgrade Read is delivered — clear the profile's declared-pending
+    // flag NOW (not after the stamp), so a stamp_failed exit can't leave the
+    // pinned meter / re-offer banner advertising an upgrade that already
+    // landed. Non-fatal by construction; the conversation-level stamps below
+    // stay the source of truth for the upgrade itself.
+    await setDeclaredReadPending(svc, userId, null)
 
     // Stamp the final upgrade: sets value_first_upgraded=true, clears
     // in-progress, and snapshots the upgrade composition metadata — one
@@ -287,6 +344,19 @@ export async function POST() {
   } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // LLM cost guard — kill switch / per-user block / burst / daily cap. Lives
+  // in this thin wrapper (not runDeclaredReadUpgrade) so the orchestration
+  // stays unit-testable without the guard's real in-memory burst limiter.
+  const guardVerdict = await checkLlmAllowed({
+    userId: user.id,
+    surface: 'first_read_compose',
+    supabase,
+  })
+  if (!guardVerdict.allowed) {
+    console.warn(`[upgrade-declared-read] llm-guard blocked user ${user.id}: ${guardVerdict.reason}`)
+    return NextResponse.json({ error: 'limit', message: LLM_LIMIT_MESSAGE }, { status: 429 })
   }
 
   const svc = createServiceClient()
