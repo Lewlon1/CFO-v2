@@ -22,6 +22,7 @@ import {
   type SignificantMerchant,
 } from '@/lib/value-map/significant-merchant';
 import { isValueMapV2Enabled } from '@/lib/value-map/flags';
+import { loadMemoryIndex } from '@/lib/memory/files';
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -950,6 +951,11 @@ export async function buildSystemPrompt(
       // wrong tools. Same data + call signature as the general branch below.
       buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
       buildToolUsageInstructions(),
+      // The filing cabinet. A first Read is usually written against an empty
+      // cabinet — but a returning user recomposing a Read has one, and the CFO
+      // should not re-derive what it already wrote down.
+      buildMemoryFilesContract(),
+      await buildMemoryIndexContext(supabase, userId),
       getPosturePromptFragment(profile),
     ].filter(Boolean);
 
@@ -971,6 +977,7 @@ export async function buildSystemPrompt(
     predictionQuality,
     profilingContext,
     openItemsBlock,
+    memoryIndex,
   ] = await Promise.all([
     buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     getCountryBenchmarks(profile, supabase),
@@ -990,6 +997,7 @@ export async function buildSystemPrompt(
           return '';
         })
       : Promise.resolve(''),
+    buildMemoryIndexContext(supabase, userId),
   ]);
 
   const sections = [
@@ -1010,6 +1018,10 @@ export async function buildSystemPrompt(
     experimentContext,
     buildToolUsageInstructions(),
     buildLayeredReadInstructions(),
+    // The filing cabinet: the contract is static (cacheable), the index is the
+    // per-user half and drops out entirely when the cabinet is empty.
+    buildMemoryFilesContract(),
+    memoryIndex,
     valueMappingContext,
     valueCheckinNudge,
     retakeSuggestion,
@@ -1066,6 +1078,84 @@ function buildLayeredReadInstructions(): string {
     '',
     'When the user\'s Value Map states an intent (e.g. "dining is a Leak") and the behavioural trend conflicts (e.g. dining climbing), point out the divergence factually and ask the user what\'s changing. This is the only place "the Gap" concept survives — as a move you make in conversation, not a feature name.',
   ].join('\n');
+}
+
+// The Filing Cabinet — the retrieval/write contract.
+//
+// Static by construction: it must stay byte-identical between turns so it can
+// sit in the cached prefix. Nothing user-specific goes in here — the per-user
+// part is the index, which is built separately.
+//
+// Modelled on buildLayeredReadInstructions above: inject the contract, not the
+// data. The prompt says when reading is mandatory; the bodies arrive by tool.
+//
+// Exported for the test that pins its byte-stability — that property is what
+// lets it live in the cached prefix, and it is easy to break by accident.
+export function buildMemoryFilesContract(): string {
+  return [
+    '## Your files on this user',
+    '',
+    'You keep files on this user, filed in the four folders they see in their office: `goals`, `cashflow`, `values`, `networth`. The index below lists what exists — one line each. The bodies are NOT in this prompt; you read them with `read_memory_file`.',
+    '',
+    'The user sees these same files and can edit them. Write accordingly.',
+    '',
+    'WHEN TO READ (MANDATORY):',
+    '',
+    'You MUST call `read_memory_file` before responding whenever:',
+    '- The index lists a file whose description matches what the user just raised, or what you are about to advise on.',
+    '- The user refers back to a situation, plan, decision or preference they have told you about before.',
+    '- You are about to ask something the index suggests you were already told.',
+    '',
+    'After reading, build on what the file says rather than starting over. If the file and what the user says now disagree, the user is right — update the file.',
+    '',
+    'WHEN TO WRITE:',
+    '',
+    'Call `write_memory_file` when something durable has been shared or decided: a situation ("supporting their mother since March"), a plan and the reasoning behind it, a decision and why they made it, the context around a money habit, a preference with its nuance. Write at those moments — not every turn, and never as a summary of the conversation.',
+    '',
+    'NEVER put in a file:',
+    '- A figure presented as current — balances, totals, spending. Those come from data tools at the moment you need them. A file may say "they were putting aside about €400 a month back in June"; it must never carry today\'s number.',
+    '- Anything a structured tool owns: goals (`create_goal`), assets and debts (`upsert_asset` / `upsert_liability`), profile facts (`update_user_profile`), value classifications (`record_value_classifications`). Call that tool. The file holds the story around the fact, never the fact itself.',
+    '',
+    'HOW TO WRITE:',
+    '',
+    '- One topic per file. Prefer `append` — it keeps the history and dates each entry for you.',
+    '- The `description` is the only thing about a file you will see in later conversations. Write it so it earns a re-read: "Saving €40k by 2028; tension with the wedding fund" tells you to open it, "Notes about goals" does not.',
+    '- Personal and life context — work, family, health, plans — goes in `values`.',
+    '',
+    'USER EDITS ARE AUTHORITATIVE:',
+    '',
+    'When a file comes back marked as edited by the user, those are their words about their own life. Never contradict or rewrite them; add to them.',
+    '',
+    'VOICE:',
+    '',
+    'Never name the mechanism. Say "I\'ve noted that", "it\'s in your Goals folder", "I had it written down" — never "memory", "file slug", "the index", or a tool name. If you need to say where something lives, name the folder the way the user sees it: Goals, Cash Flow, Values & You, Net Worth.',
+  ].join('\n');
+}
+
+/**
+ * The per-user half of the filing cabinet: one line per file, all four folders,
+ * bodies excluded. Capped by INDEX_MAX_LINES_PER_FOLDER — roughly 500 tokens at
+ * the ceiling. Returns '' when the cabinet is empty, so a new user pays nothing
+ * for it (the contract above still tells them how to start one).
+ */
+async function buildMemoryIndexContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+): Promise<string> {
+  try {
+    const index = await loadMemoryIndex(supabase, userId, new Date());
+    if (!index.ok) return '';
+    // An empty cabinet renders as four "(no files yet)" lines — real tokens for
+    // no information. The contract carries the affordance on its own.
+    const hasAnyFile = index.value
+      .split('\n')
+      .some((line) => line.startsWith('- ') && !line.startsWith('- (no files yet)'));
+    return hasAnyFile ? index.value : '';
+  } catch (err) {
+    console.error('[context-builder] memory index load failed', err);
+    return '';
+  }
 }
 
 function buildCurrentDateContext(): string {
@@ -1926,6 +2016,10 @@ BALANCE SHEET UPLOADS:
 If the user mentions having multiple holdings, a complex portfolio, a pension statement, a mortgage statement, or a credit card balance they want to import, tell them they can drag a holdings CSV, screenshot, or PDF into the Balance Sheet upload and it will be parsed into assets or debts automatically. Prefer upload over typing numbers one-by-one when they have more than two or three positions.
 
 RULES:
+- **read_memory_file**: Read one of your files on this user — folder + slug for the body, folder alone to list what is in it. See "Your files on this user" for when reading is mandatory.
+- **write_memory_file**: Record durable narrative knowledge — a situation, a plan and its reasoning, a decision and why. Never figures presented as current, and never anything a structured tool owns.
+- **archive_memory_file**: Retire a file that is no longer true. Confirm with the user first.
+
 - ALWAYS call a tool when you need a number. Never estimate, recall, or calculate.
 - You can call multiple tools in sequence — e.g., get_spending_summary then compare with calculate_monthly_budget.
 - If a tool returns an error about missing data, explain what's needed and offer to help collect it.
