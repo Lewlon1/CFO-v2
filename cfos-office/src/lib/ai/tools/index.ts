@@ -46,6 +46,9 @@ import { createEmitActionTool } from './emit-action';
 // Session 32 (A) — Layer 3 + Layer 4 tools.
 import { createGetClusterBehaviourTool } from './get-cluster-behaviour';
 import { createGetConversationSignalsTool } from './get-conversation-signals';
+import { createReadMemoryFileTool } from './read-memory-file';
+import { createWriteMemoryFileTool } from './write-memory-file';
+import { createArchiveMemoryFileTool } from './archive-memory-file';
 
 export type { ToolContext } from './types';
 
@@ -98,5 +101,10 @@ export function createToolbox(ctx: ToolContext) {
     // Session 32 (A) — Layer 3 / Layer 4 tools.
     get_cluster_behaviour: createGetClusterBehaviourTool(ctx),
     get_conversation_signals: createGetConversationSignalsTool(ctx),
+    // The Filing Cabinet — per-user files the CFO reads on demand and the user
+    // sees in the office. The prompt carries only the index; bodies come from here.
+    read_memory_file: createReadMemoryFileTool(ctx),
+    write_memory_file: createWriteMemoryFileTool(ctx),
+    archive_memory_file: createArchiveMemoryFileTool(ctx),
   };
 }
