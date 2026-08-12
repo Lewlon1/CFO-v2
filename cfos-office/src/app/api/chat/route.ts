@@ -42,6 +42,7 @@ import {
   appendCorrection,
   stripValidatorNote,
   type ToolResultLike,
+  type ExperimentResultShape,
 } from '@/lib/ai/insight-validator';
 import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
 import { sanitisePersona } from '@/lib/ai/persona-sanitiser';
@@ -1114,12 +1115,20 @@ export async function POST(req: Request) {
           // "banned phrases" and length target were tuned for a first Read,
           // not ongoing chat, so they stay scoped there.
           const isFirstRead = conversationType === 'first_read';
-          const experimentResults = toolResults
-            .filter((r) => r.toolName === 'propose_experiment')
-            .map((r) => r.output as {
-              monthly_impact?: { amount?: number };
-              annualised_impact?: { amount?: number };
-            });
+          // Projection grounding: a "£X/year saved" claim in a Read is only
+          // allowed if a tool returned that exact impact band. The deprecated
+          // `propose_experiment` tool was the sole producer of
+          // monthly_impact/annualised_impact and has been removed — no prompt
+          // ever directed the model to it, and propose_catalog_experiment
+          // proposes a template + success criterion, not a € projection, so
+          // there is nothing to ground against. The allowlist is therefore
+          // empty, which puts the guard at its STRICTEST setting: every
+          // projection-framed sentence carrying a number is flagged. That is
+          // the intended posture for a Read — it is composed from
+          // server-computed facts and must not invent savings projections.
+          // If a future tool returns a computed impact band, filter it in here
+          // and map it to { monthly_impact, annualised_impact }.
+          const experimentResults: ExperimentResultShape[] = [];
           const projectionCheck = isFirstRead
             ? validateProjections(textContent, experimentResults)
             : { valid: true, unmatched_projections: [] };

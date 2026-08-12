@@ -34,7 +34,6 @@ import { createFindTemporalSignalsTool } from './find-temporal-signals';
 import { createFindTrendChangesTool } from './find-trend-changes';
 import { createFindOutliersTool } from './find-outliers';
 import { createFindValueGapsTool } from './find-value-gaps';
-import { createProposeExperimentTool } from './propose-experiment';
 import { createLabelTransactionsTool } from './label-transactions';
 // Session v2.3 — Experiment Engine.
 import { createProposeCatalogExperimentTool } from './propose-catalog-experiment';
@@ -87,7 +86,6 @@ export function createToolbox(ctx: ToolContext) {
     find_trend_changes: createFindTrendChangesTool(ctx),
     find_outliers: createFindOutliersTool(ctx),
     find_value_gaps: createFindValueGapsTool(ctx),
-    propose_experiment: createProposeExperimentTool(ctx),
     label_transactions: createLabelTransactionsTool(ctx),
     // Session v2.3 — Experiment Engine
     propose_catalog_experiment: createProposeCatalogExperimentTool(ctx),

@@ -197,7 +197,7 @@ describe('validateProjections', () => {
     expect(validateProjections(narrative, experimentResults).valid).toBe(true);
   });
 
-  it('fails on "€500/year saved" with no propose_experiment result', () => {
+  it('fails on "€500/year saved" with no computed impact band to ground it', () => {
     const narrative = "If you cut subscriptions you'd save €500/year.";
     const result = validateProjections(narrative, []);
     expect(result.valid).toBe(false);
