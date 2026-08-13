@@ -4467,3 +4467,58 @@ three tables explicitly before deleting. The harness's `user-factory` bypasses t
 and calls the Supabase admin API directly, which is what trips the FKs. Fix is to route
 the factory through `delete_user_account`; not done. Until then the suite leaks ~10 users
 per full run.
+
+## 2026-08-13 — The Filing Cabinet, Phase 2: the memory becomes a screen
+
+Phase 1 (schema, tools, prompt contract) shipped in the three commits before
+this. Phase 2 is the trust half: nothing the CFO writes about someone should
+live where they cannot see it, and the plan sequences the UI *before* the files
+become load-bearing memory in Phase 3 for exactly that reason.
+
+Shipped: FileRow + FilesSection under all four folder dashboards, the file
+detail page (markdown body, edit, pin, archive/restore), `/api/memory/files/[id]`,
+the folder-tab counts on the office home, and the composed Reads filed as
+documents into `values/first-read`.
+
+### The spec asked for a radius the linter forbids
+UI-DIRECTION §File Rows specced a 10px radius. `cfo/visual-token-guards` errors
+on any arbitrary `rounded-[…]` of 4px or more, and `DrillDownRow` already draws
+this exact row shape at `rounded-control` (8px). Snapped to 8px and **amended
+the spec in the same commit** rather than leaving a doc that instructs the next
+person to write a lint error.
+
+### Three routes compose a Read, not two
+The plan expected the two `compose-first-read` variants (uploaded vs declared)
+to need separate hooks. They do not — both are delivered by
+`/api/insights/post-upload`, which picks `mode` internally. The two that DO need
+their own hook are the *rewrites*: `recompose-first-read` and
+`upgrade-declared-read`, both of which persist via `appendAssistantFollowup`.
+So: three call sites, one shared `fileComposedRead()`.
+
+### There is no "monthly review completed" event
+The plan asked for a review document filed into `cashflow/` "where conversations
+transitions review → completed". No such transition exists. A monthly review is
+marked completed only when the *next* review starts (`api/review/start:59`) or
+by the generic active-conversation sweep in `api/chat/route.ts:174`. Nor is
+there an artefact to file — a review is a live conversation, not a composed
+message like a Read. Filing one means composing a summary, which is a feature.
+**Left out deliberately; not a miss.**
+
+### The UI is written to survive an unapplied migration
+`listFolder` failing renders nothing (not an error state) and
+`countFilesByFolder` returns zeros, so every folder page renders normally
+against a database without `memory_files`. This is not defensive padding — it is
+the actual state of staging right now, and it means Phase 2 can ship ahead of
+the migration without stranding a folder page.
+
+### State at handover
+`typecheck` ✓ · `knip` ✓ · `vitest` **1645 passing (137 files)** ✓ ·
+`next build` ✓ (all five new routes present) · lint unchanged from the branch
+baseline (14 pre-existing `no-explicit-any` errors, none in new files).
+
+**Migration 082 is still unapplied to staging** — so nothing has been verified in
+a browser, and the Playwright persona suite was not run (it auto-starts a dev
+server, spends Bedrock, and would only exercise the empty-cabinet path until 082
+lands). Apply 082 first, then run the suite, then Phase 3.
+
+**Phase 3 is gated** on read-rate telemetry from staging that cannot exist yet.
