@@ -1,7 +1,7 @@
 # Bedrock model cost comparison — DeepSeek / Llama vs Sonnet & Haiku
 
 **Status:** Open — recommendation pending two verifications (see §7)
-**Date:** 2026-08-12
+**Date:** 2026-08-13
 **Question:** Would the cheapest viable DeepSeek / Llama models on Bedrock
 meaningfully cut our model spend versus Sonnet 4.6 and Haiku 4.5, accounting for
 prompt caching?
@@ -38,7 +38,7 @@ tradeoff. Those are §5.
 
 ## 2. What we run today
 
-All verified by reading source on 2026-08-12.
+All verified by reading source on 2026-08-13.
 
 | Tier | Model ID | Handle | Where |
 |---|---|---|---|
@@ -72,12 +72,21 @@ it should be quantitative.
 | DeepSeek R1 / V3.x | ❌ `us.*` only *(unverified)* | ❌ | ⚠️ limited | ❌ R1 text-only | **Excluded — residency** |
 | Llama 4 Scout / Maverick | ⚠️ unverified | ❌ | ⚠️ no forced choice | ⚠️ variant-dependent | Utility tier only, if EU-available |
 | Mistral Large 3 | ⚠️ likely (EU-native vendor) | ❌ | ⚠️ partial | ❌ | Utility tier only |
-| Amazon Nova Lite / Pro | ⚠️ unverified | ✅ **yes** | ✅ | ✅ | **Most interesting non-Claude option** |
+| Amazon Nova Lite / Pro | ✅ `eu.amazon.nova-pro-v1:0` | ✅ **yes** | ✅ | ✅ | **Selected — see roadmap** |
 
-Nova is the one non-Anthropic family that keeps prompt caching. If cost pressure
-becomes real and Nova has EU profiles, it is a more coherent candidate than
-DeepSeek or Llama precisely because it does not force us to give up the caching
-our prompt architecture is built around.
+Nova is the one non-Anthropic family that keeps prompt caching, which makes it a
+more coherent candidate than DeepSeek or Llama precisely because it does not
+force us to give up the caching our prompt architecture is built around.
+
+**Update 2026-08-13:** Nova Pro's EU availability is now confirmed —
+`eu.amazon.nova-pro-v1:0` is published across eu-central-1, eu-west-1, eu-west-3
+and eu-north-1, so the residency constraint that excludes DeepSeek does not apply.
+Nova Pro also supports cache checkpoints on `system`, `messages` **and `tools`**,
+which addresses the open question in §5.6. It carries its own constraint: a **20k
+token cache ceiling**, 4 checkpoints, 1,024-token minimum — against our ~9–10k
+static floor that is real but not generous headroom. Lewis has selected Nova Pro;
+implementation is sequenced in
+[`2026-08-13-nova-pro-migration-roadmap.md`](./2026-08-13-nova-pro-migration-roadmap.md).
 
 ### Indicative pricing — **treat as unverified**
 
