@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  applyUserEdit,
   archiveFile,
+  countFilesByFolder,
   getFile,
   listFolder,
   loadMemoryIndex,
   renderMemoryIndex,
+  setFileFlags,
   slugify,
   writeFile,
   type MemoryIndexEntry,
@@ -1077,5 +1080,173 @@ describe('loadMemoryIndex', () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error).toContain('Could not read the filing cabinet index')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// the office UI's half of the cabinet
+// ---------------------------------------------------------------------------
+
+describe('countFilesByFolder', () => {
+  it('counts active files per folder and zeroes the empty ones', async () => {
+    seedFile(store, { slug: 'a', folder: 'goals' })
+    seedFile(store, { slug: 'b', folder: 'goals' })
+    seedFile(store, { slug: 'c', folder: 'values' })
+
+    const counts = await countFilesByFolder(client, USER)
+    expect(counts).toEqual({ goals: 2, cashflow: 0, values: 1, networth: 0 })
+  })
+
+  it('ignores archived files', async () => {
+    seedFile(store, { slug: 'a', folder: 'goals' })
+    seedFile(store, { slug: 'b', folder: 'goals', archived_at: '2026-08-01T00:00:00.000Z' })
+
+    const counts = await countFilesByFolder(client, USER)
+    expect(counts.goals).toBe(1)
+  })
+
+  it('returns zeros rather than throwing when the query fails', async () => {
+    muteConsole()
+    const broken = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({ is: () => Promise.resolve({ data: null, error: { message: 'boom' } }) }),
+        }),
+      }),
+    } as unknown as SupabaseClient
+
+    const counts = await countFilesByFolder(broken, USER)
+    expect(counts).toEqual({ goals: 0, cashflow: 0, values: 0, networth: 0 })
+  })
+})
+
+describe('getFile — includeArchived', () => {
+  it('resolves an archived file for the page that restores it', async () => {
+    seedFile(store, { slug: 'gone', archived_at: '2026-08-01T00:00:00.000Z' })
+
+    const result = await getFile(client, USER, 'goals', 'gone', { includeArchived: true })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value?.slug).toBe('gone')
+  })
+})
+
+describe('applyUserEdit', () => {
+  it('marks the file the user’s and snapshots what it replaced', async () => {
+    const seeded = seedFile(store, { slug: 'plan', content: 'The CFO wrote this.' })
+
+    const result = await applyUserEdit(client, USER, seeded.id as string, {
+      content: 'No — this is what actually happened.',
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.content).toBe('No — this is what actually happened.')
+    expect(result.value.updated_by).toBe('user')
+    expect(result.value.user_edited_at).not.toBeNull()
+
+    expect(store.memory_file_revisions).toHaveLength(1)
+    expect(store.memory_file_revisions[0].content).toBe('The CFO wrote this.')
+    expect(store.memory_file_revisions[0].superseded_by).toBe('user')
+  })
+
+  it('stamps user_edited_at once — it records the takeover, not the last touch', async () => {
+    const seeded = seedFile(store, { slug: 'plan' })
+
+    const first = await applyUserEdit(client, USER, seeded.id as string, { content: 'One.' })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    const stampedAt = first.value.user_edited_at
+
+    const second = await applyUserEdit(client, USER, seeded.id as string, { content: 'Two.' })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(second.value.user_edited_at).toBe(stampedAt)
+  })
+
+  it('locks the CFO out of replacing the file afterwards', async () => {
+    const seeded = seedFile(store, { slug: 'plan' })
+    await applyUserEdit(client, USER, seeded.id as string, { content: 'Mine now.' })
+
+    const replace = await writeFile(client, USER, {
+      folder: 'goals',
+      slug: 'plan',
+      mode: 'replace',
+      content: 'Let me tidy that up.',
+    })
+
+    expect(replace.ok).toBe(false)
+    if (replace.ok) return
+    expect(replace.error).toContain('authoritative')
+
+    const append = await writeFile(client, USER, {
+      folder: 'goals',
+      slug: 'plan',
+      mode: 'append',
+      content: 'One thing to add.',
+    })
+    expect(append.ok).toBe(true)
+  })
+
+  it('refuses content over the cap without touching the row', async () => {
+    const seeded = seedFile(store, { slug: 'plan', content: 'Original.' })
+
+    const result = await applyUserEdit(client, USER, seeded.id as string, {
+      content: 'x'.repeat(MAX_CONTENT_CHARS + 1),
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain(String(MAX_CONTENT_CHARS))
+    expect(store.memory_files[0].content).toBe('Original.')
+    expect(store.memory_file_revisions).toHaveLength(0)
+  })
+
+  it('reports a file that has gone rather than failing obscurely', async () => {
+    const result = await applyUserEdit(client, USER, 'no-such-id', { content: 'Hello.' })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('no longer exists')
+  })
+})
+
+describe('setFileFlags', () => {
+  it('pins and unpins', async () => {
+    const seeded = seedFile(store, { slug: 'plan' })
+
+    const pinned = await setFileFlags(client, USER, seeded.id as string, { pinned: true })
+    expect(pinned.ok && pinned.value.pinned).toBe(true)
+
+    const unpinned = await setFileFlags(client, USER, seeded.id as string, { pinned: false })
+    expect(unpinned.ok && unpinned.value.pinned).toBe(false)
+  })
+
+  it('archives and restores', async () => {
+    const seeded = seedFile(store, { slug: 'plan' })
+
+    const archived = await setFileFlags(client, USER, seeded.id as string, { archived: true })
+    expect(archived.ok).toBe(true)
+    if (!archived.ok) return
+    expect(archived.value.archived_at).not.toBeNull()
+
+    const restored = await setFileFlags(client, USER, seeded.id as string, { archived: false })
+    expect(restored.ok).toBe(true)
+    if (!restored.ok) return
+    expect(restored.value.archived_at).toBeNull()
+  })
+
+  it('refuses to restore into a folder that is already full', async () => {
+    const seeded = seedFile(store, {
+      slug: 'archived-one',
+      archived_at: '2026-08-01T00:00:00.000Z',
+    })
+    for (let i = 0; i < MAX_FILES_PER_FOLDER; i++) {
+      seedFile(store, { slug: `active-${i}` })
+    }
+
+    const result = await setFileFlags(client, USER, seeded.id as string, { archived: false })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('Archive one before restoring')
   })
 })

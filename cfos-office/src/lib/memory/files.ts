@@ -171,21 +171,64 @@ export async function listFolder(
   return { ok: true, value: (data ?? []) as unknown as MemoryFileSummary[] }
 }
 
-/** One active file, body included. `null` when there is no such file. */
+/**
+ * How many active files sit in each folder — the count on the office home
+ * folder tabs. One query, grouped in TS: Postgrest has no GROUP BY, and four
+ * head-count round trips for four small numbers would be silly.
+ *
+ * Never fails loudly: a folder tab is not the place to surface a query error,
+ * so a failed read returns zeros and the pills simply do not render.
+ */
+export async function countFilesByFolder(
+  client: SupabaseClient,
+  userId: string,
+): Promise<Record<MemoryFolder, number>> {
+  const counts = Object.fromEntries(
+    MEMORY_FOLDERS.map((folder) => [folder, 0]),
+  ) as Record<MemoryFolder, number>
+
+  const { data, error } = await client
+    .from('memory_files')
+    .select('folder')
+    .eq('user_id', userId)
+    .is('archived_at', null)
+
+  if (error) {
+    console.error('[memory:countFilesByFolder] query failed:', error)
+    return counts
+  }
+
+  for (const row of (data ?? []) as unknown as Array<{ folder: MemoryFolder }>) {
+    if (row.folder in counts) counts[row.folder] += 1
+  }
+
+  return counts
+}
+
+/**
+ * One active file, body included. `null` when there is no such file.
+ *
+ * `includeArchived` is for the office UI only: an archived file still has a page
+ * (that is where the user restores it from). The CFO's read tool never passes
+ * it — archiving has to actually take a file out of the CFO's sight.
+ */
 export async function getFile(
   client: SupabaseClient,
   userId: string,
   folder: MemoryFolder,
   slug: string,
+  options: { includeArchived?: boolean } = {},
 ): Promise<MemoryResult<MemoryFile | null>> {
-  const { data, error } = await client
+  let query = client
     .from('memory_files')
     .select(FULL_COLUMNS)
     .eq('user_id', userId)
     .eq('folder', folder)
     .eq('slug', slug)
-    .is('archived_at', null)
-    .maybeSingle()
+
+  if (!options.includeArchived) query = query.is('archived_at', null)
+
+  const { data, error } = await query.maybeSingle()
 
   if (error) {
     console.error('[memory:getFile] query failed:', error)
@@ -554,13 +597,188 @@ export async function archiveFile(
   }
 }
 
+// ── The user's own hands ───────────────────────────────────────────────────
+// Everything below is reached from the office UI rather than from a tool, so it
+// addresses a file by id (that is what the row on screen has) instead of by
+// folder + slug.
+
+/**
+ * The user rewrites their own file.
+ *
+ * This is the other half of the trust guarantee: the CFO cannot overwrite what
+ * the user wrote (see `replaceFile`), and in exchange the user can overwrite
+ * anything — including the CFO's own composed documents. `user_edited_at` is
+ * stamped once, on the first edit, and never cleared; from then on the CFO may
+ * only append.
+ */
+export async function applyUserEdit(
+  client: SupabaseClient,
+  userId: string,
+  fileId: string,
+  input: { title?: string; description?: string; content: string },
+): Promise<MemoryResult<MemoryFile>> {
+  const contentError = checkText('Content', input.content, MAX_CONTENT_CHARS)
+  if (contentError) return { ok: false, error: contentError }
+
+  const title = input.title?.trim()
+  if (title !== undefined) {
+    const titleError = checkText('Title', title, MAX_TITLE_CHARS)
+    if (titleError) return { ok: false, error: titleError }
+  }
+
+  const description = input.description?.trim()
+  if (description !== undefined) {
+    const descriptionError = checkText('Description', description, MAX_DESCRIPTION_CHARS)
+    if (descriptionError) return { ok: false, error: descriptionError }
+  }
+
+  const existing = await getFileById(client, userId, fileId)
+  if (!existing.ok) return existing
+  if (!existing.value) return { ok: false, error: 'That file no longer exists.' }
+  const file = existing.value
+
+  // Snapshot the pre-edit state, same as a CFO replace — the user should be able
+  // to lose their nerve about an edit as easily as the CFO can.
+  const { error: revisionError } = await client
+    .from('memory_file_revisions')
+    .insert({
+      file_id: file.id,
+      user_id: userId,
+      title: file.title,
+      description: file.description,
+      content: file.content,
+      superseded_by: 'user',
+    })
+
+  if (revisionError) {
+    console.error('[memory:applyUserEdit] revision insert failed:', revisionError)
+    return { ok: false, error: 'Could not save the previous version, so nothing was changed.' }
+  }
+
+  const { data, error } = await client
+    .from('memory_files')
+    .update({
+      content: input.content.trim(),
+      updated_by: 'user',
+      // Stamped once. It is the flag the CFO's replace path checks, and "when
+      // did they first take this over" is the more useful fact than "when did
+      // they last touch it" — updated_at already answers that.
+      user_edited_at: file.user_edited_at ?? new Date().toISOString(),
+      ...(title ? { title } : {}),
+      ...(description ? { description } : {}),
+    })
+    .eq('id', file.id)
+    .eq('user_id', userId)
+    .select(FULL_COLUMNS)
+    .single()
+
+  if (error) {
+    console.error('[memory:applyUserEdit] update failed:', error)
+    return { ok: false, error: 'Could not save your changes.' }
+  }
+
+  await pruneRevisions(client, file.id)
+
+  return { ok: true, value: data as unknown as MemoryFile }
+}
+
+/**
+ * Pin, unpin, archive or restore — the three switches on the file detail page.
+ * Restoring is the only one that can fail on a rule: a folder that is already
+ * full cannot take a file back.
+ */
+export async function setFileFlags(
+  client: SupabaseClient,
+  userId: string,
+  fileId: string,
+  flags: { pinned?: boolean; archived?: boolean },
+): Promise<MemoryResult<MemoryFile>> {
+  const existing = await getFileById(client, userId, fileId)
+  if (!existing.ok) return existing
+  if (!existing.value) return { ok: false, error: 'That file no longer exists.' }
+  const file = existing.value
+
+  const patch: Record<string, unknown> = {}
+  if (flags.pinned !== undefined) patch.pinned = flags.pinned
+
+  if (flags.archived !== undefined) {
+    if (flags.archived) {
+      patch.archived_at = new Date().toISOString()
+    } else {
+      if (file.archived_at) {
+        const { data: active, error: countError } = await client
+          .from('memory_files')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('folder', file.folder)
+          .is('archived_at', null)
+
+        if (countError) {
+          console.error('[memory:setFileFlags] active count failed:', countError)
+          return { ok: false, error: 'Could not restore this file.' }
+        }
+
+        if ((active ?? []).length >= MAX_FILES_PER_FOLDER) {
+          return {
+            ok: false,
+            error: `${MEMORY_FOLDER_LABELS[file.folder]} already holds ${MAX_FILES_PER_FOLDER} files. Archive one before restoring this.`,
+          }
+        }
+      }
+      patch.archived_at = null
+    }
+  }
+
+  if (Object.keys(patch).length === 0) return { ok: true, value: file }
+
+  const { data, error } = await client
+    .from('memory_files')
+    .update(patch)
+    .eq('id', fileId)
+    .eq('user_id', userId)
+    .select(FULL_COLUMNS)
+    .single()
+
+  if (error) {
+    console.error('[memory:setFileFlags] update failed:', error)
+    return { ok: false, error: 'Could not update this file.' }
+  }
+
+  return { ok: true, value: data as unknown as MemoryFile }
+}
+
+/** By id, archived included — the UI addresses files the way the page does. */
+async function getFileById(
+  client: SupabaseClient,
+  userId: string,
+  fileId: string,
+): Promise<MemoryResult<MemoryFile | null>> {
+  const { data, error } = await client
+    .from('memory_files')
+    .select(FULL_COLUMNS)
+    .eq('id', fileId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[memory:getFileById] query failed:', error)
+    return { ok: false, error: 'Could not read that file.' }
+  }
+
+  return { ok: true, value: (data ?? null) as unknown as MemoryFile | null }
+}
+
 // ── Index ──────────────────────────────────────────────────────────────────
 
 /**
  * "today" / "5d ago" / "3w ago" / "4mo ago". Deterministic: the caller supplies
  * `now`, because this string ends up in a prompt and in test assertions.
+ *
+ * Exported because the file rows in the office UI say the same thing about the
+ * same rows — the prompt index and the screen should never disagree about how
+ * old a file is.
  */
-function relativeAge(iso: string, now: Date): string {
+export function formatRelativeAge(iso: string, now: Date): string {
   const then = new Date(iso).getTime()
   if (!Number.isFinite(then)) return 'unknown'
 
@@ -597,7 +815,7 @@ export function renderMemoryIndex(
     }
 
     for (const file of files.slice(0, INDEX_MAX_LINES_PER_FOLDER)) {
-      const age = relativeAge(file.updated_at, now)
+      const age = formatRelativeAge(file.updated_at, now)
       const meta = file.pinned ? `pinned · updated ${age}` : `updated ${age}`
       lines.push(`- ${file.slug} — ${file.description} (${meta})`)
     }
