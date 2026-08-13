@@ -16,6 +16,7 @@ import { logBedrockUsage } from '@/lib/ai/usage-logger';
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
 import { logToolCall } from '@/lib/observability/llm-usage-log';
 import { buildSystemPrompt } from '@/lib/ai/context-builder';
+import { refreshMemoryDigests } from '@/lib/memory/digests';
 import { createClient } from '@/lib/supabase/server';
 import { calculateProfileCompleteness } from '@/lib/profiling/engine';
 import { createToolbox, type ToolContext } from '@/lib/ai/tools';
@@ -640,6 +641,11 @@ export async function POST(req: Request) {
             },
             { onConflict: 'user_id,trait_key' },
           );
+
+          // The trait above reaches the CFO through the Values digest, not the
+          // prompt — so refresh it here or the preference the user just stated
+          // is invisible on the next turn.
+          await refreshMemoryDigests(supabase, user.id);
 
           return {
             success: true,
