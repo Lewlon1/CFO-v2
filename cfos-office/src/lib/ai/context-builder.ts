@@ -24,6 +24,14 @@ import {
 import { isValueMapV2Enabled } from '@/lib/value-map/flags';
 import { loadMemoryIndex } from '@/lib/memory/files';
 
+// ── Context caps ─────────────────────────────────────────────────────────────
+// Sections that render one line per row need a ceiling, or a heavy user's
+// prompt grows without one. Both lists are ranked before they are cut, and both
+// say out loud that they have been cut — a truncation the model cannot see is a
+// truncation it will confidently talk over.
+const MAX_RECURRING_LINES = 12;
+const MAX_ACTION_ITEM_LINES = 5;
+
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
   wave_1_5: 'Wave 1.5',
@@ -679,7 +687,6 @@ export async function buildSystemPrompt(
     profileResult,
     snapshotsResult,
     recurringResult,
-    portraitResult,
     valueMapResult,
     goalsResult,
     actionsResult,
@@ -703,12 +710,6 @@ export async function buildSystemPrompt(
       .from('recurring_expenses')
       .select('*')
       .eq('user_id', userId),
-    supabase
-      .from('financial_portrait')
-      .select('*')
-      .eq('user_id', userId)
-      .is('dismissed_at', null)
-      .order('confidence', { ascending: false }),
     supabase
       .from('value_map_sessions')
       .select('*')
@@ -755,7 +756,6 @@ export async function buildSystemPrompt(
   const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null;
   const snapshots = snapshotsResult.status === 'fulfilled' ? snapshotsResult.value.data : null;
   const recurring = recurringResult.status === 'fulfilled' ? recurringResult.value.data : null;
-  const portrait = portraitResult.status === 'fulfilled' ? portraitResult.value.data : null;
   const valueMap = valueMapResult.status === 'fulfilled' ? valueMapResult.value.data : null;
   const goals = goalsResult.status === 'fulfilled' ? goalsResult.value.data : null;
   const actions = actionsResult.status === 'fulfilled' ? actionsResult.value.data : null;
@@ -951,6 +951,7 @@ export async function buildSystemPrompt(
       // wrong tools. Same data + call signature as the general branch below.
       buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
       buildToolUsageInstructions(),
+      ADVISORY_BOUNDARIES,
       // The filing cabinet. A first Read is usually written against an empty
       // cabinet — but a returning user recomposing a Read has one, and the CFO
       // should not re-derive what it already wrote down.
@@ -1010,8 +1011,11 @@ export async function buildSystemPrompt(
     buildPostureContext(profile, recurring),
     countryBenchmarks,
     conversationInstructions,
-    buildPortraitContext(portrait, valueMap),
+    buildArchetypeContext(valueMap),
     buildBalanceSheetContext(assets, liabilities),
+    // The perimeter — always present, never conditional on the user owning
+    // anything. Static, so it rides the cached prefix.
+    ADVISORY_BOUNDARIES,
     buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
     openItemsBlock,
     buildTripsContext(dedupedTrips, profile),
@@ -1392,20 +1396,38 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
 
   // Recurring expenses
   if (recurring && recurring.length > 0) {
-    const recurringLines = recurring.map((r) => {
+    // Normalise once: it both ranks the list and totals it. The total is
+    // computed over EVERY row before any capping — a "fixed costs" figure that
+    // silently omitted the 13th subscription would be a wrong number, which is
+    // worse than a long list.
+    const monthlyAmount = (r: { amount?: unknown; frequency?: string }): number => {
+      const amount = Number(r.amount) || 0;
+      if (r.frequency === 'bimonthly') return amount / 2;
+      if (r.frequency === 'quarterly') return amount / 3;
+      if (r.frequency === 'annual' || r.frequency === 'yearly') return amount / 12;
+      return amount;
+    };
+
+    const monthlyFixed = recurring.reduce((sum, r) => sum + monthlyAmount(r), 0);
+
+    // Biggest first, capped. The tail of a long recurring list is €4 subscriptions
+    // that never change an answer; get_recurring_expenses has all of them.
+    const ranked = [...recurring].sort((a, b) => monthlyAmount(b) - monthlyAmount(a));
+    const shown = ranked.slice(0, MAX_RECURRING_LINES);
+    const recurringLines = shown.map((r) => {
       const freq = r.frequency === 'monthly' ? '/mo' : `/${r.frequency}`;
       return `- ${r.name}${r.provider ? ` (${r.provider})` : ''}: ${r.currency || 'EUR'} ${r.amount}${freq}`;
     });
-    parts.push(`\nRecurring expenses:\n${recurringLines.join('\n')}`);
+    if (ranked.length > shown.length) {
+      // No tool returns the recurring list, so the honest move is to say the
+      // tail exists and forbid guessing at it. The user can see all of them on
+      // their Bills & Recurring page.
+      recurringLines.push(
+        `- …and ${ranked.length - shown.length} smaller recurring items not listed here. They are counted in the fixed-cost total below. Never name or guess at one — ask the user.`,
+      );
+    }
+    parts.push(`\nRecurring expenses (largest ${shown.length} of ${ranked.length}):\n${recurringLines.join('\n')}`);
 
-    // Compute approximate monthly fixed costs
-    const monthlyFixed = recurring.reduce((sum, r) => {
-      if (r.frequency === 'monthly') return sum + Number(r.amount);
-      if (r.frequency === 'bimonthly') return sum + Number(r.amount) / 2;
-      if (r.frequency === 'quarterly') return sum + Number(r.amount) / 3;
-      if (r.frequency === 'annual' || r.frequency === 'yearly') return sum + Number(r.amount) / 12;
-      return sum + Number(r.amount);
-    }, 0);
     parts.push(`\nEstimated monthly fixed costs: ${profile?.primary_currency || 'EUR'} ${monthlyFixed.toFixed(2)}`);
 
     // Bills needing attention (lightweight — drop if token budget tight)
@@ -1586,8 +1608,19 @@ function buildPostureContext(profile: any, recurring: any[] | null): string {
   return lines.join('\n');
 }
 
+/**
+ * The Value Map archetype and its evolution — bounded, one row, and the one
+ * piece of the old portrait block that stays injected.
+ *
+ * The behavioural traits that used to follow it are gone from here. Every
+ * non-dismissed trait was rendered on every turn, unbounded: a user who had
+ * talked to the CFO for a few months paid for sixty of them per message, and
+ * the tail had no ceiling at all. They now live in the filing cabinet's
+ * `patterns` digests (src/lib/memory/digests.ts) — same content, derived
+ * deterministically from the same rows, read on demand and visible to the user.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
+function buildArchetypeContext(valueMap: any): string {
   const parts: string[] = [];
 
   // Determine whether this session reflects real behaviour or only the sample exercise.
@@ -1695,22 +1728,19 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
     }
   }
 
-  // Behavioral traits
-  if (portrait && portrait.length > 0) {
-    parts.push('\n## Behavioral traits');
-    for (const trait of portrait) {
-      parts.push(`- ${trait.trait_key}: ${trait.trait_value} (confidence: ${trait.confidence})`);
-    }
-  }
-
   if (parts.length === 0) return '';
 
-  parts.push("\nUse these traits to personalise your guidance. Reference them naturally — don't list them back to the user.");
+  parts.push("\nUse this to personalise your guidance. Reference it naturally — don't list it back to the user.");
 
   return parts.join('\n');
 }
 
-const ADVISORY_BOUNDARIES = `## Advisory boundaries — what the CFO can and cannot do with balance sheet data
+// The perimeter. Until now this rode inside buildBalanceSheetContext, which
+// returns early when the user has no assets and no liabilities — so the CFO's
+// hardest rule was silently absent for exactly the users least likely to have
+// been told it elsewhere. It is its own always-present section now, and being
+// wholly static it belongs in the cached prefix when the cache is restructured.
+const ADVISORY_BOUNDARIES = `## Advisory boundaries — what the CFO can and cannot do
 
 YOU CAN:
 - State the user's net worth and how it's changing over time
@@ -1761,37 +1791,17 @@ function buildBalanceSheetContext(assets: any[] | null, liabilities: any[] | nul
   out += `Total assets: ${totalAssets.toFixed(0)} (accessible: ${accessible.toFixed(0)})\n`;
   out += `Total liabilities: ${totalLiabs.toFixed(0)}\n\n`;
 
-  if (assetList.length) {
-    out += `### Assets\n`;
-    for (const a of assetList) {
-      out += `- ${a.name} (${a.asset_type}): ${a.currency} ${(Number(a.current_value) || 0).toFixed(0)}`;
-      if (a.provider) out += ` @ ${a.provider}`;
-      if (a.is_accessible === false) out += ` [locked]`;
-      if (a.asset_type === 'savings' && a.details?.interest_rate != null) {
-        out += ` — ${a.details.interest_rate}% interest`;
-      }
-      if (a.asset_type === 'pension' && a.details?.employer_contribution_pct != null) {
-        out += ` — employer ${a.details.employer_contribution_pct}% + employee ${a.details.employee_contribution_pct ?? '?'}%`;
-      }
-      out += `\n`;
-    }
-    out += `\n`;
-  }
+  // Counts, not contents. Every holding used to be listed here on every turn —
+  // a user with thirty assets and a handful of loans paid for all of them in
+  // every message, to answer a question they had not asked. `get_balance_sheet`
+  // owns the itemised truth and is one call away.
+  const priorityCount = liabilityList.filter((l) => l.is_priority).length;
+  out += `Assets recorded: ${assetList.length}\n`;
+  out += `Liabilities recorded: ${liabilityList.length}`;
+  out += priorityCount > 0 ? ` (${priorityCount} marked priority)\n\n` : `\n\n`;
 
-  if (liabilityList.length) {
-    out += `### Liabilities\n`;
-    for (const l of liabilityList) {
-      out += `- ${l.name} (${l.liability_type}): ${l.currency} ${Number(l.outstanding_balance).toFixed(0)} outstanding`;
-      if (l.interest_rate != null) out += ` — ${l.interest_rate}% APR`;
-      if (l.actual_payment != null) out += ` — paying ${l.currency} ${l.actual_payment}/${l.payment_frequency || 'mo'}`;
-      if (l.is_priority) out += ` [PRIORITY]`;
-      out += `\n`;
-    }
-    out += `\n`;
-  }
-
-  out += `IMPORTANT: Use these system-provided balance sheet numbers. Do not calculate net worth, gains, or totals yourself. If you need a calculation not shown here (e.g., debt payoff timeline, pension projection), tell the user those tools are coming in a future update.\n\n`;
-  out += ADVISORY_BOUNDARIES;
+  out += `Itemised holdings — names, providers, rates, payments — are NOT in this prompt. Call get_balance_sheet when a question turns on a specific asset or debt, and never guess at one.\n\n`;
+  out += `IMPORTANT: Use these system-provided balance sheet numbers. Do not calculate net worth, gains, or totals yourself. If you need a calculation not shown here (e.g., debt payoff timeline, pension projection), tell the user those tools are coming in a future update.`;
   return out;
 }
 
@@ -1849,8 +1859,14 @@ function buildGoalsContext(
   }
 
   if (actions && actions.length > 0) {
-    parts.push('\n## Pending action items');
-    for (const action of actions) {
+    // Capped. A pending list that has grown to thirty items is a backlog, and
+    // reciting a backlog every turn helps nobody — get_action_items has them all.
+    parts.push(
+      actions.length > MAX_ACTION_ITEM_LINES
+        ? `\n## Pending action items (${MAX_ACTION_ITEM_LINES} of ${actions.length} — call get_action_items for the rest)`
+        : '\n## Pending action items',
+    );
+    for (const action of actions.slice(0, MAX_ACTION_ITEM_LINES)) {
       let line = `- ${action.title}`;
       if (action.category) line += ` [${action.category}]`;
       if (action.priority) line += ` (${action.priority})`;
