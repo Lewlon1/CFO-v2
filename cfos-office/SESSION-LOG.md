@@ -4522,3 +4522,62 @@ server, spends Bedrock, and would only exercise the empty-cabinet path until 082
 lands). Apply 082 first, then run the suite, then Phase 3.
 
 **Phase 3 is gated** on read-rate telemetry from staging that cannot exist yet.
+
+## 2026-08-13 — The Filing Cabinet, Phase 3: the context diet
+
+The point of the whole exercise. Phase 1 built the cabinet, Phase 2 made it
+visible, and Phase 3 is where the prompt stops carrying what the cabinet can
+hold.
+
+### What left the prompt
+- **Every behavioural trait, unbounded.** `buildPortraitContext` rendered every
+  non-dismissed `financial_portrait` row on every turn with no ceiling. Now
+  `buildArchetypeContext`, keeping only the Value Map archetype and its
+  evolution; the traits are derived into per-folder `patterns` digest files and
+  read on demand. The unbounded portrait query left the parallel block with
+  them — one fewer round trip per turn as well.
+- **Itemised holdings.** Balance sheet keeps the computed totals plus counts and
+  a priority-liability count; names, providers, rates and payments come from
+  `get_balance_sheet`.
+- **The recurring tail** (largest 12 by monthly-normalised amount) and **the
+  action-item backlog** (5 of N).
+
+### `asset_profile` is not prose — the plan's Net Worth mapping was wrong
+The plan mapped `asset_profile` → the Net Worth digest. Those rows are machine
+flags written by `computeTraits` in `balance-sheet/portrait.ts`:
+`has_pension: "yes"`, `net_worth_bracket: "under_10k"`,
+`asset_allocation_summary: "stocks: 60%, cash: 40%"`. As digest bullets that
+reads "- yes / - no / - under_10k", and it is precisely what the cabinet bans —
+figures a structured tool already owns, presented as current. **Net Worth has no
+digest, deliberately**, and the balance-sheet portrait writer gets no hook.
+
+### The advisory perimeter was conditional on owning something
+`ADVISORY_BOUNDARIES` lived inside `buildBalanceSheetContext`, which returns
+early when a user has no assets AND no liabilities. So the CFO's hardest rule —
+no products, no buy/sell, no suitability — was **silently absent for every user
+without a balance sheet**. Moving it to its own always-present section was
+supposed to be Phase-4 cache prep; it turned out to be a live compliance gap.
+It is now in the general branch and the first-Read branch both.
+
+### Digest freeze rules
+A digest is a one-way view of the portrait until the user edits it. After that
+it is theirs: new traits arrive as dated entries below their words (computed off
+the file's own `updated_at`, no extra bookkeeping), and a dismissal has to be
+written explicitly — the dismiss route now reads the struck-out row back and
+passes it in, because on a frozen file the re-render cannot run and the file
+would otherwise keep asserting something the user had just rejected.
+
+The render is order-stable by construction and a test asserts reversing the
+input changes not one byte. An unstable render would rewrite the file on every
+portrait write, bumping `updated_at` and busting the cache this feature exists
+to protect.
+
+### State at handover
+`typecheck` ✓ · `knip` ✓ · `vitest` **1662 passing (138 files)** ✓ ·
+`next build` ✓ · lint unchanged from the branch baseline (14 pre-existing).
+
+**Not measured:** the per-turn token delta. It needs a scripted conversation
+against a data-rich staging user, read off the `llm_usage_log` cost columns.
+**Not run:** `scripts/backfill-memory-digests.ts` (dry-run by default; needs
+staging service creds). Phase 4 (cache restructure) is next and is where the
+measurement pays out.
