@@ -673,13 +673,80 @@ export async function buildWhyBeatContext(
   }
 }
 
+/** The separator every prompt section has always been joined with. */
+const SECTION_SEPARATOR = '\n\n---\n\n';
+
+/** Drop the empty sections, join the rest the way the prompt has always joined them. */
+function joinSections(sections: (string | null | undefined)[]): string {
+  return sections.filter(Boolean).join(SECTION_SEPARATOR);
+}
+
+/**
+ * The system prompt, split by how often each part changes.
+ *
+ * The split is what makes the Bedrock prompt cache worth having. `static`
+ * changes only on deploy (or when the user switches advice style); `semiStable`
+ * changes when the user's data changes; `volatile` changes every turn. The chat
+ * route ships them as three system messages and puts a cache point after the
+ * first two — so today's date stamp no longer invalidates the persona, the tool
+ * contracts and the advisory boundary sitting above it, which is exactly what
+ * the single trailing checkpoint used to do, every turn.
+ *
+ * The section *set* is unchanged from the single-string era. The section
+ * *order* is not: static blocks are hoisted to the front and volatile ones
+ * pushed to the back. That reordering is the point — a cached prefix cannot
+ * have per-turn bytes threaded through it.
+ */
+export interface SystemPromptTiers {
+  /** Deploy-stable. Must be byte-identical between turns or the cache misses. */
+  static: string;
+  /** Per-user, re-rendered when their data changes. */
+  semiStable: string;
+  /** Per-turn. Deliberately uncached. */
+  volatile: string;
+}
+
+/** Which static blocks a branch of the prompt carries. */
+export type StaticTierVariant = 'general' | 'first_read' | 'goal_derive';
+
+/**
+ * Tier 1 — the deploy-stable half of the prompt.
+ *
+ * Everything here renders from constants and pure builders: no dates, no user
+ * rows, no randomness. `styleModifier` is the one per-user input and it has
+ * exactly three values, so a user's cached prefix survives every turn and users
+ * sharing a register share the entry.
+ *
+ * Byte-stability is the entire contract — the cache point sits at the end of
+ * this string, and one drifting character costs the whole prefix. A test pins it.
+ */
+export function buildStaticTier(styleModifier: string, variant: StaticTierVariant): string {
+  if (variant === 'goal_derive') {
+    // The goal beat runs before the user has a financial surface to discuss, so
+    // it carries neither the advisory boundary nor the filing cabinet.
+    return joinSections([BASE_PERSONA + styleModifier, buildToolUsageInstructions()]);
+  }
+  return joinSections([
+    BASE_PERSONA + styleModifier,
+    // The perimeter — always present, never conditional on the user owning
+    // anything.
+    ADVISORY_BOUNDARIES,
+    buildToolUsageInstructions(),
+    // The behavioural-feature tools are the general conversation's move; a first
+    // Read composes from its own brief instead.
+    variant === 'general' ? buildLayeredReadInstructions() : '',
+    // The filing cabinet contract. The per-user index is tier 2.
+    buildMemoryFilesContract(),
+  ]);
+}
+
 export async function buildSystemPrompt(
   userId: string,
   conversationType?: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   conversationMetadata?: Record<string, any> | null,
   conversationId?: string | null
-): Promise<string> {
+): Promise<SystemPromptTiers> {
   const supabase = await createClient();
 
   // Query all data sources in parallel
@@ -816,15 +883,14 @@ export async function buildSystemPrompt(
   // defers the amount), which leaves onboarding_step stuck at goal_chat_started.
   const isGoalDeriveConfirm = conversationType === 'onboarding_goal_chat';
   if (isGoalDeriveConfirm) {
-    const sections = [
-      BASE_PERSONA + styleModifier,
-      buildCurrentDateContext(),
-      buildProfileContext(profile),
-      buildGoalDeriveConfirmContext(profile, goals),
-      buildToolUsageInstructions(),
-    ].filter(Boolean);
-
-    return sections.join('\n\n---\n\n');
+    return {
+      static: buildStaticTier(styleModifier, 'goal_derive'),
+      semiStable: joinSections([
+        buildProfileContext(profile),
+        buildGoalDeriveConfirmContext(profile, goals),
+      ]),
+      volatile: buildCurrentDateContext(),
+    };
   }
 
   // First Insight mode (Session v2.2 Chat Intelligence): brief + tools +
@@ -926,41 +992,47 @@ export async function buildSystemPrompt(
     const experimentProposal =
       (conversationMetadata?.experiment_proposal as ExperimentProposalLayer | null | undefined) ?? null;
 
-    const sections = [
-      BASE_PERSONA + styleModifier,
-      buildCurrentDateContext(),
-      await buildFirstInsightContextV2(
-        supabase,
-        userId,
-        briefProfile,
-        archetype,
-        valueMapTakenAt,
-        vmRowsByQuadrant,
-        txWindow,
-        primaryGoalBrief,
-        experimentProposal,
-      ),
-      await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
-      // Why-beat — the read-and-confirm opener after the delta recompose hands
-      // off. Empty unless this is a delivered-recompose first_read thread with a
-      // significant ambiguous merchant and the beat not yet offered.
-      await buildWhyBeatContext(userId, conversationType, conversationMetadata),
-      // Active goals + the no-goal guardrail. Previously omitted from the
-      // first_read branch, which left the CFO blind to a goal it had just
-      // created in the goal-chat — it denied the wedding goal and called the
-      // wrong tools. Same data + call signature as the general branch below.
-      buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
-      buildToolUsageInstructions(),
-      ADVISORY_BOUNDARIES,
-      // The filing cabinet. A first Read is usually written against an empty
-      // cabinet — but a returning user recomposing a Read has one, and the CFO
-      // should not re-derive what it already wrote down.
-      buildMemoryFilesContract(),
-      await buildMemoryIndexContext(supabase, userId),
-      getPosturePromptFragment(profile),
-    ].filter(Boolean);
+    const firstInsightContext = await buildFirstInsightContextV2(
+      supabase,
+      userId,
+      briefProfile,
+      archetype,
+      valueMapTakenAt,
+      vmRowsByQuadrant,
+      txWindow,
+      primaryGoalBrief,
+      experimentProposal,
+    );
+    const firstInsightInstructions = await getConversationInstructions(
+      conversationType, conversationMetadata, userId, snapshots, profile,
+    );
+    // Why-beat — the read-and-confirm opener after the delta recompose hands
+    // off. Empty unless this is a delivered-recompose first_read thread with a
+    // significant ambiguous merchant and the beat not yet offered.
+    const whyBeat = await buildWhyBeatContext(userId, conversationType, conversationMetadata);
+    const firstInsightMemoryIndex = await buildMemoryIndexContext(supabase, userId);
 
-    return sections.join('\n\n---\n\n');
+    return {
+      // The filing cabinet rides in here. A first Read is usually written
+      // against an empty cabinet — but a returning user recomposing a Read has
+      // one, and the CFO should not re-derive what it already wrote down.
+      static: buildStaticTier(styleModifier, 'first_read'),
+      semiStable: joinSections([
+        firstInsightContext,
+        // Active goals + the no-goal guardrail. Previously omitted from the
+        // first_read branch, which left the CFO blind to a goal it had just
+        // created in the goal-chat — it denied the wedding goal and called the
+        // wrong tools. Same data + call signature as the general branch below.
+        buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
+        firstInsightMemoryIndex,
+        getPosturePromptFragment(profile),
+      ]),
+      volatile: joinSections([
+        buildCurrentDateContext(),
+        firstInsightInstructions,
+        whyBeat,
+      ]),
+    };
   }
 
   // The nine section builders below are independent reads (verified read-only,
@@ -1001,40 +1073,34 @@ export async function buildSystemPrompt(
     buildMemoryIndexContext(supabase, userId),
   ]);
 
-  const sections = [
-    BASE_PERSONA + styleModifier,
-    buildCurrentDateContext(),
-    buildProfileContext(profile),
-    buildOnboardingEntryContext(profile),
-    bridgeContext,
-    buildFinancialContext(snapshots, recurring, profile),
-    buildPostureContext(profile, recurring),
-    countryBenchmarks,
-    conversationInstructions,
-    buildArchetypeContext(valueMap),
-    buildBalanceSheetContext(assets, liabilities),
-    // The perimeter — always present, never conditional on the user owning
-    // anything. Static, so it rides the cached prefix.
-    ADVISORY_BOUNDARIES,
-    buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
-    openItemsBlock,
-    buildTripsContext(dedupedTrips, profile),
-    experimentContext,
-    buildToolUsageInstructions(),
-    buildLayeredReadInstructions(),
-    // The filing cabinet: the contract is static (cacheable), the index is the
-    // per-user half and drops out entirely when the cabinet is empty.
-    buildMemoryFilesContract(),
-    memoryIndex,
-    valueMappingContext,
-    valueCheckinNudge,
-    retakeSuggestion,
-    predictionQuality,
-    profilingContext,
-    getPosturePromptFragment(profile),
-  ].filter(Boolean);
-
-  return sections.join('\n\n---\n\n');
+  return {
+    static: buildStaticTier(styleModifier, 'general'),
+    semiStable: joinSections([
+      buildProfileContext(profile),
+      buildOnboardingEntryContext(profile),
+      bridgeContext,
+      buildFinancialContext(snapshots, recurring, profile),
+      buildPostureContext(profile, recurring),
+      countryBenchmarks,
+      buildArchetypeContext(valueMap),
+      buildBalanceSheetContext(assets, liabilities),
+      buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
+      buildTripsContext(dedupedTrips, profile),
+      memoryIndex,
+      getPosturePromptFragment(profile),
+    ]),
+    volatile: joinSections([
+      buildCurrentDateContext(),
+      conversationInstructions,
+      openItemsBlock,
+      experimentContext,
+      valueMappingContext,
+      valueCheckinNudge,
+      retakeSuggestion,
+      predictionQuality,
+      profilingContext,
+    ]),
+  };
 }
 
 // Session 32 (A) — Layered Read instructions.

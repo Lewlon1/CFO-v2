@@ -4581,3 +4581,88 @@ against a data-rich staging user, read off the `llm_usage_log` cost columns.
 **Not run:** `scripts/backfill-memory-digests.ts` (dry-run by default; needs
 staging service creds). Phase 4 (cache restructure) is next and is where the
 measurement pays out.
+
+---
+
+## 2026-08-14 — The Filing Cabinet, Phase 4: the cache restructure
+
+Where the Phase 3 diet converts into money. Phase 3 made the prompt smaller;
+Phase 4 stops paying full price for the part that never changes.
+
+### The bug was the ordering, not the size
+
+`buildSystemPrompt` returned one string and `route.ts` hung a single Bedrock
+cache point off the end of it. That checkpoint was worthless, and had been since
+it was added: **`buildCurrentDateContext()` was the second section in the
+prompt**, so a new date stamp — and every per-turn nudge below it — sat *above*
+the persona, the tool contracts, the advisory perimeter and the filing-cabinet
+contract. A cache is a prefix match. One drifting byte near the front invalidates
+everything behind it, so the checkpoint re-wrote the whole prompt on every turn
+and never once read from it.
+
+Measured: tier 1 on the general branch is **36,442 chars ≈ 9,600 tokens** that
+were being re-billed at full input rate, every turn, for the life of the product.
+
+### The split
+
+`buildSystemPrompt` now returns `{ static, semiStable, volatile }`:
+
+- **Tier 1 (`static`)** — persona + register, `ADVISORY_BOUNDARIES`,
+  tool-usage instructions, layered-read instructions, the cabinet contract.
+  Extracted into an exported `buildStaticTier(styleModifier, variant)` so it can
+  be tested directly. Changes on deploy, or when the user switches advice style
+  (three possible values, so a user's prefix is stable and users sharing a
+  register share the cache entry).
+- **Tier 2 (`semiStable`)** — profile, onboarding entry, bridge, dieted
+  financial, posture, benchmarks, archetype, balance-sheet totals, goals, trips,
+  the memory index, the posture fragment. Changes when the user's data changes.
+- **Tier 3 (`volatile`)** — current date, conversation instructions, open items,
+  experiments, value-mapping / check-in / retake, prediction quality, profiling
+  questions, and the goal-beat stall note. Uncached by design.
+
+The section *set* is unchanged. The section *order* is not — hoisting the static
+blocks to the front and pushing the volatile ones to the back **is** the fix, and
+it is not a behaviour-neutral refactor to re-review later. All three branches
+(general, first-Read, goal-derive) return tiers; the goal beat gets a lean tier 1
+with no perimeter and no cabinet, unchanged from what it already carried.
+
+### Three checkpoints, not one
+
+`route.ts` ships three system-role messages with `cachePoint` on the first two
+(CP1, CP2), and CP3 on the **last** element of `modelMessages` — post-convert,
+post-sanitise. Within a turn the tool loop re-sends the whole history on every
+step (up to 5, `stepCountIs(5)`); across turns CP3 slides forward onto the newest
+message. Three of Bedrock's four checkpoints.
+
+The forced-retry `generateText` behind the hallucination guard was uncached
+entirely — it passed `system: systemPrompt` and rebuilt the prompt from scratch
+mid-turn. It now takes the same three system messages plus the CP3-decorated
+history, so the retry reads the cache the stream just wrote.
+
+### Gotchas for the next pass
+
+- **`static` is a strict-mode reserved word.** The field name follows the plan,
+  but every consumer must destructure it as `{ static: x }` or read it off the
+  object — `const static = ...` will not parse.
+- **An empty tier is filtered out, cache point and all.** `semiStable` can be
+  empty for a brand-new user; dropping the message drops CP2 with it, which is
+  correct — but it means the checkpoint count varies by user, so don't assert on
+  a fixed count when reading the usage log.
+- **The meter needed no change.** `computeCostUsd` takes cache read/write token
+  *totals*, and Bedrock reports totals regardless of checkpoint count. The
+  plan flagged this as a possible extension of `rates.ts`; it isn't one.
+- **`[prompt-tiers]` console line** logs the three block char-lengths per turn.
+  It is for tuning the split — the cost numbers still come from the
+  `llm_usage_log` columns, never the console.
+
+### Verification
+
+`typecheck` ✓ · `knip` ✓ · `lint` — the branch's 14 pre-existing
+`no-explicit-any` errors, none in files this phase touches · `test` **1667
+passing, 139 files** ✓ (up from 1662/138: `static-tier.test.ts`) · `build` ✓.
+
+**Unmeasured, and this is the phase where that matters most.** No live
+conversation has run against this. The expected shape — turn 1 writes
+CP1+CP2+history, turns 2+ read ≥20k with small writes — is an estimate from the
+tier sizes, not an observation. The scripted staging measurement in the handoff
+is now the gate on believing any of it.

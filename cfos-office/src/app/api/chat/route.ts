@@ -469,16 +469,40 @@ export async function POST(req: Request) {
   // Build dynamic system prompt — after activeConversationId is known AND
   // after the decline classifier has potentially flipped the declined flag,
   // so the bridge context section reflects current state.
-  const baseSystemPrompt = await buildSystemPrompt(
+  const promptTiers = await buildSystemPrompt(
     user.id,
     conversationType,
     conversationMetadata,
     activeConversationId,
   );
 
-  const systemPrompt = stallSystemNote
-    ? `${baseSystemPrompt}\n\n---\n\n${stallSystemNote}`
-    : baseSystemPrompt;
+  // The stall note is a one-turn nudge, so it rides the volatile block. Appended
+  // to the cached tiers it would rewrite the whole prefix for a single sentence.
+  const volatilePrompt = stallSystemNote
+    ? [promptTiers.volatile, stallSystemNote].filter(Boolean).join('\n\n---\n\n')
+    : promptTiers.volatile;
+
+  // Three system-role messages, cache point after the first two.
+  //
+  // The prompt used to ship as one message with a single trailing checkpoint,
+  // which meant today's date stamp — first section in the old order — sat above
+  // ~20k tokens of persona, tool contracts and boundary rules and invalidated
+  // every one of them on every turn. Splitting by volatility gives the cache a
+  // prefix that actually survives: tier 1 changes on deploy, tier 2 when the
+  // user's data changes, tier 3 every turn and uncached by design.
+  const cacheHere = { bedrock: { cachePoint: { type: 'default' as const } } };
+  const systemMessages = [
+    { role: 'system' as const, content: promptTiers.static, providerOptions: cacheHere },
+    { role: 'system' as const, content: promptTiers.semiStable, providerOptions: cacheHere },
+    { role: 'system' as const, content: volatilePrompt },
+  ].filter((m) => m.content.trim().length > 0);
+
+  console.log('[prompt-tiers]', JSON.stringify({
+    conversationType: conversationType ?? 'general',
+    staticChars: promptTiers.static.length,
+    semiStableChars: promptTiers.semiStable.length,
+    volatileChars: volatilePrompt.length,
+  }));
 
   // Why-beat one-shot gate. The read-and-confirm opener is injected by
   // buildWhyBeatContext for the first first_read turn after the delta recompose
@@ -534,27 +558,31 @@ export async function POST(req: Request) {
   );
   const modelMessages = await convertToModelMessages(sanitisedMessages);
 
+  // CP3 — the conversation history. Within one turn the tool loop re-sends the
+  // whole history on every step (up to 5); across turns the checkpoint slides
+  // forward onto the newest message, so the previous turn's history is a cache
+  // read rather than a re-send. Three of Bedrock's four checkpoints in use.
+  const cachedModelMessages: typeof modelMessages = modelMessages.map((m, i) =>
+    i === modelMessages.length - 1
+      ? { ...m, providerOptions: { ...m.providerOptions, ...cacheHere } }
+      : m,
+  );
+
   // Pre-generate DB ID for the assistant message so we can stream it to the client
   const assistantMessageDbId = crypto.randomUUID();
 
   // Stream response
   //
-  // The system prompt is passed as a system-role message (rather than the
-  // top-level `system:` param) so we can attach a Bedrock cache point to it
-  // via providerOptions. First turn of a conversation writes the cache
-  // (~1.25x input cost for the cached segment); subsequent turns within the
-  // 5-minute TTL read from cache (~0.1x).
+  // The prompt ships as system-role messages (rather than the top-level
+  // `system:` param) so cache points can be attached via providerOptions. The
+  // first turn of a conversation writes the cache (~1.25x input cost for the
+  // cached segment); subsequent turns within the 5-minute TTL read from cache
+  // (~0.1x).
   const result = streamText({
     model: chatModel,
     messages: [
-      {
-        role: 'system',
-        content: systemPrompt,
-        providerOptions: {
-          bedrock: { cachePoint: { type: 'default' } },
-        },
-      },
-      ...modelMessages,
+      ...systemMessages,
+      ...cachedModelMessages,
     ],
     tools: {
       get_current_date: {
@@ -997,7 +1025,7 @@ export async function POST(req: Request) {
           let retrySucceeded = false;
           try {
             const retryMessages = [
-              ...modelMessages,
+              ...cachedModelMessages,
               { role: 'assistant' as const, content: textContent },
               {
                 role: 'user' as const,
@@ -1009,10 +1037,12 @@ export async function POST(req: Request) {
             // The retry only needs record_value_classifications. We pass the
             // CFO toolbox (which contains it, properly typed) and force the
             // model to call that specific tool.
+            // Same three-block layout as the stream above, so the retry rides
+            // the cache the stream just wrote instead of paying full price for
+            // a prompt it has already sent once this turn.
             const retry = await generateText({
               model: chatModel,
-              system: systemPrompt,
-              messages: retryMessages,
+              messages: [...systemMessages, ...retryMessages],
               tools: toolbox,
               toolChoice: { type: 'tool', toolName: 'record_value_classifications' },
               // Bounded like every other Bedrock call: this is a forced
