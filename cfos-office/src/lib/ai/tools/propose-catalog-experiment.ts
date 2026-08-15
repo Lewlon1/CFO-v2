@@ -4,8 +4,9 @@
 // Writes a proposed_experiments row with status='proposed' and the catalog
 // metadata (template_id, score, scoring_breakdown, success_criterion, etc.).
 //
-// For ad-hoc proposals with computed impact bands (cut merchant by 50%, cap
-// a category at a specific number, etc.) use propose_experiment instead.
+// This is the only experiment-proposal tool. The ad-hoc `propose_experiment`
+// tool (custom hypothesis + computed impact bands) was deprecated in v2.3 and
+// removed for context cost — no prompt directed the model to it.
 
 import { z } from 'zod';
 import type { ToolContext } from './types';
@@ -49,7 +50,7 @@ export type ProposeCatalogExperimentInput = z.infer<typeof inputSchema>;
 export function createProposeCatalogExperimentTool(ctx: ToolContext) {
   return {
     description:
-      'Propose ONE catalog experiment to the user, in plain language, once they have engaged with the problem it addresses. Use the template\'s own hypothesis — do not bolt on a mismatched claim (a no-spend-days trial does not test a single-merchant habit). Capacity and the 90-day novelty window are enforced server-side — if either fails this call returns an error and you must tell the user they\'re at their limit (or that template was already tried) instead of pushing further. Let the user respond naturally; add an [OPTIONS] block only when accepting/declining is a genuine fork worth a tap (it is not required). Use propose_experiment for ad-hoc hypotheses with custom impact computation.',
+      'Propose ONE catalog experiment to the user, in plain language, once they have engaged with the problem it addresses. Use the template\'s own hypothesis — do not bolt on a mismatched claim (a no-spend-days trial does not test a single-merchant habit). Capacity and the 90-day novelty window are enforced server-side — if either fails this call returns an error and you must tell the user they\'re at their limit (or that template was already tried) instead of pushing further. Let the user respond naturally; add an [OPTIONS] block only when accepting/declining is a genuine fork worth a tap (it is not required).',
     inputSchema,
     execute: async (input: ProposeCatalogExperimentInput) => {
       try {

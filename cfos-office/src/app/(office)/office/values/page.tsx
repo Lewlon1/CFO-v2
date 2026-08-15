@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { calculateCompleteness } from '@/lib/profile/completeness'
 import { ValuesDashboard, type ValuesDashboardGap } from '@/components/office/dashboards/ValuesDashboard'
+import { FilesSection } from '@/components/office/files/FilesSection'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,11 +69,18 @@ export default async function ValuesPage() {
   }))
 
   return (
-    <ValuesDashboard
-      currency={currency}
-      archetype={archetype}
-      gaps={gaps}
-      profileCompleteness={profileCompleteness}
-    />
+    <>
+      <ValuesDashboard
+        currency={currency}
+        archetype={archetype}
+        gaps={gaps}
+        profileCompleteness={profileCompleteness}
+      />
+      {/* The dashboard reserves pb-24 for the chat bar; pull the files list up
+          into it so it reads as the next section, not a second screen. */}
+      <div className="px-3.5 -mt-20 pb-24">
+        <FilesSection folder="values" />
+      </div>
+    </>
   )
 }

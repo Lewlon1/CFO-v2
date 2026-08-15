@@ -34,7 +34,6 @@ import { createFindTemporalSignalsTool } from './find-temporal-signals';
 import { createFindTrendChangesTool } from './find-trend-changes';
 import { createFindOutliersTool } from './find-outliers';
 import { createFindValueGapsTool } from './find-value-gaps';
-import { createProposeExperimentTool } from './propose-experiment';
 import { createLabelTransactionsTool } from './label-transactions';
 // Session v2.3 — Experiment Engine.
 import { createProposeCatalogExperimentTool } from './propose-catalog-experiment';
@@ -47,6 +46,9 @@ import { createEmitActionTool } from './emit-action';
 // Session 32 (A) — Layer 3 + Layer 4 tools.
 import { createGetClusterBehaviourTool } from './get-cluster-behaviour';
 import { createGetConversationSignalsTool } from './get-conversation-signals';
+import { createReadMemoryFileTool } from './read-memory-file';
+import { createWriteMemoryFileTool } from './write-memory-file';
+import { createArchiveMemoryFileTool } from './archive-memory-file';
 
 export type { ToolContext } from './types';
 
@@ -87,7 +89,6 @@ export function createToolbox(ctx: ToolContext) {
     find_trend_changes: createFindTrendChangesTool(ctx),
     find_outliers: createFindOutliersTool(ctx),
     find_value_gaps: createFindValueGapsTool(ctx),
-    propose_experiment: createProposeExperimentTool(ctx),
     label_transactions: createLabelTransactionsTool(ctx),
     // Session v2.3 — Experiment Engine
     propose_catalog_experiment: createProposeCatalogExperimentTool(ctx),
@@ -100,5 +101,10 @@ export function createToolbox(ctx: ToolContext) {
     // Session 32 (A) — Layer 3 / Layer 4 tools.
     get_cluster_behaviour: createGetClusterBehaviourTool(ctx),
     get_conversation_signals: createGetConversationSignalsTool(ctx),
+    // The Filing Cabinet — per-user files the CFO reads on demand and the user
+    // sees in the office. The prompt carries only the index; bodies come from here.
+    read_memory_file: createReadMemoryFileTool(ctx),
+    write_memory_file: createWriteMemoryFileTool(ctx),
+    archive_memory_file: createArchiveMemoryFileTool(ctx),
   };
 }

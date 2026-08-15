@@ -10,6 +10,7 @@ import {
   snapshotConversationMetadata,
 } from '@/lib/insights/first-read-followup'
 import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
+import { fileComposedRead } from '@/lib/memory/documents'
 import { NextResponse } from 'next/server'
 
 /**
@@ -215,6 +216,13 @@ export async function POST() {
     profileId: user.id,
     eventType: 'read_recomposed',
     payload: { conversation_id: conversation.id },
+  })
+
+  // Append the rewrite to the filed Read in Values & You, so the user keeps the
+  // version they first read alongside the one that replaced it.
+  await fileComposedRead(supabase, user.id, {
+    content: composed.composedMessage,
+    variant: 'value_first_recompose',
   })
 
   return NextResponse.json({

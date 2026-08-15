@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calculateCompleteness } from '@/lib/profile/completeness'
 import { PERSONALITIES } from '@/lib/value-map/constants'
 import { getPrimaryGoal } from '@/lib/goals/primary-goal'
+import { countFilesByFolder } from '@/lib/memory/files'
 import { OfficeHomeClient } from './OfficeHomeClient'
 import { OnboardingBanner } from '@/components/office/onboarding-banner'
 
@@ -21,6 +22,7 @@ export default async function OfficePage() {
     upcomingEventsResult,
     profileResult,
     primaryGoal,
+    fileCounts,
   ] = await Promise.all([
     // Provenance: most common source + latest upload date
     supabase
@@ -78,6 +80,9 @@ export default async function OfficePage() {
 
     // Primary goal (Session 11)
     getPrimaryGoal(supabase, user.id),
+
+    // Filing cabinet — how many files sit in each folder (the tab counts)
+    countFilesByFolder(supabase, user.id),
   ])
 
   const provenance = provenanceResult.data?.[0]
@@ -122,6 +127,7 @@ export default async function OfficePage() {
         profileCompleteness={profileCompleteness}
         primaryGoal={primaryGoal}
         upcomingEventsCount={upcomingEventsCount}
+        fileCounts={fileCounts}
       />
     </>
   )

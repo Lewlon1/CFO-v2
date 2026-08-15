@@ -7,7 +7,11 @@ import type { QuotableFact, ValidationResult } from '@/lib/analytics/insight-typ
 // existing v1 validateNarrative. They enforce four guarantees:
 //  - validateCitations:   numbers/merchants in prose trace back to a tool result
 //  - validateProjections: any /year, /month, "saved", "annually" framing has a
-//                         propose_experiment tool result to back it
+//                         tool result carrying a computed impact band to back
+//                         it. No tool returns one today (the deprecated
+//                         propose_experiment tool was the only producer and was
+//                         removed), so in the live path the allowlist is empty
+//                         and every projection number in a Read is flagged.
 //  - validateVoice:       banned reflexive-CFO phrases are flagged
 //  - validateChips:       generic / navigation / no-narrative-noun chips are
 //                         flagged for stripping

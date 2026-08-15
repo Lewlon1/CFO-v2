@@ -4467,3 +4467,202 @@ three tables explicitly before deleting. The harness's `user-factory` bypasses t
 and calls the Supabase admin API directly, which is what trips the FKs. Fix is to route
 the factory through `delete_user_account`; not done. Until then the suite leaks ~10 users
 per full run.
+
+## 2026-08-13 — The Filing Cabinet, Phase 2: the memory becomes a screen
+
+Phase 1 (schema, tools, prompt contract) shipped in the three commits before
+this. Phase 2 is the trust half: nothing the CFO writes about someone should
+live where they cannot see it, and the plan sequences the UI *before* the files
+become load-bearing memory in Phase 3 for exactly that reason.
+
+Shipped: FileRow + FilesSection under all four folder dashboards, the file
+detail page (markdown body, edit, pin, archive/restore), `/api/memory/files/[id]`,
+the folder-tab counts on the office home, and the composed Reads filed as
+documents into `values/first-read`.
+
+### The spec asked for a radius the linter forbids
+UI-DIRECTION §File Rows specced a 10px radius. `cfo/visual-token-guards` errors
+on any arbitrary `rounded-[…]` of 4px or more, and `DrillDownRow` already draws
+this exact row shape at `rounded-control` (8px). Snapped to 8px and **amended
+the spec in the same commit** rather than leaving a doc that instructs the next
+person to write a lint error.
+
+### Three routes compose a Read, not two
+The plan expected the two `compose-first-read` variants (uploaded vs declared)
+to need separate hooks. They do not — both are delivered by
+`/api/insights/post-upload`, which picks `mode` internally. The two that DO need
+their own hook are the *rewrites*: `recompose-first-read` and
+`upgrade-declared-read`, both of which persist via `appendAssistantFollowup`.
+So: three call sites, one shared `fileComposedRead()`.
+
+### There is no "monthly review completed" event
+The plan asked for a review document filed into `cashflow/` "where conversations
+transitions review → completed". No such transition exists. A monthly review is
+marked completed only when the *next* review starts (`api/review/start:59`) or
+by the generic active-conversation sweep in `api/chat/route.ts:174`. Nor is
+there an artefact to file — a review is a live conversation, not a composed
+message like a Read. Filing one means composing a summary, which is a feature.
+**Left out deliberately; not a miss.**
+
+### The UI is written to survive an unapplied migration
+`listFolder` failing renders nothing (not an error state) and
+`countFilesByFolder` returns zeros, so every folder page renders normally
+against a database without `memory_files`. This is not defensive padding — it is
+the actual state of staging right now, and it means Phase 2 can ship ahead of
+the migration without stranding a folder page.
+
+### State at handover
+`typecheck` ✓ · `knip` ✓ · `vitest` **1645 passing (137 files)** ✓ ·
+`next build` ✓ (all five new routes present) · lint unchanged from the branch
+baseline (14 pre-existing `no-explicit-any` errors, none in new files).
+
+**Migration 082 is still unapplied to staging** — so nothing has been verified in
+a browser, and the Playwright persona suite was not run (it auto-starts a dev
+server, spends Bedrock, and would only exercise the empty-cabinet path until 082
+lands). Apply 082 first, then run the suite, then Phase 3.
+
+**Phase 3 is gated** on read-rate telemetry from staging that cannot exist yet.
+
+## 2026-08-13 — The Filing Cabinet, Phase 3: the context diet
+
+The point of the whole exercise. Phase 1 built the cabinet, Phase 2 made it
+visible, and Phase 3 is where the prompt stops carrying what the cabinet can
+hold.
+
+### What left the prompt
+- **Every behavioural trait, unbounded.** `buildPortraitContext` rendered every
+  non-dismissed `financial_portrait` row on every turn with no ceiling. Now
+  `buildArchetypeContext`, keeping only the Value Map archetype and its
+  evolution; the traits are derived into per-folder `patterns` digest files and
+  read on demand. The unbounded portrait query left the parallel block with
+  them — one fewer round trip per turn as well.
+- **Itemised holdings.** Balance sheet keeps the computed totals plus counts and
+  a priority-liability count; names, providers, rates and payments come from
+  `get_balance_sheet`.
+- **The recurring tail** (largest 12 by monthly-normalised amount) and **the
+  action-item backlog** (5 of N).
+
+### `asset_profile` is not prose — the plan's Net Worth mapping was wrong
+The plan mapped `asset_profile` → the Net Worth digest. Those rows are machine
+flags written by `computeTraits` in `balance-sheet/portrait.ts`:
+`has_pension: "yes"`, `net_worth_bracket: "under_10k"`,
+`asset_allocation_summary: "stocks: 60%, cash: 40%"`. As digest bullets that
+reads "- yes / - no / - under_10k", and it is precisely what the cabinet bans —
+figures a structured tool already owns, presented as current. **Net Worth has no
+digest, deliberately**, and the balance-sheet portrait writer gets no hook.
+
+### The advisory perimeter was conditional on owning something
+`ADVISORY_BOUNDARIES` lived inside `buildBalanceSheetContext`, which returns
+early when a user has no assets AND no liabilities. So the CFO's hardest rule —
+no products, no buy/sell, no suitability — was **silently absent for every user
+without a balance sheet**. Moving it to its own always-present section was
+supposed to be Phase-4 cache prep; it turned out to be a live compliance gap.
+It is now in the general branch and the first-Read branch both.
+
+### Digest freeze rules
+A digest is a one-way view of the portrait until the user edits it. After that
+it is theirs: new traits arrive as dated entries below their words (computed off
+the file's own `updated_at`, no extra bookkeeping), and a dismissal has to be
+written explicitly — the dismiss route now reads the struck-out row back and
+passes it in, because on a frozen file the re-render cannot run and the file
+would otherwise keep asserting something the user had just rejected.
+
+The render is order-stable by construction and a test asserts reversing the
+input changes not one byte. An unstable render would rewrite the file on every
+portrait write, bumping `updated_at` and busting the cache this feature exists
+to protect.
+
+### State at handover
+`typecheck` ✓ · `knip` ✓ · `vitest` **1662 passing (138 files)** ✓ ·
+`next build` ✓ · lint unchanged from the branch baseline (14 pre-existing).
+
+**Not measured:** the per-turn token delta. It needs a scripted conversation
+against a data-rich staging user, read off the `llm_usage_log` cost columns.
+**Not run:** `scripts/backfill-memory-digests.ts` (dry-run by default; needs
+staging service creds). Phase 4 (cache restructure) is next and is where the
+measurement pays out.
+
+---
+
+## 2026-08-14 — The Filing Cabinet, Phase 4: the cache restructure
+
+Where the Phase 3 diet converts into money. Phase 3 made the prompt smaller;
+Phase 4 stops paying full price for the part that never changes.
+
+### The bug was the ordering, not the size
+
+`buildSystemPrompt` returned one string and `route.ts` hung a single Bedrock
+cache point off the end of it. That checkpoint was worthless, and had been since
+it was added: **`buildCurrentDateContext()` was the second section in the
+prompt**, so a new date stamp — and every per-turn nudge below it — sat *above*
+the persona, the tool contracts, the advisory perimeter and the filing-cabinet
+contract. A cache is a prefix match. One drifting byte near the front invalidates
+everything behind it, so the checkpoint re-wrote the whole prompt on every turn
+and never once read from it.
+
+Measured: tier 1 on the general branch is **36,442 chars ≈ 9,600 tokens** that
+were being re-billed at full input rate, every turn, for the life of the product.
+
+### The split
+
+`buildSystemPrompt` now returns `{ static, semiStable, volatile }`:
+
+- **Tier 1 (`static`)** — persona + register, `ADVISORY_BOUNDARIES`,
+  tool-usage instructions, layered-read instructions, the cabinet contract.
+  Extracted into an exported `buildStaticTier(styleModifier, variant)` so it can
+  be tested directly. Changes on deploy, or when the user switches advice style
+  (three possible values, so a user's prefix is stable and users sharing a
+  register share the cache entry).
+- **Tier 2 (`semiStable`)** — profile, onboarding entry, bridge, dieted
+  financial, posture, benchmarks, archetype, balance-sheet totals, goals, trips,
+  the memory index, the posture fragment. Changes when the user's data changes.
+- **Tier 3 (`volatile`)** — current date, conversation instructions, open items,
+  experiments, value-mapping / check-in / retake, prediction quality, profiling
+  questions, and the goal-beat stall note. Uncached by design.
+
+The section *set* is unchanged. The section *order* is not — hoisting the static
+blocks to the front and pushing the volatile ones to the back **is** the fix, and
+it is not a behaviour-neutral refactor to re-review later. All three branches
+(general, first-Read, goal-derive) return tiers; the goal beat gets a lean tier 1
+with no perimeter and no cabinet, unchanged from what it already carried.
+
+### Three checkpoints, not one
+
+`route.ts` ships three system-role messages with `cachePoint` on the first two
+(CP1, CP2), and CP3 on the **last** element of `modelMessages` — post-convert,
+post-sanitise. Within a turn the tool loop re-sends the whole history on every
+step (up to 5, `stepCountIs(5)`); across turns CP3 slides forward onto the newest
+message. Three of Bedrock's four checkpoints.
+
+The forced-retry `generateText` behind the hallucination guard was uncached
+entirely — it passed `system: systemPrompt` and rebuilt the prompt from scratch
+mid-turn. It now takes the same three system messages plus the CP3-decorated
+history, so the retry reads the cache the stream just wrote.
+
+### Gotchas for the next pass
+
+- **`static` is a strict-mode reserved word.** The field name follows the plan,
+  but every consumer must destructure it as `{ static: x }` or read it off the
+  object — `const static = ...` will not parse.
+- **An empty tier is filtered out, cache point and all.** `semiStable` can be
+  empty for a brand-new user; dropping the message drops CP2 with it, which is
+  correct — but it means the checkpoint count varies by user, so don't assert on
+  a fixed count when reading the usage log.
+- **The meter needed no change.** `computeCostUsd` takes cache read/write token
+  *totals*, and Bedrock reports totals regardless of checkpoint count. The
+  plan flagged this as a possible extension of `rates.ts`; it isn't one.
+- **`[prompt-tiers]` console line** logs the three block char-lengths per turn.
+  It is for tuning the split — the cost numbers still come from the
+  `llm_usage_log` columns, never the console.
+
+### Verification
+
+`typecheck` ✓ · `knip` ✓ · `lint` — the branch's 14 pre-existing
+`no-explicit-any` errors, none in files this phase touches · `test` **1667
+passing, 139 files** ✓ (up from 1662/138: `static-tier.test.ts`) · `build` ✓.
+
+**Unmeasured, and this is the phase where that matters most.** No live
+conversation has run against this. The expected shape — turn 1 writes
+CP1+CP2+history, turns 2+ read ≥20k with small writes — is an estimate from the
+tier sizes, not an observation. The scripted staging measurement in the handoff
+is now the gate on believing any of it.

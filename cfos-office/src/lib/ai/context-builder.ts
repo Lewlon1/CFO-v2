@@ -22,6 +22,15 @@ import {
   type SignificantMerchant,
 } from '@/lib/value-map/significant-merchant';
 import { isValueMapV2Enabled } from '@/lib/value-map/flags';
+import { loadMemoryIndex } from '@/lib/memory/files';
+
+// ── Context caps ─────────────────────────────────────────────────────────────
+// Sections that render one line per row need a ceiling, or a heavy user's
+// prompt grows without one. Both lists are ranked before they are cut, and both
+// say out loud that they have been cut — a truncation the model cannot see is a
+// truncation it will confidently talk over.
+const MAX_RECURRING_LINES = 12;
+const MAX_ACTION_ITEM_LINES = 5;
 
 const COHORT_LABEL: Record<string, string> = {
   wave_1: 'Wave 1',
@@ -664,13 +673,80 @@ export async function buildWhyBeatContext(
   }
 }
 
+/** The separator every prompt section has always been joined with. */
+const SECTION_SEPARATOR = '\n\n---\n\n';
+
+/** Drop the empty sections, join the rest the way the prompt has always joined them. */
+function joinSections(sections: (string | null | undefined)[]): string {
+  return sections.filter(Boolean).join(SECTION_SEPARATOR);
+}
+
+/**
+ * The system prompt, split by how often each part changes.
+ *
+ * The split is what makes the Bedrock prompt cache worth having. `static`
+ * changes only on deploy (or when the user switches advice style); `semiStable`
+ * changes when the user's data changes; `volatile` changes every turn. The chat
+ * route ships them as three system messages and puts a cache point after the
+ * first two — so today's date stamp no longer invalidates the persona, the tool
+ * contracts and the advisory boundary sitting above it, which is exactly what
+ * the single trailing checkpoint used to do, every turn.
+ *
+ * The section *set* is unchanged from the single-string era. The section
+ * *order* is not: static blocks are hoisted to the front and volatile ones
+ * pushed to the back. That reordering is the point — a cached prefix cannot
+ * have per-turn bytes threaded through it.
+ */
+export interface SystemPromptTiers {
+  /** Deploy-stable. Must be byte-identical between turns or the cache misses. */
+  static: string;
+  /** Per-user, re-rendered when their data changes. */
+  semiStable: string;
+  /** Per-turn. Deliberately uncached. */
+  volatile: string;
+}
+
+/** Which static blocks a branch of the prompt carries. */
+export type StaticTierVariant = 'general' | 'first_read' | 'goal_derive';
+
+/**
+ * Tier 1 — the deploy-stable half of the prompt.
+ *
+ * Everything here renders from constants and pure builders: no dates, no user
+ * rows, no randomness. `styleModifier` is the one per-user input and it has
+ * exactly three values, so a user's cached prefix survives every turn and users
+ * sharing a register share the entry.
+ *
+ * Byte-stability is the entire contract — the cache point sits at the end of
+ * this string, and one drifting character costs the whole prefix. A test pins it.
+ */
+export function buildStaticTier(styleModifier: string, variant: StaticTierVariant): string {
+  if (variant === 'goal_derive') {
+    // The goal beat runs before the user has a financial surface to discuss, so
+    // it carries neither the advisory boundary nor the filing cabinet.
+    return joinSections([BASE_PERSONA + styleModifier, buildToolUsageInstructions()]);
+  }
+  return joinSections([
+    BASE_PERSONA + styleModifier,
+    // The perimeter — always present, never conditional on the user owning
+    // anything.
+    ADVISORY_BOUNDARIES,
+    buildToolUsageInstructions(),
+    // The behavioural-feature tools are the general conversation's move; a first
+    // Read composes from its own brief instead.
+    variant === 'general' ? buildLayeredReadInstructions() : '',
+    // The filing cabinet contract. The per-user index is tier 2.
+    buildMemoryFilesContract(),
+  ]);
+}
+
 export async function buildSystemPrompt(
   userId: string,
   conversationType?: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   conversationMetadata?: Record<string, any> | null,
   conversationId?: string | null
-): Promise<string> {
+): Promise<SystemPromptTiers> {
   const supabase = await createClient();
 
   // Query all data sources in parallel
@@ -678,7 +754,6 @@ export async function buildSystemPrompt(
     profileResult,
     snapshotsResult,
     recurringResult,
-    portraitResult,
     valueMapResult,
     goalsResult,
     actionsResult,
@@ -702,12 +777,6 @@ export async function buildSystemPrompt(
       .from('recurring_expenses')
       .select('*')
       .eq('user_id', userId),
-    supabase
-      .from('financial_portrait')
-      .select('*')
-      .eq('user_id', userId)
-      .is('dismissed_at', null)
-      .order('confidence', { ascending: false }),
     supabase
       .from('value_map_sessions')
       .select('*')
@@ -754,7 +823,6 @@ export async function buildSystemPrompt(
   const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null;
   const snapshots = snapshotsResult.status === 'fulfilled' ? snapshotsResult.value.data : null;
   const recurring = recurringResult.status === 'fulfilled' ? recurringResult.value.data : null;
-  const portrait = portraitResult.status === 'fulfilled' ? portraitResult.value.data : null;
   const valueMap = valueMapResult.status === 'fulfilled' ? valueMapResult.value.data : null;
   const goals = goalsResult.status === 'fulfilled' ? goalsResult.value.data : null;
   const actions = actionsResult.status === 'fulfilled' ? actionsResult.value.data : null;
@@ -815,15 +883,14 @@ export async function buildSystemPrompt(
   // defers the amount), which leaves onboarding_step stuck at goal_chat_started.
   const isGoalDeriveConfirm = conversationType === 'onboarding_goal_chat';
   if (isGoalDeriveConfirm) {
-    const sections = [
-      BASE_PERSONA + styleModifier,
-      buildCurrentDateContext(),
-      buildProfileContext(profile),
-      buildGoalDeriveConfirmContext(profile, goals),
-      buildToolUsageInstructions(),
-    ].filter(Boolean);
-
-    return sections.join('\n\n---\n\n');
+    return {
+      static: buildStaticTier(styleModifier, 'goal_derive'),
+      semiStable: joinSections([
+        buildProfileContext(profile),
+        buildGoalDeriveConfirmContext(profile, goals),
+      ]),
+      volatile: buildCurrentDateContext(),
+    };
   }
 
   // First Insight mode (Session v2.2 Chat Intelligence): brief + tools +
@@ -925,35 +992,47 @@ export async function buildSystemPrompt(
     const experimentProposal =
       (conversationMetadata?.experiment_proposal as ExperimentProposalLayer | null | undefined) ?? null;
 
-    const sections = [
-      BASE_PERSONA + styleModifier,
-      buildCurrentDateContext(),
-      await buildFirstInsightContextV2(
-        supabase,
-        userId,
-        briefProfile,
-        archetype,
-        valueMapTakenAt,
-        vmRowsByQuadrant,
-        txWindow,
-        primaryGoalBrief,
-        experimentProposal,
-      ),
-      await getConversationInstructions(conversationType, conversationMetadata, userId, snapshots, profile),
-      // Why-beat — the read-and-confirm opener after the delta recompose hands
-      // off. Empty unless this is a delivered-recompose first_read thread with a
-      // significant ambiguous merchant and the beat not yet offered.
-      await buildWhyBeatContext(userId, conversationType, conversationMetadata),
-      // Active goals + the no-goal guardrail. Previously omitted from the
-      // first_read branch, which left the CFO blind to a goal it had just
-      // created in the goal-chat — it denied the wedding goal and called the
-      // wrong tools. Same data + call signature as the general branch below.
-      buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
-      buildToolUsageInstructions(),
-      getPosturePromptFragment(profile),
-    ].filter(Boolean);
+    const firstInsightContext = await buildFirstInsightContextV2(
+      supabase,
+      userId,
+      briefProfile,
+      archetype,
+      valueMapTakenAt,
+      vmRowsByQuadrant,
+      txWindow,
+      primaryGoalBrief,
+      experimentProposal,
+    );
+    const firstInsightInstructions = await getConversationInstructions(
+      conversationType, conversationMetadata, userId, snapshots, profile,
+    );
+    // Why-beat — the read-and-confirm opener after the delta recompose hands
+    // off. Empty unless this is a delivered-recompose first_read thread with a
+    // significant ambiguous merchant and the beat not yet offered.
+    const whyBeat = await buildWhyBeatContext(userId, conversationType, conversationMetadata);
+    const firstInsightMemoryIndex = await buildMemoryIndexContext(supabase, userId);
 
-    return sections.join('\n\n---\n\n');
+    return {
+      // The filing cabinet rides in here. A first Read is usually written
+      // against an empty cabinet — but a returning user recomposing a Read has
+      // one, and the CFO should not re-derive what it already wrote down.
+      static: buildStaticTier(styleModifier, 'first_read'),
+      semiStable: joinSections([
+        firstInsightContext,
+        // Active goals + the no-goal guardrail. Previously omitted from the
+        // first_read branch, which left the CFO blind to a goal it had just
+        // created in the goal-chat — it denied the wedding goal and called the
+        // wrong tools. Same data + call signature as the general branch below.
+        buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
+        firstInsightMemoryIndex,
+        getPosturePromptFragment(profile),
+      ]),
+      volatile: joinSections([
+        buildCurrentDateContext(),
+        firstInsightInstructions,
+        whyBeat,
+      ]),
+    };
   }
 
   // The nine section builders below are independent reads (verified read-only,
@@ -971,6 +1050,7 @@ export async function buildSystemPrompt(
     predictionQuality,
     profilingContext,
     openItemsBlock,
+    memoryIndex,
   ] = await Promise.all([
     buildValueMapBridgeContext(profile, conversationId ?? undefined, supabase),
     getCountryBenchmarks(profile, supabase),
@@ -990,35 +1070,37 @@ export async function buildSystemPrompt(
           return '';
         })
       : Promise.resolve(''),
+    buildMemoryIndexContext(supabase, userId),
   ]);
 
-  const sections = [
-    BASE_PERSONA + styleModifier,
-    buildCurrentDateContext(),
-    buildProfileContext(profile),
-    buildOnboardingEntryContext(profile),
-    bridgeContext,
-    buildFinancialContext(snapshots, recurring, profile),
-    buildPostureContext(profile, recurring),
-    countryBenchmarks,
-    conversationInstructions,
-    buildPortraitContext(portrait, valueMap),
-    buildBalanceSheetContext(assets, liabilities),
-    buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
-    openItemsBlock,
-    buildTripsContext(dedupedTrips, profile),
-    experimentContext,
-    buildToolUsageInstructions(),
-    buildLayeredReadInstructions(),
-    valueMappingContext,
-    valueCheckinNudge,
-    retakeSuggestion,
-    predictionQuality,
-    profilingContext,
-    getPosturePromptFragment(profile),
-  ].filter(Boolean);
-
-  return sections.join('\n\n---\n\n');
+  return {
+    static: buildStaticTier(styleModifier, 'general'),
+    semiStable: joinSections([
+      buildProfileContext(profile),
+      buildOnboardingEntryContext(profile),
+      bridgeContext,
+      buildFinancialContext(snapshots, recurring, profile),
+      buildPostureContext(profile, recurring),
+      countryBenchmarks,
+      buildArchetypeContext(valueMap),
+      buildBalanceSheetContext(assets, liabilities),
+      buildGoalsContext(goals, actions, primaryGoal, primaryGoalUnavailable),
+      buildTripsContext(dedupedTrips, profile),
+      memoryIndex,
+      getPosturePromptFragment(profile),
+    ]),
+    volatile: joinSections([
+      buildCurrentDateContext(),
+      conversationInstructions,
+      openItemsBlock,
+      experimentContext,
+      valueMappingContext,
+      valueCheckinNudge,
+      retakeSuggestion,
+      predictionQuality,
+      profilingContext,
+    ]),
+  };
 }
 
 // Session 32 (A) — Layered Read instructions.
@@ -1066,6 +1148,84 @@ function buildLayeredReadInstructions(): string {
     '',
     'When the user\'s Value Map states an intent (e.g. "dining is a Leak") and the behavioural trend conflicts (e.g. dining climbing), point out the divergence factually and ask the user what\'s changing. This is the only place "the Gap" concept survives — as a move you make in conversation, not a feature name.',
   ].join('\n');
+}
+
+// The Filing Cabinet — the retrieval/write contract.
+//
+// Static by construction: it must stay byte-identical between turns so it can
+// sit in the cached prefix. Nothing user-specific goes in here — the per-user
+// part is the index, which is built separately.
+//
+// Modelled on buildLayeredReadInstructions above: inject the contract, not the
+// data. The prompt says when reading is mandatory; the bodies arrive by tool.
+//
+// Exported for the test that pins its byte-stability — that property is what
+// lets it live in the cached prefix, and it is easy to break by accident.
+export function buildMemoryFilesContract(): string {
+  return [
+    '## Your files on this user',
+    '',
+    'You keep files on this user, filed in the four folders they see in their office: `goals`, `cashflow`, `values`, `networth`. The index below lists what exists — one line each. The bodies are NOT in this prompt; you read them with `read_memory_file`.',
+    '',
+    'The user sees these same files and can edit them. Write accordingly.',
+    '',
+    'WHEN TO READ (MANDATORY):',
+    '',
+    'You MUST call `read_memory_file` before responding whenever:',
+    '- The index lists a file whose description matches what the user just raised, or what you are about to advise on.',
+    '- The user refers back to a situation, plan, decision or preference they have told you about before.',
+    '- You are about to ask something the index suggests you were already told.',
+    '',
+    'After reading, build on what the file says rather than starting over. If the file and what the user says now disagree, the user is right — update the file.',
+    '',
+    'WHEN TO WRITE:',
+    '',
+    'Call `write_memory_file` when something durable has been shared or decided: a situation ("supporting their mother since March"), a plan and the reasoning behind it, a decision and why they made it, the context around a money habit, a preference with its nuance. Write at those moments — not every turn, and never as a summary of the conversation.',
+    '',
+    'NEVER put in a file:',
+    '- A figure presented as current — balances, totals, spending. Those come from data tools at the moment you need them. A file may say "they were putting aside about €400 a month back in June"; it must never carry today\'s number.',
+    '- Anything a structured tool owns: goals (`create_goal`), assets and debts (`upsert_asset` / `upsert_liability`), profile facts (`update_user_profile`), value classifications (`record_value_classifications`). Call that tool. The file holds the story around the fact, never the fact itself.',
+    '',
+    'HOW TO WRITE:',
+    '',
+    '- One topic per file. Prefer `append` — it keeps the history and dates each entry for you.',
+    '- The `description` is the only thing about a file you will see in later conversations. Write it so it earns a re-read: "Saving €40k by 2028; tension with the wedding fund" tells you to open it, "Notes about goals" does not.',
+    '- Personal and life context — work, family, health, plans — goes in `values`.',
+    '',
+    'USER EDITS ARE AUTHORITATIVE:',
+    '',
+    'When a file comes back marked as edited by the user, those are their words about their own life. Never contradict or rewrite them; add to them.',
+    '',
+    'VOICE:',
+    '',
+    'Never name the mechanism. Say "I\'ve noted that", "it\'s in your Goals folder", "I had it written down" — never "memory", "file slug", "the index", or a tool name. If you need to say where something lives, name the folder the way the user sees it: Goals, Cash Flow, Values & You, Net Worth.',
+  ].join('\n');
+}
+
+/**
+ * The per-user half of the filing cabinet: one line per file, all four folders,
+ * bodies excluded. Capped by INDEX_MAX_LINES_PER_FOLDER — roughly 500 tokens at
+ * the ceiling. Returns '' when the cabinet is empty, so a new user pays nothing
+ * for it (the contract above still tells them how to start one).
+ */
+async function buildMemoryIndexContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+): Promise<string> {
+  try {
+    const index = await loadMemoryIndex(supabase, userId, new Date());
+    if (!index.ok) return '';
+    // An empty cabinet renders as four "(no files yet)" lines — real tokens for
+    // no information. The contract carries the affordance on its own.
+    const hasAnyFile = index.value
+      .split('\n')
+      .some((line) => line.startsWith('- ') && !line.startsWith('- (no files yet)'));
+    return hasAnyFile ? index.value : '';
+  } catch (err) {
+    console.error('[context-builder] memory index load failed', err);
+    return '';
+  }
 }
 
 function buildCurrentDateContext(): string {
@@ -1302,20 +1462,38 @@ function buildFinancialContext(snapshots: any[] | null, recurring: any[] | null,
 
   // Recurring expenses
   if (recurring && recurring.length > 0) {
-    const recurringLines = recurring.map((r) => {
+    // Normalise once: it both ranks the list and totals it. The total is
+    // computed over EVERY row before any capping — a "fixed costs" figure that
+    // silently omitted the 13th subscription would be a wrong number, which is
+    // worse than a long list.
+    const monthlyAmount = (r: { amount?: unknown; frequency?: string }): number => {
+      const amount = Number(r.amount) || 0;
+      if (r.frequency === 'bimonthly') return amount / 2;
+      if (r.frequency === 'quarterly') return amount / 3;
+      if (r.frequency === 'annual' || r.frequency === 'yearly') return amount / 12;
+      return amount;
+    };
+
+    const monthlyFixed = recurring.reduce((sum, r) => sum + monthlyAmount(r), 0);
+
+    // Biggest first, capped. The tail of a long recurring list is €4 subscriptions
+    // that never change an answer; get_recurring_expenses has all of them.
+    const ranked = [...recurring].sort((a, b) => monthlyAmount(b) - monthlyAmount(a));
+    const shown = ranked.slice(0, MAX_RECURRING_LINES);
+    const recurringLines = shown.map((r) => {
       const freq = r.frequency === 'monthly' ? '/mo' : `/${r.frequency}`;
       return `- ${r.name}${r.provider ? ` (${r.provider})` : ''}: ${r.currency || 'EUR'} ${r.amount}${freq}`;
     });
-    parts.push(`\nRecurring expenses:\n${recurringLines.join('\n')}`);
+    if (ranked.length > shown.length) {
+      // No tool returns the recurring list, so the honest move is to say the
+      // tail exists and forbid guessing at it. The user can see all of them on
+      // their Bills & Recurring page.
+      recurringLines.push(
+        `- …and ${ranked.length - shown.length} smaller recurring items not listed here. They are counted in the fixed-cost total below. Never name or guess at one — ask the user.`,
+      );
+    }
+    parts.push(`\nRecurring expenses (largest ${shown.length} of ${ranked.length}):\n${recurringLines.join('\n')}`);
 
-    // Compute approximate monthly fixed costs
-    const monthlyFixed = recurring.reduce((sum, r) => {
-      if (r.frequency === 'monthly') return sum + Number(r.amount);
-      if (r.frequency === 'bimonthly') return sum + Number(r.amount) / 2;
-      if (r.frequency === 'quarterly') return sum + Number(r.amount) / 3;
-      if (r.frequency === 'annual' || r.frequency === 'yearly') return sum + Number(r.amount) / 12;
-      return sum + Number(r.amount);
-    }, 0);
     parts.push(`\nEstimated monthly fixed costs: ${profile?.primary_currency || 'EUR'} ${monthlyFixed.toFixed(2)}`);
 
     // Bills needing attention (lightweight — drop if token budget tight)
@@ -1496,8 +1674,19 @@ function buildPostureContext(profile: any, recurring: any[] | null): string {
   return lines.join('\n');
 }
 
+/**
+ * The Value Map archetype and its evolution — bounded, one row, and the one
+ * piece of the old portrait block that stays injected.
+ *
+ * The behavioural traits that used to follow it are gone from here. Every
+ * non-dismissed trait was rendered on every turn, unbounded: a user who had
+ * talked to the CFO for a few months paid for sixty of them per message, and
+ * the tail had no ceiling at all. They now live in the filing cabinet's
+ * `patterns` digests (src/lib/memory/digests.ts) — same content, derived
+ * deterministically from the same rows, read on demand and visible to the user.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
+function buildArchetypeContext(valueMap: any): string {
   const parts: string[] = [];
 
   // Determine whether this session reflects real behaviour or only the sample exercise.
@@ -1605,22 +1794,19 @@ function buildPortraitContext(portrait: any[] | null, valueMap: any): string {
     }
   }
 
-  // Behavioral traits
-  if (portrait && portrait.length > 0) {
-    parts.push('\n## Behavioral traits');
-    for (const trait of portrait) {
-      parts.push(`- ${trait.trait_key}: ${trait.trait_value} (confidence: ${trait.confidence})`);
-    }
-  }
-
   if (parts.length === 0) return '';
 
-  parts.push("\nUse these traits to personalise your guidance. Reference them naturally — don't list them back to the user.");
+  parts.push("\nUse this to personalise your guidance. Reference it naturally — don't list it back to the user.");
 
   return parts.join('\n');
 }
 
-const ADVISORY_BOUNDARIES = `## Advisory boundaries — what the CFO can and cannot do with balance sheet data
+// The perimeter. Until now this rode inside buildBalanceSheetContext, which
+// returns early when the user has no assets and no liabilities — so the CFO's
+// hardest rule was silently absent for exactly the users least likely to have
+// been told it elsewhere. It is its own always-present section now, and being
+// wholly static it belongs in the cached prefix when the cache is restructured.
+const ADVISORY_BOUNDARIES = `## Advisory boundaries — what the CFO can and cannot do
 
 YOU CAN:
 - State the user's net worth and how it's changing over time
@@ -1671,37 +1857,17 @@ function buildBalanceSheetContext(assets: any[] | null, liabilities: any[] | nul
   out += `Total assets: ${totalAssets.toFixed(0)} (accessible: ${accessible.toFixed(0)})\n`;
   out += `Total liabilities: ${totalLiabs.toFixed(0)}\n\n`;
 
-  if (assetList.length) {
-    out += `### Assets\n`;
-    for (const a of assetList) {
-      out += `- ${a.name} (${a.asset_type}): ${a.currency} ${(Number(a.current_value) || 0).toFixed(0)}`;
-      if (a.provider) out += ` @ ${a.provider}`;
-      if (a.is_accessible === false) out += ` [locked]`;
-      if (a.asset_type === 'savings' && a.details?.interest_rate != null) {
-        out += ` — ${a.details.interest_rate}% interest`;
-      }
-      if (a.asset_type === 'pension' && a.details?.employer_contribution_pct != null) {
-        out += ` — employer ${a.details.employer_contribution_pct}% + employee ${a.details.employee_contribution_pct ?? '?'}%`;
-      }
-      out += `\n`;
-    }
-    out += `\n`;
-  }
+  // Counts, not contents. Every holding used to be listed here on every turn —
+  // a user with thirty assets and a handful of loans paid for all of them in
+  // every message, to answer a question they had not asked. `get_balance_sheet`
+  // owns the itemised truth and is one call away.
+  const priorityCount = liabilityList.filter((l) => l.is_priority).length;
+  out += `Assets recorded: ${assetList.length}\n`;
+  out += `Liabilities recorded: ${liabilityList.length}`;
+  out += priorityCount > 0 ? ` (${priorityCount} marked priority)\n\n` : `\n\n`;
 
-  if (liabilityList.length) {
-    out += `### Liabilities\n`;
-    for (const l of liabilityList) {
-      out += `- ${l.name} (${l.liability_type}): ${l.currency} ${Number(l.outstanding_balance).toFixed(0)} outstanding`;
-      if (l.interest_rate != null) out += ` — ${l.interest_rate}% APR`;
-      if (l.actual_payment != null) out += ` — paying ${l.currency} ${l.actual_payment}/${l.payment_frequency || 'mo'}`;
-      if (l.is_priority) out += ` [PRIORITY]`;
-      out += `\n`;
-    }
-    out += `\n`;
-  }
-
-  out += `IMPORTANT: Use these system-provided balance sheet numbers. Do not calculate net worth, gains, or totals yourself. If you need a calculation not shown here (e.g., debt payoff timeline, pension projection), tell the user those tools are coming in a future update.\n\n`;
-  out += ADVISORY_BOUNDARIES;
+  out += `Itemised holdings — names, providers, rates, payments — are NOT in this prompt. Call get_balance_sheet when a question turns on a specific asset or debt, and never guess at one.\n\n`;
+  out += `IMPORTANT: Use these system-provided balance sheet numbers. Do not calculate net worth, gains, or totals yourself. If you need a calculation not shown here (e.g., debt payoff timeline, pension projection), tell the user those tools are coming in a future update.`;
   return out;
 }
 
@@ -1759,8 +1925,14 @@ function buildGoalsContext(
   }
 
   if (actions && actions.length > 0) {
-    parts.push('\n## Pending action items');
-    for (const action of actions) {
+    // Capped. A pending list that has grown to thirty items is a backlog, and
+    // reciting a backlog every turn helps nobody — get_action_items has them all.
+    parts.push(
+      actions.length > MAX_ACTION_ITEM_LINES
+        ? `\n## Pending action items (${MAX_ACTION_ITEM_LINES} of ${actions.length} — call get_action_items for the rest)`
+        : '\n## Pending action items',
+    );
+    for (const action of actions.slice(0, MAX_ACTION_ITEM_LINES)) {
       let line = `- ${action.title}`;
       if (action.category) line += ` [${action.category}]`;
       if (action.priority) line += ` (${action.priority})`;
@@ -1918,7 +2090,6 @@ When the user asks about spending, budgets, or comparisons, call the appropriate
 - **decline_experiment**: Call when the user says "Not right now". For "Pick a different one", call this AND immediately propose_catalog_experiment with the next alternative.
 - **record_experiment_outcome**: Call after the user answers the outcome ask (yes / partial / no). Capture any free-text reason in \`note\`. Do not moralise about partial or no.
 - **list_active_experiments**: Read-only. Use at the start of a conversation to know what's active and whether any are awaiting outcome.
-- **propose_experiment** (DEPRECATED — prefer propose_catalog_experiment): Use only when you need a custom hypothesis with computed impact bands that doesn't match a catalog template.
 - **upsert_asset**: Call whenever the user mentions a savings balance, investment, pension pot, crypto holding, or property they own — whether volunteered or in reply to a question. Use asset_id to update an existing entry, omit it to create a new one. Always confirm the saved details naturally afterwards.
 - **upsert_liability**: Call whenever the user mentions a debt balance — mortgage, student loan, credit card, personal loan, BNPL, overdraft. Use liability_id to update, omit to create. Always confirm afterwards.
 - **get_balance_sheet**: "What's my net worth?" / "What's my overall position?" / when you need balance sheet context to answer a question about emergency funds, goal feasibility, or debt burden. Returns totals, itemised lists, and a data_gaps array — use the gaps to naturally prompt for missing information, never to push.
@@ -1927,6 +2098,10 @@ BALANCE SHEET UPLOADS:
 If the user mentions having multiple holdings, a complex portfolio, a pension statement, a mortgage statement, or a credit card balance they want to import, tell them they can drag a holdings CSV, screenshot, or PDF into the Balance Sheet upload and it will be parsed into assets or debts automatically. Prefer upload over typing numbers one-by-one when they have more than two or three positions.
 
 RULES:
+- **read_memory_file**: Read one of your files on this user — folder + slug for the body, folder alone to list what is in it. See "Your files on this user" for when reading is mandatory.
+- **write_memory_file**: Record durable narrative knowledge — a situation, a plan and its reasoning, a decision and why. Never figures presented as current, and never anything a structured tool owns.
+- **archive_memory_file**: Retire a file that is no longer true. Confirm with the user first.
+
 - ALWAYS call a tool when you need a number. Never estimate, recall, or calculate.
 - You can call multiple tools in sequence — e.g., get_spending_summary then compare with calculate_monthly_budget.
 - If a tool returns an error about missing data, explain what's needed and offer to help collect it.
