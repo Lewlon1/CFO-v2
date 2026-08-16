@@ -23,6 +23,7 @@ import {
 } from '@/lib/value-map/significant-merchant';
 import { isValueMapV2Enabled } from '@/lib/value-map/flags';
 import { loadMemoryIndex } from '@/lib/memory/files';
+import { isMemoryFilesEnabled } from '@/lib/memory/flags';
 
 // ── Context caps ─────────────────────────────────────────────────────────────
 // Sections that render one line per row need a ceiling, or a heavy user's
@@ -736,7 +737,9 @@ export function buildStaticTier(styleModifier: string, variant: StaticTierVarian
     // Read composes from its own brief instead.
     variant === 'general' ? buildLayeredReadInstructions() : '',
     // The filing cabinet contract. The per-user index is tier 2.
-    buildMemoryFilesContract(),
+    // Off under MEMORY_FILES_ENABLED=0, together with the index and the tools —
+    // the measurement arm, not a rollout switch.
+    isMemoryFilesEnabled() ? buildMemoryFilesContract() : '',
   ]);
 }
 
@@ -1213,6 +1216,9 @@ async function buildMemoryIndexContext(
   supabase: any,
   userId: string,
 ): Promise<string> {
+  // Gated here rather than at the two call sites so the arm also skips the
+  // query, not just the render.
+  if (!isMemoryFilesEnabled()) return '';
   try {
     const index = await loadMemoryIndex(supabase, userId, new Date());
     if (!index.ok) return '';
@@ -2064,6 +2070,18 @@ async function buildExperimentContext(
 }
 
 function buildToolUsageInstructions(): string {
+  // Gated with the contract and the toolbox — a tool the model is told about but
+  // cannot call is worse than one it was never offered. Interpolated (trailing
+  // blank line included) so the enabled string stays byte-identical to the
+  // pre-flag prompt and the cached prefix is unaffected.
+  const memoryToolLines = isMemoryFilesEnabled()
+    ? `- **read_memory_file**: Read one of your files on this user — folder + slug for the body, folder alone to list what is in it. See "Your files on this user" for when reading is mandatory.
+- **write_memory_file**: Record durable narrative knowledge — a situation, a plan and its reasoning, a decision and why. Never figures presented as current, and never anything a structured tool owns.
+- **archive_memory_file**: Retire a file that is no longer true. Confirm with the user first.
+
+`
+    : '';
+
   return `## Available tools
 
 When the user asks about spending, budgets, or comparisons, call the appropriate tool. NEVER calculate financial figures yourself — always use a tool.
@@ -2098,11 +2116,7 @@ BALANCE SHEET UPLOADS:
 If the user mentions having multiple holdings, a complex portfolio, a pension statement, a mortgage statement, or a credit card balance they want to import, tell them they can drag a holdings CSV, screenshot, or PDF into the Balance Sheet upload and it will be parsed into assets or debts automatically. Prefer upload over typing numbers one-by-one when they have more than two or three positions.
 
 RULES:
-- **read_memory_file**: Read one of your files on this user — folder + slug for the body, folder alone to list what is in it. See "Your files on this user" for when reading is mandatory.
-- **write_memory_file**: Record durable narrative knowledge — a situation, a plan and its reasoning, a decision and why. Never figures presented as current, and never anything a structured tool owns.
-- **archive_memory_file**: Retire a file that is no longer true. Confirm with the user first.
-
-- ALWAYS call a tool when you need a number. Never estimate, recall, or calculate.
+${memoryToolLines}- ALWAYS call a tool when you need a number. Never estimate, recall, or calculate.
 - You can call multiple tools in sequence — e.g., get_spending_summary then compare with calculate_monthly_budget.
 - If a tool returns an error about missing data, explain what's needed and offer to help collect it.
 - When presenting tool results, be conversational — frame numbers in context of the user's goals and values, don't dump raw data.

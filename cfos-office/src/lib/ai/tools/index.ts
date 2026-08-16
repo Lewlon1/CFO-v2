@@ -49,11 +49,12 @@ import { createGetConversationSignalsTool } from './get-conversation-signals';
 import { createReadMemoryFileTool } from './read-memory-file';
 import { createWriteMemoryFileTool } from './write-memory-file';
 import { createArchiveMemoryFileTool } from './archive-memory-file';
+import { isMemoryFilesEnabled } from '@/lib/memory/flags';
 
 export type { ToolContext } from './types';
 
 export function createToolbox(ctx: ToolContext) {
-  return {
+  const base = {
     get_spending_summary: createGetSpendingSummaryTool(ctx),
     compare_months: createCompareMonthsTool(ctx),
     get_value_breakdown: createGetValueBreakdownTool(ctx),
@@ -101,8 +102,23 @@ export function createToolbox(ctx: ToolContext) {
     // Session 32 (A) — Layer 3 / Layer 4 tools.
     get_cluster_behaviour: createGetClusterBehaviourTool(ctx),
     get_conversation_signals: createGetConversationSignalsTool(ctx),
-    // The Filing Cabinet — per-user files the CFO reads on demand and the user
-    // sees in the office. The prompt carries only the index; bodies come from here.
+  };
+
+  // The Filing Cabinet — per-user files the CFO reads on demand and the user
+  // sees in the office. The prompt carries only the index; bodies come from here.
+  //
+  // Gated together with the contract and the tool descriptions in
+  // context-builder: the contract is what makes reading mandatory, so shipping
+  // one without the other either advertises a tool that isn't here or supplies
+  // a tool the model was never told to use.
+  //
+  // Two complete shapes rather than a conditional spread — an optional property
+  // types as `Tool | undefined`, which the AI SDK's ToolSet index signature
+  // rejects.
+  if (!isMemoryFilesEnabled()) return base;
+
+  return {
+    ...base,
     read_memory_file: createReadMemoryFileTool(ctx),
     write_memory_file: createWriteMemoryFileTool(ctx),
     archive_memory_file: createArchiveMemoryFileTool(ctx),

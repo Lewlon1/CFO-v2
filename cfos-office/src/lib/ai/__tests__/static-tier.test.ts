@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { buildStaticTier, type StaticTierVariant } from '../context-builder'
 
 /**
@@ -21,6 +21,17 @@ const REGISTERS = [
 const VARIANTS: StaticTierVariant[] = ['general', 'first_read', 'goal_derive']
 
 describe('buildStaticTier', () => {
+  // The cabinet is on by default, but an A/B arm can leave MEMORY_FILES_ENABLED=0
+  // in the shell. These assertions are about the shipped prompt, so pin the flag
+  // on rather than letting the ambient environment decide what they mean.
+  beforeEach(() => {
+    vi.stubEnv('MEMORY_FILES_ENABLED', '1')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('is byte-identical across calls for every branch and register', () => {
     for (const variant of VARIANTS) {
       for (const register of REGISTERS) {
@@ -74,5 +85,57 @@ describe('buildStaticTier', () => {
     // The cabinet contract ships on both of the branches that can use it.
     expect(firstRead).toContain('## Your files on this user')
     expect(general).toContain('## Your files on this user')
+  })
+})
+
+/**
+ * MEMORY_FILES_ENABLED=0 is the control arm for measuring whether the filing
+ * cabinet earns its tokens. It has to remove the whole feature — contract and
+ * tool descriptions together — while leaving everything that is not the cabinet
+ * exactly where it was.
+ */
+describe('buildStaticTier with the filing cabinet disabled', () => {
+  beforeEach(() => {
+    vi.stubEnv('MEMORY_FILES_ENABLED', '0')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('drops the contract and the tool descriptions together', () => {
+    for (const variant of ['general', 'first_read'] as StaticTierVariant[]) {
+      const tier = buildStaticTier(REGISTERS[0], variant)
+      expect(tier).not.toContain('## Your files on this user')
+      // A described-but-absent tool is worse than one never offered.
+      for (const tool of ['read_memory_file', 'write_memory_file', 'archive_memory_file']) {
+        expect(tier).not.toContain(tool)
+      }
+    }
+  })
+
+  it('keeps the advisory perimeter — the control arm is not a compliance hole', () => {
+    // The perimeter went missing once already by riding inside a builder that
+    // returned early. It must not depend on an unrelated feature flag.
+    expect(buildStaticTier(REGISTERS[0], 'general')).toContain('## Advisory boundaries')
+    expect(buildStaticTier(REGISTERS[0], 'first_read')).toContain('## Advisory boundaries')
+  })
+
+  it('is still byte-stable within the arm', () => {
+    // Both arms have to be cacheable, or the comparison measures cache misses
+    // rather than the cabinet.
+    for (const variant of VARIANTS) {
+      expect(buildStaticTier(REGISTERS[0], variant)).toBe(buildStaticTier(REGISTERS[0], variant))
+    }
+  })
+
+  it('is smaller than the enabled arm on every branch', () => {
+    for (const variant of VARIANTS) {
+      const off = buildStaticTier(REGISTERS[0], variant).length
+      vi.stubEnv('MEMORY_FILES_ENABLED', '1')
+      const on = buildStaticTier(REGISTERS[0], variant).length
+      vi.stubEnv('MEMORY_FILES_ENABLED', '0')
+      expect(off).toBeLessThan(on)
+    }
   })
 })

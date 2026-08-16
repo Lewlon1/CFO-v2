@@ -4666,3 +4666,117 @@ conversation has run against this. The expected shape — turn 1 writes
 CP1+CP2+history, turns 2+ read ≥20k with small writes — is an estimate from the
 tier sizes, not an observation. The scripted staging measurement in the handoff
 is now the gate on believing any of it.
+
+## 2026-08-16 — The Filing Cabinet, Phase 5: making the thing measurable
+
+Lewis tested the branch and reported two things: the cabinet made no noticeable
+difference, and onboarding got worse — wrong numbers, hard to resonate with.
+His hypothesis was that the system prompt has grown too big and is crowding the
+model out. This phase builds the instruments to test that rather than arguing
+about it, because until now nothing in the repo could.
+
+### The hypothesis is probably wrong, and the code says why
+
+Worth stating up front, because it redirects the whole investigation: the
+symptoms are on the **First Read**, and the First Read is not composed by the
+big prompt. `compose-first-read.ts` calls `generateText` with **~2.1k tokens of
+system prompt and no tools**. The ~22–27k-token chat prompt never touches it.
+Prompt size cannot explain a First Read regression.
+
+Three candidates, none of which is "too many tokens":
+
+1. **The wrong numbers are a data-pipeline bug.**
+   `financial-position.ts:106-116` — when `monthly_snapshots.total_discretionary`
+   is NULL, free cash falls back to `income − fixedCosts` with
+   `basis: 'modelled'`, which assumes **zero day-to-day spending**. That column
+   is NULL exactly during onboarding: `computeTotalDiscretionaryForRow` returns
+   NULL whenever a month's spending is under the fixed-cost total, the
+   upload-time refresh is a no-op on first import, and both `syncTotalFixedCosts`
+   calls swallow their errors. Worse, the hedge that ships with a modelled figure
+   (`prompts/first-read.ts:764-767`) says "no real spending history exists yet" —
+   which reads as flatly false to someone who just uploaded three months of
+   statements. One mechanism produces both complaints: a wrong number *and* prose
+   that feels like it isn't about you.
+2. **The composer never receives the persona.** All five Read system prompts
+   carry "full voice lives in CFO-CONSTITUTION.md §2; do not restate it here",
+   and then `compose-first-read.ts:334` ships that prompt *alone* — `BASE_PERSONA`
+   is never passed. The Read is written by a model pointed at a voice document it
+   cannot see. The chat turn immediately after it *does* get `BASE_PERSONA`,
+   which is why the Read and the conversation can read like two different
+   writers.
+3. **Migration 082 may never have been applied.** If it wasn't, the contract and
+   the three tools still shipped in the prompt while every `read_memory_file`
+   call errored — and the UI hides that by design. Lewis would have been
+   comparing the cabinet against a cabinet that fails on every read. **This has
+   to be checked before any A/B is believed**; it invalidates the comparison.
+
+### What got built
+
+- **`src/lib/memory/flags.ts`** — `MEMORY_FILES_ENABLED`, on the `VALUE_MAP_V2`
+  pattern, default ON. Gates the contract (`buildStaticTier`), the tool
+  descriptions (`buildToolUsageInstructions`), the index
+  (`buildMemoryIndexContext`, which now also skips the query) and the three
+  tools (`createToolbox`). All four move together — a tool the model is told is
+  mandatory but cannot call is worse than one it was never offered.
+- **`src/lib/ai/experiment-metadata.ts`** — `experimentStamp()` writes
+  `memory_files_enabled`, and `run_id` / `prompt_variant` when the env names
+  them, into `llm_usage_log.metadata` on chat turns, tool calls and composes.
+  `hashPrompt` lives here and `scripts/eval/_lib/pair-storage.ts` now re-exports
+  it, so a rated pair and a production row hash the same prompt identically.
+- **`scripts/compare-first-insight.ts`** — the pair producer `eval/README.md`
+  has always referenced and the repo never had. Arm A is the composer prompt as
+  shipped; arm B is `BASE_PERSONA` + the same prompt. Facts come from the
+  persona fixtures through the production builders (`buildDeclaredFacts` →
+  `buildDeclaredUserPrompt`), so nothing about the input is invented and both
+  arms get a byte-identical user prompt.
+- **`scripts/scripted-chat.ts`** — the fixed 3-turn conversation the handoff's
+  step 5 asked for. Turns 1–2 should trigger a cabinet read; turn 3 is a numbers
+  control that should *not*. Prints the `llm_usage_log` SQL for both metrics.
+
+### The first real measurement
+
+The cabinet's tier-1 cost had never been measured. Hashing `buildStaticTier`
+across all three variants and three registers, against HEAD:
+
+| branch | cabinet on | cabinet off | delta |
+| --- | ---: | ---: | ---: |
+| `general` | 36,442 | 33,283 | **−3,159 chars ≈ 790 tok** |
+| `first_read` | 33,438 | 30,279 | **−3,159 chars ≈ 790 tok** |
+| `goal_derive` | 28,714 | 28,232 | −482 (tool bullets only) |
+
+Every enabled-arm hash is **byte-identical to HEAD**, so the flag costs the
+cached prefix nothing. That is the number the cabinet has to earn back in
+retrieval quality, and it is now a measurement rather than an estimate.
+
+### Gotchas for the next pass
+
+- **A conditional spread breaks `ToolSet`.** `{...(cond ? tools : {})}` types the
+  three tools as `Tool | undefined`, which the AI SDK's index signature rejects.
+  `createToolbox` returns two complete object shapes instead.
+- **Both arms must be cacheable.** If the off-arm weren't byte-stable the
+  comparison would measure cache misses, not the cabinet. Pinned in
+  `static-tier.test.ts`.
+- **The perimeter must survive the off-arm.** `ADVISORY_BOUNDARIES` went missing
+  once already by riding inside a builder that returned early; there is now a
+  test asserting it survives with the cabinet disabled.
+- **Tool-call rows needed the stamp too.** Read-rate is the metric that says the
+  retrieval contract works, and it is meaningless if a tool call can't be traced
+  to its arm — `logToolCall` stamps as well as `recordChatTurnStart`.
+- **The flag is read per request, never memoised.** One production build serves
+  both arms; the harness needs `next start`, and a code-edit variant would cost
+  a rebuild per arm.
+
+### Verification
+
+`typecheck` ✓ · `lint` ✓ (0 errors; 35 pre-existing warnings, none in files this
+phase touches) · `test` **1671 passing, 139 files** ✓ (up from 1667: four new
+cabinet-disabled cases) · `build` ✓ · byte-identity vs HEAD ✓ (9/9 tier hashes).
+
+**What is still unrun, and by whom.** Nothing here has touched Bedrock or
+staging: this container has no Supabase access to `qlbhvlssksnrhsleadzn` and its
+AWS credentials are rejected by Bedrock. `compare-first-insight.ts --dry-run`
+and `scripted-chat.ts --dry-run` both pass, so prompt assembly is verified; the
+live arms are not. Phase 0 (is 082 applied? did reads error? is the test user's
+cabinet empty? was free cash `modelled`?) is a handful of read-only SELECTs and
+should be run **first** — it can close the "wrong numbers" complaint on its own,
+and it decides whether Lewis's original comparison meant anything.

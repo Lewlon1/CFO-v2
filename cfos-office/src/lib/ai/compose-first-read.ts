@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { bedrock, composeModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
+import { experimentStamp, hashPrompt } from '@/lib/ai/experiment-metadata';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
 import { getDataWindowEnd, getDataWindowCoverage, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries';
@@ -68,7 +69,11 @@ const LEVER_FACTS_CONSISTENCY_TOLERANCE = 1;
 // The declared Read is 70–130 words (it stands on two numbers, not 90 days of
 // data), so it gets a tighter ceiling than the transaction Read — generous
 // enough to never truncate the CTA/sign-off, tight enough to cap a runaway.
-const DECLARED_MAX_OUTPUT_TOKENS = 400;
+// Exported so the A/B producer (scripts/compare-first-insight.ts) generates
+// under the same ceiling as production rather than keeping its own copy — a
+// variant that could run longer than the real thing would be rated on an
+// advantage the shipped path never has.
+export const DECLARED_MAX_OUTPUT_TOKENS = 400;
 
 const COMPOSE_MODEL = composeModelId;
 
@@ -346,7 +351,10 @@ export async function composeFirstRead(params: {
     model: COMPOSE_MODEL,
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
-    metadata: { mode },
+    // The prompt hash makes a compose attributable to the exact prompt that
+    // produced it — otherwise an A/B run's rows are indistinguishable, since no
+    // prompt text is persisted anywhere.
+    metadata: { mode, ...experimentStamp(hashPrompt(systemPrompt)) },
   });
 
   const composedMessage = result.text.trim();
@@ -993,7 +1001,10 @@ async function composeDeclaredRead(
     model: COMPOSE_MODEL,
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
-    metadata: { mode: 'declared' },
+    metadata: {
+      mode: 'declared',
+      ...experimentStamp(hashPrompt(FIRST_READ_SYSTEM_PROMPT_DECLARED)),
+    },
   });
 
   const metadata: FirstReadMetadata = {
