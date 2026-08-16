@@ -4780,3 +4780,91 @@ live arms are not. Phase 0 (is 082 applied? did reads error? is the test user's
 cabinet empty? was free cash `modelled`?) is a handful of read-only SELECTs and
 should be run **first** — it can close the "wrong numbers" complaint on its own,
 and it decides whether Lewis's original comparison meant anything.
+
+## 2026-08-16 — Phase 0 ran: the numbers bug is a missing migration
+
+Staging access arrived after the Phase 5 commit, so the audit that was written
+as a runbook actually got run. It answers both of Lewis's complaints, and
+neither answer is the system prompt.
+
+### Migration 079 is not applied, and that is the whole numbers bug
+
+The registry (`supabase_migrations.schema_migrations`) stops at **077**, but 081
+and 082 were applied anyway — so the registry is not a reliable account of what
+is deployed and the artifacts have to be probed directly. Doing that:
+
+| migration | staging | production |
+| --- | --- | --- |
+| 079 `monthly_snapshots.total_discretionary` | **missing** | missing |
+| 081 `llm_usage_log` cost columns | applied | missing |
+| 082 `memory_files` | applied | missing |
+
+`financial-position.ts:73` selects `total_spending, total_discretionary`. With
+079 unapplied that column does not exist, so PostgREST rejects **the entire
+select** (42703) — not just the missing field. `.data` comes back null, `rows`
+is `[]`, `avgDiscretionaryMonthly` is null, and `basis` falls through to
+`'modelled'` for **every user, unconditionally**. Free cash becomes
+`income − fixedCosts` with no day-to-day spending subtracted, and
+`formatFinancialFacts` then appends the line asserting "no real spending
+history exists yet".
+
+The failure is silent by construction: the error is logged and execution
+continues, and the citation validator cannot catch it because the prose quotes
+the handed facts faithfully — the facts are what is wrong. **No validator fired
+on either August Read.** An empty validator table is not evidence the numbers
+were right.
+
+### The Read that proves it
+
+User `8fe8de6b`: 336 transactions, four months of snapshots, ~€1,870/mo of real
+spending. Their filed Read opens:
+
+> "Free cash flow sits at €1,407 a month, but that's a paper figure built on
+> fixed costs alone, with no real day-to-day spending counted against it yet."
+
+and then, three paragraphs later, itemises that spending — €591/mo eating out
+at 29.5% of everything tracked, €475 at ALDI over 91 days, a single €341
+restaurant visit. The same message denies and describes the same spending,
+because the two halves come from different sources: the free-cash figure from
+the broken `monthly_snapshots` read, the breakdown straight from
+`transactions`. Then it builds a €553 shortfall on top of the fake €1,407.
+
+That is the "incorrect numbers" and the "hard to resonate with", in one
+artifact, from one root cause. `total_fixed_costs` is NULL and `total_income`
+is 0 across every snapshot row for that user too — the snapshot refresh never
+completed — so the ordering race flagged in Phase 5 is real as well, but it is
+the second-order problem behind the missing column.
+
+### The cabinet could not have helped, and never read anything
+
+- `read_memory_file`, `write_memory_file`, `archive_memory_file`: **zero calls,
+  ever.** Not throttled, not erroring — never invoked. The control rules out an
+  instrumentation gap: `create_goal` has 64 calls, most recently 2026-08-15,
+  inside the same test window.
+- The cabinet holds **two files total, across two users**, both
+  `values/first-read`, both `source='system'` — written by `fileComposedRead`
+  *after* the Read composed. The CFO has never chosen to record anything.
+- So on the First Read the index is empty (cost, no benefit), and on the two
+  subsequent chat turns the only retrievable file is a verbatim copy of the Read
+  the user had just been shown. **"I couldn't notice any difference" was the
+  correct observation**, and the branch's own read-rate metric now reads 0%.
+
+August traffic in total: 2 `chat_turn`, 1 `tool_call`, 2 `first_read_compose`.
+The cabinet has never been exercised by a conversation long enough to need it.
+
+### What this changes
+
+1. **Apply 079 to staging** before anything else; re-run one onboarding and
+   confirm `basis` comes back `'observed'`. This is the fix for the complaint
+   Lewis actually raised.
+2. **079 must ship with this branch to prod**, which is missing 079, 081 and
+   082. The consuming code and the migration landed together on
+   `claude/filing-cabinet-handoff-11cac5`, so prod is not broken today — it
+   would break on deploy without the migration.
+3. **The A/B is not worth running yet.** Comparing cabinet-on against
+   cabinet-off measures nothing while the read rate is 0% on both sides. The
+   question is no longer "does retrieval help" but "why does the model never
+   retrieve" — the contract says MANDATORY and gets ignored, which is a prompt
+   *content* problem, not a prompt *size* one.
+4. The E2 persona experiment is still worth running as designed: it is
+   independent of all of the above and tests the composer's missing persona.
