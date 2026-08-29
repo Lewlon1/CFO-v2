@@ -17,6 +17,7 @@ import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
+import type { CitedFigure } from '@/lib/ai/insight-validator';
 import type {
   FinancialFacts,
   DeclaredReadFacts,
@@ -122,6 +123,14 @@ export type FirstReadMetadata = {
   is_recompose?: boolean;
   /** Probe: does the recompose's first sentence string-match the prior Read's first sentence (should be false on a well-formed delta). */
   repeated_opening?: boolean;
+  /**
+   * The computed figures the composed prose actually cited, each tagged with the
+   * fact bundle that produced it. Snapshotted onto read_feedback when a user
+   * reports an error, so "the £340 is wrong" traces back to spending_breakdown
+   * rather than to a guess. Capped at MAX_CITED_FIGURES (40); absent on Reads
+   * composed before migration 083 shipped.
+   */
+  citation_set?: CitedFigure[];
 };
 
 export type FirstReadComposeOutput = {

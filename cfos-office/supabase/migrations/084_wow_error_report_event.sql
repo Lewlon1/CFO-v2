@@ -1,0 +1,30 @@
+-- 084_wow_error_report_event.sql
+--
+-- Adds 'error_report_tapped' to public.wow_event_type. Emitted the moment a
+-- user taps "Anything in here wrong?" under their First Read — before they
+-- type anything, because the tap itself is the engagement signal. Scored in
+-- the in-session tier alongside chip_tapped (0.4) by
+-- src/lib/wow/realised-score.ts.
+--
+-- WHY THIS IS ALONE IN ITS OWN FILE: Postgres will not let a newly-added enum
+-- value be *used* in the same transaction that added it. Supabase runs each
+-- migration in its own transaction, and 029_rename_unsure_to_no_idea.sql relies
+-- on that to get away with an ADD VALUE followed by UPDATEs using the new value.
+-- Rather than lean on that again, this migration adds the value and does nothing
+-- else. Anything that references 'error_report_tapped' belongs in a later file.
+--
+-- DELIBERATELY NOT DONE: extending the wow_events_idempotent partial index
+-- (065) to cover the new value. That index's predicate is an IN list, so
+-- widening it means DROP + CREATE — which would reference the new value in this
+-- same transaction, the exact hazard above. Duplicates are harmless here:
+-- computeRealisedScore tests presence with has(), and the admin surfaces render
+-- booleans, so a second row changes nothing. The client latches on first tap.
+--
+-- DEPLOY ORDER: this must be applied to staging BEFORE any code that emits
+-- 'error_report_tapped' deploys, or the insert fails on invalid enum input.
+--
+-- Apply to staging (qlbhvlssksnrhsleadzn) via the normal apply_migration path.
+-- Prod (iccelmjenljanqrhhzdv) gets the companion prod-backfill-084, run by hand.
+-- Additive; idempotent via IF NOT EXISTS.
+
+ALTER TYPE public.wow_event_type ADD VALUE IF NOT EXISTS 'error_report_tapped';

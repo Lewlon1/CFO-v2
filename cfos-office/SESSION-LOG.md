@@ -4912,3 +4912,97 @@ the chat route's caching code needed no changes either.
   against this codebase's validators (Rule 2) or against CFO-CONSTITUTION.md's
   voice. Test this specifically before trusting Nova on live chat traffic, not
   just the rate math.
+
+---
+
+## 2026-08-29 — Read error reports: one affordance instead of two ratings
+
+**Branch:** `claude/filing-cabinet-system-testing-0d0cy2`. Migrations 083 + 084,
+applied to staging; prod twins written and not applied.
+
+**Scope:** beta users had no way to tell us a number in their First Read was
+*wrong*. The two channels that existed under a Read were both ratings —
+`MessageFeedback`'s thumbs (on every assistant message) and `ResonanceTap`'s
+"did this read you right?" — and a rating gives you a number you can't act on.
+Replaced both **on the Read only** with a single quiet inline control,
+"Anything in here wrong?" → textarea → `read_feedback` row. Thumbs still render
+on every other assistant message; `ResonanceTap.tsx` is deleted.
+
+**Phase 0 finding that changed the design:** the real estate was already
+occupied twice over. Adding a third control would have split the tap rate three
+ways and diluted the very signal we were building. The suppression is a one-line
+`&& !isFirstInsightMessage` on the existing feedback block in `MessageList.tsx`.
+
+**The citation set did not exist anywhere persistent.** `buildCitationAllowlist`
+ran in memory in `compose-first-read.ts` and was discarded; only *failures* were
+logged. Added `extractCitedFigures` — the inverse of `validateCitations`,
+returning the numbers that traced to *something*, each tagged with its bundle —
+and persisted it to `conversations.metadata.first_read_metadata.citation_set`
+(no migration; that blob is already written wholesale by the compose routes).
+
+**Snapshot, don't join.** `/api/reads/feedback` copies `citation_set`,
+`read_context` and the Read prose onto the report row at report time. Joining
+them later would be wrong: `recompose-first-read` and `upgrade-declared-read`
+overwrite `first_read_metadata` underneath an existing report, so a join would
+show you a different Read than the one the user complained about. The admin
+deep-dive diffs `read_snapshot` against the live message and reveals the
+original behind a disclosure when they differ.
+
+### Gotchas worth keeping
+
+- **`ALTER TYPE ... ADD VALUE` gets its own migration file.** Postgres won't let
+  a new enum value be *used* in the transaction that added it. 029 gets away
+  with ADD VALUE + UPDATE in one file because Supabase commits between
+  statements, but that's a bet, not a guarantee. 084 adds the value and does
+  nothing else. Corollary: the `wow_events_idempotent` partial index was
+  deliberately **not** widened to cover `error_report_tapped` — its predicate is
+  an `IN` list, so widening means DROP + CREATE referencing the new value. Left
+  alone; duplicates are harmless because `computeRealisedScore` uses `has()`.
+- **`buildCitationAllowlist` shares one `visited` WeakSet across all bundles.**
+  Harmless when you only want the union, but fatal for per-source attribution: a
+  bundle sharing an object reference with an earlier one walks to nothing.
+  `extractCitedFigures` gives each source its own WeakSet. There's a test for it.
+- **`extractCitedFigures` returns narrative order, not bundle order.** Reading
+  order is what a user describes a figure in. My first test asserted bundle
+  order and was simply wrong.
+- **`delete_user_account` ordering matters for the row counts.** `read_feedback`
+  FKs to both `messages` and `conversations` with ON DELETE CASCADE, so it must
+  be deleted *before* them or its count silently reports 0. Note `wow_events`
+  and `wow_assessments` are still absent from that function entirely — they
+  cascade, but the function's contract is explicit per-table counts, so that's a
+  pre-existing gap someone should close.
+- **The GDPR RPCs were copied programmatically from 082, not retyped.** Sections
+  2–3 of 083 are a scripted extract of 082's function bodies with only the
+  `read_feedback` lines inserted, so the auth guard, `search_path` and
+  REVOKE/GRANT block are byte-faithful by construction rather than by care.
+  Worth repeating for 085.
+- **`realised_wow_score` changed shape.** `error_report_tapped` joined
+  `chip_tapped` in the 0.4 in-session tier. Because the tiers combine with
+  `max()`, this can only ever *raise* a score — pre-083 numbers are a floor, not
+  a like-for-like comparison. Two existing tests asserted `reasoning` with an
+  exhaustive `toEqual` and had to be updated; that's the tripwire that catches
+  anyone adding a reasoning field without thinking about it.
+- The Supabase clients in `server.ts`/`service.ts` carry **no `Database`
+  generic**, so a new table needs no generated-types regeneration.
+
+### Verified
+
+`npm run typecheck` clean · `npm test` 1696/1696 across 140 files ·
+`npm run build` exit 0 · lint 0 errors. On staging: enum has 8 labels; exactly
+two own-row RLS policies; a cross-user insert, an empty body and a bogus status
+are all rejected; `export_user_data` returns the report and still returns
+`memory_files`/`conversations`; `anon` still cannot execute it; duplicate
+`error_report_tapped` events insert cleanly. Verification rows deleted —
+`read_feedback` is empty on staging.
+
+**Not verified:** the control has not been seen in a browser. It needs an
+authenticated session on a `first_read` conversation, which this session had no
+way to reach. Build-green is compilation, not a look at the thing.
+
+### Follow-ups
+
+- Eyeball the control on staging: one affordance under the Read, no thumbs, no
+  Yes/Not-really.
+- `status` has no UI. Triage is manual SQL until someone wants otherwise.
+- Reads composed before 083 have an empty `citation_set`; the route degrades to
+  `[]` rather than failing. Not backfilled.

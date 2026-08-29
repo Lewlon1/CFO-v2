@@ -206,6 +206,74 @@ export function buildCitationAllowlist(
   return { numbers, merchants };
 }
 
+/** A computed figure the prose actually cited, tagged with the bundle it came from. */
+export interface CitedFigure {
+  value: number;
+  source: string;
+}
+
+/**
+ * The inverse of validateCitations: instead of the numbers in the prose that
+ * traced to NOTHING, return the ones that traced to SOMETHING — each tagged
+ * with the tool/bundle that produced it.
+ *
+ * This is what makes an error report actionable. When a beta user says a figure
+ * in their Read is wrong, we need to know which computed source handed it to the
+ * model. Persisted onto conversations.metadata.first_read_metadata at compose
+ * time and snapshotted onto read_feedback when a report is filed.
+ *
+ * Only figures present in the narrative are returned — the full allowlist runs
+ * to hundreds of numbers per Read, nearly all of which the user never saw.
+ * Matching uses the same ±1 tolerance as validateCitations, so the two agree on
+ * what counts as "cited". First source wins on a tie, so the result is stable
+ * for a given bundle order. Deduped by value and capped at MAX_CITED_FIGURES.
+ *
+ * Ordered by first appearance in the NARRATIVE, not by bundle — the list reads
+ * in the same sequence the user met the figures, which is the order they will
+ * describe them in when they tell us one is wrong.
+ */
+export const MAX_CITED_FIGURES = 40;
+
+export function extractCitedFigures(
+  narrative: string,
+  toolResults: ToolResultLike[],
+): CitedFigure[] {
+  // Per-source number sets. Each walk gets its OWN visited set: the shared one
+  // in buildCitationAllowlist is fine for a union, but here it would let a
+  // bundle that shares an object reference with an earlier one silently lose
+  // its numbers.
+  const bySource: Array<{ source: string; numbers: Set<number> }> = toolResults.map((result) => {
+    const numbers = new Set<number>();
+    const merchants = new Set<string>();
+    walkForCitations(result.output, numbers, merchants, new WeakSet<object>());
+    return { source: result.toolName, numbers };
+  });
+
+  const figures: CitedFigure[] = [];
+  const seen = new Set<number>();
+
+  for (const cited of extractNumbers(narrative)) {
+    if (seen.has(cited)) continue;
+    for (const { source, numbers } of bySource) {
+      let matched = false;
+      for (const allowed of numbers) {
+        if (Math.abs(cited - allowed) <= 1) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched) {
+        seen.add(cited);
+        figures.push({ value: cited, source });
+        break;
+      }
+    }
+    if (figures.length >= MAX_CITED_FIGURES) break;
+  }
+
+  return figures;
+}
+
 export interface CitationCheckResult {
   valid: boolean;
   unmatched: { numbers: string[]; merchants: string[] };

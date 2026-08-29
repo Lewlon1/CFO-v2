@@ -13,6 +13,16 @@ export const dynamic = 'force-dynamic';
 
 type Params = { insightId: string };
 
+type ReadFeedbackRow = {
+  id: string;
+  body: string;
+  citation_set: Array<{ value: number; source: string }> | null;
+  read_context: Record<string, unknown> | null;
+  read_snapshot: string | null;
+  status: string;
+  created_at: string;
+};
+
 export default async function AdminWowDetailPage({
   params,
 }: {
@@ -52,7 +62,8 @@ export default async function AdminWowDetailPage({
 
   // Parallel data fetch: profile, admin user record (for email — user_profiles
   // has no email column), insight body, events, follow-up messages.
-  const [profile, adminUserResult, insightRow, events, conversationRow, followUps] = await Promise.all([
+  const [profile, adminUserResult, insightRow, events, conversationRow, followUps, reportRows] =
+    await Promise.all([
     svc
       .from('user_profiles')
       .select('display_name, country, primary_currency')
@@ -82,10 +93,20 @@ export default async function AdminWowDetailPage({
       .gt('created_at', assessment.delivered_at)
       .order('created_at', { ascending: true })
       .limit(3),
+    svc
+      .from('read_feedback')
+      .select('id, body, citation_set, read_context, read_snapshot, status, created_at')
+      .eq('first_read_message_id', insightId)
+      .order('created_at', { ascending: true }),
   ]);
 
   const insight = insightRow.data;
   const conversation = conversationRow.data;
+  const reports = (reportRows.data ?? []) as ReadFeedbackRow[];
+  // The Read as it stands NOW. A report's read_snapshot is the Read as it stood
+  // when the user complained — recompose can have rewritten it since, which is
+  // exactly why the snapshot is stored per report rather than joined.
+  const currentReadBody = insight?.content ?? null;
   const userEmail = adminUserResult.data?.user?.email ?? assessment.user_id;
   const profileLine = profile.data
     ? `${userEmail} · ${profile.data.country ?? '—'} · ${profile.data.primary_currency ?? '—'}`
@@ -112,6 +133,78 @@ export default async function AdminWowDetailPage({
         <div className="border border-border rounded-md p-4 bg-card whitespace-pre-wrap text-sm leading-relaxed">
           {insight?.content ?? '(message body missing — was it deleted?)'}
         </div>
+      </section>
+
+      {/* Session 083 — where a report becomes a diff. Each row pairs the user's
+          own words with the figures that Read cited and the source that computed
+          each one, so "the £340 is wrong" resolves to a bundle, not a guess. */}
+      <section>
+        <h2 className="text-sm font-medium text-muted-foreground mb-2">
+          Error reports ({reports.length})
+        </h2>
+        {reports.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            None. The control is a single tap under the Read — no report means
+            either nothing was wrong or nobody looked closely enough to say.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {reports.map((r) => {
+              const figures = Array.isArray(r.citation_set) ? r.citation_set : [];
+              const staleSnapshot =
+                r.read_snapshot != null &&
+                currentReadBody != null &&
+                r.read_snapshot !== currentReadBody;
+              return (
+                <div key={r.id} className="border border-destructive/40 rounded-md p-4 bg-card">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                    <span>{fmtDateTime(r.created_at)}</span>
+                    <span>·</span>
+                    <span className="uppercase tracking-wide">{r.status}</span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{r.body}</p>
+
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="text-xs text-muted-foreground mb-1">
+                      Figures this Read cited ({figures.length})
+                    </div>
+                    {figures.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        None recorded — composed before migration 083 shipped.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {figures.map((f, i) => (
+                          <span
+                            key={`${r.id}-fig-${i}`}
+                            className="text-xs border border-border rounded px-1.5 py-0.5"
+                          >
+                            {f.value}{' '}
+                            <span className="text-muted-foreground">· {f.source}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Context: {fmtReadContext(r.read_context)}
+                    </div>
+                  </div>
+
+                  {staleSnapshot && (
+                    <details className="mt-3 pt-3 border-t border-border">
+                      <summary className="text-xs text-destructive cursor-pointer">
+                        The Read has changed since this report — show what they actually saw
+                      </summary>
+                      <div className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                        {r.read_snapshot}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section>
@@ -262,4 +355,17 @@ function fmtTimeOnly(iso: string): string {
     minute: '2-digit',
     second: '2-digit',
   });
+}
+
+/** One-line summary of a report's composition context: how the Read was built. */
+function fmtReadContext(context: Record<string, unknown> | null): string {
+  if (!context) return '—';
+  const parts: string[] = [];
+  if (context.mode) parts.push(`mode ${String(context.mode)}`);
+  if (context.read_recipe) parts.push(`recipe ${String(context.read_recipe)}`);
+  if (Array.isArray(context.layers_used) && context.layers_used.length > 0) {
+    parts.push(`layers ${(context.layers_used as unknown[]).join('/')}`);
+  }
+  if (context.is_recompose) parts.push('recompose');
+  return parts.join(' · ') || '—';
 }

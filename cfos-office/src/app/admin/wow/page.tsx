@@ -38,6 +38,7 @@ type EventCounts = {
   returned_d2: boolean;
   resonance_tap_positive: boolean;
   resonance_tap_negative: boolean;
+  error_report_tapped: boolean;
 };
 
 export default async function AdminWowIndexPage() {
@@ -99,9 +100,28 @@ export default async function AdminWowIndexPage() {
         returned_d2: false,
         resonance_tap_positive: false,
         resonance_tap_negative: false,
+        error_report_tapped: false,
       };
       existing[e.event_type] = true;
       eventsByInsight.set(e.first_read_message_id, existing);
+    }
+  }
+
+  // Error reports per Read (Session 083). A Read someone bothered to correct is
+  // the most interesting row on this page, so it gets its own column rather than
+  // hiding behind the 🚩 signal icon — the icon says "they tapped", the count
+  // says "they actually told us something".
+  const reportCountByRead = new Map<string, number>();
+  if (insightIds.length > 0) {
+    const { data: reports } = await svc
+      .from('read_feedback')
+      .select('first_read_message_id')
+      .in('first_read_message_id', insightIds);
+    for (const r of (reports ?? []) as Array<{ first_read_message_id: string }>) {
+      reportCountByRead.set(
+        r.first_read_message_id,
+        (reportCountByRead.get(r.first_read_message_id) ?? 0) + 1,
+      );
     }
   }
 
@@ -170,6 +190,7 @@ export default async function AdminWowIndexPage() {
               <Th>Layers</Th>
               <Th>Features</Th>
               <Th>Gap?</Th>
+              <Th>Reports</Th>
               <Th>Detail</Th>
             </tr>
           </thead>
@@ -190,6 +211,9 @@ export default async function AdminWowIndexPage() {
                   <Td>{(r.layers_used ?? []).join(', ') || '—'}</Td>
                   <Td>{(r.features_cited ?? []).join(', ') || '—'}</Td>
                   <Td>{r.gap_present ? '✓' : '—'}</Td>
+                  <Td className={reportCountByRead.get(r.first_read_message_id) ? 'text-destructive font-medium' : ''}>
+                    {reportCountByRead.get(r.first_read_message_id) ?? '—'}
+                  </Td>
                   <Td>
                     <Link
                       href={`/admin/wow/${r.first_read_message_id}`}
@@ -244,6 +268,7 @@ function SignalIcons({ events }: { events: EventCounts | undefined }) {
   if (events.returned_d2) parts.push('🌅');
   if (events.resonance_tap_positive) parts.push('👍');
   if (events.resonance_tap_negative) parts.push('👎');
+  if (events.error_report_tapped) parts.push('🚩');
   return <span>{parts.join(' ') || '—'}</span>;
 }
 

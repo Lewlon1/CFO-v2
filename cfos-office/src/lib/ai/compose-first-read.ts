@@ -28,7 +28,11 @@ import {
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
 import { getFinancialPosition, type FinancialPositionBasis } from '@/lib/finance/financial-position';
-import { buildCitationAllowlist, validateCitations } from '@/lib/ai/insight-validator';
+import {
+  buildCitationAllowlist,
+  extractCitedFigures,
+  validateCitations,
+} from '@/lib/ai/insight-validator';
 import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
@@ -370,16 +374,17 @@ export async function composeFirstRead(params: {
   // the same way the chat route's citation check does, rather than forcing
   // a regenerate (a bigger behavioural change better proven out via this
   // telemetry first).
+  // Hoisted so the citation CHECK and the cited-figure CAPTURE below provably
+  // run over the same three bundles — if they ever drifted apart, a report
+  // could name a source that never fed this Read.
+  const factBundles = [
+    { toolName: 'financial_facts', output: financialFacts },
+    { toolName: 'levers', output: leverPackage.levers },
+    { toolName: 'spending_breakdown', output: spendingBreakdown },
+  ];
   const citationCheck = validateCitations(
     composedMessage,
-    buildCitationAllowlist(
-      [
-        { toolName: 'financial_facts', output: financialFacts },
-        { toolName: 'levers', output: leverPackage.levers },
-        { toolName: 'spending_breakdown', output: spendingBreakdown },
-      ],
-      {},
-    ),
+    buildCitationAllowlist(factBundles, {}),
   );
   if (!citationCheck.valid && citationCheck.unmatched.numbers.length > 0) {
     console.error('[compose-first-read] citation check found unmatched numbers', {
@@ -400,6 +405,12 @@ export async function composeFirstRead(params: {
     spendingBreakdown,
     priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
   });
+
+  // Which computed figures this Read actually put in front of the user, and
+  // which bundle produced each. Rides conversations.metadata.first_read_metadata
+  // (no migration); /api/reads/feedback snapshots it onto a report so a beta
+  // user's "this number is wrong" traces back to the source that computed it.
+  metadata.citation_set = extractCitedFigures(composedMessage, factBundles);
 
   return { composedMessage, metadata };
 }

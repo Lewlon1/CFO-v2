@@ -12,6 +12,8 @@ import {
   validateVoice,
   validateChips,
   appendCorrection,
+  extractCitedFigures,
+  MAX_CITED_FIGURES,
   type ToolResultLike,
 } from './insight-validator';
 
@@ -392,5 +394,92 @@ describe('appendCorrection', () => {
     expect(out).toContain('2 numbers not grounded');
     expect(out).toContain('1 projection not backed');
     expect(out).toContain('1 voice phrase');
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// extractCitedFigures (Session 083)
+//
+// The inverse of validateCitations. Feeds read_feedback.citation_set, so a beta
+// user's "that number is wrong" traces back to the bundle that computed it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('extractCitedFigures', () => {
+  const bundles: ToolResultLike[] = [
+    { toolName: 'financial_facts', output: { income: 3300, rent: 1200 } },
+    { toolName: 'levers', output: [{ monthly_impact: 85 }] },
+    { toolName: 'spending_breakdown', output: { top_categories: [{ name: 'dining', total: 420 }] } },
+  ];
+
+  it('returns only figures the prose actually cited, each tagged with its bundle', () => {
+    const figures = extractCitedFigures('Dining ran £420 against income of £3,300.', bundles);
+    // Narrative order, not bundle order — the list reads in the same sequence
+    // the user met the figures, which is the order they will describe them in.
+    expect(figures).toEqual([
+      { value: 420, source: 'spending_breakdown' },
+      { value: 3300, source: 'financial_facts' },
+    ]);
+  });
+
+  it('omits allowlist figures the prose never mentioned', () => {
+    const figures = extractCitedFigures('Dining ran £420.', bundles);
+    expect(figures.map((f) => f.value)).toEqual([420]);
+    expect(figures.map((f) => f.value)).not.toContain(1200);
+  });
+
+  it('omits prose numbers that trace to nothing — those are validateCitations business', () => {
+    const figures = extractCitedFigures('You spent £999 on dining.', bundles);
+    expect(figures).toEqual([]);
+  });
+
+  it('honours the same ±1 tolerance validateCitations uses, so the two agree', () => {
+    const figures = extractCitedFigures('Rent is about £1,201.', bundles);
+    expect(figures).toEqual([{ value: 1201, source: 'financial_facts' }]);
+  });
+
+  it('ignores numbers under 10, matching extractNumbers', () => {
+    const figures = extractCitedFigures('Three meals, £420 total.', [
+      { toolName: 'spending_breakdown', output: { count: 3, total: 420 } },
+    ]);
+    expect(figures).toEqual([{ value: 420, source: 'spending_breakdown' }]);
+  });
+
+  it('attributes a figure to the first bundle that contains it, deterministically', () => {
+    const shared: ToolResultLike[] = [
+      { toolName: 'financial_facts', output: { rent: 1200 } },
+      { toolName: 'spending_breakdown', output: { housing: 1200 } },
+    ];
+    expect(extractCitedFigures('Rent £1,200.', shared)).toEqual([
+      { value: 1200, source: 'financial_facts' },
+    ]);
+  });
+
+  it('does not lose a later bundle to a shared object reference', () => {
+    // buildCitationAllowlist shares one visited WeakSet across bundles, which is
+    // harmless for a union but would silently blank the second source here.
+    const shared = { total: 420 };
+    const figures = extractCitedFigures('Dining £420.', [
+      { toolName: 'financial_facts', output: { nested: shared } },
+      { toolName: 'spending_breakdown', output: { nested: shared } },
+    ]);
+    expect(figures).toEqual([{ value: 420, source: 'financial_facts' }]);
+  });
+
+  it('dedupes a figure repeated in the prose', () => {
+    const figures = extractCitedFigures('£420 on dining. That £420 is the story.', bundles);
+    expect(figures).toEqual([{ value: 420, source: 'spending_breakdown' }]);
+  });
+
+  it('caps the result so conversation metadata stays small', () => {
+    const many = Array.from({ length: MAX_CITED_FIGURES + 15 }, (_, i) => 100 + i);
+    const figures = extractCitedFigures(many.join(', '), [
+      { toolName: 'spending_breakdown', output: many },
+    ]);
+    expect(figures).toHaveLength(MAX_CITED_FIGURES);
+  });
+
+  it('returns an empty array for an empty bundle list', () => {
+    expect(extractCitedFigures('Dining ran £420.', [])).toEqual([]);
   });
 });
