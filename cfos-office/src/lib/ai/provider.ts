@@ -100,6 +100,12 @@ export function resolveEuModel(
   return assertEuBedrockModel(modelId, label)
 }
 
+// Any `eu.` Bedrock inference profile works here, not just Anthropic's — e.g.
+// setting BEDROCK_CLAUDE_MODEL=eu.amazon.nova-pro-v1:0 or
+// BEDROCK_CLAUDE_UTILITY_MODEL=eu.amazon.nova-lite-v1:0 opts that surface into
+// Amazon Nova for a cost/quality A/B. Claude stays the default. Add the
+// profile's rate to rates.ts first, or cost logging degrades to null for that
+// surface (see rates.ts's throw-on-unknown-profile design).
 export const chatModelId = resolveEuModel(
   process.env.BEDROCK_CLAUDE_MODEL,
   'eu.anthropic.claude-sonnet-4-6',

@@ -4868,3 +4868,47 @@ The cabinet has never been exercised by a conversation long enough to need it.
    *content* problem, not a prompt *size* one.
 4. The E2 persona experiment is still worth running as designed: it is
    independent of all of the above and tests the composer's missing persona.
+
+## 2026-08-29 — Amazon Nova added as an opt-in Bedrock model, Claude stays default
+
+Lewis wants to A/B Nova against Claude for cost. `provider.ts`'s env-var
+resolution (`BEDROCK_CLAUDE_MODEL` etc.) was already model-family-agnostic —
+`resolveEuModel`/`assertEuBedrockModel` only check for an `eu.` prefix, not
+`anthropic.` — so pointing an env var at a Nova profile needed zero code
+changes to actually route the call. The real gap was `rates.ts`: it throws on
+any inference profile it doesn't recognise (by design, so cost never silently
+zeroes), so Nova traffic would have logged with `computed_cost_usd: null`
+forever. Added `eu.amazon.nova-pro-v1:0` ($0.80/$3.20 per MTok) and
+`eu.amazon.nova-lite-v1:0` ($0.06/$0.24 per MTok) to the rate table, bumped
+`RATE_VERSION` to `2026-08-C1`.
+
+**Nova Premier (the tier above Pro) has no EU cross-region inference profile**
+— confirmed via AWS's Nova Premier announcement and the EU/APAC Nova rollout
+post; it's US-only (N. Virginia/Ohio/Oregon). So the opus-tier env var
+(`BEDROCK_OPUS_MODEL`, used only by `value-map/reveal`) can reach Nova Pro but
+not a stronger model — there's no Nova equivalent of "Opus above Sonnet" while
+staying EU-only. Lewis chose to point the reveal at Nova Pro anyway rather than
+leave it on Claude Opus, accepting that the reveal becomes the same model as
+regular chat rather than a stronger one.
+
+Verified before wiring anything: no `@anthropic-ai/*` imports and no
+Claude-response-shape coupling anywhere in the codebase (no thinking-block
+parsing, no raw `stop_reason` handling) — everything goes through the generic
+`ai` SDK, so nothing else should care which vendor answers. Bedrock prompt
+caching (the `providerOptions.bedrock.cachePoint` directive `chat/route.ts`
+already sets) is GA for Nova Pro/Lite too, same `{type: 'default'}` shape, so
+the chat route's caching code needed no changes either.
+
+**Two things intentionally left alone, worth knowing about:**
+- `demo/reading/route.ts` hardcodes the literal `'eu.anthropic.claude-opus-4-6'`
+  instead of importing `opusModelId` — the public/unauthenticated marketing
+  demo bypasses the Nova opt-in entirely and will keep calling Claude Opus
+  regardless of the env var. Not touched; flagged only.
+- The forced-tool-choice retry in `chat/route.ts` (~line 1046, re-invokes with
+  `toolChoice: {type: 'tool', toolName: 'record_value_classifications'}` to
+  self-heal a hallucinated save) is the single highest-risk site for a Nova
+  swap on the main chat model — it depends on reliably honouring a forced tool
+  choice, and Nova's tool-calling behaviour on Bedrock hasn't been evaluated
+  against this codebase's validators (Rule 2) or against CFO-CONSTITUTION.md's
+  voice. Test this specifically before trusting Nova on live chat traffic, not
+  just the rate math.
