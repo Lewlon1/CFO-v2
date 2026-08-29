@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { assertEuBedrockModel, resolveEuModel } from './provider';
+import { assertEuBedrockModel, resolveEuModel, resolveEuModelIsolated } from './provider';
 
 const ORIGINAL_ALLOW = process.env.ALLOW_NON_EU_BEDROCK;
 const ORIGINAL_PHASE = process.env.NEXT_PHASE;
@@ -84,5 +84,32 @@ describe('resolveEuModel (build phase vs runtime)', () => {
     expect(() =>
       resolveEuModel('us.anthropic.claude-sonnet-4-6', 'eu.fallback', 'compose model'),
     ).toThrow(/non-EU/);
+  });
+});
+
+describe('resolveEuModelIsolated (blast-radius containment)', () => {
+  // Incident 2026-08-29: BEDROCK_OPUS_MODEL set to a Nova A/B value without
+  // the eu. prefix threw during module evaluation, which crashed EVERY route
+  // importing provider.ts — including /api/chat, which never reads
+  // opusModelId. This surface must fail on its own, not take the others down.
+  it('falls back to the given default instead of throwing for a non-EU value', () => {
+    delete process.env.ALLOW_NON_EU_BEDROCK;
+    delete process.env.NEXT_PHASE;
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(
+      resolveEuModelIsolated('amazon.nova-pro-v1:0', 'eu.anthropic.claude-opus-4-6', 'opus model'),
+    ).toBe('eu.anthropic.claude-opus-4-6');
+    expect(errorSpy).toHaveBeenCalledOnce();
+    expect(String(errorSpy.mock.calls[0][0])).toMatch(/opus model misconfigured/);
+  });
+
+  it('passes through a valid eu. value unchanged, quietly', () => {
+    delete process.env.ALLOW_NON_EU_BEDROCK;
+    delete process.env.NEXT_PHASE;
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(
+      resolveEuModelIsolated('eu.amazon.nova-pro-v1:0', 'eu.anthropic.claude-sonnet-4-6', 'chat model'),
+    ).toBe('eu.amazon.nova-pro-v1:0');
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

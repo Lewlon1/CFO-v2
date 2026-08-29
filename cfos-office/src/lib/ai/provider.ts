@@ -106,12 +106,44 @@ export function resolveEuModel(
 // Amazon Nova for a cost/quality A/B. Claude stays the default. Add the
 // profile's rate to rates.ts first, or cost logging degrades to null for that
 // surface (see rates.ts's throw-on-unknown-profile design).
-export const chatModelId = resolveEuModel(
+//
+// Each of the four calls below is isolated (see resolveEuModelIsolated): a
+// throw from ONE bad env var must not crash the other three. Without this,
+// four unrelated surfaces shared one module-level evaluation, so a typo'd
+// BEDROCK_OPUS_MODEL (missing the eu. prefix — e.g. the bare foundation-model
+// id instead of the eu. cross-region inference-profile id) threw during
+// `import '@/lib/ai/provider'` and took the whole module down. Next.js
+// doesn't finish initializing a module that throws during evaluation, so
+// EVERY route importing this file failed cold-start with
+// FUNCTION_INVOCATION_FAILED — including /api/chat, which never reads
+// opusModelId at all (incident 2026-08-29: a Nova test on the reveal path's
+// model var broke ordinary chat).
+export function resolveEuModelIsolated(
+  envValue: string | undefined,
+  fallback: string,
+  label: string,
+): string {
+  try {
+    return resolveEuModel(envValue, fallback, label)
+  } catch (err) {
+    // Rule 5's real invariant is "no non-EU Bedrock call ever happens" — the
+    // hardcoded `fallback` values below are always eu.-prefixed, so falling
+    // back to one still upholds that invariant. A process-wide crash was
+    // never required by the rule, just an overzealous way of enforcing it.
+    console.error(
+      `[provider] ${label} misconfigured — falling back to "${fallback}" so other surfaces keep working:`,
+      err instanceof Error ? err.message : err,
+    )
+    return fallback
+  }
+}
+
+export const chatModelId = resolveEuModelIsolated(
   process.env.BEDROCK_CLAUDE_MODEL,
   'eu.anthropic.claude-sonnet-4-6',
   'chat model',
 )
-export const utilityModelId = resolveEuModel(
+export const utilityModelId = resolveEuModelIsolated(
   process.env.BEDROCK_CLAUDE_UTILITY_MODEL,
   'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
   'utility model',
@@ -119,7 +151,7 @@ export const utilityModelId = resolveEuModel(
 // Opus is reserved for lifetime-once high-stakes generations: archetype
 // reveal (value-map) and the onboarding wow moment. Same default as the
 // existing demo/reading + value-map/reveal routes already use.
-export const opusModelId = resolveEuModel(
+export const opusModelId = resolveEuModelIsolated(
   process.env.BEDROCK_OPUS_MODEL,
   'eu.anthropic.claude-opus-4-6',
   'opus model',
@@ -129,7 +161,7 @@ export const opusModelId = resolveEuModel(
 // resolve (and be guarded) here rather than via an unguarded process.env read
 // in compose-first-read.ts — that gap is exactly how first_read_compose ran
 // on a global profile while every other call site stayed EU-only.
-export const composeModelId = resolveEuModel(
+export const composeModelId = resolveEuModelIsolated(
   process.env.BEDROCK_COMPOSE_MODEL,
   chatModelId,
   'compose model',

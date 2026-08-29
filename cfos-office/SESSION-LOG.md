@@ -5006,3 +5006,62 @@ way to reach. Build-green is compilation, not a look at the thing.
 - `status` has no UI. Triage is manual SQL until someone wants otherwise.
 - Reads composed before 083 have an empty `citation_set`; the route degrades to
   `[]` rather than failing. Not backfilled.
+
+---
+
+## 2026-08-29 — Fixed: one bad Bedrock env var crashed every route, not just its own
+
+**Branch:** `claude/filing-system-500-error-qtbmac`. Bug report: `/api/chat`
+returning 500 `FUNCTION_INVOCATION_FAILED` on preview, 8ms execution, zero
+outgoing requests — meaning the function died before it ever reached Bedrock,
+or even the route's own try/catch.
+
+**Root cause:** `provider.ts` resolves `chatModelId`, `utilityModelId`,
+`opusModelId` and `composeModelId` as four separate top-level `const`s, each
+via `resolveEuModel`, which throws synchronously on a non-`eu.`-prefixed
+value (Rule 5). A JS module that throws during evaluation never finishes
+initializing for *any* of its exports — so a bad value on **one** of the four
+(reproduced: `BEDROCK_OPUS_MODEL` set to the bare Nova foundation-model id
+`amazon.nova-pro-v1:0` instead of the `eu.`-prefixed cross-region inference
+profile) crashed `import '@/lib/ai/provider'` itself, which took down every
+route that imports it — including `/api/chat`, which never reads
+`opusModelId` at all. Traced this from the 2026-08-29 Nova-A/B session log
+entry ("Lewis chose to point the reveal at Nova Pro") plus a live repro:
+`BEDROCK_OPUS_MODEL=amazon.nova-pro-v1:0` throws at import even with
+`BEDROCK_CLAUDE_MODEL` unset.
+
+**Fix:** added `resolveEuModelIsolated`, a try/catch wrapper around each of
+the four `resolveEuModel` calls. On failure it `console.error`s loudly (so
+the misconfiguration is still visible in Vercel logs — Rule 5's real goal)
+and falls back to the surface's own hardcoded `eu.` default rather than
+letting the throw propagate out of the module. The invariant Rule 5 actually
+requires — no non-EU Bedrock call ever happens — still holds, because every
+fallback value is itself `eu.`-prefixed; only the "crash every unrelated
+route" side effect is removed. `resolveEuModel`/`assertEuBedrockModel`
+themselves are unchanged (still throw when called directly — the 9 existing
+tests pass unmodified) since other code may want the hard-throw contract.
+
+**Not the root cause, but worth remembering:** this only reproduces with a
+non-`eu.` value. Setting a Bedrock env var to a *correctly* `eu.`-prefixed
+profile that's simply missing from `rates.ts` does NOT crash anything —
+`computeCostUsd` throwing there is scoped to the usage-logging call site, not
+module import.
+
+**Verified:** typecheck clean · `npm test` 1698/1698 (140 files, 2 new tests
+for `resolveEuModelIsolated`) · `npm run build` exit 0, `/api/chat` compiles ·
+lint 0 errors (35 pre-existing warnings, none touched). Not verified against
+the actual failing preview deployment — I don't have Vercel dashboard/env-var
+access from this session, so I can't confirm which of the four `BEDROCK_*`
+vars was actually misconfigured there, only that this class of misconfig now
+degrades instead of crashing.
+
+### Follow-up for whoever set the Nova env var on preview
+
+Check the Preview environment's `BEDROCK_CLAUDE_MODEL` / `BEDROCK_CLAUDE_UTILITY_MODEL`
+/ `BEDROCK_OPUS_MODEL` / `BEDROCK_COMPOSE_MODEL` in the Vercel project
+settings. If one holds a bare Nova id like `amazon.nova-pro-v1:0`, change it
+to the `eu.`-prefixed cross-region inference profile — `eu.amazon.nova-pro-v1:0`
+or `eu.amazon.nova-lite-v1:0` (both already rated in `rates.ts`) — or unset it
+to fall back to Claude. This code fix stops it from taking `/api/chat` down
+with it, but the surface it actually pointed at (Opus reveal, or chat itself)
+will silently keep serving the Claude fallback until the env var is corrected.
