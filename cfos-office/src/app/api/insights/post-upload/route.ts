@@ -4,6 +4,7 @@ import { composeFirstRead, type ComposeFirstReadMode } from '@/lib/ai/compose-fi
 import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
 import { setDeclaredReadPending } from '@/lib/insights/first-read-followup'
 import { checkLlmAllowed, LLM_LIMIT_MESSAGE } from '@/lib/ai/llm-guard'
+import { fileComposedRead } from '@/lib/memory/documents'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -238,6 +239,13 @@ async function handleLayeredFirstRead({ supabase, userId, importBatchId, mode }:
   }
 
   await emitReadComposed(supabase, userId, mode, conversation.id, false, true)
+
+  // File the delivered Read into Values & You. The user's own client, so RLS
+  // owns the boundary; never throws, so a filing failure cannot cost the Read.
+  await fileComposedRead(supabase, userId, {
+    content: composed.composedMessage,
+    variant: 'first_read',
+  })
 
   return NextResponse.json({ conversationId: conversation.id, layered: true, message_persisted: true })
 }

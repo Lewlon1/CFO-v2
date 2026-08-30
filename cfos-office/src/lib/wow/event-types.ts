@@ -9,6 +9,11 @@ export const WOW_EVENT_TYPES = [
   'resonance_tap_positive',
   'resonance_tap_negative',
   'returned_d2',
+  // Added Session 083 — the user tapped "Anything in here wrong?" under their
+  // First Read. Fired on the tap itself, before any text is submitted: opening
+  // the field is the engagement signal, and the report body lives in
+  // read_feedback, not here. Listed last to mirror the DB enum's sort order.
+  'error_report_tapped',
 ] as const;
 
 export type WowEventType = (typeof WOW_EVENT_TYPES)[number];
@@ -33,5 +38,6 @@ export type RealisedScoreResult = {
     scrolled_to_bottom: boolean;
     returned_d2: boolean;
     resonance_tap: 'positive' | 'negative' | null;
+    error_report_tapped: boolean;
   };
 };

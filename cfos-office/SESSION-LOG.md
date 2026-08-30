@@ -4467,3 +4467,542 @@ three tables explicitly before deleting. The harness's `user-factory` bypasses t
 and calls the Supabase admin API directly, which is what trips the FKs. Fix is to route
 the factory through `delete_user_account`; not done. Until then the suite leaks ~10 users
 per full run.
+
+## 2026-08-13 — The Filing Cabinet, Phase 2: the memory becomes a screen
+
+Phase 1 (schema, tools, prompt contract) shipped in the three commits before
+this. Phase 2 is the trust half: nothing the CFO writes about someone should
+live where they cannot see it, and the plan sequences the UI *before* the files
+become load-bearing memory in Phase 3 for exactly that reason.
+
+Shipped: FileRow + FilesSection under all four folder dashboards, the file
+detail page (markdown body, edit, pin, archive/restore), `/api/memory/files/[id]`,
+the folder-tab counts on the office home, and the composed Reads filed as
+documents into `values/first-read`.
+
+### The spec asked for a radius the linter forbids
+UI-DIRECTION §File Rows specced a 10px radius. `cfo/visual-token-guards` errors
+on any arbitrary `rounded-[…]` of 4px or more, and `DrillDownRow` already draws
+this exact row shape at `rounded-control` (8px). Snapped to 8px and **amended
+the spec in the same commit** rather than leaving a doc that instructs the next
+person to write a lint error.
+
+### Three routes compose a Read, not two
+The plan expected the two `compose-first-read` variants (uploaded vs declared)
+to need separate hooks. They do not — both are delivered by
+`/api/insights/post-upload`, which picks `mode` internally. The two that DO need
+their own hook are the *rewrites*: `recompose-first-read` and
+`upgrade-declared-read`, both of which persist via `appendAssistantFollowup`.
+So: three call sites, one shared `fileComposedRead()`.
+
+### There is no "monthly review completed" event
+The plan asked for a review document filed into `cashflow/` "where conversations
+transitions review → completed". No such transition exists. A monthly review is
+marked completed only when the *next* review starts (`api/review/start:59`) or
+by the generic active-conversation sweep in `api/chat/route.ts:174`. Nor is
+there an artefact to file — a review is a live conversation, not a composed
+message like a Read. Filing one means composing a summary, which is a feature.
+**Left out deliberately; not a miss.**
+
+### The UI is written to survive an unapplied migration
+`listFolder` failing renders nothing (not an error state) and
+`countFilesByFolder` returns zeros, so every folder page renders normally
+against a database without `memory_files`. This is not defensive padding — it is
+the actual state of staging right now, and it means Phase 2 can ship ahead of
+the migration without stranding a folder page.
+
+### State at handover
+`typecheck` ✓ · `knip` ✓ · `vitest` **1645 passing (137 files)** ✓ ·
+`next build` ✓ (all five new routes present) · lint unchanged from the branch
+baseline (14 pre-existing `no-explicit-any` errors, none in new files).
+
+**Migration 082 is still unapplied to staging** — so nothing has been verified in
+a browser, and the Playwright persona suite was not run (it auto-starts a dev
+server, spends Bedrock, and would only exercise the empty-cabinet path until 082
+lands). Apply 082 first, then run the suite, then Phase 3.
+
+**Phase 3 is gated** on read-rate telemetry from staging that cannot exist yet.
+
+## 2026-08-13 — The Filing Cabinet, Phase 3: the context diet
+
+The point of the whole exercise. Phase 1 built the cabinet, Phase 2 made it
+visible, and Phase 3 is where the prompt stops carrying what the cabinet can
+hold.
+
+### What left the prompt
+- **Every behavioural trait, unbounded.** `buildPortraitContext` rendered every
+  non-dismissed `financial_portrait` row on every turn with no ceiling. Now
+  `buildArchetypeContext`, keeping only the Value Map archetype and its
+  evolution; the traits are derived into per-folder `patterns` digest files and
+  read on demand. The unbounded portrait query left the parallel block with
+  them — one fewer round trip per turn as well.
+- **Itemised holdings.** Balance sheet keeps the computed totals plus counts and
+  a priority-liability count; names, providers, rates and payments come from
+  `get_balance_sheet`.
+- **The recurring tail** (largest 12 by monthly-normalised amount) and **the
+  action-item backlog** (5 of N).
+
+### `asset_profile` is not prose — the plan's Net Worth mapping was wrong
+The plan mapped `asset_profile` → the Net Worth digest. Those rows are machine
+flags written by `computeTraits` in `balance-sheet/portrait.ts`:
+`has_pension: "yes"`, `net_worth_bracket: "under_10k"`,
+`asset_allocation_summary: "stocks: 60%, cash: 40%"`. As digest bullets that
+reads "- yes / - no / - under_10k", and it is precisely what the cabinet bans —
+figures a structured tool already owns, presented as current. **Net Worth has no
+digest, deliberately**, and the balance-sheet portrait writer gets no hook.
+
+### The advisory perimeter was conditional on owning something
+`ADVISORY_BOUNDARIES` lived inside `buildBalanceSheetContext`, which returns
+early when a user has no assets AND no liabilities. So the CFO's hardest rule —
+no products, no buy/sell, no suitability — was **silently absent for every user
+without a balance sheet**. Moving it to its own always-present section was
+supposed to be Phase-4 cache prep; it turned out to be a live compliance gap.
+It is now in the general branch and the first-Read branch both.
+
+### Digest freeze rules
+A digest is a one-way view of the portrait until the user edits it. After that
+it is theirs: new traits arrive as dated entries below their words (computed off
+the file's own `updated_at`, no extra bookkeeping), and a dismissal has to be
+written explicitly — the dismiss route now reads the struck-out row back and
+passes it in, because on a frozen file the re-render cannot run and the file
+would otherwise keep asserting something the user had just rejected.
+
+The render is order-stable by construction and a test asserts reversing the
+input changes not one byte. An unstable render would rewrite the file on every
+portrait write, bumping `updated_at` and busting the cache this feature exists
+to protect.
+
+### State at handover
+`typecheck` ✓ · `knip` ✓ · `vitest` **1662 passing (138 files)** ✓ ·
+`next build` ✓ · lint unchanged from the branch baseline (14 pre-existing).
+
+**Not measured:** the per-turn token delta. It needs a scripted conversation
+against a data-rich staging user, read off the `llm_usage_log` cost columns.
+**Not run:** `scripts/backfill-memory-digests.ts` (dry-run by default; needs
+staging service creds). Phase 4 (cache restructure) is next and is where the
+measurement pays out.
+
+---
+
+## 2026-08-14 — The Filing Cabinet, Phase 4: the cache restructure
+
+Where the Phase 3 diet converts into money. Phase 3 made the prompt smaller;
+Phase 4 stops paying full price for the part that never changes.
+
+### The bug was the ordering, not the size
+
+`buildSystemPrompt` returned one string and `route.ts` hung a single Bedrock
+cache point off the end of it. That checkpoint was worthless, and had been since
+it was added: **`buildCurrentDateContext()` was the second section in the
+prompt**, so a new date stamp — and every per-turn nudge below it — sat *above*
+the persona, the tool contracts, the advisory perimeter and the filing-cabinet
+contract. A cache is a prefix match. One drifting byte near the front invalidates
+everything behind it, so the checkpoint re-wrote the whole prompt on every turn
+and never once read from it.
+
+Measured: tier 1 on the general branch is **36,442 chars ≈ 9,600 tokens** that
+were being re-billed at full input rate, every turn, for the life of the product.
+
+### The split
+
+`buildSystemPrompt` now returns `{ static, semiStable, volatile }`:
+
+- **Tier 1 (`static`)** — persona + register, `ADVISORY_BOUNDARIES`,
+  tool-usage instructions, layered-read instructions, the cabinet contract.
+  Extracted into an exported `buildStaticTier(styleModifier, variant)` so it can
+  be tested directly. Changes on deploy, or when the user switches advice style
+  (three possible values, so a user's prefix is stable and users sharing a
+  register share the cache entry).
+- **Tier 2 (`semiStable`)** — profile, onboarding entry, bridge, dieted
+  financial, posture, benchmarks, archetype, balance-sheet totals, goals, trips,
+  the memory index, the posture fragment. Changes when the user's data changes.
+- **Tier 3 (`volatile`)** — current date, conversation instructions, open items,
+  experiments, value-mapping / check-in / retake, prediction quality, profiling
+  questions, and the goal-beat stall note. Uncached by design.
+
+The section *set* is unchanged. The section *order* is not — hoisting the static
+blocks to the front and pushing the volatile ones to the back **is** the fix, and
+it is not a behaviour-neutral refactor to re-review later. All three branches
+(general, first-Read, goal-derive) return tiers; the goal beat gets a lean tier 1
+with no perimeter and no cabinet, unchanged from what it already carried.
+
+### Three checkpoints, not one
+
+`route.ts` ships three system-role messages with `cachePoint` on the first two
+(CP1, CP2), and CP3 on the **last** element of `modelMessages` — post-convert,
+post-sanitise. Within a turn the tool loop re-sends the whole history on every
+step (up to 5, `stepCountIs(5)`); across turns CP3 slides forward onto the newest
+message. Three of Bedrock's four checkpoints.
+
+The forced-retry `generateText` behind the hallucination guard was uncached
+entirely — it passed `system: systemPrompt` and rebuilt the prompt from scratch
+mid-turn. It now takes the same three system messages plus the CP3-decorated
+history, so the retry reads the cache the stream just wrote.
+
+### Gotchas for the next pass
+
+- **`static` is a strict-mode reserved word.** The field name follows the plan,
+  but every consumer must destructure it as `{ static: x }` or read it off the
+  object — `const static = ...` will not parse.
+- **An empty tier is filtered out, cache point and all.** `semiStable` can be
+  empty for a brand-new user; dropping the message drops CP2 with it, which is
+  correct — but it means the checkpoint count varies by user, so don't assert on
+  a fixed count when reading the usage log.
+- **The meter needed no change.** `computeCostUsd` takes cache read/write token
+  *totals*, and Bedrock reports totals regardless of checkpoint count. The
+  plan flagged this as a possible extension of `rates.ts`; it isn't one.
+- **`[prompt-tiers]` console line** logs the three block char-lengths per turn.
+  It is for tuning the split — the cost numbers still come from the
+  `llm_usage_log` columns, never the console.
+
+### Verification
+
+`typecheck` ✓ · `knip` ✓ · `lint` — the branch's 14 pre-existing
+`no-explicit-any` errors, none in files this phase touches · `test` **1667
+passing, 139 files** ✓ (up from 1662/138: `static-tier.test.ts`) · `build` ✓.
+
+**Unmeasured, and this is the phase where that matters most.** No live
+conversation has run against this. The expected shape — turn 1 writes
+CP1+CP2+history, turns 2+ read ≥20k with small writes — is an estimate from the
+tier sizes, not an observation. The scripted staging measurement in the handoff
+is now the gate on believing any of it.
+
+## 2026-08-16 — The Filing Cabinet, Phase 5: making the thing measurable
+
+Lewis tested the branch and reported two things: the cabinet made no noticeable
+difference, and onboarding got worse — wrong numbers, hard to resonate with.
+His hypothesis was that the system prompt has grown too big and is crowding the
+model out. This phase builds the instruments to test that rather than arguing
+about it, because until now nothing in the repo could.
+
+### The hypothesis is probably wrong, and the code says why
+
+Worth stating up front, because it redirects the whole investigation: the
+symptoms are on the **First Read**, and the First Read is not composed by the
+big prompt. `compose-first-read.ts` calls `generateText` with **~2.1k tokens of
+system prompt and no tools**. The ~22–27k-token chat prompt never touches it.
+Prompt size cannot explain a First Read regression.
+
+Three candidates, none of which is "too many tokens":
+
+1. **The wrong numbers are a data-pipeline bug.**
+   `financial-position.ts:106-116` — when `monthly_snapshots.total_discretionary`
+   is NULL, free cash falls back to `income − fixedCosts` with
+   `basis: 'modelled'`, which assumes **zero day-to-day spending**. That column
+   is NULL exactly during onboarding: `computeTotalDiscretionaryForRow` returns
+   NULL whenever a month's spending is under the fixed-cost total, the
+   upload-time refresh is a no-op on first import, and both `syncTotalFixedCosts`
+   calls swallow their errors. Worse, the hedge that ships with a modelled figure
+   (`prompts/first-read.ts:764-767`) says "no real spending history exists yet" —
+   which reads as flatly false to someone who just uploaded three months of
+   statements. One mechanism produces both complaints: a wrong number *and* prose
+   that feels like it isn't about you.
+2. **The composer never receives the persona.** All five Read system prompts
+   carry "full voice lives in CFO-CONSTITUTION.md §2; do not restate it here",
+   and then `compose-first-read.ts:334` ships that prompt *alone* — `BASE_PERSONA`
+   is never passed. The Read is written by a model pointed at a voice document it
+   cannot see. The chat turn immediately after it *does* get `BASE_PERSONA`,
+   which is why the Read and the conversation can read like two different
+   writers.
+3. **Migration 082 may never have been applied.** If it wasn't, the contract and
+   the three tools still shipped in the prompt while every `read_memory_file`
+   call errored — and the UI hides that by design. Lewis would have been
+   comparing the cabinet against a cabinet that fails on every read. **This has
+   to be checked before any A/B is believed**; it invalidates the comparison.
+
+### What got built
+
+- **`src/lib/memory/flags.ts`** — `MEMORY_FILES_ENABLED`, on the `VALUE_MAP_V2`
+  pattern, default ON. Gates the contract (`buildStaticTier`), the tool
+  descriptions (`buildToolUsageInstructions`), the index
+  (`buildMemoryIndexContext`, which now also skips the query) and the three
+  tools (`createToolbox`). All four move together — a tool the model is told is
+  mandatory but cannot call is worse than one it was never offered.
+- **`src/lib/ai/experiment-metadata.ts`** — `experimentStamp()` writes
+  `memory_files_enabled`, and `run_id` / `prompt_variant` when the env names
+  them, into `llm_usage_log.metadata` on chat turns, tool calls and composes.
+  `hashPrompt` lives here and `scripts/eval/_lib/pair-storage.ts` now re-exports
+  it, so a rated pair and a production row hash the same prompt identically.
+- **`scripts/compare-first-insight.ts`** — the pair producer `eval/README.md`
+  has always referenced and the repo never had. Arm A is the composer prompt as
+  shipped; arm B is `BASE_PERSONA` + the same prompt. Facts come from the
+  persona fixtures through the production builders (`buildDeclaredFacts` →
+  `buildDeclaredUserPrompt`), so nothing about the input is invented and both
+  arms get a byte-identical user prompt.
+- **`scripts/scripted-chat.ts`** — the fixed 3-turn conversation the handoff's
+  step 5 asked for. Turns 1–2 should trigger a cabinet read; turn 3 is a numbers
+  control that should *not*. Prints the `llm_usage_log` SQL for both metrics.
+
+### The first real measurement
+
+The cabinet's tier-1 cost had never been measured. Hashing `buildStaticTier`
+across all three variants and three registers, against HEAD:
+
+| branch | cabinet on | cabinet off | delta |
+| --- | ---: | ---: | ---: |
+| `general` | 36,442 | 33,283 | **−3,159 chars ≈ 790 tok** |
+| `first_read` | 33,438 | 30,279 | **−3,159 chars ≈ 790 tok** |
+| `goal_derive` | 28,714 | 28,232 | −482 (tool bullets only) |
+
+Every enabled-arm hash is **byte-identical to HEAD**, so the flag costs the
+cached prefix nothing. That is the number the cabinet has to earn back in
+retrieval quality, and it is now a measurement rather than an estimate.
+
+### Gotchas for the next pass
+
+- **A conditional spread breaks `ToolSet`.** `{...(cond ? tools : {})}` types the
+  three tools as `Tool | undefined`, which the AI SDK's index signature rejects.
+  `createToolbox` returns two complete object shapes instead.
+- **Both arms must be cacheable.** If the off-arm weren't byte-stable the
+  comparison would measure cache misses, not the cabinet. Pinned in
+  `static-tier.test.ts`.
+- **The perimeter must survive the off-arm.** `ADVISORY_BOUNDARIES` went missing
+  once already by riding inside a builder that returned early; there is now a
+  test asserting it survives with the cabinet disabled.
+- **Tool-call rows needed the stamp too.** Read-rate is the metric that says the
+  retrieval contract works, and it is meaningless if a tool call can't be traced
+  to its arm — `logToolCall` stamps as well as `recordChatTurnStart`.
+- **The flag is read per request, never memoised.** One production build serves
+  both arms; the harness needs `next start`, and a code-edit variant would cost
+  a rebuild per arm.
+
+### Verification
+
+`typecheck` ✓ · `lint` ✓ (0 errors; 35 pre-existing warnings, none in files this
+phase touches) · `test` **1671 passing, 139 files** ✓ (up from 1667: four new
+cabinet-disabled cases) · `build` ✓ · byte-identity vs HEAD ✓ (9/9 tier hashes).
+
+**What is still unrun, and by whom.** Nothing here has touched Bedrock or
+staging: this container has no Supabase access to `qlbhvlssksnrhsleadzn` and its
+AWS credentials are rejected by Bedrock. `compare-first-insight.ts --dry-run`
+and `scripted-chat.ts --dry-run` both pass, so prompt assembly is verified; the
+live arms are not. Phase 0 (is 082 applied? did reads error? is the test user's
+cabinet empty? was free cash `modelled`?) is a handful of read-only SELECTs and
+should be run **first** — it can close the "wrong numbers" complaint on its own,
+and it decides whether Lewis's original comparison meant anything.
+
+## 2026-08-16 — Phase 0 ran: the numbers bug is a missing migration
+
+Staging access arrived after the Phase 5 commit, so the audit that was written
+as a runbook actually got run. It answers both of Lewis's complaints, and
+neither answer is the system prompt.
+
+### Migration 079 is not applied, and that is the whole numbers bug
+
+The registry (`supabase_migrations.schema_migrations`) stops at **077**, but 081
+and 082 were applied anyway — so the registry is not a reliable account of what
+is deployed and the artifacts have to be probed directly. Doing that:
+
+| migration | staging | production |
+| --- | --- | --- |
+| 079 `monthly_snapshots.total_discretionary` | **missing** | missing |
+| 081 `llm_usage_log` cost columns | applied | missing |
+| 082 `memory_files` | applied | missing |
+
+`financial-position.ts:73` selects `total_spending, total_discretionary`. With
+079 unapplied that column does not exist, so PostgREST rejects **the entire
+select** (42703) — not just the missing field. `.data` comes back null, `rows`
+is `[]`, `avgDiscretionaryMonthly` is null, and `basis` falls through to
+`'modelled'` for **every user, unconditionally**. Free cash becomes
+`income − fixedCosts` with no day-to-day spending subtracted, and
+`formatFinancialFacts` then appends the line asserting "no real spending
+history exists yet".
+
+The failure is silent by construction: the error is logged and execution
+continues, and the citation validator cannot catch it because the prose quotes
+the handed facts faithfully — the facts are what is wrong. **No validator fired
+on either August Read.** An empty validator table is not evidence the numbers
+were right.
+
+### The Read that proves it
+
+User `8fe8de6b`: 336 transactions, four months of snapshots, ~€1,870/mo of real
+spending. Their filed Read opens:
+
+> "Free cash flow sits at €1,407 a month, but that's a paper figure built on
+> fixed costs alone, with no real day-to-day spending counted against it yet."
+
+and then, three paragraphs later, itemises that spending — €591/mo eating out
+at 29.5% of everything tracked, €475 at ALDI over 91 days, a single €341
+restaurant visit. The same message denies and describes the same spending,
+because the two halves come from different sources: the free-cash figure from
+the broken `monthly_snapshots` read, the breakdown straight from
+`transactions`. Then it builds a €553 shortfall on top of the fake €1,407.
+
+That is the "incorrect numbers" and the "hard to resonate with", in one
+artifact, from one root cause. `total_fixed_costs` is NULL and `total_income`
+is 0 across every snapshot row for that user too — the snapshot refresh never
+completed — so the ordering race flagged in Phase 5 is real as well, but it is
+the second-order problem behind the missing column.
+
+### The cabinet could not have helped, and never read anything
+
+- `read_memory_file`, `write_memory_file`, `archive_memory_file`: **zero calls,
+  ever.** Not throttled, not erroring — never invoked. The control rules out an
+  instrumentation gap: `create_goal` has 64 calls, most recently 2026-08-15,
+  inside the same test window.
+- The cabinet holds **two files total, across two users**, both
+  `values/first-read`, both `source='system'` — written by `fileComposedRead`
+  *after* the Read composed. The CFO has never chosen to record anything.
+- So on the First Read the index is empty (cost, no benefit), and on the two
+  subsequent chat turns the only retrievable file is a verbatim copy of the Read
+  the user had just been shown. **"I couldn't notice any difference" was the
+  correct observation**, and the branch's own read-rate metric now reads 0%.
+
+August traffic in total: 2 `chat_turn`, 1 `tool_call`, 2 `first_read_compose`.
+The cabinet has never been exercised by a conversation long enough to need it.
+
+### What this changes
+
+1. **Apply 079 to staging** before anything else; re-run one onboarding and
+   confirm `basis` comes back `'observed'`. This is the fix for the complaint
+   Lewis actually raised.
+2. **079 must ship with this branch to prod**, which is missing 079, 081 and
+   082. The consuming code and the migration landed together on
+   `claude/filing-cabinet-handoff-11cac5`, so prod is not broken today — it
+   would break on deploy without the migration.
+3. **The A/B is not worth running yet.** Comparing cabinet-on against
+   cabinet-off measures nothing while the read rate is 0% on both sides. The
+   question is no longer "does retrieval help" but "why does the model never
+   retrieve" — the contract says MANDATORY and gets ignored, which is a prompt
+   *content* problem, not a prompt *size* one.
+4. The E2 persona experiment is still worth running as designed: it is
+   independent of all of the above and tests the composer's missing persona.
+
+## 2026-08-29 — Amazon Nova added as an opt-in Bedrock model, Claude stays default
+
+Lewis wants to A/B Nova against Claude for cost. `provider.ts`'s env-var
+resolution (`BEDROCK_CLAUDE_MODEL` etc.) was already model-family-agnostic —
+`resolveEuModel`/`assertEuBedrockModel` only check for an `eu.` prefix, not
+`anthropic.` — so pointing an env var at a Nova profile needed zero code
+changes to actually route the call. The real gap was `rates.ts`: it throws on
+any inference profile it doesn't recognise (by design, so cost never silently
+zeroes), so Nova traffic would have logged with `computed_cost_usd: null`
+forever. Added `eu.amazon.nova-pro-v1:0` ($0.80/$3.20 per MTok) and
+`eu.amazon.nova-lite-v1:0` ($0.06/$0.24 per MTok) to the rate table, bumped
+`RATE_VERSION` to `2026-08-C1`.
+
+**Nova Premier (the tier above Pro) has no EU cross-region inference profile**
+— confirmed via AWS's Nova Premier announcement and the EU/APAC Nova rollout
+post; it's US-only (N. Virginia/Ohio/Oregon). So the opus-tier env var
+(`BEDROCK_OPUS_MODEL`, used only by `value-map/reveal`) can reach Nova Pro but
+not a stronger model — there's no Nova equivalent of "Opus above Sonnet" while
+staying EU-only. Lewis chose to point the reveal at Nova Pro anyway rather than
+leave it on Claude Opus, accepting that the reveal becomes the same model as
+regular chat rather than a stronger one.
+
+Verified before wiring anything: no `@anthropic-ai/*` imports and no
+Claude-response-shape coupling anywhere in the codebase (no thinking-block
+parsing, no raw `stop_reason` handling) — everything goes through the generic
+`ai` SDK, so nothing else should care which vendor answers. Bedrock prompt
+caching (the `providerOptions.bedrock.cachePoint` directive `chat/route.ts`
+already sets) is GA for Nova Pro/Lite too, same `{type: 'default'}` shape, so
+the chat route's caching code needed no changes either.
+
+**Two things intentionally left alone, worth knowing about:**
+- `demo/reading/route.ts` hardcodes the literal `'eu.anthropic.claude-opus-4-6'`
+  instead of importing `opusModelId` — the public/unauthenticated marketing
+  demo bypasses the Nova opt-in entirely and will keep calling Claude Opus
+  regardless of the env var. Not touched; flagged only.
+- The forced-tool-choice retry in `chat/route.ts` (~line 1046, re-invokes with
+  `toolChoice: {type: 'tool', toolName: 'record_value_classifications'}` to
+  self-heal a hallucinated save) is the single highest-risk site for a Nova
+  swap on the main chat model — it depends on reliably honouring a forced tool
+  choice, and Nova's tool-calling behaviour on Bedrock hasn't been evaluated
+  against this codebase's validators (Rule 2) or against CFO-CONSTITUTION.md's
+  voice. Test this specifically before trusting Nova on live chat traffic, not
+  just the rate math.
+
+---
+
+## 2026-08-29 — Read error reports: one affordance instead of two ratings
+
+**Branch:** `claude/filing-cabinet-system-testing-0d0cy2`. Migrations 083 + 084,
+applied to staging; prod twins written and not applied.
+
+**Scope:** beta users had no way to tell us a number in their First Read was
+*wrong*. The two channels that existed under a Read were both ratings —
+`MessageFeedback`'s thumbs (on every assistant message) and `ResonanceTap`'s
+"did this read you right?" — and a rating gives you a number you can't act on.
+Replaced both **on the Read only** with a single quiet inline control,
+"Anything in here wrong?" → textarea → `read_feedback` row. Thumbs still render
+on every other assistant message; `ResonanceTap.tsx` is deleted.
+
+**Phase 0 finding that changed the design:** the real estate was already
+occupied twice over. Adding a third control would have split the tap rate three
+ways and diluted the very signal we were building. The suppression is a one-line
+`&& !isFirstInsightMessage` on the existing feedback block in `MessageList.tsx`.
+
+**The citation set did not exist anywhere persistent.** `buildCitationAllowlist`
+ran in memory in `compose-first-read.ts` and was discarded; only *failures* were
+logged. Added `extractCitedFigures` — the inverse of `validateCitations`,
+returning the numbers that traced to *something*, each tagged with its bundle —
+and persisted it to `conversations.metadata.first_read_metadata.citation_set`
+(no migration; that blob is already written wholesale by the compose routes).
+
+**Snapshot, don't join.** `/api/reads/feedback` copies `citation_set`,
+`read_context` and the Read prose onto the report row at report time. Joining
+them later would be wrong: `recompose-first-read` and `upgrade-declared-read`
+overwrite `first_read_metadata` underneath an existing report, so a join would
+show you a different Read than the one the user complained about. The admin
+deep-dive diffs `read_snapshot` against the live message and reveals the
+original behind a disclosure when they differ.
+
+### Gotchas worth keeping
+
+- **`ALTER TYPE ... ADD VALUE` gets its own migration file.** Postgres won't let
+  a new enum value be *used* in the transaction that added it. 029 gets away
+  with ADD VALUE + UPDATE in one file because Supabase commits between
+  statements, but that's a bet, not a guarantee. 084 adds the value and does
+  nothing else. Corollary: the `wow_events_idempotent` partial index was
+  deliberately **not** widened to cover `error_report_tapped` — its predicate is
+  an `IN` list, so widening means DROP + CREATE referencing the new value. Left
+  alone; duplicates are harmless because `computeRealisedScore` uses `has()`.
+- **`buildCitationAllowlist` shares one `visited` WeakSet across all bundles.**
+  Harmless when you only want the union, but fatal for per-source attribution: a
+  bundle sharing an object reference with an earlier one walks to nothing.
+  `extractCitedFigures` gives each source its own WeakSet. There's a test for it.
+- **`extractCitedFigures` returns narrative order, not bundle order.** Reading
+  order is what a user describes a figure in. My first test asserted bundle
+  order and was simply wrong.
+- **`delete_user_account` ordering matters for the row counts.** `read_feedback`
+  FKs to both `messages` and `conversations` with ON DELETE CASCADE, so it must
+  be deleted *before* them or its count silently reports 0. Note `wow_events`
+  and `wow_assessments` are still absent from that function entirely — they
+  cascade, but the function's contract is explicit per-table counts, so that's a
+  pre-existing gap someone should close.
+- **The GDPR RPCs were copied programmatically from 082, not retyped.** Sections
+  2–3 of 083 are a scripted extract of 082's function bodies with only the
+  `read_feedback` lines inserted, so the auth guard, `search_path` and
+  REVOKE/GRANT block are byte-faithful by construction rather than by care.
+  Worth repeating for 085.
+- **`realised_wow_score` changed shape.** `error_report_tapped` joined
+  `chip_tapped` in the 0.4 in-session tier. Because the tiers combine with
+  `max()`, this can only ever *raise* a score — pre-083 numbers are a floor, not
+  a like-for-like comparison. Two existing tests asserted `reasoning` with an
+  exhaustive `toEqual` and had to be updated; that's the tripwire that catches
+  anyone adding a reasoning field without thinking about it.
+- The Supabase clients in `server.ts`/`service.ts` carry **no `Database`
+  generic**, so a new table needs no generated-types regeneration.
+
+### Verified
+
+`npm run typecheck` clean · `npm test` 1696/1696 across 140 files ·
+`npm run build` exit 0 · lint 0 errors. On staging: enum has 8 labels; exactly
+two own-row RLS policies; a cross-user insert, an empty body and a bogus status
+are all rejected; `export_user_data` returns the report and still returns
+`memory_files`/`conversations`; `anon` still cannot execute it; duplicate
+`error_report_tapped` events insert cleanly. Verification rows deleted —
+`read_feedback` is empty on staging.
+
+**Not verified:** the control has not been seen in a browser. It needs an
+authenticated session on a `first_read` conversation, which this session had no
+way to reach. Build-green is compilation, not a look at the thing.
+
+### Follow-ups
+
+- Eyeball the control on staging: one affordance under the Read, no thumbs, no
+  Yes/Not-really.
+- `status` has no UI. Triage is manual SQL until someone wants otherwise.
+- Reads composed before 083 have an empty `citation_set`; the route degrades to
+  `[]` rather than failing. Not backfilled.

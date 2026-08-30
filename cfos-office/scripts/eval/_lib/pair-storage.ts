@@ -6,6 +6,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { hashPrompt } from '../../../src/lib/ai/experiment-metadata'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -110,9 +111,11 @@ export function generatePairId(): string {
   return randomUUID()
 }
 
-export function hashPrompt(prompt: string): string {
-  return createHash('sha256').update(prompt).digest('hex').slice(0, 16)
-}
+// Re-exported (imported at the top of this file) so a prompt hashed here
+// matches the same prompt hashed into an llm_usage_log row — a stored pair and
+// a production call have to be joinable, and two implementations of "sha256,
+// first 16" would drift silently.
+export { hashPrompt }
 
 // ── Round-trip IO ─────────────────────────────────────────────────────────────
 

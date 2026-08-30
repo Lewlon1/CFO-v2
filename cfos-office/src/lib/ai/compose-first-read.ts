@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { bedrock, composeModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
+import { experimentStamp, hashPrompt } from '@/lib/ai/experiment-metadata';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
 import { getDataWindowEnd, getDataWindowCoverage, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries';
@@ -27,7 +28,13 @@ import {
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
 import { getFinancialPosition, type FinancialPositionBasis } from '@/lib/finance/financial-position';
-import { buildCitationAllowlist, validateCitations } from '@/lib/ai/insight-validator';
+import {
+  buildCitationAllowlist,
+  extractCitedFigures,
+  validateCitations,
+  validateSurplusClaims,
+  type SurplusGroundTruth,
+} from '@/lib/ai/insight-validator';
 import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
@@ -68,7 +75,11 @@ const LEVER_FACTS_CONSISTENCY_TOLERANCE = 1;
 // The declared Read is 70–130 words (it stands on two numbers, not 90 days of
 // data), so it gets a tighter ceiling than the transaction Read — generous
 // enough to never truncate the CTA/sign-off, tight enough to cap a runaway.
-const DECLARED_MAX_OUTPUT_TOKENS = 400;
+// Exported so the A/B producer (scripts/compare-first-insight.ts) generates
+// under the same ceiling as production rather than keeping its own copy — a
+// variant that could run longer than the real thing would be rated on an
+// advantage the shipped path never has.
+export const DECLARED_MAX_OUTPUT_TOKENS = 400;
 
 const COMPOSE_MODEL = composeModelId;
 
@@ -346,7 +357,10 @@ export async function composeFirstRead(params: {
     model: COMPOSE_MODEL,
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
-    metadata: { mode },
+    // The prompt hash makes a compose attributable to the exact prompt that
+    // produced it — otherwise an A/B run's rows are indistinguishable, since no
+    // prompt text is persisted anywhere.
+    metadata: { mode, ...experimentStamp(hashPrompt(systemPrompt)) },
   });
 
   const composedMessage = result.text.trim();
@@ -362,22 +376,54 @@ export async function composeFirstRead(params: {
   // the same way the chat route's citation check does, rather than forcing
   // a regenerate (a bigger behavioural change better proven out via this
   // telemetry first).
+  // Hoisted so the citation CHECK and the cited-figure CAPTURE below provably
+  // run over the same three bundles — if they ever drifted apart, a report
+  // could name a source that never fed this Read.
+  const factBundles = [
+    { toolName: 'financial_facts', output: financialFacts },
+    { toolName: 'levers', output: leverPackage.levers },
+    { toolName: 'spending_breakdown', output: spendingBreakdown },
+  ];
   const citationCheck = validateCitations(
     composedMessage,
-    buildCitationAllowlist(
-      [
-        { toolName: 'financial_facts', output: financialFacts },
-        { toolName: 'levers', output: leverPackage.levers },
-        { toolName: 'spending_breakdown', output: spendingBreakdown },
-      ],
-      {},
-    ),
+    buildCitationAllowlist(factBundles, {}),
   );
   if (!citationCheck.valid && citationCheck.unmatched.numbers.length > 0) {
     console.error('[compose-first-read] citation check found unmatched numbers', {
       userId: params.userId,
       mode,
       unmatched: citationCheck.unmatched.numbers,
+    });
+  }
+
+  // Session 083 — arithmetic reconciliation. The citation check above proves
+  // every FIGURE is real; this proves the CONCLUSION drawn from them is. The
+  // Nova A/B produced four Reads that told a funded user they were short by
+  // subtracting the two monthly requirements from each other — every number in
+  // them was citable, so nothing caught it. See validateSurplusClaims.
+  const surplusTruth = deriveSurplusGroundTruth(leverPackage, goalRow, financialFacts.free_cash_flow);
+  const reconciliation = validateSurplusClaims(composedMessage, surplusTruth);
+  if (reconciliation.skipped && reconciliation.claims.length > 0) {
+    // The first cut of this check skipped silently and passed four broken Reads.
+    // If a Read asserts headroom with nothing to check it against, say so.
+    console.warn('[compose-first-read] surplus claims present but no ground truth to check them', {
+      userId: params.userId,
+      mode,
+      claims: reconciliation.claims.map((c) => c.phrase),
+    });
+  }
+  if (!reconciliation.valid) {
+    // Loud: this means the Read states something false about the user's
+    // position, which is a Rule 2 violation and the highest-severity defect
+    // this path can produce.
+    console.error('[compose-first-read] surplus/shortfall claim does not reconcile', {
+      userId: params.userId,
+      mode,
+      truth: surplusTruth,
+      violations: reconciliation.violations.map((v) => ({
+        phrase: v.claim.phrase,
+        reason: v.reason,
+      })),
     });
   }
 
@@ -393,10 +439,85 @@ export async function composeFirstRead(params: {
     priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
   });
 
+  // Which computed figures this Read actually put in front of the user, and
+  // which bundle produced each. Rides conversations.metadata.first_read_metadata
+  // (no migration); /api/reads/feedback snapshots it onto a report so a beta
+  // user's "this number is wrong" traces back to the source that computed it.
+  metadata.citation_set = extractCitedFigures(composedMessage, factBundles);
+
+  // Persisted so the verdict is readable downstream without re-deriving levers:
+  // the onboarding harness asserts on it (db-assertions), and a read_feedback
+  // report snapshots it, so "this number is wrong" arrives next to whether the
+  // Read's own arithmetic reconciled at compose time.
+  metadata.reconciliation = {
+    valid: reconciliation.valid,
+    skipped: reconciliation.skipped,
+    ground_truth: surplusTruth,
+    violations: reconciliation.violations.map((v) => ({
+      kind: v.claim.kind,
+      value: v.claim.value,
+      phrase: v.claim.phrase,
+      reason: v.reason,
+    })),
+  };
+
   return { composedMessage, metadata };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Pull the only two figures a Read may assert about goal headroom out of the
+ * lever package the prompt was built from.
+ *
+ * `paceComputable` is false whenever a supply_input blocker is present: that
+ * lever exists precisely because a required pace input (target date / amount /
+ * income) is missing, so no monthly shortfall or surplus is derivable and any
+ * numeric claim about one is invented.
+ */
+export function deriveSurplusGroundTruth(
+  pkg: LeverPackage,
+  goal: { type?: string | null; target_amount?: number | null; current_amount?: number | null; target_date?: string | null; monthly_required_saving?: number | null } | null,
+  freeCashFlow: number | null,
+): SurplusGroundTruth {
+  const accelerate = pkg.levers.find((l) => l.type === 'accelerate');
+
+  // The monthly requirement figures the PROMPT was built from — mirroring
+  // buildGoalSummary exactly, so the validator checks the Read against the same
+  // numbers the model was shown. Sourcing these (rather than only the
+  // accelerate lever) is what makes the check fire at all: the lever is absent
+  // whenever monthly_required_saving is null or the facts reconciliation drops
+  // it, which is the case in every observed regression.
+  const requirements: number[] = [];
+  if (goal) {
+    const monthsLeft =
+      goal.target_date != null ? monthsBetween(new Date(), new Date(goal.target_date)) : null;
+    if (
+      goal.type === 'investment' &&
+      goal.target_amount != null &&
+      monthsLeft != null &&
+      monthsLeft > 0
+    ) {
+      for (const b of requiredMonthlyBand({
+        targetAmount: goal.target_amount,
+        currentAmount: goal.current_amount ?? 0,
+        months: monthsLeft,
+      })) {
+        if (b.monthly != null) requirements.push(Math.round(b.monthly));
+      }
+    } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
+      requirements.push(Math.round(goal.monthly_required_saving));
+    }
+  }
+
+  return {
+    freeCashFlow: freeCashFlow != null ? Math.round(freeCashFlow) : null,
+    requirements,
+    surplusOverRequired: accelerate ? accelerate.surplusOverRequired : null,
+    stressTestGap: accelerate ? accelerate.stressTestGap : null,
+    paceComputable: pkg.blocker === null,
+  };
+}
 
 /**
  * Issue 1.4: assert the accelerate lever's `surplusOverRequired` reconciles
@@ -993,7 +1114,10 @@ async function composeDeclaredRead(
     model: COMPOSE_MODEL,
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
-    metadata: { mode: 'declared' },
+    metadata: {
+      mode: 'declared',
+      ...experimentStamp(hashPrompt(FIRST_READ_SYSTEM_PROMPT_DECLARED)),
+    },
   });
 
   const metadata: FirstReadMetadata = {

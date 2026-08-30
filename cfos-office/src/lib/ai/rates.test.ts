@@ -47,8 +47,26 @@ describe('computeCostUsd', () => {
         'eu.anthropic.claude-sonnet-4-6',
         'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
         'eu.anthropic.claude-opus-4-6',
+        'eu.amazon.nova-pro-v1:0',
+        'eu.amazon.nova-lite-v1:0',
       ]),
     )
-    expect(RATE_VERSION).toBe('2026-07-B1')
+    expect(RATE_VERSION).toBe('2026-08-C1')
+  })
+
+  it('prices Nova Pro input + output at the on-demand rate ($0.80 / $3.20 per MTok)', () => {
+    const cost = computeCostUsd('eu.amazon.nova-pro-v1:0', {
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    })
+    expect(cost).toBeCloseTo(0.8 + 3.2, 6)
+  })
+
+  it('prices Nova Lite input + output at the on-demand rate ($0.06 / $0.24 per MTok)', () => {
+    const cost = computeCostUsd('eu.amazon.nova-lite-v1:0', {
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    })
+    expect(cost).toBeCloseTo(0.06 + 0.24, 6)
   })
 })

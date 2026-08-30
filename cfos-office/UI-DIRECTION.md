@@ -336,11 +336,21 @@ Structure: tab sits above the card (absolutely positioned, -28px top). Card has 
 
 ### File Rows (Folder Detail)
 
-- 10px radius, subtle border, 14px padding, min-height 48px
-- Left: icon (13px, folder colour, 18px width, centred)
-- Middle: label (13px, weight 600, primary) + type below (9px, mono, muted)
+Built as `components/office/files/FileRow.tsx` — the filing cabinet's row shape.
+
+- `rounded-control` (8px), subtle border, 14px padding, min-height 44px.
+  **Amended from the original 10px:** arbitrary radii of 4px and up are an ESLint
+  error (`cfo/visual-token-guards`), and `DrillDownRow` already renders this row
+  shape at 8px. One radius scale, not two.
+- Left: icon (13px, folder colour, 18px width, centred) — `▤` for a file, `★` when pinned
+- Middle: label (13px, weight 600, primary) + the file's one-line description
+  (11px, tertiary, clamped to one line) + type line below (9px, mono, muted)
+- Type line is the provenance, uppercased: `NOTE · UPDATED 3D AGO · EDITED BY YOU`.
+  `DOCUMENT` rather than `NOTE` for the CFO's composed pieces (Reads, monthly
+  reviews, derived digests); the `EDITED BY YOU` segment appears only once the
+  user has taken the file over
 - Right: arrow -> at 15% opacity
-- Staggered entrance: each row fades in 60ms after the previous (translateY 6px -> 0, opacity 0 -> 1, cubic-bezier 0.16,1,0.3,1)
+- Staggered entrance: each row fades in 60ms after the previous (translateY 6px -> 0, opacity 0 -> 1) via `animate-fade-in` + an `animationDelay`; the shared reduced-motion block in globals.css disables it
 
 ### Chat Bar (Two-State)
 

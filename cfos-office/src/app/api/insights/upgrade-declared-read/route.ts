@@ -15,6 +15,7 @@ import {
   UPGRADED_KEY,
 } from '@/lib/insights/first-read-followup'
 import { trackFunnelEvent, trackOnboardingError } from '@/lib/events/track-funnel-event'
+import { fileComposedRead } from '@/lib/memory/documents'
 import { NextResponse } from 'next/server'
 
 /**
@@ -299,6 +300,15 @@ export async function runDeclaredReadUpgrade(args: {
       eventType: 'declared_upgrade_done',
       payload: { conversation_id: conversationId },
     })
+
+    // Append the upgraded Read to the filed document in Values & You. The
+    // declared Read the user first got stays above it — the point of the
+    // document is that they can see what changed once real numbers arrived.
+    await fileComposedRead(supabase, userId, {
+      content: composed.composedMessage,
+      variant: 'declared_upgrade',
+    })
+
     return { status: 200, body: { upgraded: true, conversationId } }
   } catch (err) {
     console.error('[upgrade-declared-read] upgrade failed:', err)

@@ -5,7 +5,7 @@ import { useRef, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
-import { ResonanceTap } from './ResonanceTap';
+import { ReadErrorReport } from './ReadErrorReport';
 import { trackWowEvent } from '@/lib/wow/event-tracker';
 
 // ── Markdown styling ──────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ export function MessageList({
 
   // Wow plumbing: the first persisted assistant message in a first_read
   // conversation is the "first Read" delivery. Identify its DB id once so we
-  // can render ResonanceTap + scroll observer + delivered/chip tracking on it.
+  // can render ReadErrorReport + scroll observer + delivered/chip tracking on it.
   // Pre-layered first_read conversations also flow through this branch,
   // which is fine — the server-side cron only aggregates layered ones, so
   // extra events on legacy conversations are harmlessly written and ignored.
@@ -613,19 +613,25 @@ export function MessageList({
                 </div>
               ))}
 
-              {/* Message feedback (assistant messages with DB IDs only) */}
+              {/* Message feedback (assistant messages with DB IDs only).
+                  Suppressed on the First Read itself: that message gets exactly
+                  one affordance — ReadErrorReport below — because a thumb and a
+                  "did this read you right?" both return a number nobody can act
+                  on, and three controls under one Read split the tap rate three
+                  ways. Thumbs stay on every other assistant message. */}
               {message.role === 'assistant' &&
+                !isFirstInsightMessage &&
                 !!((message.metadata as { messageDbId?: string } | null)?.messageDbId) && (
                   <div className="px-3">
                     <MessageFeedback messageId={(message.metadata as { messageDbId: string }).messageDbId} />
                   </div>
                 )}
 
-              {/* Wow plumbing: first-Read instrumentation + explicit tap.
-                  Only renders on the first persisted assistant message in a
-                  first_read conversation. The instrumentation sentinel fires
-                  delivered + scrolled_to_bottom; the tap captures explicit
-                  resonance feedback. */}
+              {/* Wow plumbing: first-Read instrumentation + the error-report
+                  control. Only renders on the first persisted assistant message
+                  in a first_read conversation. The instrumentation sentinel
+                  fires delivered + scrolled_to_bottom; the control fires
+                  error_report_tapped and collects the report itself. */}
               {isFirstInsightMessage && firstReadMsgDbId && conversationId && (
                 <div className="px-3">
                   <FirstInsightInstrumentation
@@ -633,7 +639,7 @@ export function MessageList({
                     conversation_id={conversationId}
                     registerFirstReadDelivery={registerFirstReadDelivery}
                   />
-                  <ResonanceTap
+                  <ReadErrorReport
                     first_read_message_id={firstReadMsgDbId}
                     conversation_id={conversationId}
                   />

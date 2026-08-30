@@ -26,6 +26,7 @@ describe('computeRealisedScore', () => {
       scrolled_to_bottom: false,
       returned_d2: false,
       resonance_tap: null,
+      error_report_tapped: false,
     });
   });
 
@@ -47,6 +48,35 @@ describe('computeRealisedScore', () => {
     expect(r.in_session_score).toBe(0.4);
     expect(r.realised_wow_score).toBe(0.28);
     expect(r.reasoning.chip_tapped).toBe(true);
+  });
+
+  // Session 083 — error_report_tapped shares chip_tapped's 0.4 tier. Someone who
+  // spots a wrong number read the thing closely; the tier is about attention,
+  // not about whether they liked what they read.
+  it('error_report_tapped alone scores 0.28, same tier as chip_tapped', () => {
+    const r = computeRealisedScore([ev('error_report_tapped')]);
+    expect(r.in_session_score).toBe(0.4);
+    expect(r.realised_wow_score).toBe(0.28);
+    expect(r.reasoning.error_report_tapped).toBe(true);
+  });
+
+  it('error_report_tapped outranks scrolled_to_bottom', () => {
+    const r = computeRealisedScore([ev('scrolled_to_bottom'), ev('error_report_tapped')]);
+    expect(r.in_session_score).toBe(0.4);
+    expect(r.reasoning.scrolled_to_bottom).toBe(true);
+    expect(r.reasoning.error_report_tapped).toBe(true);
+  });
+
+  it('does not stack with chip_tapped — the tiers are a max, not a sum', () => {
+    const r = computeRealisedScore([ev('chip_tapped'), ev('error_report_tapped')]);
+    expect(r.in_session_score).toBe(0.4);
+  });
+
+  it('replied_substantively still wins over error_report_tapped', () => {
+    const r = computeRealisedScore([ev('error_report_tapped'), ev('replied_substantively')]);
+    expect(r.in_session_score).toBe(1.0);
+    expect(r.realised_wow_score).toBe(0.7);
+    expect(r.reasoning.error_report_tapped).toBe(true);
   });
 
   it('replied_substantively alone scores 0.7 (0.7 × 1.0)', () => {
@@ -141,6 +171,7 @@ describe('computeRealisedScore', () => {
       scrolled_to_bottom: true,
       returned_d2: true,
       resonance_tap: 'positive',
+      error_report_tapped: false,
     });
   });
 });

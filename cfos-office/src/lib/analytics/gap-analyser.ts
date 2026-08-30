@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { refreshMemoryDigests } from '@/lib/memory/digests'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -275,6 +276,10 @@ export async function analyseGap(
       { onConflict: 'user_id,trait_key' },
     )
   }
+
+  // The gap traits just written are what the CFO reads about intent-vs-spend,
+  // and it reads them from the Values digest now rather than from the prompt.
+  if (significantGaps.length > 0) await refreshMemoryDigests(supabase, userId)
 
   // 8. Build summary
   const alignedCount = gaps.filter((g) => g.gap_type === 'aligned').length
@@ -1149,6 +1154,9 @@ export async function analyseGapV2(
       )
     }
   }
+
+  // Same as v1: the traits above only reach the CFO through the Values digest.
+  if (gaps.length > 0) await refreshMemoryDigests(supabase, userId)
 
   // 9. Build metadata envelope.
   const actualCategoriesSet = new Set<string>()

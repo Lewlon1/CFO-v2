@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service';
+import { experimentStamp } from '@/lib/ai/experiment-metadata';
 
 export type LogToolCallInput = {
   userId: string;
@@ -37,6 +38,11 @@ export async function logToolCall(input: LogToolCallInput): Promise<void> {
         step_input_tokens: input.stepInputTokens ?? null,
         step_output_tokens: input.stepOutputTokens ?? null,
         tools_in_step: input.toolsInStep ?? null,
+        // Stamped here too, not just on chat_turn rows: the read-rate of
+        // read_memory_file is the metric that says the retrieval contract
+        // works, and it is only comparable if a tool call can be attributed to
+        // the arm that produced it.
+        ...experimentStamp(),
         ...(input.extra ?? {}),
       },
     });
