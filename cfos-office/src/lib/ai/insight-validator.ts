@@ -253,11 +253,25 @@ export interface CitedFigure {
  * — this enforces that the interpretation didn't invent its own arithmetic.
  */
 
-/** The only figures a Read is permitted to assert about goal headroom. */
+/**
+ * The server-computed figures a Read's headroom claims must reconcile against.
+ *
+ * Sourced from free cash flow + the monthly REQUIREMENT figures the prompt
+ * itself was built from (the compound-growth band for investment goals, the
+ * straight-line figure otherwise) — deliberately NOT from the accelerate lever
+ * alone. A first pass keyed only on that lever silently skipped every Read that
+ * needed checking, because the lever is absent whenever the goal has no
+ * `monthly_required_saving` or gets dropped by the facts reconciliation, which
+ * is exactly the case in the observed regressions.
+ */
 export interface SurplusGroundTruth {
-  /** accelerate lever's surplusOverRequired: spare cash BEYOND what the goal needs at plan. */
+  /** free_cash_flow the Read was handed. Null when unknown. */
+  freeCashFlow: number | null;
+  /** Every monthly requirement the prompt offered (band values, or the straight-line figure). */
+  requirements: number[];
+  /** accelerate lever's surplusOverRequired, when the lever exists. Corroboration only. */
   surplusOverRequired: number | null;
-  /** accelerate lever's stressTestGap: extra monthly need at the conservative rate. 0 = covered even there. */
+  /** accelerate lever's stressTestGap: extra monthly need at the conservative rate. 0 = covered. */
   stressTestGap: number | null;
   /**
    * False when a supply_input blocker gates the goal math (no target date, no
@@ -339,11 +353,26 @@ export function validateSurplusClaims(
   const claims = extractSurplusClaims(narrative);
   const violations: ReconciliationViolation[] = [];
 
-  const noGoalContext =
-    truth.paceComputable && truth.surplusOverRequired === null && truth.stressTestGap === null;
-  if (noGoalContext) {
+  const hasRequirementTruth = truth.freeCashFlow != null && truth.requirements.length > 0;
+  const hasLeverTruth = truth.surplusOverRequired !== null || truth.stressTestGap !== null;
+
+  // Nothing to check against: no goal, no requirement, no lever. Skip rather
+  // than guess — but the caller logs this, because a Read that asserts a
+  // shortfall with no goal context at all is still worth a human look.
+  if (truth.paceComputable && !hasRequirementTruth && !hasLeverTruth) {
     return { valid: true, claims, violations: [], skipped: true };
   }
+
+  const fcf = truth.freeCashFlow ?? 0;
+  // Real deficits and real headrooms, derived the only legitimate way:
+  // requirement vs free cash flow.
+  const deficits = hasRequirementTruth
+    ? truth.requirements.filter((r) => r > fcf).map((r) => r - fcf)
+    : [];
+  const headrooms = hasRequirementTruth
+    ? truth.requirements.filter((r) => r <= fcf).map((r) => fcf - r)
+    : [];
+  const near = (a: number, b: number) => Math.abs(a - b) <= 1;
 
   for (const claim of claims) {
     if (!truth.paceComputable) {
@@ -357,31 +386,60 @@ export function validateSurplusClaims(
     }
 
     if (claim.kind === 'shortfall') {
-      const gap = truth.stressTestGap;
-      if (gap !== null && gap > 0) {
-        if (Math.abs(claim.value - gap) > 1) {
+      // A real stressTestGap is the most specific truth available — prefer it.
+      if (truth.stressTestGap !== null && truth.stressTestGap > 0) {
+        if (!near(claim.value, truth.stressTestGap)) {
           violations.push({
             claim,
-            reason: `claims a shortfall of ${claim.value} but the computed stressTestGap is ${gap}`,
+            reason: `claims a shortfall of ${claim.value} but the computed stressTestGap is ${truth.stressTestGap}`,
           });
         }
         continue;
       }
-      // gap is 0 (covered at the stress rate) or null (not an investment goal).
-      // Either way, a positive surplus means there is no shortfall to report.
+      if (hasRequirementTruth) {
+        if (deficits.length === 0) {
+          violations.push({
+            claim,
+            reason:
+              `claims a shortfall of ${claim.value} but free cash flow (${fcf}) covers every ` +
+              `monthly requirement [${truth.requirements.join(', ')}] — there is no shortfall`,
+          });
+        } else if (!deficits.some((d) => near(claim.value, d))) {
+          violations.push({
+            claim,
+            reason:
+              `claims a shortfall of ${claim.value}; the only real shortfalls against free cash ` +
+              `flow (${fcf}) are [${deficits.map((d) => Math.round(d)).join(', ')}]`,
+          });
+        }
+        continue;
+      }
+      // Lever-only fallback: covered at plan and at the stress rate.
       if (truth.surplusOverRequired !== null && truth.surplusOverRequired > 0) {
         violations.push({
           claim,
           reason:
             `claims a shortfall of ${claim.value} but the goal is covered — ` +
-            `surplusOverRequired is ${truth.surplusOverRequired}` +
-            (gap === 0 ? ' and stressTestGap is 0 (covered even at the conservative rate)' : ''),
+            `surplusOverRequired is ${truth.surplusOverRequired}`,
         });
       }
       continue;
     }
 
-    // Surplus claim: only the "headroom that does not exist" case.
+    // Surplus claim: flagged only when NO headroom exists at all. A correct Read
+    // quotes several scenario headrooms and only the plan-rate one equals
+    // surplusOverRequired, so match-checking each would fire on good Reads.
+    if (hasRequirementTruth) {
+      if (headrooms.length === 0) {
+        violations.push({
+          claim,
+          reason:
+            `claims ${claim.value} of headroom but free cash flow (${fcf}) covers none of the ` +
+            `monthly requirements [${truth.requirements.join(', ')}]`,
+        });
+      }
+      continue;
+    }
     if (truth.surplusOverRequired !== null && truth.surplusOverRequired <= 0) {
       violations.push({
         claim,

@@ -401,8 +401,17 @@ export async function composeFirstRead(params: {
   // Nova A/B produced four Reads that told a funded user they were short by
   // subtracting the two monthly requirements from each other — every number in
   // them was citable, so nothing caught it. See validateSurplusClaims.
-  const surplusTruth = deriveSurplusGroundTruth(leverPackage);
+  const surplusTruth = deriveSurplusGroundTruth(leverPackage, goalRow, financialFacts.free_cash_flow);
   const reconciliation = validateSurplusClaims(composedMessage, surplusTruth);
+  if (reconciliation.skipped && reconciliation.claims.length > 0) {
+    // The first cut of this check skipped silently and passed four broken Reads.
+    // If a Read asserts headroom with nothing to check it against, say so.
+    console.warn('[compose-first-read] surplus claims present but no ground truth to check them', {
+      userId: params.userId,
+      mode,
+      claims: reconciliation.claims.map((c) => c.phrase),
+    });
+  }
   if (!reconciliation.valid) {
     // Loud: this means the Read states something false about the user's
     // position, which is a Rule 2 violation and the highest-severity defect
@@ -466,9 +475,44 @@ export async function composeFirstRead(params: {
  * income) is missing, so no monthly shortfall or surplus is derivable and any
  * numeric claim about one is invented.
  */
-export function deriveSurplusGroundTruth(pkg: LeverPackage): SurplusGroundTruth {
+export function deriveSurplusGroundTruth(
+  pkg: LeverPackage,
+  goal: { type?: string | null; target_amount?: number | null; current_amount?: number | null; target_date?: string | null; monthly_required_saving?: number | null } | null,
+  freeCashFlow: number | null,
+): SurplusGroundTruth {
   const accelerate = pkg.levers.find((l) => l.type === 'accelerate');
+
+  // The monthly requirement figures the PROMPT was built from — mirroring
+  // buildGoalSummary exactly, so the validator checks the Read against the same
+  // numbers the model was shown. Sourcing these (rather than only the
+  // accelerate lever) is what makes the check fire at all: the lever is absent
+  // whenever monthly_required_saving is null or the facts reconciliation drops
+  // it, which is the case in every observed regression.
+  const requirements: number[] = [];
+  if (goal) {
+    const monthsLeft =
+      goal.target_date != null ? monthsBetween(new Date(), new Date(goal.target_date)) : null;
+    if (
+      goal.type === 'investment' &&
+      goal.target_amount != null &&
+      monthsLeft != null &&
+      monthsLeft > 0
+    ) {
+      for (const b of requiredMonthlyBand({
+        targetAmount: goal.target_amount,
+        currentAmount: goal.current_amount ?? 0,
+        months: monthsLeft,
+      })) {
+        if (b.monthly != null) requirements.push(Math.round(b.monthly));
+      }
+    } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
+      requirements.push(Math.round(goal.monthly_required_saving));
+    }
+  }
+
   return {
+    freeCashFlow: freeCashFlow != null ? Math.round(freeCashFlow) : null,
+    requirements,
     surplusOverRequired: accelerate ? accelerate.surplusOverRequired : null,
     stressTestGap: accelerate ? accelerate.stressTestGap : null,
     paceComputable: pkg.blocker === null,
