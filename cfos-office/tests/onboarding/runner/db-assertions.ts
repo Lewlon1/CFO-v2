@@ -3,7 +3,8 @@ import type { Persona } from '../personas/types'
 import type { DbStateSnapshot } from './types'
 
 export async function snapshotDbState(admin: SupabaseClient, userId: string): Promise<DbStateSnapshot> {
-  const [profileRes, portraitRes, progressRes, txnRes, msgRes, recurringRes, goalsRes] = await Promise.all([
+  const [profileRes, portraitRes, progressRes, txnRes, msgRes, recurringRes, goalsRes, firstReadConvRes] =
+    await Promise.all([
     admin.from('user_profiles').select('*').eq('id', userId).maybeSingle(),
     admin.from('financial_portrait').select('*').eq('user_id', userId),
     admin.from('onboarding_progress').select('*').eq('user_id', userId).maybeSingle(),
@@ -11,6 +12,14 @@ export async function snapshotDbState(admin: SupabaseClient, userId: string): Pr
     admin.from('messages').select('content').eq('user_id', userId).eq('role', 'assistant'),
     admin.from('recurring_expenses').select('name').eq('user_id', userId),
     admin.from('goals').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+    admin
+      .from('conversations')
+      .select('metadata, created_at')
+      .eq('user_id', userId)
+      .eq('type', 'first_read')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   return {
@@ -21,6 +30,9 @@ export async function snapshotDbState(admin: SupabaseClient, userId: string): Pr
     assistantMessageContents: (msgRes.data ?? []).map((m) => String((m as { content?: unknown }).content ?? '')),
     recurringNames: (recurringRes.data ?? []).map((r) => String((r as { name?: unknown }).name ?? '')),
     goalsCount: goalsRes.count ?? 0,
+    firstReadMetadata:
+      ((firstReadConvRes.data?.metadata as { first_read_metadata?: unknown } | null)
+        ?.first_read_metadata as Record<string, unknown> | undefined) ?? null,
   }
 }
 
@@ -37,6 +49,34 @@ export function assertNoValidatorNoteLeak(contents: string[]): string[] {
   return n > 0
     ? [`messages: ${n} assistant message(s) contain a leaked "(System note: …)" QA diagnostic`]
     : []
+}
+
+/**
+ * Session 083 — the composed Read's own arithmetic must reconcile.
+ *
+ * The check itself runs at compose time (validateSurplusClaims), where the
+ * server-computed lever figures live; this asserts on the verdict it persisted.
+ * Deliberately a DB invariant rather than a text hard rule: the ground truth is
+ * surplusOverRequired / stressTestGap, which the harness never sees, and a
+ * text-only rule could only guess.
+ *
+ * This exists because an Aug-2026 Nova Pro A/B shipped four Reads that inverted
+ * the user's position ("you're £578 short" to someone £565 clear) and BOTH
+ * existing gates passed them: every figure was citable, and the LLM judge scored
+ * accuracy 5/5 on all four. A deterministic comparison catches in zero tokens
+ * what the judge could not see at all.
+ */
+export function assertReadArithmeticReconciles(meta: Record<string, unknown> | null): string[] {
+  if (!meta) return []
+  const rec = meta.reconciliation as
+    | { valid?: boolean; violations?: Array<{ phrase?: string; reason?: string }> }
+    | undefined
+  // Absent on Reads composed before 083, and on paths that never compose one.
+  if (!rec || rec.valid !== false) return []
+  const detail = (rec.violations ?? [])
+    .map((v) => `"${v.phrase ?? '?'}" — ${v.reason ?? 'no reason recorded'}`)
+    .join('; ')
+  return [`first Read states a surplus/shortfall that does not reconcile: ${detail}`]
 }
 
 /**
@@ -118,6 +158,7 @@ export function assertDbState(persona: Persona, snapshot: DbStateSnapshot): stri
   // Universal fix invariants — apply to every persona regardless of expectations.
   errors.push(...assertNoValidatorNoteLeak(snapshot.assistantMessageContents))
   errors.push(...assertNoCaseDupRecurringNames(snapshot.recurringNames))
+  errors.push(...assertReadArithmeticReconciles(snapshot.firstReadMetadata))
 
   return errors
 }

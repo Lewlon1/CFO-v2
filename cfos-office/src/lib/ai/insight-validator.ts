@@ -232,6 +232,169 @@ export interface CitedFigure {
  * in the same sequence the user met the figures, which is the order they will
  * describe them in when they tell us one is wrong.
  */
+/**
+ * ─── Surplus / shortfall reconciliation (Session 083) ──────────────────────
+ *
+ * WHY THIS EXISTS: an Aug-2026 Nova Pro A/B produced four Reads that inverted
+ * the user's financial position — "you're £578 short each month" to a user with
+ * £565/month of headroom. The failure was always the same shape: the model
+ * subtracted the CONSERVATIVE monthly requirement from the MODERATE one and
+ * reported that difference as a shortfall against cash flow.
+ *
+ * Neither existing guard caught it. validateCitations passes because every
+ * atomic number is real — the arithmetic over them is what's wrong. The LLM
+ * judge passes it 5/5 because its accuracy dimension asks "is this figure
+ * grounded?", not "is this conclusion correct".
+ *
+ * So this is deliberately NOT an LLM check. The server already computes both
+ * numbers a Read is allowed to assert (`surplusOverRequired` and
+ * `stressTestGap` on the accelerate lever), which makes "is the claim true?"
+ * a pure comparison. CLAUDE.md Rule 2: the system computes, the LLM interprets
+ * — this enforces that the interpretation didn't invent its own arithmetic.
+ */
+
+/** The only figures a Read is permitted to assert about goal headroom. */
+export interface SurplusGroundTruth {
+  /** accelerate lever's surplusOverRequired: spare cash BEYOND what the goal needs at plan. */
+  surplusOverRequired: number | null;
+  /** accelerate lever's stressTestGap: extra monthly need at the conservative rate. 0 = covered even there. */
+  stressTestGap: number | null;
+  /**
+   * False when a supply_input blocker gates the goal math (no target date, no
+   * target amount). Nothing numeric about pace can be asserted at all — the
+   * Read may say a figure is missing, never that the user is £X short.
+   */
+  paceComputable: boolean;
+}
+
+export interface SurplusClaim {
+  kind: 'shortfall' | 'surplus';
+  value: number;
+  /** The matched text, so a violation log points at the sentence to fix. */
+  phrase: string;
+}
+
+export interface ReconciliationViolation {
+  claim: SurplusClaim;
+  reason: string;
+}
+
+export interface ReconciliationResult {
+  valid: boolean;
+  claims: SurplusClaim[];
+  violations: ReconciliationViolation[];
+  /** True when the ground truth was too thin to check anything (no goal at all). */
+  skipped: boolean;
+}
+
+// "you're £62 short", "£578 short each month", "short by £300", "that £62 gap"
+const SHORTFALL_PATTERNS: RegExp[] = [
+  /[£€$]\s?([\d,]+(?:\.\d+)?)\s+short\b/gi,
+  /\bshort\s+by\s+[£€$]\s?([\d,]+(?:\.\d+)?)/gi,
+  /[£€$]\s?([\d,]+(?:\.\d+)?)\s+(?:gap|shortfall|deficit)\b/gi,
+];
+
+// "with £283 to spare", "£221 left", "£463 surplus", "£1,099/mo to spare"
+const SURPLUS_PATTERNS: RegExp[] = [
+  /[£€$]\s?([\d,]+(?:\.\d+)?)\s*(?:\/mo|\/month|\s+a\s+month|\s+each\s+month)?\s+(?:to\s+spare|spare\b|left\s+over|left\b|surplus\b|headroom\b)/gi,
+];
+
+function collect(narrative: string, patterns: RegExp[], kind: SurplusClaim['kind']): SurplusClaim[] {
+  const out: SurplusClaim[] = [];
+  for (const re of patterns) {
+    // Patterns are module-level with /g, so lastIndex must be reset per call —
+    // otherwise a second invocation resumes mid-string and silently misses claims.
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(narrative)) !== null) {
+      const value = Number(m[1].replace(/,/g, ''));
+      if (Number.isFinite(value)) out.push({ kind, value, phrase: m[0].trim() });
+    }
+  }
+  return out;
+}
+
+/** Every numeric headroom/shortfall assertion in the prose. */
+export function extractSurplusClaims(narrative: string): SurplusClaim[] {
+  return [...collect(narrative, SHORTFALL_PATTERNS, 'shortfall'), ...collect(narrative, SURPLUS_PATTERNS, 'surplus')];
+}
+
+/**
+ * Check every surplus/shortfall claim against the server's own figures.
+ *
+ * Deliberately asymmetric. A claimed SHORTFALL is checked hard — inventing a
+ * deficit for a funded user is the failure mode that actually happened, and
+ * it's the one that does real damage. A claimed SURPLUS is only flagged when
+ * the ground truth says no headroom exists at all: a correct Read legitimately
+ * quotes several scenario headrooms ("£283 to spare" at plan, "£221 left" at
+ * the stress rate) and only the plan-rate one equals surplusOverRequired, so
+ * requiring an exact match on every surplus claim would fire on good Reads.
+ *
+ * Tolerance is ±1 currency unit, matching validateCitations.
+ */
+export function validateSurplusClaims(
+  narrative: string,
+  truth: SurplusGroundTruth,
+): ReconciliationResult {
+  const claims = extractSurplusClaims(narrative);
+  const violations: ReconciliationViolation[] = [];
+
+  const noGoalContext =
+    truth.paceComputable && truth.surplusOverRequired === null && truth.stressTestGap === null;
+  if (noGoalContext) {
+    return { valid: true, claims, violations: [], skipped: true };
+  }
+
+  for (const claim of claims) {
+    if (!truth.paceComputable) {
+      violations.push({
+        claim,
+        reason:
+          'goal pace is not computable (a supply_input blocker is active), so no numeric ' +
+          'shortfall or headroom can be asserted at all',
+      });
+      continue;
+    }
+
+    if (claim.kind === 'shortfall') {
+      const gap = truth.stressTestGap;
+      if (gap !== null && gap > 0) {
+        if (Math.abs(claim.value - gap) > 1) {
+          violations.push({
+            claim,
+            reason: `claims a shortfall of ${claim.value} but the computed stressTestGap is ${gap}`,
+          });
+        }
+        continue;
+      }
+      // gap is 0 (covered at the stress rate) or null (not an investment goal).
+      // Either way, a positive surplus means there is no shortfall to report.
+      if (truth.surplusOverRequired !== null && truth.surplusOverRequired > 0) {
+        violations.push({
+          claim,
+          reason:
+            `claims a shortfall of ${claim.value} but the goal is covered — ` +
+            `surplusOverRequired is ${truth.surplusOverRequired}` +
+            (gap === 0 ? ' and stressTestGap is 0 (covered even at the conservative rate)' : ''),
+        });
+      }
+      continue;
+    }
+
+    // Surplus claim: only the "headroom that does not exist" case.
+    if (truth.surplusOverRequired !== null && truth.surplusOverRequired <= 0) {
+      violations.push({
+        claim,
+        reason:
+          `claims ${claim.value} of headroom but surplusOverRequired is ` +
+          `${truth.surplusOverRequired} — the goal is not funded at plan`,
+      });
+    }
+  }
+
+  return { valid: violations.length === 0, claims, violations, skipped: false };
+}
+
 export const MAX_CITED_FIGURES = 40;
 
 export function extractCitedFigures(

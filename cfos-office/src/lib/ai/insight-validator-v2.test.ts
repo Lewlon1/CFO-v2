@@ -13,6 +13,8 @@ import {
   validateChips,
   appendCorrection,
   extractCitedFigures,
+  extractSurplusClaims,
+  validateSurplusClaims,
   MAX_CITED_FIGURES,
   type ToolResultLike,
 } from './insight-validator';
@@ -483,3 +485,162 @@ describe('extractCitedFigures', () => {
     expect(extractCitedFigures('Dining ran £420.', [])).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// validateSurplusClaims (Session 083)
+//
+// The regression corpus is real: every string in the "Nova A/B regressions"
+// block below is copied verbatim from tests/onboarding/test-output/
+// nova-vs-claude-nova-full, and every string in the "stays quiet on correct
+// Reads" block from the Claude run of the same persona on the same data. If a
+// future change makes the first block pass or the second block fail, the check
+// has stopped doing its job.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('extractSurplusClaims', () => {
+  it('finds a shortfall phrased as "you\'re £62 short"', () => {
+    expect(extractSurplusClaims("The exposure is at the low-return end, where you're £62 short.")).toEqual([
+      { kind: 'shortfall', value: 62, phrase: '£62 short' },
+    ])
+  })
+
+  it('finds "short by" and "gap" phrasings', () => {
+    expect(extractSurplusClaims('short by £300').map((c) => c.value)).toEqual([300])
+    expect(extractSurplusClaims('cover that £463 gap').map((c) => c.value)).toEqual([463])
+  })
+
+  it('finds surplus phrasings, including per-month suffixes', () => {
+    expect(extractSurplusClaims('covers £1,187 with £283 to spare')[0]).toEqual({
+      kind: 'surplus', value: 283, phrase: '£283 to spare',
+    })
+    expect(extractSurplusClaims('£1,470 clears £1,249 with £221 left').map((c) => c.value)).toEqual([221])
+    expect(extractSurplusClaims('with £1,099/mo to spare').map((c) => c.value)).toEqual([1099])
+  })
+
+  it('handles thousands separators and euro amounts', () => {
+    expect(extractSurplusClaims('you are €1,250 short').map((c) => c.value)).toEqual([1250])
+  })
+
+  it('is re-runnable — module-level /g regexes reset between calls', () => {
+    const text = "you're £62 short"
+    expect(extractSurplusClaims(text)).toEqual(extractSurplusClaims(text))
+  })
+
+  it('returns nothing for prose with no headroom claim', () => {
+    expect(extractSurplusClaims('Dining ran £420 this month, £110 above your average.')).toEqual([])
+  })
+})
+
+describe('validateSurplusClaims — Nova A/B regressions (must all be caught)', () => {
+  it('builder-classic: £62 shortfall invented from need(4%) − need(7%)', () => {
+    const r = validateSurplusClaims(
+      "At the 7% plan, your free cash flow already covers the £1,187 needed, with £283 to spare. " +
+        "The exposure is at the low-return end, where you're £62 short.",
+      { surplusOverRequired: 283, stressTestGap: 0, paceComputable: true },
+    )
+    expect(r.valid).toBe(false)
+    expect(r.violations).toHaveLength(1)
+    expect(r.violations[0].claim).toMatchObject({ kind: 'shortfall', value: 62 })
+    expect(r.violations[0].reason).toContain('the goal is covered')
+  })
+
+  it('time-saver-expert: £33 shortfall against £1,066 of real headroom', () => {
+    const r = validateSurplusClaims(
+      "£3,798 covers £2,699 with £1,100 to spare. The exposure is at the low-return end, where you're £33 short.",
+      { surplusOverRequired: 1099, stressTestGap: 0, paceComputable: true },
+    )
+    expect(r.valid).toBe(false)
+    expect(r.violations.map((v) => v.claim.value)).toEqual([33])
+  })
+
+  it('zane-spain: €300 shortfall against a €20 surplus', () => {
+    const r = validateSurplusClaims(
+      "€820 covers €500 with €320 to spare. The exposure is at the low-return end, where you're €300 short.",
+      { surplusOverRequired: 320, stressTestGap: 0, paceComputable: true },
+    )
+    expect(r.valid).toBe(false)
+    expect(r.violations.map((v) => v.claim.value)).toEqual([300])
+  })
+
+  it('truth-teller-balanced: the inversion — "£578 short" to a user £565 clear', () => {
+    // Savings goal, so stressTestGap is null; surplusOverRequired alone convicts.
+    const r = validateSurplusClaims(
+      'The 6-month safety net goal of £15,000 by 2027-06-01 needs £2,000 a month. ' +
+        "You're £578 short each month.",
+      { surplusOverRequired: 565, stressTestGap: null, paceComputable: true },
+    )
+    expect(r.valid).toBe(false)
+    expect(r.violations[0].reason).toContain('surplusOverRequired is 565')
+  })
+
+  it('flags a numeric shortfall asserted while a supply_input blocker gates the math', () => {
+    const r = validateSurplusClaims(
+      "The goal needs a target date. You're £400 short each month.",
+      { surplusOverRequired: null, stressTestGap: null, paceComputable: false },
+    )
+    expect(r.valid).toBe(false)
+    expect(r.violations[0].reason).toContain('not computable')
+  })
+
+  it('flags claimed headroom when the goal is NOT funded at plan (the inverse error)', () => {
+    const r = validateSurplusClaims('covers it with £300 to spare', {
+      surplusOverRequired: -120, stressTestGap: null, paceComputable: true,
+    })
+    expect(r.valid).toBe(false)
+    expect(r.violations[0].reason).toContain('not funded at plan')
+  })
+
+  it('flags a shortfall whose magnitude disagrees with a REAL stressTestGap', () => {
+    const r = validateSurplusClaims("you're £62 short", {
+      surplusOverRequired: 0, stressTestGap: 210, paceComputable: true,
+    })
+    expect(r.valid).toBe(false)
+    expect(r.violations[0].reason).toContain('computed stressTestGap is 210')
+  })
+})
+
+describe('validateSurplusClaims — stays quiet on correct Reads', () => {
+  it('accepts the real Claude builder-classic Read (two scenario headrooms, no shortfall)', () => {
+    const r = validateSurplusClaims(
+      'At the 7% plan, £1,470 covers £1,187 with £283 to spare. The goal is funded. ' +
+        'The stress test at 4% is also covered — £1,470 clears £1,249 with £221 left.',
+      { surplusOverRequired: 283, stressTestGap: 0, paceComputable: true },
+    )
+    expect(r.valid).toBe(true)
+    // Both headrooms are seen; only the plan-rate one equals surplusOverRequired,
+    // which is exactly why surplus claims are not match-checked.
+    expect(r.claims.map((c) => c.value).sort((a, b) => a - b)).toEqual([221, 283])
+  })
+
+  it('accepts a shortfall that matches stressTestGap exactly', () => {
+    const r = validateSurplusClaims("at the conservative rate you're £210 short", {
+      surplusOverRequired: 0, stressTestGap: 210, paceComputable: true,
+    })
+    expect(r.valid).toBe(true)
+  })
+
+  it('accepts a shortfall within the ±1 rounding tolerance', () => {
+    const r = validateSurplusClaims("you're £211 short", {
+      surplusOverRequired: 0, stressTestGap: 210, paceComputable: true,
+    })
+    expect(r.valid).toBe(true)
+  })
+
+  it('accepts a blocker Read that names the missing input without asserting a figure', () => {
+    const r = validateSurplusClaims(
+      'The move-home fund needs €4,800 more to hit €6,000 — but the one thing between you and ' +
+        'knowing the monthly pace is a target date.',
+      { surplusOverRequired: null, stressTestGap: null, paceComputable: false },
+    )
+    expect(r.valid).toBe(true)
+    expect(r.claims).toEqual([])
+  })
+
+  it('skips when there is no goal context at all', () => {
+    const r = validateSurplusClaims('you are £62 short', {
+      surplusOverRequired: null, stressTestGap: null, paceComputable: true,
+    })
+    expect(r.skipped).toBe(true)
+    expect(r.valid).toBe(true)
+  })
+})

@@ -17,7 +17,7 @@ import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
 import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise';
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
-import type { CitedFigure } from '@/lib/ai/insight-validator';
+import type { CitedFigure, SurplusGroundTruth } from '@/lib/ai/insight-validator';
 import type {
   FinancialFacts,
   DeclaredReadFacts,
@@ -131,6 +131,25 @@ export type FirstReadMetadata = {
    * composed before migration 083 shipped.
    */
   citation_set?: CitedFigure[];
+  /**
+   * Verdict from the compose-time arithmetic reconciliation: did every
+   * "£X short" / "£X to spare" claim in the prose match the server's own
+   * surplusOverRequired / stressTestGap? `valid: false` means the Read states
+   * something false about the user's position (Rule 2). `skipped` means there
+   * was no goal context to check against. Absent on Reads composed before
+   * Session 083.
+   */
+  reconciliation?: {
+    valid: boolean;
+    skipped: boolean;
+    ground_truth: SurplusGroundTruth;
+    violations: Array<{
+      kind: 'shortfall' | 'surplus';
+      value: number;
+      phrase: string;
+      reason: string;
+    }>;
+  };
 };
 
 export type FirstReadComposeOutput = {

@@ -32,6 +32,8 @@ import {
   buildCitationAllowlist,
   extractCitedFigures,
   validateCitations,
+  validateSurplusClaims,
+  type SurplusGroundTruth,
 } from '@/lib/ai/insight-validator';
 import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
@@ -394,6 +396,28 @@ export async function composeFirstRead(params: {
     });
   }
 
+  // Session 083 — arithmetic reconciliation. The citation check above proves
+  // every FIGURE is real; this proves the CONCLUSION drawn from them is. The
+  // Nova A/B produced four Reads that told a funded user they were short by
+  // subtracting the two monthly requirements from each other — every number in
+  // them was citable, so nothing caught it. See validateSurplusClaims.
+  const surplusTruth = deriveSurplusGroundTruth(leverPackage);
+  const reconciliation = validateSurplusClaims(composedMessage, surplusTruth);
+  if (!reconciliation.valid) {
+    // Loud: this means the Read states something false about the user's
+    // position, which is a Rule 2 violation and the highest-severity defect
+    // this path can produce.
+    console.error('[compose-first-read] surplus/shortfall claim does not reconcile', {
+      userId: params.userId,
+      mode,
+      truth: surplusTruth,
+      violations: reconciliation.violations.map((v) => ({
+        phrase: v.claim.phrase,
+        reason: v.reason,
+      })),
+    });
+  }
+
   const metadata = extractCompositionMetadata({
     composedMessage,
     usableClusters,
@@ -412,10 +436,44 @@ export async function composeFirstRead(params: {
   // user's "this number is wrong" traces back to the source that computed it.
   metadata.citation_set = extractCitedFigures(composedMessage, factBundles);
 
+  // Persisted so the verdict is readable downstream without re-deriving levers:
+  // the onboarding harness asserts on it (db-assertions), and a read_feedback
+  // report snapshots it, so "this number is wrong" arrives next to whether the
+  // Read's own arithmetic reconciled at compose time.
+  metadata.reconciliation = {
+    valid: reconciliation.valid,
+    skipped: reconciliation.skipped,
+    ground_truth: surplusTruth,
+    violations: reconciliation.violations.map((v) => ({
+      kind: v.claim.kind,
+      value: v.claim.value,
+      phrase: v.claim.phrase,
+      reason: v.reason,
+    })),
+  };
+
   return { composedMessage, metadata };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Pull the only two figures a Read may assert about goal headroom out of the
+ * lever package the prompt was built from.
+ *
+ * `paceComputable` is false whenever a supply_input blocker is present: that
+ * lever exists precisely because a required pace input (target date / amount /
+ * income) is missing, so no monthly shortfall or surplus is derivable and any
+ * numeric claim about one is invented.
+ */
+export function deriveSurplusGroundTruth(pkg: LeverPackage): SurplusGroundTruth {
+  const accelerate = pkg.levers.find((l) => l.type === 'accelerate');
+  return {
+    surplusOverRequired: accelerate ? accelerate.surplusOverRequired : null,
+    stressTestGap: accelerate ? accelerate.stressTestGap : null,
+    paceComputable: pkg.blocker === null,
+  };
+}
 
 /**
  * Issue 1.4: assert the accelerate lever's `surplusOverRequired` reconciles
