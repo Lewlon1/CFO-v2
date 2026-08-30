@@ -511,10 +511,10 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
     expect(summary).not.toContain('PLAN AROUND the 7%');
     expect(summary).toContain('straight-line');
     // The straight-line branch used to emit no verdict at all — now it does.
-    expect(summary).toContain('FUNDED AT PLAN');
+    expect(summary).toContain('they are funded at plan');
     expect(summary).toContain('€200/mo spare');
     // …and no stress case, because there is no rate band to stress.
-    expect(summary).not.toContain('STRESS TEST');
+    expect(summary).not.toContain('stress case');
   });
 
   // Rule 2: the verdict is handed over, never asked for. These assert on the
@@ -525,10 +525,14 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
       'EUR',
       verdictFor(retirementGoal, 3000),
     );
-    expect(summary).toContain('FUNDED AT PLAN');
-    expect(summary).toContain('There is NO gap at plan');
-    expect(summary).toContain('cite verbatim, NEVER recompute');
-    expect(summary).not.toContain('NOT FUNDED AT PLAN');
+    expect(summary).toContain('they are funded at plan');
+    expect(summary).toContain('There is no gap at plan');
+    expect(summary).toContain('never re-derive them');
+    expect(summary).not.toContain('they are short by');
+    // No liftable heading — Nova pasted "VERDICT:" / "STRESS TEST:" straight
+    // into the user-facing prose when the block led with labels.
+    expect(summary).not.toContain('VERDICT');
+    expect(summary).not.toContain('STRESS TEST');
     // No instruction anywhere asking the model to work the verdict out itself.
     expect(summary).not.toContain('Give a clear verdict');
   });
@@ -536,8 +540,9 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
   it('states NOT FUNDED AT PLAN with a single named shortfall figure', () => {
     const verdict = verdictFor(retirementGoal, 100);
     const summary = buildGoalSummary(retirementGoal, 'EUR', verdict);
-    expect(summary).toContain('NOT FUNDED AT PLAN');
-    expect(summary).toContain('is the ONLY shortfall figure that may appear');
+    expect(summary).toContain('they are short by exactly');
+    expect(summary).toContain('is the only shortfall figure that may appear');
+    expect(summary).not.toContain('funded at plan, leaving');
     expect(summary).toContain(`€${verdict.shortfallAtPlan!.toLocaleString('en-GB')}/mo`);
   });
 
@@ -546,8 +551,9 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
     const verdict = verdictFor(retirementGoal, 99_999);
     const summary = buildGoalSummary(retirementGoal, 'EUR', verdict);
     expect(verdict.stressCovered).toBe(true);
-    expect(summary).toContain('COVERS it');
-    expect(summary).toContain('it is not a gap');
+    expect(summary).toContain('comfortably covers that too');
+    expect(summary).toContain('the conservative stress case holds');
+    expect(summary).toContain('never call this covered case a gap');
   });
 
   it('sizes the stress shortfall when the conservative case is not covered', () => {
@@ -557,8 +563,8 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
     const summary = buildGoalSummary(retirementGoal, 'EUR', verdict);
     expect(verdict.fundedAtPlan).toBe(true);
     expect(verdict.stressCovered).toBe(false);
-    expect(summary).toContain('FUNDED AT PLAN');
-    expect(summary).toContain('more than free cash flow covers');
+    expect(summary).toContain('they are funded at plan');
+    expect(summary).toContain('more than their free cash flow covers');
   });
 
   // Rule 8. The band line used to call requiredMonthlyBand itself, off its own
@@ -574,7 +580,7 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
     expect(summary).toContain(`the 7% plan figure of ${plan}/mo`);
     const stress = `£${verdict.stressMonthly!.toLocaleString('en-GB')}`;
     expect(summary).toContain(`${stress}/mo at 4%`);
-    expect(summary).toContain(`4% rate, ${stress}/mo is needed`);
+    expect(summary).toContain(`4% return, ${stress}/mo would be needed`);
   });
 
   it('emits no verdict at all when free cash flow is unknown', () => {
@@ -583,8 +589,9 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
       'EUR',
       verdictFor(retirementGoal, null),
     );
-    expect(summary).not.toContain('VERDICT');
-    expect(summary).not.toContain('STRESS TEST');
+    expect(summary).not.toContain('they are funded at plan');
+    expect(summary).not.toContain('they are short by');
+    expect(summary).not.toContain('At a cautious');
     // The band and the teaching lines still render.
     expect(summary).toContain('PLAN AROUND the 7%');
   });

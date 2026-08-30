@@ -162,6 +162,67 @@ describe('computeGoalVerdict — the stress case', () => {
   });
 });
 
+describe('computeGoalVerdict — savings goals with no persisted pace', () => {
+  // Both eval personas that carry a savings goal have target + date but a null
+  // monthly_required_saving. Gating on that column left them with no verdict,
+  // and the model filled the template's gap slot itself — reproducing the
+  // original regression figures exactly ("£578 short", "€1,013 short").
+  it('truth-teller-balanced: £15,000 by 2027-06-01, £3,000 saved, £1,422 free cash', () => {
+    const v = computeGoalVerdict({
+      goal: {
+        type: 'savings',
+        target_amount: 15_000,
+        current_amount: 3_000,
+        target_date: '2027-06-01',
+        monthly_required_saving: null,
+      },
+      freeCashFlow: 1422,
+      asOf: new Date('2026-03-28T00:00:00Z'),
+    });
+    expect(v.computable).toBe(true);
+    expect(v.planMonthly).toBe(857); // 12,000 / 14 months
+    expect(v.fundedAtPlan).toBe(true);
+    expect(v.surplusAtPlan).toBe(565);
+    expect(v.shortfallAtPlan).toBeNull(); // the Read said "a gap of £578"
+  });
+
+  it('zane-spain: €30,000 by 2029-01-01, €5,000 saved, €820 free cash', () => {
+    const v = computeGoalVerdict({
+      goal: {
+        type: 'savings',
+        target_amount: 30_000,
+        current_amount: 5_000,
+        target_date: '2029-01-01',
+        monthly_required_saving: null,
+      },
+      freeCashFlow: 820,
+      asOf: new Date('2026-03-29T00:00:00Z'),
+    });
+    expect(v.computable).toBe(true);
+    expect(v.planMonthly).toBe(758); // 25,000 / 33 months
+    expect(v.fundedAtPlan).toBe(true);
+    expect(v.surplusAtPlan).toBe(62);
+    expect(v.shortfallAtPlan).toBeNull(); // the Read said "€1,013 short"
+  });
+
+  it('prefers the STORED pace over the computed one, so the Read agrees with the goal UI', () => {
+    const goal = {
+      type: 'savings' as const,
+      target_amount: 15_000,
+      current_amount: 3_000,
+      target_date: '2027-06-01',
+      monthly_required_saving: 900, // deliberately ≠ the 857 straight-line split
+    };
+    const v = computeGoalVerdict({
+      goal,
+      freeCashFlow: 1422,
+      asOf: new Date('2026-03-28T00:00:00Z'),
+    });
+    expect(v.planMonthly).toBe(900);
+    expect(v.surplusAtPlan).toBe(522);
+  });
+});
+
 describe('computeGoalVerdict — non-investment goals', () => {
   it('uses the stored straight-line requirement, with no stress case', () => {
     const v = computeGoalVerdict({
@@ -285,12 +346,12 @@ describe('computeGoalVerdict — not computable', () => {
     );
   });
 
-  it('non-investment goal with no stored monthly requirement', () => {
+  it('non-investment goal with neither a stored requirement nor a target amount', () => {
     expectSilent(
       computeGoalVerdict({
         goal: {
           type: 'savings',
-          target_amount: 10_000,
+          target_amount: null,
           current_amount: 0,
           target_date: IN_60_MONTHS,
           monthly_required_saving: null,

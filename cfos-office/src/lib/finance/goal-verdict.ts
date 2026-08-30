@@ -19,6 +19,7 @@
 
 import {
   requiredMonthlyBand,
+  requiredMonthlyForTarget,
   INVESTMENT_DEFAULT_RATE_PCT,
 } from '@/lib/finance/compound-growth';
 import { monthsBetween } from '@/lib/goals/pace';
@@ -145,12 +146,37 @@ export function computeGoalVerdict(input: GoalVerdictInput): GoalVerdict {
       stressMonthly = stress.monthly;
       stressRatePct = stress.ratePct;
     }
-  } else if (goal.monthly_required_saving != null) {
-    planMonthly = Math.round(goal.monthly_required_saving);
+  } else {
+    // Non-investment: straight-line. Prefer the STORED figure — it is what the
+    // goal UI and the pace badge show, and a Read that disagreed with them
+    // would just relocate the contradiction.
+    //
+    // Fall back to computing it when the column is null. That is not a corner
+    // case: two of the four eval personas carry a savings goal with a target
+    // and a date but no persisted pace, and gating on the column alone left
+    // them with no verdict — whereupon the model invented one ("needs £2,000/mo
+    // … a gap of £578" against a real requirement of £857 and a £565 surplus).
+    // Silence is not neutral here; the template has a gap slot and the model
+    // fills it. Same formula as computePaceAndOnTrack — the r=0 branch of
+    // requiredMonthlyForTarget IS the straight-line split, so this reuses the
+    // shared maths rather than writing (target − current) / months a third time.
+    const stored = goal.monthly_required_saving;
+    if (stored != null) {
+      planMonthly = Math.round(stored);
+    } else if (goal.target_amount != null) {
+      const linear = requiredMonthlyForTarget({
+        targetAmount: goal.target_amount,
+        currentAmount: goal.current_amount ?? 0,
+        annualRatePct: 0,
+        months: monthsLeft,
+      });
+      if (linear == null) return NOT_COMPUTABLE;
+      planMonthly = Math.round(linear);
+    } else {
+      return NOT_COMPUTABLE;
+    }
     planRatePct = null;
     requirements.push({ ratePct: null, monthly: planMonthly });
-  } else {
-    return NOT_COMPUTABLE;
   }
 
   const pace = {

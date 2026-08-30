@@ -833,9 +833,13 @@ export function buildGoalSummary(
         `${topPct}% as the upside. ` +
         `Returns on the ${m(current)} already saved do much of the heavy lifting over this horizon.`,
     );
-  } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
+  } else if (verdict.planMonthly != null && monthsLeft != null && monthsLeft > 0) {
+    // Sourced from the verdict, not from goal.monthly_required_saving: the
+    // column is null on savings goals whose pace was never persisted, and
+    // gating this line on it left those Reads with no requirement figure at
+    // all — which the model then invented.
     lines.push(
-      `Monthly contribution needed: ${m(goal.monthly_required_saving)}/mo ` +
+      `Monthly contribution needed: ${m(verdict.planMonthly)}/mo ` +
         `(straight-line, already nets off the ${m(goal.current_amount ?? 0)} saved).`,
     );
   }
@@ -859,31 +863,43 @@ export function buildGoalSummary(
   if (verdict.computable && verdict.planMonthly != null && verdict.fundedAtPlan != null) {
     const fcf = verdict.freeCashFlow ?? 0;
     const planLabel = verdict.planRatePct != null ? `${verdict.planRatePct}% plan` : 'plan';
+    // Phrased as instruction throughout, with no label a weaker model can lift.
+    // An earlier cut led each line with "VERDICT (…):" / "STRESS TEST (…):" and
+    // Nova pasted both headings straight into the user-facing prose (and blew
+    // the 250-word cap doing it). A directive has no quotable shape.
+    // Fact first, directive last. A weak model lifts the head of a prompt line
+    // into the prose, so the head must be a sentence that is CORRECT to lift.
+    // (Nova lifted "VERDICT:"/"STRESS TEST:" headings from an earlier cut, and
+    // "The verdict is already worked out" from the one after that.)
     if (verdict.fundedAtPlan) {
       lines.push(
-        `VERDICT (server-computed — cite verbatim, NEVER recompute): FUNDED AT PLAN. ` +
-          `Free cash flow of ${m(fcf)} covers the ${planLabel} figure of ` +
-          `${m(verdict.planMonthly)}/mo, leaving ${m(verdict.surplusAtPlan ?? 0)}/mo spare. ` +
-          `There is NO gap at plan. Do not describe any figure as a shortfall, gap or ` +
-          `gap-to-close. Frame the next move as getting there sooner or protecting the buffer.`,
+        `Free cash flow of ${m(fcf)} covers the ${planLabel} figure of ` +
+          `${m(verdict.planMonthly)}/mo, leaving ${m(verdict.surplusAtPlan ?? 0)}/mo spare — ` +
+          `they are funded at plan. Those three figures are computed: state them, never ` +
+          `re-derive them. There is no gap at plan, so do not describe any figure as a ` +
+          `shortfall, a gap, or something to close — frame the next move as getting there ` +
+          `sooner or protecting the buffer.`,
       );
     } else {
       lines.push(
-        `VERDICT (server-computed — cite verbatim, NEVER recompute): NOT FUNDED AT PLAN. ` +
-          `The ${planLabel} needs ${m(verdict.planMonthly)}/mo and free cash ` +
-          `flow is ${m(fcf)} — a shortfall of exactly ${m(verdict.shortfallAtPlan ?? 0)}/mo. ` +
-          `${m(verdict.shortfallAtPlan ?? 0)} is the ONLY shortfall figure that may appear.`,
+        `The ${planLabel} needs ${m(verdict.planMonthly)}/mo and free cash flow is ${m(fcf)}, ` +
+          `so they are short by exactly ${m(verdict.shortfallAtPlan ?? 0)}/mo. Those three ` +
+          `figures are computed: state them, never re-derive them. ` +
+          `${m(verdict.shortfallAtPlan ?? 0)} is the only shortfall figure that may appear ` +
+          `anywhere in the Read.`,
       );
     }
     if (verdict.stressMonthly != null) {
       lines.push(
         verdict.stressCovered
-          ? `STRESS TEST (server-computed — cite verbatim): at the conservative ` +
-            `${verdict.stressRatePct}% rate, ${m(verdict.stressMonthly)}/mo is needed and free ` +
-            `cash flow COVERS it. The stress case is covered — it is not a gap.`
-          : `STRESS TEST (server-computed — cite verbatim): at the conservative ` +
-            `${verdict.stressRatePct}% rate, ${m(verdict.stressMonthly)}/mo is needed — ` +
-            `${m(verdict.stressShortfall ?? 0)}/mo more than free cash flow covers.`,
+          ? `At a cautious ${verdict.stressRatePct}% return, ${m(verdict.stressMonthly)}/mo ` +
+            `would be needed, and their free cash flow comfortably covers that too — the ` +
+            `conservative stress case holds. Those figures are computed: state them, never ` +
+            `re-derive them, and never call this covered case a gap.`
+          : `At a cautious ${verdict.stressRatePct}% return, ${m(verdict.stressMonthly)}/mo ` +
+            `would be needed — ${m(verdict.stressShortfall ?? 0)}/mo more than their free cash ` +
+            `flow covers. Those figures are computed: state them, never re-derive them. This ` +
+            `is the conservative stress case only, not the plan.`,
       );
     }
   }
