@@ -18,6 +18,7 @@ import { normaliseMerchantDescription } from '@/lib/analytics/merchant-normalise
 import type { Lever } from '@/lib/analytics/levers';
 import type { HookCandidate } from '@/lib/ai/compose-first-read-hooks';
 import type { CitedFigure, SurplusGroundTruth } from '@/lib/ai/insight-validator';
+import type { GoalVerdict } from '@/lib/finance/goal-verdict';
 import type {
   FinancialFacts,
   DeclaredReadFacts,
@@ -150,6 +151,14 @@ export type FirstReadMetadata = {
       reason: string;
     }>;
   };
+  /**
+   * The server-computed goal verdict the model was handed verbatim — funded at
+   * plan or not, and by exactly how much. Persisted so /admin/wow/[insightId]
+   * can show what the model was TOLD next to what it wrote, without re-deriving
+   * levers. Absent on Reads composed before the verdict moved server-side, and
+   * on declared-path Reads (which carry their own verdict in DeclaredReadFacts).
+   */
+  goal_verdict?: GoalVerdict;
 };
 
 export type FirstReadComposeOutput = {

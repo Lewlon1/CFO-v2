@@ -14,6 +14,7 @@ import {
   type FirstReadComposeInput,
 } from '../prompts/first-read';
 import type { ClusterBehaviour } from '@/lib/analytics/cluster-behaviour/types';
+import { computeGoalVerdict } from '@/lib/finance/goal-verdict';
 
 function mockCluster(name: string): ClusterBehaviour {
   return {
@@ -455,17 +456,30 @@ describe('buildFirstReadUserPrompt — data sufficiency (single-month caveat + c
 });
 
 describe('buildGoalSummary — investment goal locks the 7% plan', () => {
+  const retirementGoal = {
+    name: 'Retirement pot',
+    target_amount: 500000,
+    current_amount: 70000,
+    target_date: '2041-06-01',
+    type: 'investment',
+    monthly_required_saving: null,
+  };
+  const verdictFor = (
+    goal: {
+      target_amount: number | null;
+      current_amount: number | null;
+      target_date: string | null;
+      type: string | null;
+      monthly_required_saving: number | null;
+    },
+    freeCashFlow: number | null,
+  ) => computeGoalVerdict({ goal, freeCashFlow, asOf: new Date('2026-06-01T00:00:00Z') });
+
   it('shows the band, locks 7% as the plan, explains where it comes from, and reframes 4% as the stress case', () => {
     const summary = buildGoalSummary(
-      {
-        name: 'Retirement pot',
-        target_amount: 500000,
-        current_amount: 70000,
-        target_date: '2041-06-01',
-        type: 'investment',
-        monthly_required_saving: null,
-      },
+      retirementGoal,
       'EUR',
+      verdictFor(retirementGoal, 3000),
     );
     // The full range is still shown (the options matter)…
     expect(summary).toContain('at 4%');
@@ -481,19 +495,98 @@ describe('buildGoalSummary — investment goal locks the 7% plan', () => {
   });
 
   it('leaves non-investment goals on the straight-line line (no rate band, no lock-in)', () => {
+    const emergencyFund = {
+      name: 'Emergency fund',
+      target_amount: 10000,
+      current_amount: 0,
+      target_date: '2027-01-01',
+      type: 'savings',
+      monthly_required_saving: 400,
+    };
     const summary = buildGoalSummary(
-      {
-        name: 'Emergency fund',
-        target_amount: 10000,
-        current_amount: 0,
-        target_date: '2027-01-01',
-        type: 'savings',
-        monthly_required_saving: 400,
-      },
+      emergencyFund,
       'EUR',
+      verdictFor(emergencyFund, 600),
     );
     expect(summary).not.toContain('PLAN AROUND the 7%');
     expect(summary).toContain('straight-line');
+    // The straight-line branch used to emit no verdict at all — now it does.
+    expect(summary).toContain('FUNDED AT PLAN');
+    expect(summary).toContain('€200/mo spare');
+    // …and no stress case, because there is no rate band to stress.
+    expect(summary).not.toContain('STRESS TEST');
+  });
+
+  // Rule 2: the verdict is handed over, never asked for. These assert on the
+  // exact regression shape — a funded user told they are short.
+  it('states FUNDED AT PLAN with the exact surplus, and forbids the invented gap', () => {
+    const summary = buildGoalSummary(
+      retirementGoal,
+      'EUR',
+      verdictFor(retirementGoal, 3000),
+    );
+    expect(summary).toContain('FUNDED AT PLAN');
+    expect(summary).toContain('There is NO gap at plan');
+    expect(summary).toContain('cite verbatim, NEVER recompute');
+    expect(summary).not.toContain('NOT FUNDED AT PLAN');
+    // No instruction anywhere asking the model to work the verdict out itself.
+    expect(summary).not.toContain('Give a clear verdict');
+  });
+
+  it('states NOT FUNDED AT PLAN with a single named shortfall figure', () => {
+    const verdict = verdictFor(retirementGoal, 100);
+    const summary = buildGoalSummary(retirementGoal, 'EUR', verdict);
+    expect(summary).toContain('NOT FUNDED AT PLAN');
+    expect(summary).toContain('is the ONLY shortfall figure that may appear');
+    expect(summary).toContain(`€${verdict.shortfallAtPlan!.toLocaleString('en-GB')}/mo`);
+  });
+
+  it('reports the stress case as covered rather than as a gap', () => {
+    // Free cash clears even the 4% case.
+    const verdict = verdictFor(retirementGoal, 99_999);
+    const summary = buildGoalSummary(retirementGoal, 'EUR', verdict);
+    expect(verdict.stressCovered).toBe(true);
+    expect(summary).toContain('COVERS it');
+    expect(summary).toContain('it is not a gap');
+  });
+
+  it('sizes the stress shortfall when the conservative case is not covered', () => {
+    const probe = verdictFor(retirementGoal, 99_999);
+    const between = Math.round((probe.planMonthly! + probe.stressMonthly!) / 2);
+    const verdict = verdictFor(retirementGoal, between);
+    const summary = buildGoalSummary(retirementGoal, 'EUR', verdict);
+    expect(verdict.fundedAtPlan).toBe(true);
+    expect(verdict.stressCovered).toBe(false);
+    expect(summary).toContain('FUNDED AT PLAN');
+    expect(summary).toContain('more than free cash flow covers');
+  });
+
+  // Rule 8. The band line used to call requiredMonthlyBand itself, off its own
+  // `new Date()` — a second derivation of a fact the verdict already owned. It
+  // printed £985/mo at 7% in the band and £948/mo in the verdict, leaving the
+  // model to pick between two "the 7% figure"s. Both now come off the verdict.
+  it('prints the same plan figure in the band line and in the verdict', () => {
+    const verdict = verdictFor(retirementGoal, 3000);
+    const summary = buildGoalSummary(retirementGoal, 'GBP', verdict);
+    const plan = `£${verdict.planMonthly!.toLocaleString('en-GB')}`;
+    expect(summary).toContain(`${plan}/mo at 7%`);
+    expect(summary).toContain(`PLAN AROUND the 7% (middle) case — ${plan}/mo`);
+    expect(summary).toContain(`the 7% plan figure of ${plan}/mo`);
+    const stress = `£${verdict.stressMonthly!.toLocaleString('en-GB')}`;
+    expect(summary).toContain(`${stress}/mo at 4%`);
+    expect(summary).toContain(`4% rate, ${stress}/mo is needed`);
+  });
+
+  it('emits no verdict at all when free cash flow is unknown', () => {
+    const summary = buildGoalSummary(
+      retirementGoal,
+      'EUR',
+      verdictFor(retirementGoal, null),
+    );
+    expect(summary).not.toContain('VERDICT');
+    expect(summary).not.toContain('STRESS TEST');
+    // The band and the teaching lines still render.
+    expect(summary).toContain('PLAN AROUND the 7%');
   });
 });
 

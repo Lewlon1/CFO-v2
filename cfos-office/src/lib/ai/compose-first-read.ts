@@ -46,6 +46,7 @@ import { categoryLabel } from '@/lib/analytics/categories';
 import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
 import { monthsBetween } from '@/lib/goals/pace';
 import { requiredMonthlyBand, INVESTMENT_DEFAULT_RATE_PCT } from '@/lib/finance/compound-growth';
+import { computeGoalVerdict, type GoalVerdict } from '@/lib/finance/goal-verdict';
 import { formatMoney } from '@/lib/format/money';
 
 import {
@@ -261,8 +262,20 @@ export async function composeFirstRead(params: {
     (c): c is ClusterBehaviour => c != null && c.data_completeness >= MIN_DATA_COMPLETENESS,
   );
 
+  // The verdict — "funded at plan or not, and by how much" — is computed here,
+  // server-side, and handed to the model as a verbatim-citable fact (Rule 2).
+  // It used to be the one number the model worked out itself, and it is the
+  // most consequential sentence in the Read; both Nova and Sonnet inverted it.
+  // Single source of truth: the prompt (buildGoalSummary) and the compose-time
+  // validator (deriveSurplusGroundTruth) both read THIS object.
+  const goalVerdict = computeGoalVerdict({
+    goal: goalRow,
+    freeCashFlow: financialFacts.free_cash_flow,
+    asOf: new Date(),
+  });
+
   const goalSummary = goalRow
-    ? buildGoalSummary(goalRow, financialFacts.currency)
+    ? buildGoalSummary(goalRow, financialFacts.currency, goalVerdict)
     : null;
 
   const dataAgeDays = dataWindowEnd
@@ -401,7 +414,7 @@ export async function composeFirstRead(params: {
   // Nova A/B produced four Reads that told a funded user they were short by
   // subtracting the two monthly requirements from each other — every number in
   // them was citable, so nothing caught it. See validateSurplusClaims.
-  const surplusTruth = deriveSurplusGroundTruth(leverPackage, goalRow, financialFacts.free_cash_flow);
+  const surplusTruth = deriveSurplusGroundTruth(leverPackage, goalVerdict, financialFacts.free_cash_flow);
   const reconciliation = validateSurplusClaims(composedMessage, surplusTruth);
   if (reconciliation.skipped && reconciliation.claims.length > 0) {
     // The first cut of this check skipped silently and passed four broken Reads.
@@ -461,6 +474,10 @@ export async function composeFirstRead(params: {
     })),
   };
 
+  // What the model was TOLD about the verdict, alongside what it wrote. Rides
+  // the same already-persisted blob (no migration) so /admin/wow can show both.
+  metadata.goal_verdict = goalVerdict;
+
   return { composedMessage, metadata };
 }
 
@@ -477,44 +494,32 @@ export async function composeFirstRead(params: {
  */
 export function deriveSurplusGroundTruth(
   pkg: LeverPackage,
-  goal: { type?: string | null; target_amount?: number | null; current_amount?: number | null; target_date?: string | null; monthly_required_saving?: number | null } | null,
+  verdict: GoalVerdict,
   freeCashFlow: number | null,
 ): SurplusGroundTruth {
   const accelerate = pkg.levers.find((l) => l.type === 'accelerate');
 
-  // The monthly requirement figures the PROMPT was built from — mirroring
-  // buildGoalSummary exactly, so the validator checks the Read against the same
-  // numbers the model was shown. Sourcing these (rather than only the
-  // accelerate lever) is what makes the check fire at all: the lever is absent
-  // whenever monthly_required_saving is null or the facts reconciliation drops
-  // it, which is the case in every observed regression.
-  const requirements: number[] = [];
-  if (goal) {
-    const monthsLeft =
-      goal.target_date != null ? monthsBetween(new Date(), new Date(goal.target_date)) : null;
-    if (
-      goal.type === 'investment' &&
-      goal.target_amount != null &&
-      monthsLeft != null &&
-      monthsLeft > 0
-    ) {
-      for (const b of requiredMonthlyBand({
-        targetAmount: goal.target_amount,
-        currentAmount: goal.current_amount ?? 0,
-        months: monthsLeft,
-      })) {
-        if (b.monthly != null) requirements.push(Math.round(b.monthly));
-      }
-    } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
-      requirements.push(Math.round(goal.monthly_required_saving));
-    }
-  }
-
+  // The monthly requirement figures come from the SAME verdict object the
+  // prompt was rendered from, so the validator checks the Read against exactly
+  // the numbers the model was shown (Rule 8). This used to re-derive the band
+  // here — two copies of one fact, and if they drifted the validator would
+  // start lying about which Reads reconcile.
+  //
+  // `freeCashFlow` is still threaded separately: the verdict zeroes it out
+  // whenever pace is not computable (no goal, no target date), but the
+  // validator wants the figure regardless — a Read with no goal can still
+  // assert headroom, and that assertion is worth checking.
   return {
     freeCashFlow: freeCashFlow != null ? Math.round(freeCashFlow) : null,
-    requirements,
+    requirements: verdict.requirements.map((r) => r.monthly),
     surplusOverRequired: accelerate ? accelerate.surplusOverRequired : null,
     stressTestGap: accelerate ? accelerate.stressTestGap : null,
+    // Deliberately NOT `verdict.computable && pkg.blocker === null`. A false
+    // paceComputable makes the validator flag EVERY claim as un-assertable, and
+    // `computable` is false in the ordinary no-goal case — which the validator
+    // already handles by skipping (empty requirements + no lever). Folding it
+    // in would fire "a supply_input blocker is active" at users who have no
+    // goal at all. The blocker is still the only thing that gates pace.
     paceComputable: pkg.blocker === null,
   };
 }
@@ -751,6 +756,12 @@ async function getActiveGoal(
  * AND a rate band so the Read can teach the concept and show a range — rather
  * than the model inventing a flat division (which made achievable long-horizon
  * goals read as impossible) or dropping the already-saved amount.
+ *
+ * The VERDICT — funded at plan or not, and by exactly how much — arrives
+ * pre-computed in `verdict` and is rendered verbatim. The model is never asked
+ * to work it out: it did, and it got it wrong in both directions (see
+ * lib/finance/goal-verdict.ts). Mirrors the declared path's rendering in
+ * prompts/first-read.ts.
  */
 export function buildGoalSummary(
   goal: {
@@ -762,6 +773,7 @@ export function buildGoalSummary(
     monthly_required_saving: number | null;
   },
   currency: string,
+  verdict: GoalVerdict,
 ): string {
   const lines: string[] = [];
   // Whole-currency rounding for the Read — cents read like a spreadsheet, not a CFO.
@@ -781,43 +793,99 @@ export function buildGoalSummary(
   const monthsLeft =
     goal.target_date != null ? monthsBetween(new Date(), new Date(goal.target_date)) : null;
 
+  // The rate band comes from the VERDICT, not from a second requiredMonthlyBand
+  // call here. Two derivations meant two independent `new Date()` calls, and a
+  // Read that showed one 7% figure in the band line and a different one in the
+  // verdict — the model would have had to pick, which is the whole failure mode
+  // this work removes (Rule 8: one source of truth per fact).
+  const band = verdict.requirements.filter((r) => r.ratePct != null);
+
   if (
     goal.type === 'investment' &&
     goal.target_amount != null &&
     monthsLeft != null &&
-    monthsLeft > 0
+    monthsLeft > 0 &&
+    band.length > 0 &&
+    verdict.planMonthly != null
   ) {
     const target = goal.target_amount;
     const current = goal.current_amount ?? 0;
-    const band = requiredMonthlyBand({ targetAmount: target, currentAmount: current, months: monthsLeft });
     const bandStr = band
-      .map((b) => `${m(b.monthly ?? 0)}/mo at ${b.ratePct}%`)
+      .map((b) => `${m(b.monthly)}/mo at ${b.ratePct}%`)
       .join(', ');
-    const base =
-      band.find((b) => b.ratePct === INVESTMENT_DEFAULT_RATE_PCT) ?? band[Math.floor(band.length / 2)];
-    const baseStr = base ? m(base.monthly ?? 0) : '(n/a)';
+    const baseStr = m(verdict.planMonthly);
     const linear = Math.max(0, (target - current) / monthsLeft);
+    // Rate labels come off the verdict too, so the prose can never name a rate
+    // the figures beside it were not computed at.
+    const planPct = verdict.planRatePct ?? INVESTMENT_DEFAULT_RATE_PCT;
+    const stressPct = verdict.stressRatePct ?? band[0].ratePct;
+    const topPct = band[band.length - 1].ratePct;
     lines.push(
       `Monthly contribution needed, accounting for COMPOUND GROWTH (the pot earns returns, ` +
         `so far less than a flat split): ${bandStr}. ` +
         `A naive no-growth split would demand ${m(linear)}/mo — cite the growth-aware figures, not that. ` +
-        `PLAN AROUND the ${INVESTMENT_DEFAULT_RATE_PCT}% (middle) case — ${baseStr}/mo — as the working number. ` +
-        `Show the full range ONCE so the user sees the options, then commit to the ${INVESTMENT_DEFAULT_RATE_PCT}% figure ` +
-        `and size the verdict and any gap against THAT, not the 4% figure. ` +
-        `Explain in ONE plain line where the ${INVESTMENT_DEFAULT_RATE_PCT}% comes from: it is the moderate middle of the ` +
+        `PLAN AROUND the ${planPct}% (middle) case — ${baseStr}/mo — as the working number. ` +
+        `Show the full range ONCE so the user sees the options, then commit to the ${planPct}% figure ` +
+        `and size the verdict and any gap against THAT, not the ${stressPct}% figure. ` +
+        `Explain in ONE plain line where the ${planPct}% comes from: it is the moderate middle of the ` +
         `range — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this — an ` +
-        `assumption, not a promise, which is exactly why the 4% case stays in view as the stress test and 10% as the upside. ` +
-        `Returns on the ${m(current)} already saved do much of the heavy lifting over this horizon. ` +
-        `Give a clear verdict on whether the target is realistic at the ${INVESTMENT_DEFAULT_RATE_PCT}% plan given their free ` +
-        `cash flow. If free cash flow already covers the ${INVESTMENT_DEFAULT_RATE_PCT}% number, say so plainly — the goal is ` +
-        `funded at plan, so frame the next move as getting there sooner or covering the 4% stress case, never as closing a gap ` +
-        `that does not exist at plan.`,
+        `assumption, not a promise, which is exactly why the ${stressPct}% case stays in view as the stress test and ` +
+        `${topPct}% as the upside. ` +
+        `Returns on the ${m(current)} already saved do much of the heavy lifting over this horizon.`,
     );
   } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
     lines.push(
       `Monthly contribution needed: ${m(goal.monthly_required_saving)}/mo ` +
         `(straight-line, already nets off the ${m(goal.current_amount ?? 0)} saved).`,
     );
+  }
+
+  // ── The verdict, computed server-side (Rule 2) ──────────────────────────
+  // This block replaces the instruction that used to ask the model to "give a
+  // clear verdict … given their free cash flow". That is arithmetic, and the
+  // models failed it: three Nova Reads subtracted two monthly REQUIREMENTS
+  // from each other and called the difference a shortfall; one Sonnet Read
+  // picked the right pair and flipped the sign. Prompt wording had already
+  // been tried ("never as closing a gap that does not exist at plan") and was
+  // ignored — wording does not fix arithmetic.
+  //
+  // The explicit "NO gap" / "ONLY shortfall figure" phrasing is load-bearing:
+  // the failures were not the model missing a fact, they were the model
+  // inventing one to fill the template's "here's the gap → here's the move
+  // that closes it" slot. The line has to close that slot outright.
+  // `fundedAtPlan != null` is the gate, not `computable`: pace can be computable
+  // while free cash flow is unknown, and in that case there is no verdict to
+  // state. Saying nothing beats stating a verdict against an assumed zero.
+  if (verdict.computable && verdict.planMonthly != null && verdict.fundedAtPlan != null) {
+    const fcf = verdict.freeCashFlow ?? 0;
+    const planLabel = verdict.planRatePct != null ? `${verdict.planRatePct}% plan` : 'plan';
+    if (verdict.fundedAtPlan) {
+      lines.push(
+        `VERDICT (server-computed — cite verbatim, NEVER recompute): FUNDED AT PLAN. ` +
+          `Free cash flow of ${m(fcf)} covers the ${planLabel} figure of ` +
+          `${m(verdict.planMonthly)}/mo, leaving ${m(verdict.surplusAtPlan ?? 0)}/mo spare. ` +
+          `There is NO gap at plan. Do not describe any figure as a shortfall, gap or ` +
+          `gap-to-close. Frame the next move as getting there sooner or protecting the buffer.`,
+      );
+    } else {
+      lines.push(
+        `VERDICT (server-computed — cite verbatim, NEVER recompute): NOT FUNDED AT PLAN. ` +
+          `The ${planLabel} needs ${m(verdict.planMonthly)}/mo and free cash ` +
+          `flow is ${m(fcf)} — a shortfall of exactly ${m(verdict.shortfallAtPlan ?? 0)}/mo. ` +
+          `${m(verdict.shortfallAtPlan ?? 0)} is the ONLY shortfall figure that may appear.`,
+      );
+    }
+    if (verdict.stressMonthly != null) {
+      lines.push(
+        verdict.stressCovered
+          ? `STRESS TEST (server-computed — cite verbatim): at the conservative ` +
+            `${verdict.stressRatePct}% rate, ${m(verdict.stressMonthly)}/mo is needed and free ` +
+            `cash flow COVERS it. The stress case is covered — it is not a gap.`
+          : `STRESS TEST (server-computed — cite verbatim): at the conservative ` +
+            `${verdict.stressRatePct}% rate, ${m(verdict.stressMonthly)}/mo is needed — ` +
+            `${m(verdict.stressShortfall ?? 0)}/mo more than free cash flow covers.`,
+      );
+    }
   }
 
   return lines.join('\n');
