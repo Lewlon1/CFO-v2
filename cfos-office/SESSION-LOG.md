@@ -5006,3 +5006,105 @@ way to reach. Build-green is compilation, not a look at the thing.
 - `status` has no UI. Triage is manual SQL until someone wants otherwise.
 - Reads composed before 083 have an empty `citation_set`; the route degrades to
   `[]` rather than failing. Not backfilled.
+
+---
+
+## 2026-08-30 — The goal verdict moves server-side (Rule 2's last gap)
+
+Executed `docs/superpowers/plans/2026-08-30-server-computed-goal-verdict.md`.
+Every number in a First Read was already computed server-side and handed to the
+model verbatim — except the verdict ("are you on track, and by how much"), which
+`buildGoalSummary` asked the model to work out from free cash flow and three
+monthly requirements. That is arithmetic, and the models failed it: three Nova
+Reads subtracted two *requirements* from each other and called the difference a
+shortfall; one Sonnet Read picked the right pair and flipped the sign.
+
+`computeGoalVerdict()` (`src/lib/finance/goal-verdict.ts`) is now the single
+source of truth for the goal pace and the verdict. `buildGoalSummary` renders it
+verbatim; `deriveSurplusGroundTruth` reads the same object instead of
+re-deriving the band, so `validateSurplusClaims` checks the Read against exactly
+the numbers the model saw. The verdict rides
+`first_read_metadata.goal_verdict` (no migration).
+
+### Lessons
+
+- **The invariant does the work, not the prompt.** `surplusAtPlan` and
+  `shortfallAtPlan` are mutually exclusive — exactly one is non-null. There is
+  no second number lying around for the model to mistake for the gap. Prompt
+  wording had already been tried on this exact bug (`buildGoalSummary` literally
+  said *"never as closing a gap that does not exist at plan"*) and was ignored.
+  Wording does not fix arithmetic.
+- **Silence is not neutral when the template demands a gap.** Two of the four
+  eval personas carry a savings goal with a target and a date but a null
+  `monthly_required_saving`. The plan's Step 1 assumed that column is always
+  populated; it isn't. With no requirement figure in the prompt at all, Nova
+  invented one — reproducing the original regression figures exactly ("a gap of
+  £578" against a real £857 requirement and a £565 surplus). The fix is to
+  compute the straight-line split when the column is null, via
+  `requiredMonthlyForTarget` at r=0 (the same shared maths
+  `computePaceAndOnTrack` uses, not a third copy). **Half the plan's own
+  regression table was investment goals; the other half needed this.**
+- **A weak model lifts the HEAD of a prompt line into the prose.** The first cut
+  led each verdict line with `VERDICT (server-computed …):` / `STRESS TEST …:`
+  and Nova pasted both headings into the user-facing Read, blowing the 250-word
+  cap. The second cut led with "The verdict is already worked out" — lifted too.
+  It now leads with the fact sentence and puts every directive last, so the part
+  a weak model will copy is a sentence that is *correct* to copy.
+- **Two `new Date()` calls are two sources of truth.** The band line and the
+  verdict each called `requiredMonthlyBand` off their own `new Date()`, printing
+  £985/mo and £948/mo as "the 7% figure" in the same Read. Caught by eyeballing
+  the rendered prompt, not by any test. `buildGoalSummary` now sources the band,
+  the plan figure, and the rate labels from the verdict.
+- **`paceComputable` must NOT fold in `verdict.computable`** (the plan suggested
+  it). A false `paceComputable` makes `validateSurplusClaims` flag *every* claim
+  as un-assertable, and `computable` is false in the ordinary no-goal case —
+  which the validator already handles by skipping. Folding it in would fire
+  "a supply_input blocker is active" at users who have no goal at all.
+- **A baseline run is worth the six minutes.** Three checks failed on the Sonnet
+  pass and all three looked like regressions. Re-running the same four personas
+  against the pre-change prompt showed the word cap failing **4/4** before and
+  **1/4** after — the change *improved* it — and the goal-name shortening
+  ("the safety net" for "6-month safety net") happening identically. Without the
+  baseline this would have been attributed to the change.
+
+### Verified
+
+`npm run typecheck` · `npm test` 1752/1752 across 141 files · `npm run lint`
+(0 errors) · `npm run knip` · `npm run build` — all exit 0.
+
+Live eval on staging, `--concurrency 1 --keep-users`, four personas
+(builder-classic, time-saver-expert, zane-spain, truth-teller-balanced), dev
+server killed and restarted before every run:
+
+| Run | Model | `does not reconcile` | `no ground truth` | word-cap fails |
+|---|---|---|---|---|
+| baseline (pre-change) | Sonnet | 0 | **2** | **4/4** |
+| verdict-sonnet | Sonnet | 0 | 0 | 1/4 |
+| verdict-nova-3 | Nova Pro | 0 | 0 | 0/4 |
+
+All eight post-change verdicts hand-read and arithmetically correct, including
+both original inversion rows (£1,470 vs £1,187 → "£283/mo spare"; £3,798 vs
+£2,699 → "£1,099/mo to spare"). The baseline's two unchecked surplus claims are
+precisely the savings-goal hole: Sonnet happened to get them right, Nova didn't,
+and nothing verified either.
+
+### Gotchas confirmed from the plan
+
+- The dev server serves stale code — kill and restart after every server-side
+  edit. Every eval run here did.
+- `.env.local` holds non-`eu.` model ids, so `resolveEuModel` throws at cold
+  start. Export `eu.`-prefixed ids in the shell — **for the runner process too**,
+  not just the dev server; the runner loads `provider.ts` itself and dies before
+  the first persona otherwise.
+- Judge scores do not detect this bug class: accuracy scored **5.0** on the run
+  whose Reads were inverted. Trust `validateSurplusClaims` and your own reading.
+
+### Follow-ups (unchanged from the plan's "Adjacent findings")
+
+- `factBundles` omits the goal data, so every legitimate goal-derived number is
+  reported ungrounded by the citation check. Fixing that would make the check
+  usable, and plausibly blocking.
+- The Read template still has no first-class "funded and fine" branch; Step 2
+  patches it with wording.
+- `onboarding_completed_at` intermittently stays null (~1 persona per run, both
+  models, and on the pre-change baseline). Still undiagnosed.
