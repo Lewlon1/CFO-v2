@@ -5105,3 +5105,105 @@ insert's columns against the table definition, not from watching it fail.
 - One-line column-name fix for the `link-session` telemetry insert.
 - Correct or retire `docs/the-layers.md` — Rule 8 says one source of truth, and
   right now it contradicts the code in four places.
+
+## 2026-09-12 — Three fixes the data-flow trace turned up
+
+**Branch:** `claude/filing-cabinet-storage-changes-x1z8u6`. Migration 085 written,
+**not yet applied to staging**; prod twin written and not applied.
+
+**Scope:** the mapping session above found eight defects. Lewis triaged three in:
+the digest delta cutoff, the cache tiering, and the First Read validator posture.
+The portrait coverage hole and the `profile_id`/`user_id` split stay recorded and
+unfixed, by decision.
+
+### 1. The digest delta measured from the wrong clock
+
+`deltaSince` took the file's `updated_at` as its "what's new since you edited
+this" cutoff. `updated_at` is maintained by the canonical trigger, so **the
+digest's own appends moved it**. A dismissal appended a "Struck out" line without
+filing the pending delta, pushing the cutoff past traits that had never been
+filed at all — permanently invisible. A re-extracted trait duplicated under a
+second header.
+
+`digest_cursor` (085, additive) is the high-water mark of trait timestamps
+actually filed. Only trait lines advance it; a retraction files nothing so it no
+longer moves the mark. Retraction and delta also stopped being alternatives —
+`retraction ?? deltaSince(...)` is precisely what dropped them.
+
+### 2. Tier 2 was evicting itself daily
+
+The memory index rendered `formatRelativeAge` — "5d ago". That block sits in the
+semi-stable tier, so **every user with a filing cabinet had tier 2 invalidated,
+per file, every day**, the whole time the tier split was believed to be saving
+money. Absolute dates now; the office UI keeps relative ages.
+
+With that fixed, five blocks moved from volatile to semi-stable: experiments
+(absolute ISO dates, clock used only for bucketing), value-mapping, check-in
+nudge, retake and prediction quality (counts off `transactions`; the nudge's only
+clock use is a `daysSince < 7` gate returning '').
+
+### 3. Reads shipped with known errors
+
+Compose-path validators were log-only: `composedMessage` frozen at L366, returned
+unmodified at L464. Worse than it looked — `declared` mode short-circuits at L164
+and ran **zero** validators, and composed Reads never had chips checked at all,
+though the chat route has stripped invalid ones for months. And the compose path
+wrote no `user_events`, so the failure rate was not merely unknown but
+*unknowable*: `first_read_validator_fired` only ever fired for turns going
+through the chat route, never for the Read itself.
+
+Telemetry now unconditional; one regenerate behind `FIRST_READ_REGENERATE`,
+default off. Terminal policy is never to block delivery.
+
+### Gotchas worth keeping
+
+- **`digest_cursor` is deliberately NOT in `FULL_COLUMNS`.** Postgrest fails an
+  entire select on one unknown column, and `getFile` backs the chat tools, the
+  office UI and Read filing. Naming it there would make a lagging prod apply an
+  outage. Its accessors fail soft and fall back to `user_edited_at`. Keep any
+  future column that only one subsystem needs out of the shared column set.
+- **Any clock in tier 2 is a silent, permanent cost leak.** It never errors, never
+  alerts, and looks like the cache simply underperforming. `semi-stable-tier.test.ts`
+  now guards it by source text (the builders are private, so it follows
+  `no-greet-warmly`'s pattern). It asserts a block COUNT too — without that, a
+  regex that stops matching makes every other assertion pass vacuously. Mine did
+  exactly that on the first run, because the nested branches indent their closing
+  bracket two spaces deeper.
+- **`citationCheck.unmatched.numbers` is `string[]`, not `number[]`.** Cost me a
+  red test.
+- **`SHORTFALL_PATTERNS` anchor on a currency symbol.** "short by 600" is not
+  recognised as a claim; "short by £600" is. A Read that omits the symbol evades
+  reconciliation entirely — worth a look separately.
+- **`validateSurplusClaims` is deliberately asymmetric**: shortfall claims are
+  checked hard, surplus claims only when no headroom exists at all. A correct Read
+  legitimately quotes several scenario headrooms.
+- **`citationCheck.valid === false` with empty `unmatched.numbers` is not
+  actionable.** The non-numeric half is noisy; treating it as a defect would
+  regenerate constantly. Preserved deliberately in `checkComposedRead`.
+
+### Verified
+
+`npm run typecheck` clean · `npm run test` **1742/1742 across 142 files** (from
+1729/140) · `npm run build` exit 0 · lint 0 errors, 35 pre-existing warnings, none
+in files this session touched.
+
+**Not verified:** nothing seen in a browser. Migration 085 is not applied
+anywhere, so the cursor accessors are currently exercising their fail-soft path
+by definition. The regenerate has never run — the flag is off and the persona
+suite was not run (it spends Bedrock and leaks a staging user per run). The
+tiering win is **unmeasured**: no before/after `llm_usage_log` numbers were taken,
+so the saving is argued, not proven.
+
+### Follow-ups
+
+- Apply 085 to staging, then confirm `digest_cursor` advances on a real frozen
+  digest before trusting the fix in prod.
+- Measure the tiering: fixed 3-turn scripted conversation against a data-rich
+  staging user, before/after, read the `llm_usage_log` cache-read vs cache-write
+  columns. Until then the claim is a model, not a result.
+- Read the `first_read_validator_fired` rate off staging, THEN decide whether to
+  set `FIRST_READ_REGENERATE=1`.
+- Still open from the mapping session: the portrait coverage hole (a
+  never-completed conversation is analysed by neither the `after()` hook nor the
+  cron), `value_map_sessions` having no `CREATE TABLE`, and the three telemetry
+  inserts naming columns that do not exist.
