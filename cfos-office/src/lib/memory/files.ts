@@ -768,15 +768,74 @@ async function getFileById(
   return { ok: true, value: (data ?? null) as unknown as MemoryFile | null }
 }
 
+// ── Digest cursor ──────────────────────────────────────────────────────────
+// Read and written only by src/lib/memory/digests.ts, and deliberately kept OFF
+// `FULL_COLUMNS`. Postgrest fails an entire select on one unknown column, and
+// `getFile` backs the chat tools, the office UI and the Read-filing path — so
+// naming `digest_cursor` there would couple all of them to migration 085 and
+// turn a lagging prod apply into an outage.
+//
+// Both accessors therefore fail soft. A missing column, or any read error,
+// yields null, and the caller falls back to `user_edited_at`: the pre-085
+// behaviour. A failed write is logged and left, because the cursor not moving
+// means the next refresh re-files the same delta — recoverable, unlike the skip
+// this whole mechanism exists to prevent.
+
+/**
+ * The highest portrait-trait timestamp this file has already filed, or null when
+ * nothing has been filed since the user froze it.
+ */
+export async function getDigestCursor(
+  client: SupabaseClient,
+  fileId: string,
+): Promise<string | null> {
+  const { data, error } = await client
+    .from('memory_files')
+    .select('digest_cursor')
+    .eq('id', fileId)
+    .maybeSingle()
+
+  if (error) {
+    console.warn(
+      '[memory:getDigestCursor] read failed, falling back to user_edited_at:',
+      error.message,
+    )
+    return null
+  }
+
+  return (data as unknown as { digest_cursor: string | null } | null)?.digest_cursor ?? null
+}
+
+/** Advance the cursor. Only ever called after trait lines are actually filed. */
+export async function setDigestCursor(
+  client: SupabaseClient,
+  fileId: string,
+  cursor: string,
+): Promise<void> {
+  const { error } = await client
+    .from('memory_files')
+    .update({ digest_cursor: cursor })
+    .eq('id', fileId)
+
+  if (error) {
+    console.warn(
+      '[memory:setDigestCursor] write failed; the next refresh will re-file this delta:',
+      error.message,
+    )
+  }
+}
+
 // ── Index ──────────────────────────────────────────────────────────────────
 
 /**
  * "today" / "5d ago" / "3w ago" / "4mo ago". Deterministic: the caller supplies
- * `now`, because this string ends up in a prompt and in test assertions.
+ * `now`, because this string ends up in test assertions.
  *
- * Exported because the file rows in the office UI say the same thing about the
- * same rows — the prompt index and the screen should never disagree about how
- * old a file is.
+ * SCREEN ONLY. This used to feed the prompt index too, on the reasoning that the
+ * two should never disagree about a file's age — but a relative age rewrites
+ * itself as the clock moves, and the index sits in the semi-stable cache tier.
+ * The result was that tier being invalidated, per file, every day. The index now
+ * renders an absolute date; only the office UI reads this.
  */
 export function formatRelativeAge(iso: string, now: Date): string {
   const then = new Date(iso).getTime()
@@ -798,10 +857,13 @@ function byPinnedThenRecent(a: MemoryIndexEntry, b: MemoryIndexEntry): number {
  * The compact index injected into the system prompt — one line per file, all
  * four folders always present. Pure: no I/O, no clock of its own. Budget is
  * roughly 500 tokens, which is what INDEX_MAX_LINES_PER_FOLDER buys.
+ *
+ * Takes no clock, and must not grow one. This block lives in the semi-stable
+ * cache tier, so any value here that changes with the time of day invalidates
+ * the whole tier for that user on a rolling basis.
  */
 export function renderMemoryIndex(
   filesByFolder: Partial<Record<MemoryFolder, MemoryIndexEntry[]>>,
-  now: Date,
 ): string {
   const lines: string[] = ['## Filing cabinet index']
 
@@ -815,8 +877,10 @@ export function renderMemoryIndex(
     }
 
     for (const file of files.slice(0, INDEX_MAX_LINES_PER_FOLDER)) {
-      const age = formatRelativeAge(file.updated_at, now)
-      const meta = file.pinned ? `pinned · updated ${age}` : `updated ${age}`
+      // Absolute, not relative. See the note on the function above: "5d ago"
+      // becomes "6d ago" overnight and takes the cache tier with it.
+      const updated = file.updated_at.slice(0, 10)
+      const meta = file.pinned ? `pinned · updated ${updated}` : `updated ${updated}`
       lines.push(`- ${file.slug} — ${file.description} (${meta})`)
     }
 
@@ -836,7 +900,6 @@ export function renderMemoryIndex(
 export async function loadMemoryIndex(
   client: SupabaseClient,
   userId: string,
-  now: Date,
 ): Promise<MemoryResult<string>> {
   const { data, error } = await client
     .from('memory_files')
@@ -858,5 +921,5 @@ export async function loadMemoryIndex(
     bucket.push(row)
   }
 
-  return { ok: true, value: renderMemoryIndex(grouped, now) }
+  return { ok: true, value: renderMemoryIndex(grouped) }
 }

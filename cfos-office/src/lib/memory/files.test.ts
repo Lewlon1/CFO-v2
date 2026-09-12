@@ -888,8 +888,6 @@ describe('archiveFile', () => {
 // index
 // ---------------------------------------------------------------------------
 
-const NOW = new Date('2026-08-12T12:00:00.000Z')
-
 function entry(partial: Partial<MemoryIndexEntry> & { slug: string }): MemoryIndexEntry {
   return {
     description: 'A description',
@@ -901,7 +899,7 @@ function entry(partial: Partial<MemoryIndexEntry> & { slug: string }): MemoryInd
 
 describe('renderMemoryIndex', () => {
   it('always shows all four folders, empty ones included', () => {
-    const rendered = renderMemoryIndex({}, NOW)
+    const rendered = renderMemoryIndex({})
     expect(rendered).toBe(
       [
         '## Filing cabinet index',
@@ -917,36 +915,30 @@ describe('renderMemoryIndex', () => {
     )
   })
 
-  it('renders a file line with its hook and age', () => {
-    const rendered = renderMemoryIndex(
-      {
-        goals: [
-          entry({
-            slug: 'house-deposit-plan',
-            description: 'Saving €40k by 2028; tension with the wedding fund',
-            updated_at: '2026-08-09T12:00:00.000Z',
-          }),
-        ],
-      },
-      NOW,
-    )
+  it('renders a file line with its hook and an absolute date', () => {
+    const rendered = renderMemoryIndex({
+      goals: [
+        entry({
+          slug: 'house-deposit-plan',
+          description: 'Saving €40k by 2028; tension with the wedding fund',
+          updated_at: '2026-08-09T12:00:00.000Z',
+        }),
+      ],
+    })
 
     expect(rendered).toContain(
-      '- house-deposit-plan — Saving €40k by 2028; tension with the wedding fund (updated 3d ago)',
+      '- house-deposit-plan — Saving €40k by 2028; tension with the wedding fund (updated 2026-08-09)',
     )
   })
 
   it('puts pinned files first, then recency, and marks the pin', () => {
-    const rendered = renderMemoryIndex(
-      {
+    const rendered = renderMemoryIndex({
         cashflow: [
           entry({ slug: 'stale', updated_at: '2026-08-01T12:00:00.000Z' }),
           entry({ slug: 'fresh', updated_at: '2026-08-12T09:00:00.000Z' }),
           entry({ slug: 'pinned', pinned: true, updated_at: '2026-06-01T12:00:00.000Z' }),
         ],
-      },
-      NOW,
-    )
+      })
 
     const lines = rendered.split('\n')
     const start = lines.indexOf('Cash Flow:')
@@ -956,23 +948,43 @@ describe('renderMemoryIndex', () => {
     expect(lines[start + 3]).toContain('- stale —')
   })
 
-  it('renders relative ages deterministically from the injected now', () => {
-    const rendered = renderMemoryIndex(
-      {
-        goals: [
-          entry({ slug: 'a', pinned: true, updated_at: '2026-08-12T06:00:00.000Z' }),
-          entry({ slug: 'b', updated_at: '2026-08-07T12:00:00.000Z' }),
-          entry({ slug: 'c', updated_at: '2026-07-29T12:00:00.000Z' }),
-          entry({ slug: 'd', updated_at: '2026-04-12T12:00:00.000Z' }),
-        ],
-      },
-      NOW,
-    )
+  it('dates every line absolutely, whatever the age', () => {
+    const rendered = renderMemoryIndex({
+      goals: [
+        entry({ slug: 'a', pinned: true, updated_at: '2026-08-12T06:00:00.000Z' }),
+        entry({ slug: 'b', updated_at: '2026-08-07T12:00:00.000Z' }),
+        entry({ slug: 'c', updated_at: '2026-07-29T12:00:00.000Z' }),
+        entry({ slug: 'd', updated_at: '2026-04-12T12:00:00.000Z' }),
+      ],
+    })
 
-    expect(rendered).toContain('- a — A description (pinned · updated today)')
-    expect(rendered).toContain('- b — A description (updated 5d ago)')
-    expect(rendered).toContain('- c — A description (updated 2w ago)')
-    expect(rendered).toContain('- d — A description (updated 4mo ago)')
+    expect(rendered).toContain('- a — A description (pinned · updated 2026-08-12)')
+    expect(rendered).toContain('- b — A description (updated 2026-08-07)')
+    expect(rendered).toContain('- c — A description (updated 2026-07-29)')
+    expect(rendered).toContain('- d — A description (updated 2026-04-12)')
+  })
+
+  it('renders the same bytes no matter when it is called', () => {
+    // THE regression guard. This block sits in the semi-stable cache tier, and
+    // it used to render relative ages ("5d ago"), so every user's tier-2 cache
+    // was invalidated on a rolling daily basis — the exact cost the tiering
+    // exists to avoid. Nothing here may depend on the clock. If this test fails,
+    // something time-varying has been reintroduced; do not "fix" it by freezing
+    // the clock in the test.
+    const files = {
+      goals: [entry({ slug: 'a', pinned: true, updated_at: '2026-08-12T06:00:00.000Z' })],
+      cashflow: [entry({ slug: 'b', updated_at: '2026-04-12T12:00:00.000Z' })],
+    }
+
+    const before = renderMemoryIndex(files)
+
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2027-11-30T23:59:00.000Z'))
+      expect(renderMemoryIndex(files)).toBe(before)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('caps each folder and adds an overflow line', () => {
@@ -980,7 +992,7 @@ describe('renderMemoryIndex', () => {
       entry({ slug: `file-${i}`, updated_at: `2026-08-0${(i % 9) + 1}T12:00:00.000Z` }),
     )
 
-    const rendered = renderMemoryIndex({ values: many }, NOW)
+    const rendered = renderMemoryIndex({ values: many })
     const lines = rendered.split('\n')
     const start = lines.indexOf('Values & You:')
     const folderLines = lines.slice(start + 1, start + 1 + INDEX_MAX_LINES_PER_FOLDER + 1)
@@ -995,10 +1007,12 @@ describe('renderMemoryIndex', () => {
     const stuffed = Array.from({ length: 50 }, (_, i) =>
       entry({ slug: `file-${i}`, description: 'D'.repeat(140) }),
     )
-    const rendered = renderMemoryIndex(
-      { goals: stuffed, cashflow: stuffed, values: stuffed, networth: stuffed },
-      NOW,
-    )
+    const rendered = renderMemoryIndex({
+      goals: stuffed,
+      cashflow: stuffed,
+      values: stuffed,
+      networth: stuffed,
+    })
 
     // 1 heading + 4 × (folder label + 6 file lines + 1 overflow line) = 33 lines,
     // and that is the hard ceiling regardless of how many files exist.
@@ -1014,15 +1028,12 @@ describe('renderMemoryIndex', () => {
           description: 'A one-line hook of the sort the CFO actually writes here',
         }),
       )
-    const rendered = renderMemoryIndex(
-      {
-        goals: files('goals'),
-        cashflow: files('cash'),
-        values: files('values'),
-        networth: files('net'),
-      },
-      NOW,
-    )
+    const rendered = renderMemoryIndex({
+      goals: files('goals'),
+      cashflow: files('cash'),
+      values: files('values'),
+      networth: files('net'),
+    })
 
     // ~4 chars per token: 2000 characters is roughly the 500-token budget.
     expect(rendered.length).toBeLessThan(2000)
@@ -1046,16 +1057,13 @@ describe('loadMemoryIndex', () => {
     seedFile(store, { slug: 'hidden', folder: 'values', archived_at: '2026-08-01T00:00:00.000Z' })
 
     const fromSpy = vi.spyOn(client, 'from')
-    const result = await loadMemoryIndex(client, USER, NOW)
+    const result = await loadMemoryIndex(client, USER)
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(fromSpy).toHaveBeenCalledTimes(1) // one round trip, grouped in TS
-    expect(result.value).toContain('- house-deposit-plan — Saving €40k by 2028 (updated today)')
-    // 2026-08-05 → 2026-08-12 is exactly 7 days, which relativeAge renders as
-    // the first week bucket ("1w ago"), not "7d ago" — the `d ago` form stops
-    // at 6. The per-branch assertions live in the renderMemoryIndex suite.
-    expect(result.value).toContain('- subscription-creep — Six subscriptions, three unused (updated 1w ago)')
+    expect(result.value).toContain('- house-deposit-plan — Saving €40k by 2028 (updated 2026-08-12)')
+    expect(result.value).toContain('- subscription-creep — Six subscriptions, three unused (updated 2026-08-05)')
     expect(result.value).toContain('Values & You:\n- (no files yet)')
     expect(result.value).toContain('Net Worth:\n- (no files yet)')
   })
@@ -1076,7 +1084,7 @@ describe('loadMemoryIndex', () => {
       }),
     } as unknown as SupabaseClient
 
-    const result = await loadMemoryIndex(broken, USER, NOW)
+    const result = await loadMemoryIndex(broken, USER)
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error).toContain('Could not read the filing cabinet index')

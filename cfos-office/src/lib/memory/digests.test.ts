@@ -6,18 +6,22 @@ import {
   renderDigest,
   type PortraitTrait,
 } from './digests'
-import { getFile, setFileFlags, writeFile } from './files'
+import { getDigestCursor, getFile, setDigestCursor, setFileFlags, writeFile } from './files'
 import type { MemoryFile } from './files'
 
 vi.mock('./files', () => ({
   getFile: vi.fn(),
   writeFile: vi.fn(),
   setFileFlags: vi.fn(),
+  getDigestCursor: vi.fn(),
+  setDigestCursor: vi.fn(),
 }))
 
 const mockGetFile = vi.mocked(getFile)
 const mockWriteFile = vi.mocked(writeFile)
 const mockSetFileFlags = vi.mocked(setFileFlags)
+const mockGetDigestCursor = vi.mocked(getDigestCursor)
+const mockSetDigestCursor = vi.mocked(setDigestCursor)
 
 const USER = 'user-1'
 
@@ -76,6 +80,9 @@ beforeEach(() => {
   mockGetFile.mockResolvedValue({ ok: true, value: null })
   mockWriteFile.mockResolvedValue({ ok: true, value: filed() as never })
   mockSetFileFlags.mockResolvedValue({ ok: true, value: filed() as never })
+  // Nothing filed since the freeze — the cutoff falls back to user_edited_at.
+  mockGetDigestCursor.mockResolvedValue(null)
+  mockSetDigestCursor.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -230,6 +237,90 @@ describe('refreshMemoryDigests', () => {
     expect(args.content).not.toContain('Known before the edit.')
   })
 
+  it('measures the delta from the cursor, not the file’s mtime', async () => {
+    // The regression this whole mechanism exists for. `updated_at` is moved by a
+    // trigger on every write — including the digest's own appends — so a file
+    // that has been appended to looks newer than traits that genuinely have not
+    // been filed yet. Reading the cutoff off `updated_at` swallowed them.
+    onlyFiled(
+      'values',
+      filed({
+        content: 'My own words.',
+        user_edited_at: '2026-08-02T09:00:00.000Z',
+        updated_at: '2026-08-20T09:00:00.000Z',
+      }),
+    )
+    mockGetDigestCursor.mockResolvedValue('2026-08-03T09:00:00.000Z')
+
+    await refreshMemoryDigests(
+      clientWith([
+        trait({
+          trait_key: 'mid_window',
+          trait_value: 'Landed after the cursor but before the last append.',
+          updated_at: '2026-08-10T09:00:00.000Z',
+        }),
+      ]),
+      USER,
+    )
+
+    expect(mockWriteFile).toHaveBeenCalledTimes(1)
+    const [, , args] = mockWriteFile.mock.calls[0]
+    expect(args.mode).toBe('append')
+    expect(args.content).toContain('Landed after the cursor but before the last append.')
+  })
+
+  it('advances the cursor to the newest trait it filed', async () => {
+    onlyFiled(
+      'values',
+      filed({ content: 'My own words.', user_edited_at: '2026-08-02T09:00:00.000Z' }),
+    )
+
+    await refreshMemoryDigests(
+      clientWith([
+        trait({ trait_key: 'a_new', trait_value: 'First new.', updated_at: '2026-08-05T09:00:00.000Z' }),
+        trait({ trait_key: 'b_new', trait_value: 'Second new.', updated_at: '2026-08-11T09:00:00.000Z' }),
+      ]),
+      USER,
+    )
+
+    expect(mockSetDigestCursor).toHaveBeenCalledWith(
+      expect.anything(),
+      'file-1',
+      '2026-08-11T09:00:00.000Z',
+    )
+  })
+
+  it('does not re-file a trait whose wording has not changed', async () => {
+    // A re-extraction bumps updated_at without changing the text. Filing it again
+    // would stack an identical line under a second header. The cursor still
+    // advances — the trait is accounted for, just not worth a line.
+    onlyFiled(
+      'values',
+      filed({
+        content: 'My own words.\n\n**Since you edited this**\n- Spends in bursts after payday.',
+        user_edited_at: '2026-08-02T09:00:00.000Z',
+      }),
+    )
+
+    await refreshMemoryDigests(
+      clientWith([
+        trait({
+          trait_key: 'payday_burst',
+          trait_value: 'Spends in bursts after payday.',
+          updated_at: '2026-08-15T09:00:00.000Z',
+        }),
+      ]),
+      USER,
+    )
+
+    expect(mockWriteFile).not.toHaveBeenCalled()
+    expect(mockSetDigestCursor).toHaveBeenCalledWith(
+      expect.anything(),
+      'file-1',
+      '2026-08-15T09:00:00.000Z',
+    )
+  })
+
   it('leaves a digest standing when its last trait goes', async () => {
     onlyFiled('values', filed({ content: 'Something that was true.' }))
 
@@ -266,6 +357,55 @@ describe('recordTraitDismissal', () => {
     expect(args.mode).toBe('append')
     expect(args.content).toContain('Struck out')
     expect(args.content).toContain('Spends in bursts after payday.')
+  })
+
+  it('does not advance the cursor on a dismissal alone', async () => {
+    // A retraction files no traits, so it must not move the high-water mark.
+    // Advancing here is precisely what swallowed pending traits before.
+    onlyFiled(
+      'values',
+      filed({ content: 'My own words.', user_edited_at: '2026-08-02T09:00:00.000Z' }),
+    )
+
+    await recordTraitDismissal(clientWith([]), USER, trait({
+      trait_key: 'payday_burst',
+      trait_value: 'Spends in bursts after payday.',
+    }))
+
+    expect(mockWriteFile).toHaveBeenCalledTimes(1)
+    expect(mockSetDigestCursor).not.toHaveBeenCalled()
+  })
+
+  it('files a pending trait in the same pass as a dismissal', async () => {
+    // The old code treated a retraction and a delta as alternatives
+    // (`retraction ?? deltaSince(...)`), so a dismissal dropped whatever was
+    // pending. They are not alternatives.
+    onlyFiled(
+      'values',
+      filed({ content: 'My own words.', user_edited_at: '2026-08-02T09:00:00.000Z' }),
+    )
+
+    await recordTraitDismissal(
+      clientWith([
+        trait({
+          trait_key: 'still_pending',
+          trait_value: 'Learned after the edit and never filed.',
+          updated_at: '2026-08-09T09:00:00.000Z',
+        }),
+      ]),
+      USER,
+      trait({ trait_key: 'payday_burst', trait_value: 'Spends in bursts after payday.' }),
+    )
+
+    expect(mockWriteFile).toHaveBeenCalledTimes(1)
+    const [, , args] = mockWriteFile.mock.calls[0]
+    expect(args.content).toContain('Struck out')
+    expect(args.content).toContain('Learned after the edit and never filed.')
+    expect(mockSetDigestCursor).toHaveBeenCalledWith(
+      expect.anything(),
+      'file-1',
+      '2026-08-09T09:00:00.000Z',
+    )
   })
 
   it('does not strike it out in a folder it was never in', async () => {

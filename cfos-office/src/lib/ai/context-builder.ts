@@ -1220,7 +1220,7 @@ async function buildMemoryIndexContext(
   // query, not just the render.
   if (!isMemoryFilesEnabled()) return '';
   try {
-    const index = await loadMemoryIndex(supabase, userId, new Date());
+    const index = await loadMemoryIndex(supabase, userId);
     if (!index.ok) return '';
     // An empty cabinet renders as four "(no files yet)" lines — real tokens for
     // no information. The contract carries the affordance on its own.

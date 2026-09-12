@@ -22,7 +22,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { MEMORY_FOLDERS, type MemoryFolder } from './constants'
-import { getFile, setFileFlags, writeFile } from './files'
+import { getDigestCursor, getFile, setDigestCursor, setFileFlags, writeFile } from './files'
 
 /** Below this, a trait is a guess. Guesses do not belong in a file. */
 const MIN_CONFIDENCE = 0.6
@@ -268,16 +268,37 @@ async function refreshOne(
     // genuinely something to say.
     const retraction =
       options.retraction?.folder === folder ? options.retraction.text : null
-    const delta = retraction ?? deltaSince(folder, traits, file.updated_at)
-    if (!delta) return
 
-    const appended = await writeFile(
-      client,
-      userId,
-      { folder, slug: DIGEST_SLUG, mode: 'append', content: delta },
-      { actor: 'system', now: options.now },
-    )
-    if (!appended.ok) console.warn(`[memory:digests] could not append to ${folder}/${DIGEST_SLUG}: ${appended.error}`)
+    // The cursor, NOT `updated_at`. `updated_at` is moved by a trigger on every
+    // write including this function's own appends, so using it as the cutoff
+    // meant a dismissal silently swallowed every trait that had landed before
+    // it. Falls back to the freeze itself when nothing has been filed yet (or
+    // when migration 085 has not reached this environment).
+    const cursor = (await getDigestCursor(client, file.id)) ?? file.user_edited_at
+    const delta = deltaSince(folder, traits, cursor, file.content)
+
+    // A retraction and a delta are not alternatives — the old code treated them
+    // as such, which is exactly how traits went missing. File both.
+    const body = [retraction, delta?.text].filter(Boolean).join('\n\n')
+    if (!body && !delta) return
+
+    if (body) {
+      const appended = await writeFile(
+        client,
+        userId,
+        { folder, slug: DIGEST_SLUG, mode: 'append', content: body },
+        { actor: 'system', now: options.now },
+      )
+      if (!appended.ok) {
+        console.warn(`[memory:digests] could not append to ${folder}/${DIGEST_SLUG}: ${appended.error}`)
+        // Leave the cursor where it is so the next refresh retries this delta.
+        return
+      }
+    }
+
+    // Only trait lines move the cursor. A retraction files nothing, so advancing
+    // on one would re-open the skip this fix exists to close.
+    if (delta) await setDigestCursor(client, file.id, delta.maxStamp)
     return
   }
 
@@ -301,12 +322,30 @@ async function refreshOne(
   if (!replaced.ok) console.warn(`[memory:digests] could not rewrite ${folder}/${DIGEST_SLUG}: ${replaced.error}`)
 }
 
+interface DigestDelta {
+  /** null when every fresh trait was already in the file verbatim. */
+  text: string | null
+  /** Highest trait timestamp this delta accounts for — the cursor's next value. */
+  maxStamp: string
+}
+
 /**
- * What has landed in this folder since the frozen file was last touched.
+ * What has landed in this folder since the digest last filed anything.
  * Deliberately additive-only — a frozen file never loses a line, so this reports
  * arrivals, never departures. Departures come through as an explicit retraction.
+ *
+ * `since` is the digest cursor, not the file's mtime. `existingContent` is the
+ * file as it stands: a trait that is re-extracted without its wording changing
+ * is not news, and filing it again would stack an identical line under a second
+ * header. Those traits still advance the cursor — they are accounted for, just
+ * not worth a line.
  */
-function deltaSince(folder: MemoryFolder, traits: PortraitTrait[], since: string): string | null {
+function deltaSince(
+  folder: MemoryFolder,
+  traits: PortraitTrait[],
+  since: string,
+  existingContent: string,
+): DigestDelta | null {
   const cutoff = new Date(since).getTime()
   if (!Number.isFinite(cutoff)) return null
 
@@ -314,13 +353,25 @@ function deltaSince(folder: MemoryFolder, traits: PortraitTrait[], since: string
     .filter((t) => (t.confidence ?? 0) >= MIN_CONFIDENCE)
     .filter((t) => folderFor(t) === folder)
     .filter((t) => t.trait_value?.trim())
-    .filter((t) => {
-      const stamp = new Date(t.updated_at ?? t.created_at ?? '').getTime()
-      return Number.isFinite(stamp) && stamp > cutoff
-    })
-    .sort((a, b) => a.trait_key.localeCompare(b.trait_key))
+    .map((trait) => ({
+      trait,
+      stamp: new Date(trait.updated_at ?? trait.created_at ?? '').getTime(),
+    }))
+    .filter(({ stamp }) => Number.isFinite(stamp) && stamp > cutoff)
+    .sort((a, b) => a.trait.trait_key.localeCompare(b.trait.trait_key))
 
   if (fresh.length === 0) return null
 
-  return ['**Since you edited this**', ...fresh.map((t) => `- ${toLine(t)}`)].join('\n')
+  const maxStamp = new Date(Math.max(...fresh.map(({ stamp }) => stamp))).toISOString()
+
+  const lines = fresh
+    .map(({ trait }) => `- ${toLine(trait)}`)
+    .filter((line) => !existingContent.includes(line))
+
+  if (lines.length === 0) return { text: null, maxStamp }
+
+  return {
+    text: ['**Since you edited this**', ...lines].join('\n'),
+    maxStamp,
+  }
 }
