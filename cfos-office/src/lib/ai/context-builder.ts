@@ -1091,16 +1091,30 @@ export async function buildSystemPrompt(
       buildTripsContext(dedupedTrips, profile),
       memoryIndex,
       getPosturePromptFragment(profile),
-    ]),
-    volatile: joinSections([
-      buildCurrentDateContext(),
-      conversationInstructions,
-      openItemsBlock,
+      // Moved down from `volatile`. None of these render clock-derived text:
+      // experiments print absolute ISO dates (`ends_at.slice(0, 10)`) and use
+      // the clock only to bucket rows; the value-mapping, retake and prediction
+      // blocks render counts and percentages off `transactions`; the check-in
+      // nudge touches the clock only as a `daysSince < 7` gate that returns ''.
+      // They change when the user's data changes — which is the definition of
+      // this tier — not once per turn, so paying full price for them on every
+      // turn was waste.
       experimentContext,
       valueMappingContext,
       valueCheckinNudge,
       retakeSuggestion,
       predictionQuality,
+    ]),
+    volatile: joinSections([
+      // Everything here MUST be genuinely per-turn. Anything that merely looks
+      // volatile belongs one tier up: this block is rewritten, uncached, every
+      // single turn.
+      buildCurrentDateContext(),
+      conversationInstructions,
+      // Renders "${days_remaining} days remaining", so it rolls daily.
+      openItemsBlock,
+      // The next-questions queue, which a mid-turn `request_structured_input`
+      // can change within a single conversation.
       profilingContext,
     ]),
   };
