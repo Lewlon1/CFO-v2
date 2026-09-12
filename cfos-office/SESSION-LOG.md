@@ -5006,3 +5006,102 @@ way to reach. Build-green is compilation, not a look at the thing.
 - `status` has no UI. Triage is manual SQL until someone wants otherwise.
 - Reads composed before 083 have an empty `citation_set`; the route degrades to
   `[]` rather than failing. Not backfilled.
+
+## 2026-09-12 — Data-flow map of the whole app, and eight places the record lies
+
+**Branch:** `claude/filing-cabinet-storage-changes-x1z8u6`. **No code changed.**
+Read-only tracing session; the deliverable is a published artifact, not a diff.
+
+**Scope:** traced every path a user's data takes — signup → onboarding-v2 →
+upload → First Read → Value Map → chat turn → filing cabinet → crons — against
+source rather than against the docs, and drew it. Three parallel Explore passes,
+then direct verification of anything surprising.
+
+### The four structural facts worth knowing
+
+- **There is no `middleware.ts` in the repo.** Auth gating is per-layout
+  `redirect('/login')`, with `(office)/layout.tsx` doing the real work. Every
+  route protects itself or doesn't.
+- **No Supabase Storage bucket exists.** `grep -rn "storage.from(" src/` returns
+  nothing. Statements are parsed in the *browser*; only `ParsedTransaction[]`
+  JSON is POSTed. PDF/image bytes transit the server for vision and are never
+  persisted. The privacy story is stronger than anyone wrote down.
+- **Dedupe's source of truth is the database, not the code.** The in-memory
+  check in `duplicate-detector.ts` is a perf optimisation; the guard is the
+  partial unique index on `(user_id, dedupe_hash)`, caught as PG `23505`. Drop
+  the index and imports silently start double-counting.
+- **Portrait extraction is never on the upload path.** Uploading writes no
+  `financial_portrait` row and enqueues nothing. The portrait is built from
+  conversations only — `after()` on the chat route, with the 06:00 cron as the
+  fallback.
+
+### Contradictions found — none fixed, all recorded
+
+Blast radius, in order:
+
+1. **`value_map_sessions` has no `CREATE TABLE` in any migration.** It exists
+   only as prod drift; migrations only ever ALTER it. A database rebuilt from
+   `supabase/migrations/` would not have the table and the Value Map would fail
+   on its first write.
+2. **`005_value_map.sql` creates `value_map_results` with `user_id`**, but live
+   schema and `types.ts` use `profile_id`. Whatever renamed it bypassed the
+   migration set. Combined with (1): the migration set no longer reconstructs
+   the live schema.
+3. **`api/value-map/link-session` inserts `user_events` with the wrong
+   columns** — `{user_id, event_name, metadata}` against a table whose columns
+   are `{profile_id, event_type, event_category, payload}`. Fails every time,
+   error discarded. Demo→account conversion telemetry is silently absent rather
+   than empty, which is worse than missing.
+
+Lower stakes, still wrong:
+
+4. `docs/the-layers.md` lists `/office/values/the-gap`,
+   `/onboarding-v2/archetype`, `analyse_gap` and `find_value_gaps` as removed in
+   "Session D". All four are on disk; two are registered tools.
+5. Signup's profile write is an UPDATE racing `handle_new_user()`; country and
+   currency are lost if the trigger hasn't committed, logged only to console.
+6. `api/account/consent` swallows its failure — a user can complete signup with
+   no consent record and nothing downstream checks.
+7. The onboarding routing table exists twice (`resume.ts` and `MID_MARCUS_STEPS`
+   in `(office)/layout.tsx`), consulted on different paths, nothing reconciles.
+8. Login → `/chat` → 308 → `/office`, and there is no `/auth/callback` handler.
+
+### Gotchas worth keeping
+
+- **`profile_id` vs `user_id` is not a naming quirk, it's a live trap.**
+  `value_map_sessions` and `value_map_results` key on `profile_id`;
+  `value_category_rules`, `financial_portrait` and `consent_records` key on
+  `user_id`. Same UUID. A query that guesses wrong returns an **empty set, not
+  an error** — the worst available failure mode. Always check before writing a
+  query against these.
+- **`docs/the-layers.md` is not trustworthy as a map.** Treat it the way
+  CLAUDE.md tells you to treat `BUILD-STATUS.md`: untrusted until verified.
+- **The chat route's LLM guard runs before any write, deliberately.** A
+  rate-limited user leaves no `conversations` or `messages` rows behind. Don't
+  reorder it for convenience.
+- **`llm_usage_log` gets its row before the stream, not after**, so abandoned
+  and timed-out turns still count against the budget. `onFinish` backfills real
+  tokens. A "cheaper" refactor that only logs on success would silently stop
+  metering the failures.
+- **The current-date stamp is in the volatile tier for a reason.** It used to
+  sit high in the prompt and invalidated everything below it every turn. That is
+  the entire point of the three-tier split — don't move a per-turn value up.
+
+### Verified
+
+Read-only session; no build or test run was warranted. The three surprising
+claims were verified directly: `find . -maxdepth 2 -name middleware.ts` (none),
+`grep -rn "storage\.from(" src/` (none), and
+`grep -rln "CREATE TABLE.*value_map_sessions" supabase/migrations/` (none).
+
+**Not verified:** nothing was run in a browser, and none of the eight findings
+were reproduced at runtime — (3) in particular is inferred from comparing the
+insert's columns against the table definition, not from watching it fail.
+
+### Follow-ups
+
+- Decide what to do about `value_map_sessions` having no migration. Until then,
+  a from-scratch rebuild of the schema is not possible.
+- One-line column-name fix for the `link-session` telemetry insert.
+- Correct or retire `docs/the-layers.md` — Rule 8 says one source of truth, and
+  right now it contradicts the code in four places.
