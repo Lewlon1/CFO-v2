@@ -31,10 +31,13 @@ import { getFinancialPosition, type FinancialPositionBasis } from '@/lib/finance
 import {
   buildCitationAllowlist,
   extractCitedFigures,
+  validateChips,
   validateCitations,
   validateSurplusClaims,
   type SurplusGroundTruth,
 } from '@/lib/ai/insight-validator';
+import { extractChips, removeInvalidChips } from '@/lib/chat/options-parser';
+import { isReadRegenerateEnabled } from '@/lib/ai/flags';
 import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
@@ -363,7 +366,10 @@ export async function composeFirstRead(params: {
     metadata: { mode, ...experimentStamp(hashPrompt(systemPrompt)) },
   });
 
-  const composedMessage = result.text.trim();
+  // Reassigned by the regenerate below, so everything downstream — the metadata,
+  // the citation set, the reconciliation verdict — describes what the user is
+  // actually about to read rather than the first attempt.
+  let composedMessage = result.text.trim();
 
   // Issue 7.2 — numeric grounding for the compose path (recompose included),
   // not just the chat route. The composer never calls tools (it writes from
@@ -384,48 +390,53 @@ export async function composeFirstRead(params: {
     { toolName: 'levers', output: leverPackage.levers },
     { toolName: 'spending_breakdown', output: spendingBreakdown },
   ];
-  const citationCheck = validateCitations(
-    composedMessage,
-    buildCitationAllowlist(factBundles, {}),
-  );
-  if (!citationCheck.valid && citationCheck.unmatched.numbers.length > 0) {
-    console.error('[compose-first-read] citation check found unmatched numbers', {
+  // Session 083 — arithmetic reconciliation. The citation check proves every
+  // FIGURE is real; this proves the CONCLUSION drawn from them is. The Nova A/B
+  // produced four Reads that told a funded user they were short by subtracting
+  // the two monthly requirements from each other — every number in them was
+  // citable, so nothing caught it. See validateSurplusClaims.
+  const surplusTruth = deriveSurplusGroundTruth(leverPackage, goalRow, financialFacts.free_cash_flow);
+
+  let verdict = checkComposedRead(composedMessage, factBundles, surplusTruth);
+  let regenerated = false;
+
+  // One regenerate, then ship whatever comes back. Blocking a First Read outright
+  // would turn a quality problem into an availability problem at the single
+  // highest-stakes moment in the product — a user who just handed over their
+  // bank statements and got nothing is worse off than one who got a flawed Read.
+  // So the retry is best-effort and its failure is never fatal.
+  if (!verdict.clean && isReadRegenerateEnabled()) {
+    const retry = await regenerateRead({
       userId: params.userId,
       mode,
-      unmatched: citationCheck.unmatched.numbers,
+      systemPrompt,
+      userPrompt,
+      previous: composedMessage,
+      verdict,
     });
+
+    if (retry) {
+      regenerated = true;
+      composedMessage = retry;
+      verdict = checkComposedRead(composedMessage, factBundles, surplusTruth);
+    }
   }
 
-  // Session 083 — arithmetic reconciliation. The citation check above proves
-  // every FIGURE is real; this proves the CONCLUSION drawn from them is. The
-  // Nova A/B produced four Reads that told a funded user they were short by
-  // subtracting the two monthly requirements from each other — every number in
-  // them was citable, so nothing caught it. See validateSurplusClaims.
-  const surplusTruth = deriveSurplusGroundTruth(leverPackage, goalRow, financialFacts.free_cash_flow);
-  const reconciliation = validateSurplusClaims(composedMessage, surplusTruth);
-  if (reconciliation.skipped && reconciliation.claims.length > 0) {
-    // The first cut of this check skipped silently and passed four broken Reads.
-    // If a Read asserts headroom with nothing to check it against, say so.
-    console.warn('[compose-first-read] surplus claims present but no ground truth to check them', {
-      userId: params.userId,
-      mode,
-      claims: reconciliation.claims.map((c) => c.phrase),
-    });
-  }
-  if (!reconciliation.valid) {
-    // Loud: this means the Read states something false about the user's
-    // position, which is a Rule 2 violation and the highest-severity defect
-    // this path can produce.
-    console.error('[compose-first-read] surplus/shortfall claim does not reconcile', {
-      userId: params.userId,
-      mode,
-      truth: surplusTruth,
-      violations: reconciliation.violations.map((v) => ({
-        phrase: v.claim.phrase,
-        reason: v.reason,
-      })),
-    });
-  }
+  // Chips are a Read-format affordance and the chat route already strips invalid
+  // ones from what it delivers; the composed Read never checked them at all, so
+  // a chip naming something the narrative does not contain went straight out.
+  composedMessage = stripUnsupportedChips(composedMessage);
+
+  logValidatorFindings({ userId: params.userId, mode, verdict, surplusTruth, regenerated });
+  recordValidatorTelemetry({
+    supabase,
+    userId: params.userId,
+    mode,
+    verdict,
+    regenerated,
+  });
+
+  const { reconciliation } = verdict;
 
   const metadata = extractCompositionMetadata({
     composedMessage,
@@ -462,6 +473,221 @@ export async function composeFirstRead(params: {
   };
 
   return { composedMessage, metadata };
+}
+
+// ── Read validation ────────────────────────────────────────────────────────
+
+type FactBundle = { toolName: string; output: unknown };
+
+export interface ReadVerdict {
+  citationCheck: ReturnType<typeof validateCitations>;
+  reconciliation: ReturnType<typeof validateSurplusClaims>;
+  /** Nothing actionable found — the Read can go out as composed. */
+  clean: boolean;
+}
+
+/**
+ * Both numeric checks over one candidate Read.
+ *
+ * Pure and side-effect free, deliberately: it runs once per attempt, and logging
+ * or metering from in here would double-report whenever the regenerate fires.
+ *
+ * `citationCheck.valid === false` with an empty `unmatched.numbers` is not
+ * actionable — that is the pre-existing convention and it is preserved, because
+ * the non-numeric half of the check is noisy enough that treating it as a defect
+ * would regenerate constantly.
+ *
+ * Exported for tests: it is the predicate that decides whether a user receives a
+ * Read the system already knows is wrong, which is worth pinning directly rather
+ * than inferring through a mocked composition.
+ */
+export function checkComposedRead(
+  message: string,
+  factBundles: FactBundle[],
+  surplusTruth: SurplusGroundTruth,
+): ReadVerdict {
+  const citationCheck = validateCitations(message, buildCitationAllowlist(factBundles, {}));
+  const reconciliation = validateSurplusClaims(message, surplusTruth);
+
+  const citationFailed = !citationCheck.valid && citationCheck.unmatched.numbers.length > 0;
+
+  return { citationCheck, reconciliation, clean: !citationFailed && reconciliation.valid };
+}
+
+/**
+ * One corrective re-generation. Returns null when the retry cannot be used, and
+ * the caller then ships the original — this path must never be able to leave a
+ * user with no Read at all.
+ */
+async function regenerateRead(input: {
+  userId: string;
+  mode: ComposeFirstReadMode;
+  systemPrompt: string;
+  userPrompt: string;
+  previous: string;
+  verdict: ReadVerdict;
+}): Promise<string | null> {
+  const faults: string[] = [];
+
+  if (!input.verdict.citationCheck.valid && input.verdict.citationCheck.unmatched.numbers.length > 0) {
+    faults.push(
+      `These figures appear in your draft but were never given to you: ${input.verdict.citationCheck.unmatched.numbers.join(', ')}. ` +
+        `Every number must be one you were handed above. Do not derive, round or combine figures.`,
+    );
+  }
+
+  for (const violation of input.verdict.reconciliation.violations) {
+    faults.push(`"${violation.claim.phrase}" is wrong: ${violation.reason}`);
+  }
+
+  if (faults.length === 0) return null;
+
+  try {
+    const retry = await generateText({
+      model: bedrock(COMPOSE_MODEL),
+      system: input.systemPrompt,
+      messages: [
+        { role: 'user', content: input.userPrompt },
+        { role: 'assistant', content: input.previous },
+        {
+          role: 'user',
+          content: [
+            'That draft has factual errors. Rewrite it completely, same brief, same voice:',
+            '',
+            ...faults.map((fault) => `- ${fault}`),
+            '',
+            'Return only the rewritten Read.',
+          ].join('\n'),
+        },
+      ],
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      temperature: 0.5,
+      abortSignal: AbortSignal.timeout(20_000),
+    });
+
+    void trackLLMUsage({
+      userId: input.userId,
+      callType: 'first_read_compose',
+      model: COMPOSE_MODEL,
+      inputTokens: retry.usage?.inputTokens,
+      outputTokens: retry.usage?.outputTokens,
+      metadata: { mode: input.mode, regenerate: true, ...experimentStamp(hashPrompt(input.systemPrompt)) },
+    });
+
+    const text = retry.text.trim();
+    return text.length > 0 ? text : null;
+  } catch (err) {
+    // A timed-out or refused retry is not a reason to withhold the Read.
+    console.error('[compose-first-read] regenerate failed, shipping the original', err);
+    return null;
+  }
+}
+
+/**
+ * Drop chips the narrative does not support, exactly as the chat route does.
+ * Exported for tests — the composed Read never ran this at all before.
+ */
+export function stripUnsupportedChips(message: string): string {
+  const chips = extractChips(message);
+  if (chips.length === 0) return message;
+
+  const chipCheck = validateChips(chips, message);
+  if (chipCheck.valid) return message;
+
+  const invalid = chips.filter((chip) => chipCheck.reasons[chip]);
+  return invalid.length > 0 ? removeInvalidChips(message, invalid) : message;
+}
+
+function logValidatorFindings(input: {
+  userId: string;
+  mode: ComposeFirstReadMode;
+  verdict: ReadVerdict;
+  surplusTruth: SurplusGroundTruth;
+  regenerated: boolean;
+}): void {
+  const { citationCheck, reconciliation } = input.verdict;
+
+  if (!citationCheck.valid && citationCheck.unmatched.numbers.length > 0) {
+    console.error('[compose-first-read] citation check found unmatched numbers', {
+      userId: input.userId,
+      mode: input.mode,
+      regenerated: input.regenerated,
+      unmatched: citationCheck.unmatched.numbers,
+    });
+  }
+
+  if (reconciliation.skipped && reconciliation.claims.length > 0) {
+    // The first cut of this check skipped silently and passed four broken Reads.
+    // If a Read asserts headroom with nothing to check it against, say so.
+    console.warn('[compose-first-read] surplus claims present but no ground truth to check them', {
+      userId: input.userId,
+      mode: input.mode,
+      claims: reconciliation.claims.map((c) => c.phrase),
+    });
+  }
+
+  if (!reconciliation.valid) {
+    // Loud: this means the Read states something false about the user's
+    // position, which is a Rule 2 violation and the highest-severity defect
+    // this path can produce.
+    console.error('[compose-first-read] surplus/shortfall claim does not reconcile', {
+      userId: input.userId,
+      mode: input.mode,
+      regenerated: input.regenerated,
+      truth: input.surplusTruth,
+      violations: reconciliation.violations.map((v) => ({
+        phrase: v.claim.phrase,
+        reason: v.reason,
+      })),
+    });
+  }
+}
+
+/**
+ * The row that makes the failure rate countable.
+ *
+ * Written UNCONDITIONALLY, pass or fail, because the question this exists to
+ * answer is "what share of Reads fail a validator" and that needs a denominator.
+ * The chat route has emitted `first_read_validator_fired` for years; the compose
+ * path — which produces the actual Read — emitted nothing, so no one could say
+ * how often a Read shipped with a known error.
+ *
+ * Fire-and-forget: a telemetry failure must not affect delivery.
+ */
+function recordValidatorTelemetry(input: {
+  supabase: SupabaseClient;
+  userId: string;
+  mode: ComposeFirstReadMode;
+  verdict: ReadVerdict;
+  regenerated: boolean;
+}): void {
+  const { citationCheck, reconciliation } = input.verdict;
+
+  // Belt and braces. This function's whole contract is that it cannot affect
+  // delivery, and an insert that throws synchronously (a client without the
+  // table, a stubbed builder) would otherwise take the Read down with it.
+  try {
+    void input.supabase.from('user_events').insert({
+      profile_id: input.userId,
+      event_type: 'first_read_validator_fired',
+      event_category: 'validation',
+      payload: {
+        mode: input.mode,
+        clean: input.verdict.clean,
+        regenerated: input.regenerated,
+        regenerate_enabled: isReadRegenerateEnabled(),
+        unmatched_numbers: citationCheck.unmatched.numbers,
+        reconciliation_valid: reconciliation.valid,
+        reconciliation_skipped: reconciliation.skipped,
+        violations: reconciliation.violations.map((v) => ({
+          phrase: v.claim.phrase,
+          reason: v.reason,
+        })),
+      },
+    });
+  } catch (err) {
+    console.warn('[compose-first-read] validator telemetry threw:', err);
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1097,10 +1323,12 @@ async function composeDeclaredRead(
     currency: facts.currency,
   });
 
+  const declaredUserPrompt = buildDeclaredUserPrompt(declaredFacts);
+
   const result = await generateText({
     model: bedrock(COMPOSE_MODEL),
     system: FIRST_READ_SYSTEM_PROMPT_DECLARED,
-    messages: [{ role: 'user', content: buildDeclaredUserPrompt(declaredFacts) }],
+    messages: [{ role: 'user', content: declaredUserPrompt }],
     maxOutputTokens: DECLARED_MAX_OUTPUT_TOKENS,
     temperature: 0.5,
     abortSignal: AbortSignal.timeout(20_000),
@@ -1120,6 +1348,53 @@ async function composeDeclaredRead(
     },
   });
 
+  // The declared Read used to run NO validators at all: mode 'declared'
+  // short-circuits before the main compose's checks, so the one Read composed
+  // for users with no transaction history was the least verified of the lot.
+  // It has fewer facts behind it, not fewer ways to be wrong — this is the Read
+  // that stands entirely on figures the user typed in.
+  const factBundles: FactBundle[] = [
+    { toolName: 'financial_facts', output: facts },
+    { toolName: 'declared_facts', output: declaredFacts },
+  ];
+
+  // No lever package exists on this path, so the ground truth is assembled from
+  // what the declared prompt was actually handed: free cash, and the goal's
+  // stated monthly requirement if there is one.
+  const surplusTruth: SurplusGroundTruth = {
+    freeCashFlow: facts.free_cash_flow,
+    requirements: goalRow?.monthly_required_saving != null ? [goalRow.monthly_required_saving] : [],
+    surplusOverRequired: null,
+    stressTestGap: null,
+    paceComputable: goalRow?.monthly_required_saving != null,
+  };
+
+  let composedMessage = result.text.trim();
+  let verdict = checkComposedRead(composedMessage, factBundles, surplusTruth);
+  let regenerated = false;
+
+  if (!verdict.clean && isReadRegenerateEnabled()) {
+    const retry = await regenerateRead({
+      userId,
+      mode: 'declared',
+      systemPrompt: FIRST_READ_SYSTEM_PROMPT_DECLARED,
+      userPrompt: declaredUserPrompt,
+      previous: composedMessage,
+      verdict,
+    });
+
+    if (retry) {
+      regenerated = true;
+      composedMessage = retry;
+      verdict = checkComposedRead(composedMessage, factBundles, surplusTruth);
+    }
+  }
+
+  composedMessage = stripUnsupportedChips(composedMessage);
+
+  logValidatorFindings({ userId, mode: 'declared', verdict, surplusTruth, regenerated });
+  recordValidatorTelemetry({ supabase, userId, mode: 'declared', verdict, regenerated });
+
   const metadata: FirstReadMetadata = {
     layers_used: ['declared'],
     features_cited: [],
@@ -1135,9 +1410,21 @@ async function composeDeclaredRead(
     repeated_opening: false,
   };
 
+  metadata.reconciliation = {
+    valid: verdict.reconciliation.valid,
+    skipped: verdict.reconciliation.skipped,
+    ground_truth: surplusTruth,
+    violations: verdict.reconciliation.violations.map((v) => ({
+      kind: v.claim.kind,
+      value: v.claim.value,
+      phrase: v.claim.phrase,
+      reason: v.reason,
+    })),
+  };
+
   // declaredFacts rides along so the post-upload route can snapshot it into
   // conversation metadata — the upgrade Read's DECLARED side of the delta.
-  return { composedMessage: result.text.trim(), metadata, declaredFacts };
+  return { composedMessage, metadata, declaredFacts };
 }
 
 /**
