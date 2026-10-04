@@ -25,7 +25,7 @@
  * pricing page and correct any figure that differs, then bump RATE_VERSION.
  */
 
-export const RATE_VERSION = '2026-07-B1'
+export const RATE_VERSION = '2026-08-C1'
 
 export type Rate = {
   /** USD per 1,000,000 uncached input tokens. */
@@ -64,6 +64,27 @@ export const RATES: Record<string, Rate> = {
   'eu.anthropic.claude-opus-4-6': {
     inputPerMTok: 5.0,
     outputPerMTok: 25.0,
+    cacheReadMult: 0.1,
+    cacheWriteMult: 1.25,
+  },
+  // Amazon Nova — opt-in via BEDROCK_CLAUDE_MODEL / BEDROCK_CLAUDE_UTILITY_MODEL /
+  // BEDROCK_OPUS_MODEL env vars for cost A/B testing; Claude stays the default.
+  // Nova Premier (the tier above Pro) has no EU cross-region inference profile
+  // as of 2026-08-29, so the opus-tier env var can only reach Nova Pro, not a
+  // stronger model — see SESSION-LOG.md. Prices from AWS Bedrock on-demand
+  // (avahi.ai/cloudzero pricing roundups, Feb 2026); cache read confirmed at
+  // 0.1x (Bedrock prompt caching is GA for Nova); cache write multiplier is
+  // carried over from the Claude convention (5-min TTL ~1.25x) — unconfirmed
+  // for Nova specifically, same TODO as the Claude rates above.
+  'eu.amazon.nova-pro-v1:0': {
+    inputPerMTok: 0.8,
+    outputPerMTok: 3.2,
+    cacheReadMult: 0.1,
+    cacheWriteMult: 1.25,
+  },
+  'eu.amazon.nova-lite-v1:0': {
+    inputPerMTok: 0.06,
+    outputPerMTok: 0.24,
     cacheReadMult: 0.1,
     cacheWriteMult: 1.25,
   },

@@ -51,7 +51,13 @@ export function NavigationBar() {
   // Home page (/office) — don't render
   if (segments.length <= 1) return null
 
-  const parentPath = '/' + segments.slice(0, -1).join('/')
+  // `/office/<folder>/files/<slug>`: the files list is a section of the folder
+  // page, so `files` is a path segment with no page of its own. Back goes to the
+  // folder rather than to a 404.
+  const parentPath =
+    segments[2] === 'files'
+      ? `/${segments[0]}/${segments[1]}`
+      : '/' + segments.slice(0, -1).join('/')
   const currentLabel = getLabel(segments[segments.length - 1])
   const isFolder = segments.length === 2
   const folderLabel = segments.length >= 2 ? getLabel(segments[1]) : ''

@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { bedrock, composeModelId } from '@/lib/ai/provider';
 import { createServiceClient } from '@/lib/supabase/service';
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage';
+import { experimentStamp, hashPrompt } from '@/lib/ai/experiment-metadata';
 import { buildUserValueProfile } from '@/lib/value-map/value-profile';
 import { getClusterBehaviour } from '@/lib/analytics/cluster-behaviour';
 import { getDataWindowEnd, getDataWindowCoverage, windowStartISO } from '@/lib/analytics/cluster-behaviour/queries';
@@ -27,7 +28,13 @@ import {
   type ReconciledBill,
 } from '@/lib/analytics/reconcile-fixed-costs';
 import { getFinancialPosition, type FinancialPositionBasis } from '@/lib/finance/financial-position';
-import { buildCitationAllowlist, validateCitations } from '@/lib/ai/insight-validator';
+import {
+  buildCitationAllowlist,
+  extractCitedFigures,
+  validateCitations,
+  validateSurplusClaims,
+  type SurplusGroundTruth,
+} from '@/lib/ai/insight-validator';
 import { resolveUserCurrency } from '@/lib/analytics/resolve-user-currency';
 import { formatBenchmarkObservation } from '@/lib/analytics/benchmark/format';
 import {
@@ -39,6 +46,7 @@ import { categoryLabel } from '@/lib/analytics/categories';
 import { selectReadRecipe, type ReadRecipe } from '@/lib/ai/first-read-recipe';
 import { monthsBetween } from '@/lib/goals/pace';
 import { requiredMonthlyBand, INVESTMENT_DEFAULT_RATE_PCT } from '@/lib/finance/compound-growth';
+import { computeGoalVerdict, type GoalVerdict } from '@/lib/finance/goal-verdict';
 import { formatMoney } from '@/lib/format/money';
 
 import {
@@ -68,7 +76,11 @@ const LEVER_FACTS_CONSISTENCY_TOLERANCE = 1;
 // The declared Read is 70–130 words (it stands on two numbers, not 90 days of
 // data), so it gets a tighter ceiling than the transaction Read — generous
 // enough to never truncate the CTA/sign-off, tight enough to cap a runaway.
-const DECLARED_MAX_OUTPUT_TOKENS = 400;
+// Exported so the A/B producer (scripts/compare-first-insight.ts) generates
+// under the same ceiling as production rather than keeping its own copy — a
+// variant that could run longer than the real thing would be rated on an
+// advantage the shipped path never has.
+export const DECLARED_MAX_OUTPUT_TOKENS = 400;
 
 const COMPOSE_MODEL = composeModelId;
 
@@ -250,8 +262,20 @@ export async function composeFirstRead(params: {
     (c): c is ClusterBehaviour => c != null && c.data_completeness >= MIN_DATA_COMPLETENESS,
   );
 
+  // The verdict — "funded at plan or not, and by how much" — is computed here,
+  // server-side, and handed to the model as a verbatim-citable fact (Rule 2).
+  // It used to be the one number the model worked out itself, and it is the
+  // most consequential sentence in the Read; both Nova and Sonnet inverted it.
+  // Single source of truth: the prompt (buildGoalSummary) and the compose-time
+  // validator (deriveSurplusGroundTruth) both read THIS object.
+  const goalVerdict = computeGoalVerdict({
+    goal: goalRow,
+    freeCashFlow: financialFacts.free_cash_flow,
+    asOf: new Date(),
+  });
+
   const goalSummary = goalRow
-    ? buildGoalSummary(goalRow, financialFacts.currency)
+    ? buildGoalSummary(goalRow, financialFacts.currency, goalVerdict)
     : null;
 
   const dataAgeDays = dataWindowEnd
@@ -346,7 +370,10 @@ export async function composeFirstRead(params: {
     model: COMPOSE_MODEL,
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
-    metadata: { mode },
+    // The prompt hash makes a compose attributable to the exact prompt that
+    // produced it — otherwise an A/B run's rows are indistinguishable, since no
+    // prompt text is persisted anywhere.
+    metadata: { mode, ...experimentStamp(hashPrompt(systemPrompt)) },
   });
 
   const composedMessage = result.text.trim();
@@ -362,22 +389,54 @@ export async function composeFirstRead(params: {
   // the same way the chat route's citation check does, rather than forcing
   // a regenerate (a bigger behavioural change better proven out via this
   // telemetry first).
+  // Hoisted so the citation CHECK and the cited-figure CAPTURE below provably
+  // run over the same three bundles — if they ever drifted apart, a report
+  // could name a source that never fed this Read.
+  const factBundles = [
+    { toolName: 'financial_facts', output: financialFacts },
+    { toolName: 'levers', output: leverPackage.levers },
+    { toolName: 'spending_breakdown', output: spendingBreakdown },
+  ];
   const citationCheck = validateCitations(
     composedMessage,
-    buildCitationAllowlist(
-      [
-        { toolName: 'financial_facts', output: financialFacts },
-        { toolName: 'levers', output: leverPackage.levers },
-        { toolName: 'spending_breakdown', output: spendingBreakdown },
-      ],
-      {},
-    ),
+    buildCitationAllowlist(factBundles, {}),
   );
   if (!citationCheck.valid && citationCheck.unmatched.numbers.length > 0) {
     console.error('[compose-first-read] citation check found unmatched numbers', {
       userId: params.userId,
       mode,
       unmatched: citationCheck.unmatched.numbers,
+    });
+  }
+
+  // Session 083 — arithmetic reconciliation. The citation check above proves
+  // every FIGURE is real; this proves the CONCLUSION drawn from them is. The
+  // Nova A/B produced four Reads that told a funded user they were short by
+  // subtracting the two monthly requirements from each other — every number in
+  // them was citable, so nothing caught it. See validateSurplusClaims.
+  const surplusTruth = deriveSurplusGroundTruth(leverPackage, goalVerdict, financialFacts.free_cash_flow);
+  const reconciliation = validateSurplusClaims(composedMessage, surplusTruth);
+  if (reconciliation.skipped && reconciliation.claims.length > 0) {
+    // The first cut of this check skipped silently and passed four broken Reads.
+    // If a Read asserts headroom with nothing to check it against, say so.
+    console.warn('[compose-first-read] surplus claims present but no ground truth to check them', {
+      userId: params.userId,
+      mode,
+      claims: reconciliation.claims.map((c) => c.phrase),
+    });
+  }
+  if (!reconciliation.valid) {
+    // Loud: this means the Read states something false about the user's
+    // position, which is a Rule 2 violation and the highest-severity defect
+    // this path can produce.
+    console.error('[compose-first-read] surplus/shortfall claim does not reconcile', {
+      userId: params.userId,
+      mode,
+      truth: surplusTruth,
+      violations: reconciliation.violations.map((v) => ({
+        phrase: v.claim.phrase,
+        reason: v.reason,
+      })),
     });
   }
 
@@ -393,10 +452,77 @@ export async function composeFirstRead(params: {
     priorReadSummary: threadsPrior ? (params.priorReadSummary ?? null) : null,
   });
 
+  // Which computed figures this Read actually put in front of the user, and
+  // which bundle produced each. Rides conversations.metadata.first_read_metadata
+  // (no migration); /api/reads/feedback snapshots it onto a report so a beta
+  // user's "this number is wrong" traces back to the source that computed it.
+  metadata.citation_set = extractCitedFigures(composedMessage, factBundles);
+
+  // Persisted so the verdict is readable downstream without re-deriving levers:
+  // the onboarding harness asserts on it (db-assertions), and a read_feedback
+  // report snapshots it, so "this number is wrong" arrives next to whether the
+  // Read's own arithmetic reconciled at compose time.
+  metadata.reconciliation = {
+    valid: reconciliation.valid,
+    skipped: reconciliation.skipped,
+    ground_truth: surplusTruth,
+    violations: reconciliation.violations.map((v) => ({
+      kind: v.claim.kind,
+      value: v.claim.value,
+      phrase: v.claim.phrase,
+      reason: v.reason,
+    })),
+  };
+
+  // What the model was TOLD about the verdict, alongside what it wrote. Rides
+  // the same already-persisted blob (no migration) so /admin/wow can show both.
+  metadata.goal_verdict = goalVerdict;
+
   return { composedMessage, metadata };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Pull the only two figures a Read may assert about goal headroom out of the
+ * lever package the prompt was built from.
+ *
+ * `paceComputable` is false whenever a supply_input blocker is present: that
+ * lever exists precisely because a required pace input (target date / amount /
+ * income) is missing, so no monthly shortfall or surplus is derivable and any
+ * numeric claim about one is invented.
+ */
+export function deriveSurplusGroundTruth(
+  pkg: LeverPackage,
+  verdict: GoalVerdict,
+  freeCashFlow: number | null,
+): SurplusGroundTruth {
+  const accelerate = pkg.levers.find((l) => l.type === 'accelerate');
+
+  // The monthly requirement figures come from the SAME verdict object the
+  // prompt was rendered from, so the validator checks the Read against exactly
+  // the numbers the model was shown (Rule 8). This used to re-derive the band
+  // here — two copies of one fact, and if they drifted the validator would
+  // start lying about which Reads reconcile.
+  //
+  // `freeCashFlow` is still threaded separately: the verdict zeroes it out
+  // whenever pace is not computable (no goal, no target date), but the
+  // validator wants the figure regardless — a Read with no goal can still
+  // assert headroom, and that assertion is worth checking.
+  return {
+    freeCashFlow: freeCashFlow != null ? Math.round(freeCashFlow) : null,
+    requirements: verdict.requirements.map((r) => r.monthly),
+    surplusOverRequired: accelerate ? accelerate.surplusOverRequired : null,
+    stressTestGap: accelerate ? accelerate.stressTestGap : null,
+    // Deliberately NOT `verdict.computable && pkg.blocker === null`. A false
+    // paceComputable makes the validator flag EVERY claim as un-assertable, and
+    // `computable` is false in the ordinary no-goal case — which the validator
+    // already handles by skipping (empty requirements + no lever). Folding it
+    // in would fire "a supply_input blocker is active" at users who have no
+    // goal at all. The blocker is still the only thing that gates pace.
+    paceComputable: pkg.blocker === null,
+  };
+}
 
 /**
  * Issue 1.4: assert the accelerate lever's `surplusOverRequired` reconciles
@@ -630,6 +756,12 @@ async function getActiveGoal(
  * AND a rate band so the Read can teach the concept and show a range — rather
  * than the model inventing a flat division (which made achievable long-horizon
  * goals read as impossible) or dropping the already-saved amount.
+ *
+ * The VERDICT — funded at plan or not, and by exactly how much — arrives
+ * pre-computed in `verdict` and is rendered verbatim. The model is never asked
+ * to work it out: it did, and it got it wrong in both directions (see
+ * lib/finance/goal-verdict.ts). Mirrors the declared path's rendering in
+ * prompts/first-read.ts.
  */
 export function buildGoalSummary(
   goal: {
@@ -641,6 +773,7 @@ export function buildGoalSummary(
     monthly_required_saving: number | null;
   },
   currency: string,
+  verdict: GoalVerdict,
 ): string {
   const lines: string[] = [];
   // Whole-currency rounding for the Read — cents read like a spreadsheet, not a CFO.
@@ -660,43 +793,115 @@ export function buildGoalSummary(
   const monthsLeft =
     goal.target_date != null ? monthsBetween(new Date(), new Date(goal.target_date)) : null;
 
+  // The rate band comes from the VERDICT, not from a second requiredMonthlyBand
+  // call here. Two derivations meant two independent `new Date()` calls, and a
+  // Read that showed one 7% figure in the band line and a different one in the
+  // verdict — the model would have had to pick, which is the whole failure mode
+  // this work removes (Rule 8: one source of truth per fact).
+  const band = verdict.requirements.filter((r) => r.ratePct != null);
+
   if (
     goal.type === 'investment' &&
     goal.target_amount != null &&
     monthsLeft != null &&
-    monthsLeft > 0
+    monthsLeft > 0 &&
+    band.length > 0 &&
+    verdict.planMonthly != null
   ) {
     const target = goal.target_amount;
     const current = goal.current_amount ?? 0;
-    const band = requiredMonthlyBand({ targetAmount: target, currentAmount: current, months: monthsLeft });
     const bandStr = band
-      .map((b) => `${m(b.monthly ?? 0)}/mo at ${b.ratePct}%`)
+      .map((b) => `${m(b.monthly)}/mo at ${b.ratePct}%`)
       .join(', ');
-    const base =
-      band.find((b) => b.ratePct === INVESTMENT_DEFAULT_RATE_PCT) ?? band[Math.floor(band.length / 2)];
-    const baseStr = base ? m(base.monthly ?? 0) : '(n/a)';
+    const baseStr = m(verdict.planMonthly);
     const linear = Math.max(0, (target - current) / monthsLeft);
+    // Rate labels come off the verdict too, so the prose can never name a rate
+    // the figures beside it were not computed at.
+    const planPct = verdict.planRatePct ?? INVESTMENT_DEFAULT_RATE_PCT;
+    const stressPct = verdict.stressRatePct ?? band[0].ratePct;
+    const topPct = band[band.length - 1].ratePct;
     lines.push(
       `Monthly contribution needed, accounting for COMPOUND GROWTH (the pot earns returns, ` +
         `so far less than a flat split): ${bandStr}. ` +
         `A naive no-growth split would demand ${m(linear)}/mo — cite the growth-aware figures, not that. ` +
-        `PLAN AROUND the ${INVESTMENT_DEFAULT_RATE_PCT}% (middle) case — ${baseStr}/mo — as the working number. ` +
-        `Show the full range ONCE so the user sees the options, then commit to the ${INVESTMENT_DEFAULT_RATE_PCT}% figure ` +
-        `and size the verdict and any gap against THAT, not the 4% figure. ` +
-        `Explain in ONE plain line where the ${INVESTMENT_DEFAULT_RATE_PCT}% comes from: it is the moderate middle of the ` +
+        `PLAN AROUND the ${planPct}% (middle) case — ${baseStr}/mo — as the working number. ` +
+        `Show the full range ONCE so the user sees the options, then commit to the ${planPct}% figure ` +
+        `and size the verdict and any gap against THAT, not the ${stressPct}% figure. ` +
+        `Explain in ONE plain line where the ${planPct}% comes from: it is the moderate middle of the ` +
         `range — roughly the long-run average a broadly diversified portfolio has returned over a horizon like this — an ` +
-        `assumption, not a promise, which is exactly why the 4% case stays in view as the stress test and 10% as the upside. ` +
-        `Returns on the ${m(current)} already saved do much of the heavy lifting over this horizon. ` +
-        `Give a clear verdict on whether the target is realistic at the ${INVESTMENT_DEFAULT_RATE_PCT}% plan given their free ` +
-        `cash flow. If free cash flow already covers the ${INVESTMENT_DEFAULT_RATE_PCT}% number, say so plainly — the goal is ` +
-        `funded at plan, so frame the next move as getting there sooner or covering the 4% stress case, never as closing a gap ` +
-        `that does not exist at plan.`,
+        `assumption, not a promise, which is exactly why the ${stressPct}% case stays in view as the stress test and ` +
+        `${topPct}% as the upside. ` +
+        `Returns on the ${m(current)} already saved do much of the heavy lifting over this horizon.`,
     );
-  } else if (goal.monthly_required_saving != null && monthsLeft != null && monthsLeft > 0) {
+  } else if (verdict.planMonthly != null && monthsLeft != null && monthsLeft > 0) {
+    // Sourced from the verdict, not from goal.monthly_required_saving: the
+    // column is null on savings goals whose pace was never persisted, and
+    // gating this line on it left those Reads with no requirement figure at
+    // all — which the model then invented.
     lines.push(
-      `Monthly contribution needed: ${m(goal.monthly_required_saving)}/mo ` +
+      `Monthly contribution needed: ${m(verdict.planMonthly)}/mo ` +
         `(straight-line, already nets off the ${m(goal.current_amount ?? 0)} saved).`,
     );
+  }
+
+  // ── The verdict, computed server-side (Rule 2) ──────────────────────────
+  // This block replaces the instruction that used to ask the model to "give a
+  // clear verdict … given their free cash flow". That is arithmetic, and the
+  // models failed it: three Nova Reads subtracted two monthly REQUIREMENTS
+  // from each other and called the difference a shortfall; one Sonnet Read
+  // picked the right pair and flipped the sign. Prompt wording had already
+  // been tried ("never as closing a gap that does not exist at plan") and was
+  // ignored — wording does not fix arithmetic.
+  //
+  // The explicit "NO gap" / "ONLY shortfall figure" phrasing is load-bearing:
+  // the failures were not the model missing a fact, they were the model
+  // inventing one to fill the template's "here's the gap → here's the move
+  // that closes it" slot. The line has to close that slot outright.
+  // `fundedAtPlan != null` is the gate, not `computable`: pace can be computable
+  // while free cash flow is unknown, and in that case there is no verdict to
+  // state. Saying nothing beats stating a verdict against an assumed zero.
+  if (verdict.computable && verdict.planMonthly != null && verdict.fundedAtPlan != null) {
+    const fcf = verdict.freeCashFlow ?? 0;
+    const planLabel = verdict.planRatePct != null ? `${verdict.planRatePct}% plan` : 'plan';
+    // Phrased as instruction throughout, with no label a weaker model can lift.
+    // An earlier cut led each line with "VERDICT (…):" / "STRESS TEST (…):" and
+    // Nova pasted both headings straight into the user-facing prose (and blew
+    // the 250-word cap doing it). A directive has no quotable shape.
+    // Fact first, directive last. A weak model lifts the head of a prompt line
+    // into the prose, so the head must be a sentence that is CORRECT to lift.
+    // (Nova lifted "VERDICT:"/"STRESS TEST:" headings from an earlier cut, and
+    // "The verdict is already worked out" from the one after that.)
+    if (verdict.fundedAtPlan) {
+      lines.push(
+        `Free cash flow of ${m(fcf)} covers the ${planLabel} figure of ` +
+          `${m(verdict.planMonthly)}/mo, leaving ${m(verdict.surplusAtPlan ?? 0)}/mo spare — ` +
+          `they are funded at plan. Those three figures are computed: state them, never ` +
+          `re-derive them. There is no gap at plan, so do not describe any figure as a ` +
+          `shortfall, a gap, or something to close — frame the next move as getting there ` +
+          `sooner or protecting the buffer.`,
+      );
+    } else {
+      lines.push(
+        `The ${planLabel} needs ${m(verdict.planMonthly)}/mo and free cash flow is ${m(fcf)}, ` +
+          `so they are short by exactly ${m(verdict.shortfallAtPlan ?? 0)}/mo. Those three ` +
+          `figures are computed: state them, never re-derive them. ` +
+          `${m(verdict.shortfallAtPlan ?? 0)} is the only shortfall figure that may appear ` +
+          `anywhere in the Read.`,
+      );
+    }
+    if (verdict.stressMonthly != null) {
+      lines.push(
+        verdict.stressCovered
+          ? `At a cautious ${verdict.stressRatePct}% return, ${m(verdict.stressMonthly)}/mo ` +
+            `would be needed, and their free cash flow comfortably covers that too — the ` +
+            `conservative stress case holds. Those figures are computed: state them, never ` +
+            `re-derive them, and never call this covered case a gap.`
+          : `At a cautious ${verdict.stressRatePct}% return, ${m(verdict.stressMonthly)}/mo ` +
+            `would be needed — ${m(verdict.stressShortfall ?? 0)}/mo more than their free cash ` +
+            `flow covers. Those figures are computed: state them, never re-derive them. This ` +
+            `is the conservative stress case only, not the plan.`,
+      );
+    }
   }
 
   return lines.join('\n');
@@ -993,7 +1198,10 @@ async function composeDeclaredRead(
     model: COMPOSE_MODEL,
     inputTokens: result.usage?.inputTokens,
     outputTokens: result.usage?.outputTokens,
-    metadata: { mode: 'declared' },
+    metadata: {
+      mode: 'declared',
+      ...experimentStamp(hashPrompt(FIRST_READ_SYSTEM_PROMPT_DECLARED)),
+    },
   });
 
   const metadata: FirstReadMetadata = {

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { CashFlowDashboard } from '@/components/office/dashboards/CashFlowDashboard'
+import { FilesSection } from '@/components/office/files/FilesSection'
 
 export default async function CashFlowPage() {
   const supabase = await createClient()
@@ -14,5 +15,14 @@ export default async function CashFlowPage() {
 
   const currency = profile?.primary_currency ?? 'EUR'
 
-  return <CashFlowDashboard currency={currency} />
+  return (
+    <>
+      <CashFlowDashboard currency={currency} />
+      {/* The dashboard reserves pb-24 for the chat bar; pull the files list up
+          into it so it reads as the next section, not a second screen. */}
+      <div className="px-3.5 -mt-20 pb-24">
+        <FilesSection folder="cashflow" />
+      </div>
+    </>
+  )
 }

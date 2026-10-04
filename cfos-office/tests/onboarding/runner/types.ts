@@ -49,6 +49,12 @@ export interface DbStateSnapshot {
   recurringNames: string[]
   /** Number of goals seeded for the user — checked for goal persistence (Task 10). */
   goalsCount: number
+  /**
+   * conversations.metadata.first_read_metadata for the user's first_read
+   * conversation. Carries the compose-time arithmetic reconciliation verdict
+   * (Session 083) — checked by assertReadArithmeticReconciles.
+   */
+  firstReadMetadata: Record<string, unknown> | null
 }
 
 export interface PersonaRunResult {

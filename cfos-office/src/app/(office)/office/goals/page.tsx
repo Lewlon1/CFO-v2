@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/types'
 import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
+import { FilesSection } from '@/components/office/files/FilesSection'
 import { isValueMapV2Enabled } from '@/lib/value-map/flags'
 import { GoalsEmptyStateCTA } from './GoalsEmptyStateCTA'
 import { GoalCard } from './GoalCard'
@@ -59,6 +60,10 @@ export default async function GoalsPage() {
           </div>
         </div>
       )}
+
+      {/* The filing cabinet — the notes the CFO keeps in Goals, opened by the
+          same person who is in them. */}
+      <FilesSection folder="goals" />
     </div>
   )
 }

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, Upload, Settings } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronDown, ChevronRight, Upload, Settings } from 'lucide-react';
 import { CompletenessIndicator } from './CompletenessIndicator';
 import { ProfileCard } from './ProfileCard';
 import { TraitDisplay } from './TraitDisplay';
@@ -224,6 +225,19 @@ export function ProfilePageClient({
 
       {/* Financial Portrait */}
       <TraitDisplay traits={traits} />
+
+      {/* The other half of what the CFO knows: the traits above are what it has
+          inferred, the files are what it has written down. Both are the user's
+          to see, so the portrait page points at the cabinet. */}
+      <Link
+        href="/office"
+        className="flex items-center gap-3 min-h-11 px-[14px] py-3 rounded-control border border-border-subtle bg-bg-card transition-colors hover:bg-tap-highlight"
+      >
+        <span className="flex-1 text-[13px] text-text-secondary">
+          Your CFO also keeps files in your folders
+        </span>
+        <ChevronRight size={14} className="text-text-muted shrink-0" strokeWidth={1.5} />
+      </Link>
 
       {/* Import History */}
       <CollapsibleSection

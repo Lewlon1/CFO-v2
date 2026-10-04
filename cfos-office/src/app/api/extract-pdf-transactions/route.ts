@@ -240,7 +240,8 @@ export async function POST(req: NextRequest) {
     // TODO: typed once migration applied to staging. The generated Supabase
     // types don't yet include `import_attempts` (regenerated from staging by
     // the lead separately), so the table access is cast to avoid a hard TS
-    // failure on an as-yet-unknown table name.
+    // failure on an as-yet-unknown table name. Same pattern as upload/route.ts.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (svc.from('import_attempts') as any).insert({
       user_id: user.id,
       source: 'pdf_vision',

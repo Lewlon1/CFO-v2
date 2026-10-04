@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { utilityModel, utilityModelId } from '@/lib/ai/provider'
 import { trackLLMUsage } from '@/lib/analytics/track-llm-usage'
 import { logBedrockUsage } from '@/lib/ai/usage-logger'
+import { refreshMemoryDigests } from '@/lib/memory/digests'
 
 export const traitSchema = z.object({
   new_traits: z.array(
@@ -163,6 +164,11 @@ Rules:
   }
 
   await stampAnalysedAt(supabase, conversationId)
+
+  // The prompt no longer carries traits directly — it carries the digest files
+  // derived from them, so a trait that never reaches a digest is a trait the CFO
+  // never sees. Deterministic and cheap; never throws.
+  if (inserted > 0) await refreshMemoryDigests(supabase, userId)
 
   return {
     status: 'success',

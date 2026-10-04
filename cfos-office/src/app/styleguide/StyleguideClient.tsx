@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Briefing } from '@/components/office/dashboards/Briefing'
 import { DetailHeader } from '@/components/office/dashboards/DetailHeader'
 import { DrillDownRow } from '@/components/office/dashboards/DrillDownRow'
+import { FileRow } from '@/components/office/files/FileRow'
 import { DashboardEmptyState } from '@/components/office/dashboards/DashboardEmptyState'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -80,6 +81,9 @@ function ValueSwatch({ value, label, sub }: { value: string; label: string; sub?
     </div>
   )
 }
+
+/** Frozen clock for the FileRow samples, so "updated 3d ago" never drifts. */
+const STYLEGUIDE_NOW = new Date('2026-08-12T12:00:00.000Z')
 
 function Section({ n, title, note, children }: { n: string; title: string; note?: string; children: ReactNode }) {
   return (
@@ -488,6 +492,40 @@ export function StyleguideClient() {
         <div className="space-y-2">
           <DrillDownRow title="Transactions" subtitle="47 this month" href="/styleguide" icon="→" accentColor={folderColors.cashflow} />
           <DrillDownRow title="Recurring" subtitle="9 detected" href="/styleguide" icon="↻" accentColor={folderColors.values} />
+        </div>
+
+        <Sub>FileRow — the filing cabinet (rounded-control, not the spec&rsquo;s 10px)</Sub>
+        <div className="space-y-2">
+          <FileRow
+            folder="values"
+            index={0}
+            now={STYLEGUIDE_NOW}
+            file={{
+              slug: 'first-read',
+              title: 'Your first read',
+              description: 'The read your CFO wrote the first time it saw your money.',
+              updated_at: '2026-08-09T09:00:00.000Z',
+              pinned: true,
+              source: 'system',
+              updated_by: 'system',
+              user_edited_at: null,
+            }}
+          />
+          <FileRow
+            folder="goals"
+            index={1}
+            now={STYLEGUIDE_NOW}
+            file={{
+              slug: 'house-deposit-plan',
+              title: 'The deposit plan',
+              description: 'Target, timing, and what you said you would give up for it.',
+              updated_at: '2026-08-01T09:00:00.000Z',
+              pinned: false,
+              source: 'cfo',
+              updated_by: 'user',
+              user_edited_at: '2026-08-01T09:00:00.000Z',
+            }}
+          />
         </div>
 
         <Sub>Stat-card grid — now Card + tokens + type scale (MetricTile deleted)</Sub>

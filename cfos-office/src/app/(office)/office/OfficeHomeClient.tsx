@@ -11,6 +11,7 @@ import { InboxRow } from '@/components/office/InboxRow'
 import { ModelsRow } from '@/components/office/ModelsRow'
 import { useTrackEvent } from '@/lib/events/use-track-event'
 import { folderColors } from '@/lib/tokens'
+import type { MemoryFolder } from '@/lib/memory/constants'
 import type { PrimaryGoal } from '@/lib/goals/primary-goal'
 import {
   cashFlowSubtitle,
@@ -29,6 +30,8 @@ interface OfficeHomeClientProps {
   profileCompleteness: number
   primaryGoal: PrimaryGoal | null
   upcomingEventsCount: number
+  /** Active filing-cabinet files per folder — rendered as the folder tab count. */
+  fileCounts?: Record<MemoryFolder, number>
 }
 
 export function OfficeHomeClient({
@@ -42,6 +45,7 @@ export function OfficeHomeClient({
   profileCompleteness,
   primaryGoal,
   upcomingEventsCount,
+  fileCounts,
 }: OfficeHomeClientProps) {
   const { summary, isLoading } = useDashboardData()
   const trackEvent = useTrackEvent()
@@ -64,6 +68,10 @@ export function OfficeHomeClient({
   const valuesSub = valuesSubtitle(archetype?.archetype_name ?? null, profileCompleteness, primaryGoal)
   const netWorthSub = netWorthSubtitle(totalAssets, totalLiabilities, primaryGoal)
 
+  // A folder with nothing filed shows no count — a "0" pill is furniture, and
+  // an empty cabinet should cost the user no visual noise.
+  const countFor = (folder: MemoryFolder) => fileCounts?.[folder] || undefined
+
   return (
     <div className="px-3.5 pt-2 pb-6">
       {/* Inbox row — shows when there are unread nudges */}
@@ -74,6 +82,7 @@ export function OfficeHomeClient({
         label="Goals"
         subtitle={goalsSubtitle}
         accentColor={folderColors.goals}
+        fileCount={countFor('goals')}
         openHref="/office/goals"
       >
         {/* Experiments slot — wired by v2.6 once claude/experiment-engine-oKzua lands. */}
@@ -89,6 +98,7 @@ export function OfficeHomeClient({
         label="Cash Flow"
         subtitle={cashFlowSub}
         accentColor={folderColors.cashflow}
+        fileCount={countFor('cashflow')}
         openHref="/office/cash-flow"
       >
         <CashFlowSection
@@ -104,6 +114,7 @@ export function OfficeHomeClient({
         label="Values & You"
         subtitle={valuesSub}
         accentColor={folderColors.values}
+        fileCount={countFor('values')}
         openHref="/office/values"
       >
         <ValuesSection
@@ -120,6 +131,7 @@ export function OfficeHomeClient({
         label="Net Worth"
         subtitle={netWorthSub}
         accentColor={folderColors.networth}
+        fileCount={countFor('networth')}
         openHref="/office/net-worth"
       >
         <NetWorthSection

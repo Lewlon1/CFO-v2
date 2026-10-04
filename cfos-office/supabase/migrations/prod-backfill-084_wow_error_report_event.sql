@@ -1,0 +1,30 @@
+-- prod-backfill-084_wow_error_report_event.sql
+--
+-- ⚠️ PRODUCTION-ONLY — DO NOT APPLY VIA AUTOMATION. ⚠️
+-- Lewis runs this by hand against prod (iccelmjenljanqrhhzdv).
+-- The staging twin is supabase/migrations/084_wow_error_report_event.sql
+-- (qlbhvlssksnrhsleadzn). The SQL body below is byte-identical; only this
+-- header differs.
+--
+-- WHAT: adds 'error_report_tapped' to public.wow_event_type, emitted when a user
+-- taps "Anything in here wrong?" under their First Read.
+--
+-- ADDITIVE: yes — one enum value. Nothing is renamed, dropped, or rewritten.
+-- IDEMPOTENT: yes — ADD VALUE IF NOT EXISTS.
+--
+-- RUN IT ON ITS OWN, in its own transaction, and NOT in the same batch as any
+-- statement that uses the new value: Postgres forbids using a newly-added enum
+-- value in the transaction that added it.
+--
+-- DEPLOY ORDER: apply this BEFORE deploying code that emits the new event type,
+-- or the insert fails on invalid enum input.
+--
+-- PRE-RUN CHECK (expect 7 labels, without error_report_tapped):
+--   select e.enumlabel from pg_enum e join pg_type t on t.oid = e.enumtypid
+--    where t.typname = 'wow_event_type' order by e.enumsortorder;
+--
+-- POST-RUN CHECK (expect 8 labels, error_report_tapped last):
+--   select e.enumlabel from pg_enum e join pg_type t on t.oid = e.enumtypid
+--    where t.typname = 'wow_event_type' order by e.enumsortorder;
+
+ALTER TYPE public.wow_event_type ADD VALUE IF NOT EXISTS 'error_report_tapped';

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceClient } from '@/lib/supabase/service'
 import { checkRateLimit } from '@/lib/chat/rate-limit'
 import { computeCostUsd, RATE_VERSION } from '@/lib/ai/rates'
+import { experimentStamp } from '@/lib/ai/experiment-metadata'
 
 /**
  * Per-user LLM cost guard — the durable ceiling on Bedrock spend.
@@ -202,7 +203,10 @@ export async function recordChatTurnStart(args: {
         user_id: args.userId,
         call_type: 'chat_turn',
         model: args.model,
-        metadata: { conversation_id: args.conversationId },
+        // The experiment stamp rides on the row created here rather than the
+        // backfill, so a turn is attributable to its arm even if the stream
+        // dies before completeChatTurn runs.
+        metadata: { conversation_id: args.conversationId, ...experimentStamp() },
       })
       .select('id')
       .single()

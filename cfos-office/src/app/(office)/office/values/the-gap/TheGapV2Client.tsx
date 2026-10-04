@@ -55,7 +55,7 @@ export function TheGapV2Client({
   }
 
   // Generic chat-with-category handler. The in-chat capture flow (labelling
-  // walkthrough / propose_experiment / coverage capture) is out of scope this
+  // walkthrough / experiment proposal / coverage capture) is out of scope this
   // session — for now, deep-link into chat with an intent + category hint so
   // the system prompt can recognise the entry. If the server-side chat
   // handler doesn't honour these params yet, the chat still opens cleanly.

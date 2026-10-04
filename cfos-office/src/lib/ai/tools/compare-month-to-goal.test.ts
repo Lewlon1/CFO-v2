@@ -47,9 +47,9 @@ function makeStub({
       return Promise.resolve();
     },
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return {
     from: (table: string) => (table === 'goals' ? goalsChain : snapshotsChain),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 

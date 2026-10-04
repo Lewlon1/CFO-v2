@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { trackFunnelEvent, trackOnboardingError } from '../track-funnel-event'
 
 /**
@@ -31,7 +32,7 @@ function mockSupabase(opts: { error?: { message: string } | null; throwOnInsert?
 describe('trackFunnelEvent', () => {
   it('inserts into user_events with the correct row shape', async () => {
     const supabase = mockSupabase()
-    await trackFunnelEvent(supabase as any, {
+    await trackFunnelEvent(supabase as unknown as SupabaseClient, {
       profileId: 'p1',
       eventType: 'step_viewed',
       payload: { step: 'income' },
@@ -51,7 +52,7 @@ describe('trackFunnelEvent', () => {
 
   it('defaults event_category to "funnel" when category is omitted', async () => {
     const supabase = mockSupabase()
-    await trackFunnelEvent(supabase as any, {
+    await trackFunnelEvent(supabase as unknown as SupabaseClient, {
       profileId: 'p1',
       eventType: 'step_viewed',
     })
@@ -60,7 +61,7 @@ describe('trackFunnelEvent', () => {
 
   it('honours an explicit category override', async () => {
     const supabase = mockSupabase()
-    await trackFunnelEvent(supabase as any, {
+    await trackFunnelEvent(supabase as unknown as SupabaseClient, {
       profileId: 'p1',
       eventType: 'session_started',
       category: 'session',
@@ -70,7 +71,7 @@ describe('trackFunnelEvent', () => {
 
   it('defaults payload to {} when omitted', async () => {
     const supabase = mockSupabase()
-    await trackFunnelEvent(supabase as any, {
+    await trackFunnelEvent(supabase as unknown as SupabaseClient, {
       profileId: 'p1',
       eventType: 'step_viewed',
     })
@@ -79,7 +80,7 @@ describe('trackFunnelEvent', () => {
 
   it('defaults session_id to null when omitted', async () => {
     const supabase = mockSupabase()
-    await trackFunnelEvent(supabase as any, {
+    await trackFunnelEvent(supabase as unknown as SupabaseClient, {
       profileId: 'p1',
       eventType: 'step_viewed',
     })
@@ -91,7 +92,7 @@ describe('trackFunnelEvent', () => {
     const supabase = mockSupabase({ error: { message: 'RLS rejected' } })
 
     await expect(
-      trackFunnelEvent(supabase as any, { profileId: 'p1', eventType: 'step_viewed' })
+      trackFunnelEvent(supabase as unknown as SupabaseClient, { profileId: 'p1', eventType: 'step_viewed' })
     ).resolves.toBeUndefined()
     expect(consoleSpy).toHaveBeenCalled()
     expect(consoleSpy.mock.calls[0][0]).toContain('[funnel-events]')
@@ -104,7 +105,7 @@ describe('trackFunnelEvent', () => {
     const supabase = mockSupabase({ throwOnInsert: new Error('network down') })
 
     await expect(
-      trackFunnelEvent(supabase as any, { profileId: 'p1', eventType: 'step_viewed' })
+      trackFunnelEvent(supabase as unknown as SupabaseClient, { profileId: 'p1', eventType: 'step_viewed' })
     ).resolves.toBeUndefined()
     expect(consoleSpy).toHaveBeenCalled()
     expect(consoleSpy.mock.calls[0][0]).toContain('[funnel-events]')
@@ -116,7 +117,7 @@ describe('trackFunnelEvent', () => {
 describe('trackOnboardingError', () => {
   it('inserts with category "system", event_type "onboarding_error", and a payload with surface + message', async () => {
     const supabase = mockSupabase()
-    await trackOnboardingError(supabase as any, 'p1', 'declared-read-upgrade', new Error('boom'))
+    await trackOnboardingError(supabase as unknown as SupabaseClient, 'p1', 'declared-read-upgrade', new Error('boom'))
 
     expect(supabase._inserts).toHaveLength(1)
     const row = supabase._inserts[0]
@@ -127,7 +128,7 @@ describe('trackOnboardingError', () => {
 
   it('includes any extra fields in the payload', async () => {
     const supabase = mockSupabase()
-    await trackOnboardingError(supabase as any, 'p1', 'surface-x', new Error('boom'), {
+    await trackOnboardingError(supabase as unknown as SupabaseClient, 'p1', 'surface-x', new Error('boom'), {
       step: 'income',
     })
     expect(supabase._inserts[0].payload).toMatchObject({
@@ -140,7 +141,7 @@ describe('trackOnboardingError', () => {
   it('truncates a very long error message to roughly 300 characters', async () => {
     const supabase = mockSupabase()
     const longMessage = 'x'.repeat(1000)
-    await trackOnboardingError(supabase as any, 'p1', 'surface-x', new Error(longMessage))
+    await trackOnboardingError(supabase as unknown as SupabaseClient, 'p1', 'surface-x', new Error(longMessage))
 
     const payload = supabase._inserts[0].payload as Record<string, unknown>
     const message = payload.message as string
@@ -151,7 +152,7 @@ describe('trackOnboardingError', () => {
   it('normalises a non-Error string thrown value into a string message without throwing', async () => {
     const supabase = mockSupabase()
     await expect(
-      trackOnboardingError(supabase as any, 'p1', 'surface-x', 'plain string error')
+      trackOnboardingError(supabase as unknown as SupabaseClient, 'p1', 'surface-x', 'plain string error')
     ).resolves.toBeUndefined()
     expect(supabase._inserts[0].payload).toMatchObject({ message: 'plain string error' })
   })
@@ -159,7 +160,7 @@ describe('trackOnboardingError', () => {
   it('normalises a non-Error object thrown value into a string message without throwing', async () => {
     const supabase = mockSupabase()
     await expect(
-      trackOnboardingError(supabase as any, 'p1', 'surface-x', { code: 'ECONNRESET' })
+      trackOnboardingError(supabase as unknown as SupabaseClient, 'p1', 'surface-x', { code: 'ECONNRESET' })
     ).resolves.toBeUndefined()
     const payload = supabase._inserts[0].payload as Record<string, unknown>
     expect(typeof payload.message).toBe('string')

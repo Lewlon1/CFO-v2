@@ -1218,6 +1218,113 @@ export type Database = {
           },
         ]
       }
+      memory_file_revisions: {
+        Row: {
+          content: string
+          created_at: string
+          description: string
+          file_id: string
+          id: string
+          superseded_by: Database["public"]["Enums"]["memory_actor"]
+          title: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          description: string
+          file_id: string
+          id?: string
+          superseded_by?: Database["public"]["Enums"]["memory_actor"]
+          title: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          description?: string
+          file_id?: string
+          id?: string
+          superseded_by?: Database["public"]["Enums"]["memory_actor"]
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_file_revisions_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "memory_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memory_file_revisions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memory_files: {
+        Row: {
+          archived_at: string | null
+          content: string
+          created_at: string
+          description: string
+          folder: Database["public"]["Enums"]["memory_folder"]
+          id: string
+          pinned: boolean
+          slug: string
+          source: Database["public"]["Enums"]["memory_actor"]
+          title: string
+          updated_at: string
+          updated_by: Database["public"]["Enums"]["memory_actor"]
+          user_edited_at: string | null
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          content: string
+          created_at?: string
+          description: string
+          folder: Database["public"]["Enums"]["memory_folder"]
+          id?: string
+          pinned?: boolean
+          slug: string
+          source?: Database["public"]["Enums"]["memory_actor"]
+          title: string
+          updated_at?: string
+          updated_by?: Database["public"]["Enums"]["memory_actor"]
+          user_edited_at?: string | null
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          content?: string
+          created_at?: string
+          description?: string
+          folder?: Database["public"]["Enums"]["memory_folder"]
+          id?: string
+          pinned?: boolean
+          slug?: string
+          source?: Database["public"]["Enums"]["memory_actor"]
+          title?: string
+          updated_at?: string
+          updated_by?: Database["public"]["Enums"]["memory_actor"]
+          user_edited_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_files_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       merchant_category_map: {
         Row: {
           category_name: string
@@ -2640,6 +2747,8 @@ export type Database = {
         | "retirement_401k"
         | "other"
         | "general"
+      memory_actor: "cfo" | "system" | "user"
+      memory_folder: "goals" | "cashflow" | "values" | "networth"
       review_period: "monthly" | "quarterly" | "yearly"
       risk_tolerance: "conservative" | "moderate" | "aggressive"
       trade_action:
@@ -2879,6 +2988,8 @@ export const Constants = {
         "other",
         "general",
       ],
+      memory_actor: ["cfo", "system", "user"],
+      memory_folder: ["goals", "cashflow", "values", "networth"],
       review_period: ["monthly", "quarterly", "yearly"],
       risk_tolerance: ["conservative", "moderate", "aggressive"],
       trade_action: [

@@ -7,7 +7,11 @@ import type { QuotableFact, ValidationResult } from '@/lib/analytics/insight-typ
 // existing v1 validateNarrative. They enforce four guarantees:
 //  - validateCitations:   numbers/merchants in prose trace back to a tool result
 //  - validateProjections: any /year, /month, "saved", "annually" framing has a
-//                         propose_experiment tool result to back it
+//                         tool result carrying a computed impact band to back
+//                         it. No tool returns one today (the deprecated
+//                         propose_experiment tool was the only producer and was
+//                         removed), so in the live path the allowlist is empty
+//                         and every projection number in a Read is flagged.
 //  - validateVoice:       banned reflexive-CFO phrases are flagged
 //  - validateChips:       generic / navigation / no-narrative-noun chips are
 //                         flagged for stripping
@@ -200,6 +204,295 @@ export function buildCitationAllowlist(
   }
 
   return { numbers, merchants };
+}
+
+/** A computed figure the prose actually cited, tagged with the bundle it came from. */
+export interface CitedFigure {
+  value: number;
+  source: string;
+}
+
+/**
+ * The inverse of validateCitations: instead of the numbers in the prose that
+ * traced to NOTHING, return the ones that traced to SOMETHING — each tagged
+ * with the tool/bundle that produced it.
+ *
+ * This is what makes an error report actionable. When a beta user says a figure
+ * in their Read is wrong, we need to know which computed source handed it to the
+ * model. Persisted onto conversations.metadata.first_read_metadata at compose
+ * time and snapshotted onto read_feedback when a report is filed.
+ *
+ * Only figures present in the narrative are returned — the full allowlist runs
+ * to hundreds of numbers per Read, nearly all of which the user never saw.
+ * Matching uses the same ±1 tolerance as validateCitations, so the two agree on
+ * what counts as "cited". First source wins on a tie, so the result is stable
+ * for a given bundle order. Deduped by value and capped at MAX_CITED_FIGURES.
+ *
+ * Ordered by first appearance in the NARRATIVE, not by bundle — the list reads
+ * in the same sequence the user met the figures, which is the order they will
+ * describe them in when they tell us one is wrong.
+ */
+/**
+ * ─── Surplus / shortfall reconciliation (Session 083) ──────────────────────
+ *
+ * WHY THIS EXISTS: an Aug-2026 Nova Pro A/B produced four Reads that inverted
+ * the user's financial position — "you're £578 short each month" to a user with
+ * £565/month of headroom. The failure was always the same shape: the model
+ * subtracted the CONSERVATIVE monthly requirement from the MODERATE one and
+ * reported that difference as a shortfall against cash flow.
+ *
+ * Neither existing guard caught it. validateCitations passes because every
+ * atomic number is real — the arithmetic over them is what's wrong. The LLM
+ * judge passes it 5/5 because its accuracy dimension asks "is this figure
+ * grounded?", not "is this conclusion correct".
+ *
+ * So this is deliberately NOT an LLM check. The server already computes both
+ * numbers a Read is allowed to assert (`surplusOverRequired` and
+ * `stressTestGap` on the accelerate lever), which makes "is the claim true?"
+ * a pure comparison. CLAUDE.md Rule 2: the system computes, the LLM interprets
+ * — this enforces that the interpretation didn't invent its own arithmetic.
+ */
+
+/**
+ * The server-computed figures a Read's headroom claims must reconcile against.
+ *
+ * Sourced from free cash flow + the monthly REQUIREMENT figures the prompt
+ * itself was built from (the compound-growth band for investment goals, the
+ * straight-line figure otherwise) — deliberately NOT from the accelerate lever
+ * alone. A first pass keyed only on that lever silently skipped every Read that
+ * needed checking, because the lever is absent whenever the goal has no
+ * `monthly_required_saving` or gets dropped by the facts reconciliation, which
+ * is exactly the case in the observed regressions.
+ */
+export interface SurplusGroundTruth {
+  /** free_cash_flow the Read was handed. Null when unknown. */
+  freeCashFlow: number | null;
+  /** Every monthly requirement the prompt offered (band values, or the straight-line figure). */
+  requirements: number[];
+  /** accelerate lever's surplusOverRequired, when the lever exists. Corroboration only. */
+  surplusOverRequired: number | null;
+  /** accelerate lever's stressTestGap: extra monthly need at the conservative rate. 0 = covered. */
+  stressTestGap: number | null;
+  /**
+   * False when a supply_input blocker gates the goal math (no target date, no
+   * target amount). Nothing numeric about pace can be asserted at all — the
+   * Read may say a figure is missing, never that the user is £X short.
+   */
+  paceComputable: boolean;
+}
+
+export interface SurplusClaim {
+  kind: 'shortfall' | 'surplus';
+  value: number;
+  /** The matched text, so a violation log points at the sentence to fix. */
+  phrase: string;
+}
+
+export interface ReconciliationViolation {
+  claim: SurplusClaim;
+  reason: string;
+}
+
+export interface ReconciliationResult {
+  valid: boolean;
+  claims: SurplusClaim[];
+  violations: ReconciliationViolation[];
+  /** True when the ground truth was too thin to check anything (no goal at all). */
+  skipped: boolean;
+}
+
+// "you're £62 short", "£578 short each month", "short by £300", "that £62 gap"
+const SHORTFALL_PATTERNS: RegExp[] = [
+  /[£€$]\s?([\d,]+(?:\.\d+)?)\s+short\b/gi,
+  /\bshort\s+by\s+[£€$]\s?([\d,]+(?:\.\d+)?)/gi,
+  /[£€$]\s?([\d,]+(?:\.\d+)?)\s+(?:gap|shortfall|deficit)\b/gi,
+];
+
+// "with £283 to spare", "£221 left", "£463 surplus", "£1,099/mo to spare"
+const SURPLUS_PATTERNS: RegExp[] = [
+  /[£€$]\s?([\d,]+(?:\.\d+)?)\s*(?:\/mo|\/month|\s+a\s+month|\s+each\s+month)?\s+(?:to\s+spare|spare\b|left\s+over|left\b|surplus\b|headroom\b)/gi,
+];
+
+function collect(narrative: string, patterns: RegExp[], kind: SurplusClaim['kind']): SurplusClaim[] {
+  const out: SurplusClaim[] = [];
+  for (const re of patterns) {
+    // Patterns are module-level with /g, so lastIndex must be reset per call —
+    // otherwise a second invocation resumes mid-string and silently misses claims.
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(narrative)) !== null) {
+      const value = Number(m[1].replace(/,/g, ''));
+      if (Number.isFinite(value)) out.push({ kind, value, phrase: m[0].trim() });
+    }
+  }
+  return out;
+}
+
+/** Every numeric headroom/shortfall assertion in the prose. */
+export function extractSurplusClaims(narrative: string): SurplusClaim[] {
+  return [...collect(narrative, SHORTFALL_PATTERNS, 'shortfall'), ...collect(narrative, SURPLUS_PATTERNS, 'surplus')];
+}
+
+/**
+ * Check every surplus/shortfall claim against the server's own figures.
+ *
+ * Deliberately asymmetric. A claimed SHORTFALL is checked hard — inventing a
+ * deficit for a funded user is the failure mode that actually happened, and
+ * it's the one that does real damage. A claimed SURPLUS is only flagged when
+ * the ground truth says no headroom exists at all: a correct Read legitimately
+ * quotes several scenario headrooms ("£283 to spare" at plan, "£221 left" at
+ * the stress rate) and only the plan-rate one equals surplusOverRequired, so
+ * requiring an exact match on every surplus claim would fire on good Reads.
+ *
+ * Tolerance is ±1 currency unit, matching validateCitations.
+ */
+export function validateSurplusClaims(
+  narrative: string,
+  truth: SurplusGroundTruth,
+): ReconciliationResult {
+  const claims = extractSurplusClaims(narrative);
+  const violations: ReconciliationViolation[] = [];
+
+  const hasRequirementTruth = truth.freeCashFlow != null && truth.requirements.length > 0;
+  const hasLeverTruth = truth.surplusOverRequired !== null || truth.stressTestGap !== null;
+
+  // Nothing to check against: no goal, no requirement, no lever. Skip rather
+  // than guess — but the caller logs this, because a Read that asserts a
+  // shortfall with no goal context at all is still worth a human look.
+  if (truth.paceComputable && !hasRequirementTruth && !hasLeverTruth) {
+    return { valid: true, claims, violations: [], skipped: true };
+  }
+
+  const fcf = truth.freeCashFlow ?? 0;
+  // Real deficits and real headrooms, derived the only legitimate way:
+  // requirement vs free cash flow.
+  const deficits = hasRequirementTruth
+    ? truth.requirements.filter((r) => r > fcf).map((r) => r - fcf)
+    : [];
+  const headrooms = hasRequirementTruth
+    ? truth.requirements.filter((r) => r <= fcf).map((r) => fcf - r)
+    : [];
+  const near = (a: number, b: number) => Math.abs(a - b) <= 1;
+
+  for (const claim of claims) {
+    if (!truth.paceComputable) {
+      violations.push({
+        claim,
+        reason:
+          'goal pace is not computable (a supply_input blocker is active), so no numeric ' +
+          'shortfall or headroom can be asserted at all',
+      });
+      continue;
+    }
+
+    if (claim.kind === 'shortfall') {
+      // A real stressTestGap is the most specific truth available — prefer it.
+      if (truth.stressTestGap !== null && truth.stressTestGap > 0) {
+        if (!near(claim.value, truth.stressTestGap)) {
+          violations.push({
+            claim,
+            reason: `claims a shortfall of ${claim.value} but the computed stressTestGap is ${truth.stressTestGap}`,
+          });
+        }
+        continue;
+      }
+      if (hasRequirementTruth) {
+        if (deficits.length === 0) {
+          violations.push({
+            claim,
+            reason:
+              `claims a shortfall of ${claim.value} but free cash flow (${fcf}) covers every ` +
+              `monthly requirement [${truth.requirements.join(', ')}] — there is no shortfall`,
+          });
+        } else if (!deficits.some((d) => near(claim.value, d))) {
+          violations.push({
+            claim,
+            reason:
+              `claims a shortfall of ${claim.value}; the only real shortfalls against free cash ` +
+              `flow (${fcf}) are [${deficits.map((d) => Math.round(d)).join(', ')}]`,
+          });
+        }
+        continue;
+      }
+      // Lever-only fallback: covered at plan and at the stress rate.
+      if (truth.surplusOverRequired !== null && truth.surplusOverRequired > 0) {
+        violations.push({
+          claim,
+          reason:
+            `claims a shortfall of ${claim.value} but the goal is covered — ` +
+            `surplusOverRequired is ${truth.surplusOverRequired}`,
+        });
+      }
+      continue;
+    }
+
+    // Surplus claim: flagged only when NO headroom exists at all. A correct Read
+    // quotes several scenario headrooms and only the plan-rate one equals
+    // surplusOverRequired, so match-checking each would fire on good Reads.
+    if (hasRequirementTruth) {
+      if (headrooms.length === 0) {
+        violations.push({
+          claim,
+          reason:
+            `claims ${claim.value} of headroom but free cash flow (${fcf}) covers none of the ` +
+            `monthly requirements [${truth.requirements.join(', ')}]`,
+        });
+      }
+      continue;
+    }
+    if (truth.surplusOverRequired !== null && truth.surplusOverRequired <= 0) {
+      violations.push({
+        claim,
+        reason:
+          `claims ${claim.value} of headroom but surplusOverRequired is ` +
+          `${truth.surplusOverRequired} — the goal is not funded at plan`,
+      });
+    }
+  }
+
+  return { valid: violations.length === 0, claims, violations, skipped: false };
+}
+
+export const MAX_CITED_FIGURES = 40;
+
+export function extractCitedFigures(
+  narrative: string,
+  toolResults: ToolResultLike[],
+): CitedFigure[] {
+  // Per-source number sets. Each walk gets its OWN visited set: the shared one
+  // in buildCitationAllowlist is fine for a union, but here it would let a
+  // bundle that shares an object reference with an earlier one silently lose
+  // its numbers.
+  const bySource: Array<{ source: string; numbers: Set<number> }> = toolResults.map((result) => {
+    const numbers = new Set<number>();
+    const merchants = new Set<string>();
+    walkForCitations(result.output, numbers, merchants, new WeakSet<object>());
+    return { source: result.toolName, numbers };
+  });
+
+  const figures: CitedFigure[] = [];
+  const seen = new Set<number>();
+
+  for (const cited of extractNumbers(narrative)) {
+    if (seen.has(cited)) continue;
+    for (const { source, numbers } of bySource) {
+      let matched = false;
+      for (const allowed of numbers) {
+        if (Math.abs(cited - allowed) <= 1) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched) {
+        seen.add(cited);
+        figures.push({ value: cited, source });
+        break;
+      }
+    }
+    if (figures.length >= MAX_CITED_FIGURES) break;
+  }
+
+  return figures;
 }
 
 export interface CitationCheckResult {
